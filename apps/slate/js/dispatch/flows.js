@@ -7,82 +7,106 @@
 import { S } from './state.js';
 import { h, md, plural, asking, isBusy, itemSession, autoIs, bucketOf, noteCommand, liveNote } from './view.js';
 
-/** The presets, in the order Start work shows them. `you`: the step stops for you. `file`: what the step writes
- *  (read inline on the run page). `start`: the form Start work shows. */
+/** The presets. PICKER is the order Start work shows them (Loom flow cards, claude/loom-flow-cards-v1-plan.md): the
+ *  cards are the main way work starts, and every flow ends on a finish (Ship and Resolve, a fork, Save, Create in ADO).
+ *  `you`: the step stops for you (`'blockers'`: only when the review finds blockers it cannot turn into fix tasks).
+ *  `quiet`: shown on the run page only, not as a dot (Set up is not a decision). `fork`: the step ends with path cards.
+ *  `file`: what the step writes (read inline on the run page). `start`: the form Start work shows. `board`: the flow
+ *  runs on the board (a card's stages), not in a .work folder. `picker: false`: kept for runs, never a card. */
+const SET_UP = { key: 'start', name: 'Set up', quiet: true, file: 'repos.md', what: 'Fetches the work item, picks the repos and makes branches. The lane comes from the work item type.' };
+const REVIEW = what => ({ key: 'review', name: 'Review', you: 'blockers', file: 'review.md', what: what + ' Stops for you only when it finds blockers it cannot turn into fix tasks.' });
+const SHIP = { key: 'ship', also: ['pr'], name: 'Ship', you: true, file: 'pr.md', what: 'Tandem writes the PR text. You read the diff, push and create the PR. Once it merges, Resolve in ADO finishes it.' };
 export const FLOWS = [
   {
-    id: 'feature', name: 'Build a feature', tag: 'Feature', when: 'New behavior, or more than 3 files of change.', handsOff: true, start: 'item', lane: 'feature',
+    id: 'request', name: 'Handle a request', tag: 'Request', when: 'Someone asked for something. Triage it, then pick the path.', start: 'request', board: true,
     steps: [
-      { key: 'start', name: 'Set up', file: 'repos.md', what: 'Fetches the work item, picks the repos and makes branches. The lane comes from the work item type.' },
+      { key: 'triage', name: 'Triage', you: true, fork: true, what: 'Reads the request and the code and says what is missing. Then you pick: interview, skip to the brief, or decline. Waiting on the requester pauses it.' },
+      { key: 'interview', name: 'Interview', you: true, what: 'A round of questions at a time, until the request is understood.' },
+      { key: 'brief', name: 'Brief', you: true, fork: true, what: 'Read the brief, then pick: build it, fix it, investigate, hand it to a person, or decline.' }
+    ]
+  },
+  {
+    id: 'feature', name: 'Build a feature', tag: 'Feature', when: 'New behavior. An ADO item, or describe it. Small changes get one short plan.', handsOff: true, start: 'item', lane: 'feature',
+    steps: [
+      SET_UP,
       // One gate (eng-agents Core 4.0.0): /spec writes the spec, the plan and the tasks; one /approve covers them.
       { key: 'spec', also: ['plan', 'tasks'], name: 'Spec and plan', you: true, file: 'spec.md', what: 'Asks at most 3 questions, then writes the spec, the plan (files, pattern to follow, test plan) and small tasks in one go. You approve them once.' },
       { key: 'build', name: 'Build', file: 'progress.md', what: 'One task per fresh session, test first, a commit each.' },
-      { key: 'review', name: 'Review', file: 'review.md', what: 'Checks the work against the spec, then the code quality. Blockers become fix tasks.' },
-      { key: 'pr', name: 'PR text', file: 'pr.md', what: 'A short title and description for each repo.' },
-      { key: 'ship', name: 'Ship', you: true, file: 'pr.md', what: 'You read the diff, approve and push, then create the PR.' }
+      REVIEW('Checks the work against the spec, then the code quality. Blockers become fix tasks.'),
+      SHIP
     ]
   },
   {
-    id: 'bug', name: 'Fix a bug', tag: 'Bug', when: 'A defect you can reproduce.', handsOff: true, start: 'item', lane: 'bug',
+    id: 'bug', name: 'Fix a bug', tag: 'Bug', when: 'A defect you can reproduce. An ADO item, or describe it.', handsOff: true, start: 'item', lane: 'bug',
     steps: [
-      { key: 'start', name: 'Set up', file: 'repos.md', what: 'Fetches the work item, picks the repos and makes branches. The lane comes from the work item type.' },
-      { key: 'bug', name: 'Root cause', you: true, file: 'bug.md', what: 'Who is affected, the code path and the root cause, with at most 3 tasks and other places with the same flaw. You approve it.' },
+      SET_UP,
+      { key: 'bug', name: 'Root cause', you: true, file: 'bug.md', what: 'A repro with evidence, the code path and the root cause, with at most 3 tasks and other places with the same flaw. You approve it.' },
       { key: 'build', name: 'Fix', file: 'progress.md', what: 'A failing test first, then the fix. One task per fresh session.' },
-      { key: 'review', name: 'Review', file: 'review.md', what: 'Checks the fix against the bug write-up, then the code quality.' },
-      { key: 'pr', name: 'PR text', file: 'pr.md', what: 'A short title and description for each repo.' },
-      { key: 'ship', name: 'Ship', you: true, file: 'pr.md', what: 'You read the diff, approve and push, then create the PR.' }
+      REVIEW('Checks the fix against the bug write-up, then the code quality.'),
+      SHIP
     ]
   },
   {
-    id: 'small', name: 'Small change', tag: 'Small', when: 'One repo, 1 or 2 tasks, no schema or API change. One short file instead of a spec and a plan.', handsOff: true, start: 'item', lane: 'quick',
+    id: 'spike', name: 'Investigate', tag: 'Spike', when: "A question you can't spec yet. No code changes.", start: 'spike', kind: 'spike',
     steps: [
-      { key: 'start', name: 'Set up', file: 'repos.md', what: 'Fetches the work item, picks the repo and makes the branch.' },
-      { key: 'quick', name: 'Quick plan', you: true, file: 'quick.md', what: 'Acceptance criteria, files and a pattern to follow in one file, plus at most 2 tasks. You approve once. Bigger work steps up to the feature lane on its own.' },
-      { key: 'build', name: 'Build', file: 'progress.md', what: 'One task per fresh session, test first, a commit each.' },
-      { key: 'review', name: 'Review', file: 'review.md', what: 'Checks the work against quick.md, then the code quality. Blockers become fix tasks.' },
-      { key: 'pr', name: 'PR text', file: 'pr.md', what: 'A short title and description for the repo.' },
-      { key: 'ship', name: 'Ship', you: true, file: 'pr.md', what: 'You read the diff, approve and push, then create the PR.' }
-    ]
-  },
-  {
-    id: 'quick', name: 'Quick change', tag: 'Quick change', when: 'No ADO item. Describe it, then it runs as a feature or a bug.', handsOff: true, start: 'describe',
-    steps: null // the feature or bug steps, by the lane you pick
-  },
-  {
-    id: 'spike', name: 'Investigate', tag: 'Spike', when: "You don't know enough to spec it yet. No code changes.", start: 'spike', kind: 'spike',
-    steps: [
-      { key: 'investigate', name: 'Investigate', file: 'findings.md', what: 'Reads the code and answers with up to 3 options and one recommendation, written for leadership first.' },
-      { key: 'findings', name: 'Read the findings', you: true, file: 'findings.md', what: 'Read the answer. Start work from it when it is ready.' }
+      { key: 'investigate', name: 'Investigate', file: 'findings.md', what: 'Reads the code and answers your question with up to 3 options and one recommendation, within the timebox if you set one.' },
+      { key: 'findings', name: 'Findings', you: true, fork: true, file: 'findings.md', what: 'Read the answer, then pick: build it, fix it, write it up, save it as a note, or close it.' }
     ]
   },
   {
     id: 'epic', name: 'Plan an epic', tag: 'Epic', when: 'An idea with no work items yet: epic, features and stories.', start: 'epic', kind: 'scope',
     steps: [
       { key: 'scope', name: 'Scope', file: 'stories.md', what: 'Asks at most 3 questions, then writes the epic (epics.md) and light stories (stories.md): what and why, 1 to 3 outcome-only scenarios each. Engineering decides how.' },
-      { key: 'stories', name: 'Approve stories', you: true, file: 'stories.md', what: 'Read epics.md and stories.md. Approve them, or send them back with a note.' },
+      { key: 'stories', name: 'Stories', you: true, file: 'stories.md', what: 'Read epics.md and stories.md. Approve them, or send them back with a note.' },
       { key: 'slice', name: 'Slice', file: 'milestones.md', what: 'Puts features and stories in build order (milestones.md). Each feature gets a short description and a release note; code pointers stay local as notes for the builder.' },
-      { key: 'milestones', name: 'Approve milestones', you: true, file: 'milestones.md', what: 'Read milestones.md. Approve it, or send it back with a note.' },
-      { key: 'backlog', name: 'Backlog', file: 'milestones.md', what: 'An ADO import file (backlog.csv), ADO items, or local items, one per story. Features carry their release note; builder notes stay local.' }
+      { key: 'milestones', name: 'Milestones', you: true, file: 'milestones.md', what: 'Read milestones.md. Approve it, or send it back with a note.' },
+      { key: 'backlog', name: 'Create in ADO', you: true, file: 'milestones.md', what: 'Your click creates the ADO items (a dry run and your yes first), one per story, with parent links. Each story then gets a card in Decide.' }
     ]
   },
   {
-    id: 'docs', name: 'Write docs', tag: 'Docs', when: 'New or updated documentation, fact-checked against the code.', start: 'docs', kind: 'docs',
+    id: 'handoff', name: 'Hand to a person', tag: 'Hand-off', when: 'Someone else should build it. Define it, assign it, follow it.', start: 'handoff', board: true,
+    steps: [
+      { key: 'define', name: 'Define', you: true, what: 'Tandem drafts one story (description and acceptance criteria). You approve it; it is published to ADO.' },
+      { key: 'assign', name: 'Assign', you: true, what: 'Pick who and assign it in ADO, in one step. A brief for them and a Docket follow-up are options.' },
+      { key: 'with', name: 'With them', what: 'Tracked on the board until it merges. If nothing moves in 3 working days, the Inbox nudges you.' },
+      { key: 'resolve', name: 'Resolve', you: true, what: 'Merged: Resolve in ADO finishes it.' }
+    ]
+  },
+  {
+    id: 'docs', name: 'Write docs', tag: 'Docs', when: 'New or updated docs, or a technical spec with diagrams, fact-checked against the code.', start: 'docs', kind: 'docs',
     steps: [
       { key: 'draft', name: 'Draft', file: 'sources.md', what: 'Picks where the doc lives, who reads it and what they need (it tells you, so you can change them), then writes it.' },
+      { key: 'read', name: 'Read draft', you: true, file: 'sources.md', what: 'Read the doc. When it says the right things, send it to the fact-check.' },
       { key: 'check', name: 'Fact-check', file: 'check.md', what: 'A new session checks every claim against the code.' },
-      { key: 'fix', name: 'Fix', you: true, file: 'check.md', what: 'Read check.md and fix anything it flags.' }
+      { key: 'final', name: 'Final read', you: true, file: 'check.md', what: 'Fix anything check.md flags.' },
+      { key: 'save', name: 'Save', you: true, fork: true, file: 'sources.md', what: 'Pick where it goes: the repo (approved in place; you commit it and open the PR) or Folio.' }
     ]
   },
+  // Technical spec: a Write docs type since flow cards v1 (picked on the Write docs form). Kept for tsd- folders.
   {
-    id: 'tsd', name: 'Technical spec', tag: 'TSD', when: 'A product or repos told through diagrams.', start: 'tsd', kind: 'tsd',
+    id: 'tsd', name: 'Technical spec', tag: 'TSD', when: 'A product or repos told through diagrams.', start: 'docs', kind: 'tsd', picker: false,
     steps: [
       { key: 'draft', name: 'Draft', file: 'tsd.md', what: 'Lists what is there, picks the flows to diagram (it tells you, so you can swap them), then writes tsd.md.' },
+      { key: 'read', name: 'Read draft', you: true, file: 'tsd.md', what: 'Read tsd.md. When it tells the right story, send it to the fact-check.' },
       { key: 'check', name: 'Fact-check', file: 'check.md', what: 'A new session checks every box and arrow against the code.' },
-      { key: 'revise', name: 'Revise', you: true, file: 'check.md', what: 'Fix what check.md flags: edit tsd.md, or run /tsd again.' },
-      { key: 'publish', name: 'Publish', you: true, file: 'tsd.md', what: 'Approves it and copies it to the product docs folder. You commit it.' }
+      { key: 'final', name: 'Final read', you: true, file: 'check.md', what: 'Fix what check.md flags: edit tsd.md, or run /tsd again.' },
+      { key: 'save', name: 'Save', you: true, file: 'tsd.md', what: 'Publish approves it and copies it to the product docs folder. You commit it.' }
+    ]
+  },
+  // Small change: a Build a feature option since flow cards v1 (the quick lane). Kept for quick-lane runs.
+  {
+    id: 'small', name: 'Small change', tag: 'Small', when: 'One repo, 1 or 2 tasks, no schema or API change.', handsOff: true, start: 'item', lane: 'quick', picker: false,
+    steps: [
+      { ...SET_UP, what: 'Fetches the work item, picks the repo and makes the branch.' },
+      { key: 'quick', name: 'Quick plan', you: true, file: 'quick.md', what: 'Acceptance criteria, files and a pattern to follow in one file, plus at most 2 tasks. You approve once. Bigger work steps up to the feature lane on its own.' },
+      { key: 'build', name: 'Build', file: 'progress.md', what: 'One task per fresh session, test first, a commit each.' },
+      REVIEW('Checks the work against quick.md, then the code quality. Blockers become fix tasks.'),
+      SHIP
     ]
   }
 ];
+/** The flow cards, in order. */
+export const PICKER = FLOWS.filter(f => f.picker !== false);
 export const FLOW_IDS = FLOWS.map(f => f.id);
 export const flowById = id => FLOWS.find(f => f.id === id) || null;
 /** The steps of a flow; Quick change has the feature, small or bug steps, by its lane. */
@@ -111,7 +135,13 @@ export function flowTag(it) {
 export const isSlateFolder = it => !!it && /^(triage|shape|refine|handoff)-/.test(it.folder || '');
 
 // ------------------------------------------------------------------ where a run is
-const SCOPE_AT = { 'Scoping': 0, 'Stories in review': 1, 'Stories approved': 2, 'Milestones in review': 3, 'Milestones approved': 4, 'Import file ready': 5, 'Work items created': 5 };
+// 'Import file ready' still waits at Create in ADO: the CSV is made, but nothing is in ADO until you import or click.
+const SCOPE_AT = { 'Scoping': 0, 'Stories in review': 1, 'Stories approved': 2, 'Milestones in review': 3, 'Milestones approved': 4, 'Import file ready': 4, 'Work items created': 5 };
+/** True while the folder's session runs /check-docs: the run is at Fact-check, not at Read draft. */
+function checking(it) {
+  const s = itemSession(it);
+  return !!(s && isBusy(s) && /^\/check-docs\b/.test(String(s.command || '')));
+}
 /** The index of the step the run is at. steps.length means every step is done. -1: unknown. */
 export function stepIndex(it) {
   const f = flowOf(it);
@@ -123,25 +153,28 @@ export function stepIndex(it) {
     return i;
   }
   const st = String(it.state || '');
-  if (f.id === 'spike') return /^Findings written/i.test(st) ? 1 : 0;
+  if (f.id === 'spike') return /^Closed/i.test(st) ? 2 : /^Findings written/i.test(st) ? 1 : 0;
   if (f.id === 'epic') return Object.prototype.hasOwnProperty.call(SCOPE_AT, st) ? SCOPE_AT[st] : 0;
-  if (f.id === 'docs') return /^Fact-checked/i.test(st) ? 2 : /^Written/i.test(st) ? 1 : 0;
+  // Draft, Read draft (you), Fact-check, Final read (you), Save (you): flow cards v1.
+  if (f.id === 'docs') {
+    if (/^Saved/i.test(st)) return 5;
+    if (/^Fact-checked/i.test(st)) return 3;
+    if (/^Written/i.test(st)) return checking(it) ? 2 : 1;
+    return 0;
+  }
   if (f.id === 'tsd') {
-    if (/^Published/i.test(st)) return 4;
-    if (/^Draft, fact-checked/i.test(st)) return 3;
-    if (/^Draft, fact-check found/i.test(st)) return 2;
-    if (/^Draft, not fact-checked/i.test(st)) return 1;
+    if (/^Published/i.test(st)) return 5;
+    if (/^Draft, fact-check/i.test(st)) return 3;
+    if (/^Draft, not fact-checked/i.test(st)) return checking(it) ? 2 : 1;
     return 0;
   }
   return -1;
 }
-/** Every step done (an epic with its backlog made, a published TSD), or a spike or doc there is nothing more to run on. */
+/** Every step done: an epic with its items in ADO, a doc saved, a published TSD, a spike you closed or took on. */
 export function isFinished(it) {
   const f = flowOf(it);
   if (!f || it.kind === 'item') return false;
-  const i = stepIndex(it);
-  if (i >= stepsOf(f).length) return true;
-  return (f.id === 'spike' && i === 1) || (f.id === 'docs' && i === 2);
+  return stepIndex(it) >= stepsOf(f).length;
 }
 /** The step in view: the one the run is at, or the last one once every step is done. */
 export function currentStep(it) {
@@ -168,17 +201,16 @@ export function hereWords(it, step) {
 }
 
 /** True when the run waits on you at a gate (not an agent prompt: those are their own Inbox rows). Work items use
- *  the pipeline's own answer (bucket needs, autopilot waiting); an epic waits at its two approvals; a TSD from its
- *  fact-check to publish. Spikes and docs never block anything, so they stay in Work. */
+ *  the pipeline's own answer (bucket needs, autopilot waiting). Everything else waits at each step that stops for
+ *  you (flow cards v1): an epic's approvals and Create in ADO, a doc's or TSD's two reads, a spike's findings. */
 export function atGate(it) {
   if (!it || it.paused) return false;
   if (it.kind === 'item') return bucketOf(it) === 'needs' && !asking(it);
   const f = flowOf(it);
   if (!f || asking(it) || isBusy(itemSession(it))) return false;
   const i = stepIndex(it);
-  if (f.id === 'epic') return i === 1 || i === 3;
-  if (f.id === 'tsd') return i === 2 || i === 3;
-  return false;
+  const steps = stepsOf(f);
+  return i >= 0 && i < steps.length && steps[i].you === true;
 }
 
 /** Whose turn it is, in plain words: "Your turn: read the spec", "Tandem: writing the plan". Escaped HTML. */
@@ -199,12 +231,23 @@ export function turnHtml(it) {
     return what ? '<span class="turnw t-next">Up next:</span> ' + what : '';
   }
   if (isFinished(it)) {
-    if (it.kind === 'spike') return '<span class="turnw t-done">Findings are ready.</span>' + (it.recommendation ? ' ' + md(it.recommendation) : '');
+    if (it.kind === 'spike') return '<span class="turnw t-done">Closed.</span>' + (it.nextText ? ' ' + md(liveNote(it.nextText)) : '');
     return '<span class="turnw t-done">Done.</span>' + (it.nextText ? ' ' + md(liveNote(it.nextText)) : '');
   }
+  const f = flowOf(it);
+  const said = step && step.you && f && (YOUR_TURN[f.id + '.' + step.key] || YOUR_TURN[step.key]);
+  if (said) return '<span class="turnw t-you">Your turn:</span> ' + h(said) + (step.key === 'findings' && it.recommendation ? ' ' + md(it.recommendation) : '');
   const nx = it.nextText ? md(liveNote(it.nextText)) : '';
   return step && step.you ? '<span class="turnw t-you">Your turn:</span> ' + (nx || h(step.name.toLowerCase())) : nx ? '<span class="turnw t-next">Up next:</span> ' + nx : '';
 }
+// What you do at a folder flow's stop, in plain words (flow cards v1).
+const YOUR_TURN = {
+  findings: 'read the findings, then pick what is next.',
+  read: 'read the draft, then send it to the fact-check.',
+  final: 'fix what check.md flags, then pick where it goes.',
+  'tsd.final': 'fix what check.md flags, then publish it.',
+  backlog: 'create the items in ADO.'
+};
 function stepWords(it, cmd) {
   const p = String(cmd).split(/\s+/), name = p[0].replace(/^\//, '');
   if (name === 'do-task') {
@@ -229,7 +272,7 @@ export function gateFile(it) {
   } else {
     const step = currentStep(it);
     if (!step || !atGate(it)) return null;
-    f = step.key === 'publish' ? 'tsd.md' : step.file;
+    f = step.file;
   }
   return f && files.includes(f) ? f : null;
 }
@@ -289,15 +332,42 @@ export function folderCommand(it) {
 }
 
 // ------------------------------------------------------------------ drawing
-/** The dots of a flow, for a Start work card: one per step, a ring on the ones that stop for you. */
+/** The steps shown as dots, marks and "Step 2 of 4": Set up is left out (it is not a decision). */
+export const shownSteps = steps => (steps || []).filter(s => !s.quiet);
+const stopWords = s => s.you === 'blockers' ? ' (you, only on blockers)' : s.you ? ' (you)' : '';
+const stopCls = s => s.you === 'blockers' ? 'maybe' : s.you ? 'you' : '';
+/** The dots of a flow, for a Start work card: one per step, a ring on the ones that stop for you (a dashed ring:
+ *  only sometimes). */
 export function dotsHtml(steps) {
-  return `<span class="fdots" aria-hidden="true">${steps.map(s => `<i class="${s.you ? 'you' : ''}" title="${h(s.name)}"></i>`).join('')}</span>`;
+  return `<span class="fdots" aria-hidden="true">${shownSteps(steps).map(s => `<i class="${stopCls(s)}" title="${h(s.name + stopWords(s))}"></i>`).join('')}</span>`;
 }
 /** The steps as a sentence, for screen readers and the card's text. */
 export function stepsLine(steps) {
-  return steps.map(s => s.name + (s.you ? ' (you)' : '')).join(', ');
+  return shownSteps(steps).map(s => s.name + stopWords(s)).join(', ');
 }
-export function youCount(steps) { return steps.filter(s => s.you).length; }
+/** How many steps always stop for you. */
+export function youCount(steps) { return shownSteps(steps).filter(s => s.you === true).length; }
+/** Where the run is among the shown steps: {i, n, step}. A run at Set up shows as before its first shown step. */
+function shownAt(it) {
+  const steps = stepsOf(flowOf(it), it.lane);
+  const shown = shownSteps(steps);
+  const i = stepIndex(it);
+  if (i < 0) return null;
+  if (i >= steps.length) return { i: shown.length, n: shown.length, step: null };
+  const at = shown.indexOf(steps[i]);
+  return at >= 0 ? { i: at, n: shown.length, step: steps[i] } : { i: 0, n: shown.length, step: steps[i], before: true };
+}
+
+/** Path cards at a fork (flow cards v1): 2 to 5 choices, each a title and a line on what happens. `cards`:
+ *  [{label, desc, attrs, primary, disabled, title}], where attrs is the button's data attributes as HTML (trusted:
+ *  built here, values escaped by the caller). */
+export function forkHtml(cards, label = 'Pick the next path') {
+  const list = (cards || []).filter(Boolean);
+  if (!list.length) return '';
+  return `<div class="forks" role="group" aria-label="${h(label)}">${list.map(c =>
+    `<button type="button" class="fork${c.primary ? ' rec' : ''}"${c.attrs ? ' ' + c.attrs : ''}${c.title ? ` title="${h(c.title)}"` : ''}${c.disabled ? ' disabled' : ''}>` +
+    `<span class="fk-t">${h(c.label)}${c.primary ? '<span class="fk-rec">Suggested</span>' : ''}</span><span class="fk-d">${h(c.desc || '')}</span></button>`).join('')}</div>`;
+}
 
 /** The run page's step track: every step is a button; done steps checked, the current one filled, later ones faint.
  *  A ring marks the steps that stop for you. `sel`: the step in view. */
@@ -312,8 +382,8 @@ export function flowTrackHtml(it, sel) {
   steps.forEach((s, j) => {
     const done = idx >= 0 && (j < idx || idx >= steps.length);
     const now = j === idx;
-    const cls = ['fstep', done ? 'done' : now ? 'here' : 'later', s.you ? 'you' : '', sel === s.key ? 'sel' : ''].filter(Boolean).join(' ');
-    const sub = now ? here : done ? 'Done' : s.you ? 'Stops for you' : '';
+    const cls = ['fstep', done ? 'done' : now ? 'here' : 'later', stopCls(s), sel === s.key ? 'sel' : ''].filter(Boolean).join(' ');
+    const sub = now ? here : done ? 'Done' : s.you === 'blockers' ? 'Only on blockers' : s.you ? 'Stops for you' : '';
     out += `<li class="${cls}"><button type="button" data-step="${h(s.key)}" aria-pressed="${sel === s.key}" title="${h(s.what)}">` +
       `<span class="dot">${done ? CHECK : ''}</span><span class="nm">${h(s.name)}</span><span class="sub">${h(sub)}</span></button></li>`;
   });
@@ -321,41 +391,38 @@ export function flowTrackHtml(it, sel) {
 }
 const CHECK = '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 6.3l2.3 2.3 4.7-5"/></svg>';
 
-/** A one-line "Step 3 of 8: Plan" for rows. */
+/** A one-line "Step 2 of 4: Build" for rows. Set up is not counted. */
 export function stepLine(it) {
-  const f = flowOf(it);
-  if (!f) return '';
-  const steps = stepsOf(f, it.lane);
-  const i = stepIndex(it);
-  if (i < 0) return '';
-  if (i >= steps.length) return 'Every step done';
-  let s = `Step ${i + 1} of ${steps.length}: ${steps[i].name}`;
-  if (steps[i].key === 'build' && it.tasks && it.tasks.total) s += ` ${it.tasks.done}/${it.tasks.total}`;
+  const at = shownAt(it);
+  if (!at) return '';
+  if (!at.step) return 'Every step done';
+  if (at.before) return `Setting up, then ${at.n} steps`;
+  let s = `Step ${at.i + 1} of ${at.n}: ${at.step.name}`;
+  if (at.step.key === 'build' && it.tasks && it.tasks.total) s += ` ${it.tasks.done}/${it.tasks.total}`;
   return s;
 }
-/** A small progress bar of the flow for rows and Inbox cards: one segment per step. */
+/** A small progress bar of the flow for rows and Inbox cards: one mark per shown step. */
 export function miniTrack(it) {
-  const steps = stepsOf(flowOf(it), it.lane);
-  const i = stepIndex(it);
-  if (!steps.length || i < 0) return '';
-  const done = i >= steps.length;
-  const here = done ? null : steps[i];
-  const label = done ? 'Done' : `Step ${i + 1} of ${steps.length}: ${here.name}`;
+  const at = shownAt(it);
+  const shown = shownSteps(stepsOf(flowOf(it), it.lane));
+  if (!at || !shown.length) return '';
+  const done = !at.step;
+  const label = done ? 'Done' : at.before ? 'Setting up' : `Step ${at.i + 1} of ${at.n}: ${at.step.name}`;
   // One small mark per step, its name on hover; the current step's name is written out next to them (Loom UX v1).
-  const marks = steps.map((s, j) => {
-    const cls = j < i || done ? 'done' : j === i ? 'here' : '';
-    return `<i class="${cls}${s.you ? ' you' : ''}" title="${h(s.name + (s.you ? ' (you)' : ''))}">${cls === 'done' ? CHECK : ''}</i>`;
+  const marks = shown.map((s, j) => {
+    const cls = done || j < at.i ? 'done' : j === at.i && !at.before ? 'here' : '';
+    return `<i class="${cls}${s.you === true ? ' you' : s.you ? ' maybe' : ''}" title="${h(s.name + stopWords(s))}">${cls === 'done' ? CHECK : ''}</i>`;
   }).join('');
-  return `<span class="mtrack" role="img" aria-label="${h(label)}">${marks}</span><span class="mstep">${h(done ? 'Done' : here.name)}</span>`;
+  return `<span class="mtrack" role="img" aria-label="${h(label)}">${marks}</span><span class="mstep">${h(done ? 'Done' : at.before ? 'Set up' : at.step.name)}</span>`;
 }
 
 /** The Start work card for one flow. */
 export function flowCardHtml(f) {
-  const steps = stepsOf(f, 'feature');
+  const steps = stepsOf(f, f.lane || 'feature');
   const you = youCount(steps);
-  const extra = f.id === 'quick' ? 'Feature or bug steps' : `${plural(steps.length, 'step')}, ${plural(you, 'stop')} for you`;
+  const extra = `${plural(shownSteps(steps).length, 'step')}, ${plural(you, 'stop')} for you`;
   return `<button type="button" class="fcard" data-flow="${h(f.id)}" aria-label="${h(f.name + '. ' + f.when + ' Steps: ' + stepsLine(steps))}">` +
     `<span class="fc-t">${h(f.name)}</span><span class="fc-w">${h(f.when)}</span>` +
     `<span class="fc-s">${dotsHtml(steps)}<span class="fc-n">${h(extra)}</span></span>` +
-    (f.handsOff ? '<span class="fc-h">Hands-off after you approve</span>' : '') + '</button>';
+    (f.handsOff ? '<span class="fc-h">Hands-off after you approve</span>' : f.board ? '<span class="fc-h">Runs on the board</span>' : '') + '</button>';
 }

@@ -78,6 +78,13 @@ function richWorkspace() {
   w("scope-payments/backlog.csv", "a,b\n");
   w("docs-onboarding/sources.md", "x\n");
   w("docs-onboarding/check.md", "x\n");
+  // Flow cards v1: a closed spike, a doc saved to the repo (/publish), a doc saved to Folio (saved.md), CRLF in each.
+  w("spike-sessions/findings.md", "# Spike findings: Longer sessions\n");
+  w("spike-sessions/closed.md", "Closed: started L12 as a feature on 2026-11-16.\r\nmore\r\n");
+  w("docs-gateway/sources.md", "Doc: docs/run.md\r\n\r\nStatus: SAVED to docs/run.md on 2026-11-16\r\n");
+  w("docs-gateway/check.md", "x\n");
+  w("docs-folio/sources.md", "Doc: docs/a.md\n");
+  w("docs-folio/saved.md", "Saved to Folio from docs/a.md on 2026-11-16.\n");
   w("random-folder/notes.md", "x\n");
   w("_private/ignored.md", "x\n");
   w("41207-fix-login-timeout/zz-extra.md", "x\n");
@@ -169,6 +176,14 @@ test("edge cases on their own: local ids, blocked, paused, PR review, scope, CRL
     assert.equal(by("PR-77").prReview.history, 1);
     assert.equal(by("scope-payments").state, "Import file ready");
     assert.equal(by("_private"), undefined);
+    // Flow cards v1: a spike closed at its findings fork, and a doc saved to the repo or to Folio.
+    assert.equal(by("spike-sessions").state, "Closed");
+    assert.equal(by("spike-sessions").nextText, "started L12 as a feature on 2026-11-16.");
+    assert.equal(by("docs-gateway").state, "Saved");
+    assert.equal(by("docs-gateway").nextText, "Saved to docs/run.md on 2026-11-16");
+    assert.equal(by("docs-folio").state, "Saved");
+    assert.equal(by("docs-folio").nextText, "Saved to Folio from docs/a.md on 2026-11-16.");
+    assert.equal(by("docs-onboarding").state, "Fact-checked");
     assert.deepEqual(m.repoCategories, ["Empty Category", "Platform", "Platform/Lighthouse Edge"]);
     assert.ok(m.repos.some((r) => r.folder === "Platform/Lighthouse Edge/ui"), "repos in nested categories are listed");
     assert.ok(m.repos.some((r) => r.folder === "Platform/api" && r.owner === "L7" && r.ownerKnown));

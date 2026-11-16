@@ -294,3 +294,12 @@ button.tool-line:hover { background: var(--hover); }
   .chat-ctx { display: none; }
   .pick { max-width: 140px; }
 }
+
+/* Flow cards under an answer (Loom flow cards v1): the one or two flows the ask fits. */
+.hub-flows { display: flex; flex-wrap: wrap; align-items: stretch; gap: 8px; margin: 10px 0 4px; }
+.hub-flows > .hub-meta { flex-basis: 100%; margin: 0; }
+.hub-flow { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; text-align: left; padding: 9px 12px; min-width: 11rem;
+  border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink); font: inherit; cursor: pointer; }
+.hub-flow:hover, .hub-flow:focus-visible { border-color: var(--accent); outline: none; box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent); }
+.hub-flow b { font: 600 14px/1.25 var(--sans); }
+.hub-flow span { font: 400 12.5px/1.35 var(--sans); color: var(--muted); }

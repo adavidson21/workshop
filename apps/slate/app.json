@@ -2,8 +2,8 @@
   "manifestVersion": 1,
   "id": "slate",
   "name": "Loom",
-  "version": "4.9.0",
-  "description": "Your backlog and Tandem's runs in one place: every piece of work is a card from request to resolved, with its run inside. One Inbox for what needs you, PR reviews included.",
+  "version": "4.10.0",
+  "description": "Your backlog and Tandem's runs in one place: each piece of work is a card from request to resolved. Start work from a flow card; one Inbox for what needs you.",
   "icon": "icon.svg",
   "entry": "index.html",
   "order": 15,
@@ -64,6 +64,15 @@
       "receipts"
     ]
   },
+  "settings": [
+    {
+      "id": "nudge",
+      "type": "boolean",
+      "title": "Nudge stalled hand-offs",
+      "description": "A hand-off with no movement in 3 working days shows in the Inbox until you follow up.",
+      "default": true
+    }
+  ],
   "routes": [
     {
       "path": "item/:id",
@@ -96,6 +105,14 @@
     {
       "path": "reviews",
       "title": "PR reviews (the Inbox, PRs)"
+    },
+    {
+      "path": "start/:flow",
+      "title": "Start work on a flow card"
+    },
+    {
+      "path": "start/:flow/:text",
+      "title": "Start work on a flow card, filled in"
     },
     {
       "path": ":id",
@@ -303,6 +320,7 @@
     "js/dispatch/digest.js",
     "js/dispatch/slate-handoff.js",
     "js/dispatch/flows.js",
+    "js/dispatch/start-prefill.js",
     "js/loom.js",
     "js/app.js",
     "loom.css"

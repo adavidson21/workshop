@@ -1,7 +1,7 @@
 /* Slate: your ADO backlog as one board, from request to resolved. model.js is pure, data.js talks to Workshop,
    view.js builds HTML; Health shows the team reports (js/reports/, loaded the first time). This file owns the page: state,
    refreshing from ADO and Tandem, and what each button does. */
-import { getWs, setBadge, setCards, setSummaryWriter, onTab, onBoardRoute, currentTab, requestTab, runHtml, onRunsPainted, openRunPage, setPanelRun, BOARD_TABS } from './loom.js';
+import { getWs, setBadge, setCards, setSummaryWriter, onTab, onBoardRoute, currentTab, requestTab, runHtml, onRunsPainted, openRunPage, setPanelRun, BOARD_TABS, onBoardCommand, setNudges } from './loom.js';
 import { readCards } from '../../../shared/summary.js';
 import { createHolder } from '../../../shared/focus.js';
 import * as People from '../../../shared/people.js';
@@ -12,7 +12,7 @@ import { connectorState, createStore, ado, readFiles, readWorkOffers, tandem } f
 import {
   APP, NO_AREA, applyRoadmapItem, SHAPE_FILES, STAGE_TITLE, STEP_CHIP, aboutText, areaOf, boardColumn, releaseGroups, releaseNotesMd, runStep, timeline, answersBlock, appendAnswers, asksFor, questionAnswers, areaOptions, backTargets, forwardTargets, bySprint, cardFacts, cards, cleanPrefs, customRefs, daysInStage, decisionNote, devColumn, draftState, filterCards, health, isStale, newItem, notesBlock, ownersFor, parseBrief, parseTriage,
   moveBack, pendingIdeaCards, pmColumn, publishPlan, roadmapIdea, setStage, shapeState, skipToDecide, summaryCards, waitingTask, winOffer,
-  RUN_KIND_CHIP, runCards, levelOfType, needsAdoTitle, needsAdoConnection, adoFromFind, pickFields, mergeBacklogs, sameAdo, virtualAdoId, questionsText, repliesSince, sourceComment, suggestsScope, manualDraft, withStatus
+  RUN_KIND_CHIP, runCards, stalledHandoffs, levelOfType, needsAdoTitle, needsAdoConnection, adoFromFind, pickFields, mergeBacklogs, sameAdo, virtualAdoId, questionsText, repliesSince, sourceComment, suggestsScope, manualDraft, withStatus
 } from './model.js';
 import { outsideConfirmHtml } from '../../../shared/outside.js';
 import { boardHtml, closeGroupDialogHtml, confirmHtml, linkAdoDialogHtml, linkPickDialogHtml, delegateDialogHtml, fieldsDialogHtml, newDialogHtml, newIdeaDialogHtml, panelHtml, publishDialogHtml, readFieldsForm, topHtml } from './view.js';
@@ -423,6 +423,8 @@ function publishSummary() {
     if (held) cards.push(held);
     // Loom writes one summary for both halves (loom.js mergeCards).
     setCards('board', cards);
+    // Hand-offs with no movement: the Inbox nudges you (flow cards v1), unless the app setting is off.
+    setNudges(nudgeOn ? stalledHandoffs(store.v.items).map(x => ({ ...x, assigneeName: personName(x.assignee) })) : []);
   }, 300);
 }
 
@@ -453,6 +455,7 @@ function panelState(c) {
     suggestScope: suggestsScope(c, parseTriage(filesOf(c.work && c.work.triage)['triage.md'])),
     canAdo: s.conn.ado === true,
     assigneeName: personName(c.assignee),
+    stalled: nudgeOn && c.stage === 'delegated' ? stalledHandoffs([c])[0] || null : null,
     owners: ownersOf(c),
     age: daysInStage(c),
     details: c.ado ? s.details.get(String(c.ado.id)) || null : null,
@@ -1121,6 +1124,48 @@ const ACT = {
     ws.toast('Sent to Runway. Assign it to a roadmap from its Pending list.', { kind: 'success' });
   },
   async done(c) { await store.update(c.id, x => setStage(x, 'done')); ws.toast('Marked closed. It is off the board; Move back brings it back.', { kind: 'success' }); },
+  /* ---------- the forks (Loom flow cards v1) ---------- */
+  /** Triage fork: skip the interview, write the brief from the triage now (/shape triage-<name> brief). */
+  async 'skip-brief'(c) {
+    const it = await ensureStored(c);
+    if (!it.work.triage) return ACT.shape(it);
+    await startSession(it, 'shape', 'shape.start', { from: it.work.triage, mode: 'brief' });
+    await store.update(it.id, x => setStage(x, 'shaping'));
+    ws.toast('Writing the brief from the triage. It shows here when the agent is done.', { kind: 'success' });
+  },
+  /** Decline: off the board without changing ADO (Move back brings it back), with the decision in the timeline. */
+  async decline(c) {
+    const it = await ensureStored(c);
+    await store.update(it.id, x => setStage(x, 'done'));
+    await logDecision(it, 'Declined');
+    ui.open = null;
+    ws.toast('Declined. It is off the board; Move back brings it back.', { kind: 'success' });
+  },
+  /** Brief fork, Fix it: define it as a bug (one story's refine), then you build it. */
+  async 'fix-it'(c) {
+    if (!c.work.shape) return;
+    await startSession(c, 'define', 'refine.start', { from: c.work.shape });
+    await store.update(c.id, x => { if (!x.ado) x.level = 'bug'; x.route = 'myself'; setStage(x, 'defining'); });
+    ws.toast('Sent to Define as a bug.', { kind: 'success' });
+  },
+  /** Brief fork, Build it: Send to Define, and the build is yours. */
+  async 'build-it'(c) { await store.update(c.id, x => { x.route = 'myself'; }); return ACT['send-define'](store.v.items.find(x => x.id === c.id) || c); },
+  /** Brief fork, Hand to a person: define it, then Who builds it? suggests handing it over. */
+  async 'hand-off'(c) { await store.update(c.id, x => { x.route = 'delegate'; }); return ACT['send-define'](store.v.items.find(x => x.id === c.id) || c); },
+  /** Brief fork, Investigate: a spike on what the brief leaves open. Its run gets its own card; this one waits in Brief. */
+  async investigate(c) {
+    const b = parseBrief(filesOf(c.work.shape)['brief.md']);
+    const open = b && b.open.length ? `Open: ${b.open.join('; ')}` : '';
+    const topic = [c.title, open || (b && b.problem) || '', c.work.shape ? `(brief: .work/${c.work.shape}/brief.md)` : ''].filter(Boolean).join('. ').replace(/\s+/g, ' ').slice(0, 500);
+    await tandem(ws, 'spike', { topic }, { confirm: true });
+    await logDecision(c, 'Investigating first (a spike)');
+    ws.toast('Investigating. The spike is on the board; its findings come to the Inbox.', { kind: 'success' });
+  },
+  /** The hand-off nudge: you checked in, so the count starts again. */
+  async 'followed-up'(c) {
+    await store.update(c.id, x => { x.followedUp = today(); });
+    ws.toast('Marked followed up. The nudge counts from today.', { kind: 'success' });
+  },
   back(c) {
     const to = $('backTo') && $('backTo').value;
     if (!c || !to) return;
@@ -1477,8 +1522,34 @@ try { ws.data.subscribe('summary', () => readPending().then(paint).catch(() => {
 // Captures from Home and the Dispatch hub show up as soon as they are accepted, not at the next refresh.
 for (const app of ['home', APP]) { try { ws.data.subscribe('handoffs', () => readWork().then(paint).catch(() => {}), { app }); } catch { /* no data backend */ } }
 
+/* Flow cards that run on the board (loom.js boardCommand): Handle a request adds the card and triages it; Hand to a
+   person adds it, marks it for handing over, and drafts the story. The click on Start was the approval. */
+onBoardCommand(async (name, args) => {
+  if (!store.v.loaded) throw new Error('The board is still loading. Try again in a moment.');
+  const a = args || {};
+  const asked = String(a.requester || '').trim();
+  const match = asked ? (s.people.people || []).find(p => !p.archived && p.name.toLowerCase() === asked.toLowerCase()) : null;
+  const it = newItem({ title: a.title, description: a.description || '', level: 'story', requester: asked, requesterId: match ? match.id : null });
+  if (name === 'handoff') it.route = 'delegate';
+  else if (name !== 'request') throw new Error(`Unknown board flow ${name}.`);
+  await store.change(list => list.push(it));
+  ui.tab = 'board'; ui.open = it.id; paint();
+  const stored = store.v.items.find(x => x.id === it.id) || it;
+  if (name === 'request') await ACT.triage(stored); else await ACT.refine(stored);
+  paint();
+  return { id: it.id };
+});
+
+/* Loom's app setting "Nudge stalled hand-offs" (app.json settings, docs/app-settings.md): on unless turned off. */
+let nudgeOn = true;
+async function readNudgeSetting() {
+  try { const v = await ws.appSettings.get(); nudgeOn = !(v && v.nudge === false); } catch { nudgeOn = true; }
+}
+
 /* ---------- start ---------- */
 
+await readNudgeSetting();
+try { ws.appSettings.subscribe && ws.appSettings.subscribe(() => readNudgeSetting().then(() => { paint(); publishSummary(); })); } catch { /* older Workshop */ }
 try { s.apps = await ws.apps.list(); } catch { s.apps = []; }
 try { s.people = await ws.people.get(); } catch { s.people = People.EMPTY; }
 await store.load();

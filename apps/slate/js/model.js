@@ -150,6 +150,8 @@ export function cleanItem(raw = {}) {
     for (const n of ['refine.md', 'stories.md', 'milestones.md']) if (typeof (raw.manual.files || {})[n] === 'string') files[n] = raw.manual.files[n].slice(0, 64000);
     it.manual = { folder: raw.manual.folder, files };
   } else delete it.manual;
+  // When you last followed up on a hand-off (the Inbox nudge's Followed up): the nudge counts from then.
+  if (isDay(raw.followedUp)) it.followedUp = raw.followedUp; else delete it.followedUp;
   if (raw.asked && Number.isInteger(raw.asked.id) && typeof raw.asked.at === 'string' && raw.asked.at.length <= 30) it.asked = { id: raw.asked.id, at: raw.asked.at }; else delete it.asked;
   it.createdAt = isDay(raw.createdAt) ? raw.createdAt : today();
   it.history = Array.isArray(raw.history) ? raw.history.filter(h => h && STAGES.includes(h.stage) && isDay(h.at)).slice(-50) : [];
@@ -455,8 +457,11 @@ export function parseTriage(text) {
   const s = sections(text);
   const route = (headerLine(text, 'Route') || '').toLowerCase();
   const size = (headerLine(text, 'Size') || '').toUpperCase();
+  // eng-agents Core 4.2.0: the path triage suggests at Loom's triage fork (interview, brief or decline).
+  const path = (headerLine(text, 'Path') || '').toLowerCase().split(/[^a-z]/)[0];
   return {
     route: ['delegate', 'myself', 'undecided'].includes(route) ? route : null,
+    path: ['interview', 'brief', 'decline'].includes(path) ? path : null,
     size: ['S', 'M', 'L', 'XL'].includes(size) ? size : null,
     summary: s.summary || '',
     questions: bullets(s['questions for the requester']),
@@ -838,6 +843,34 @@ export function daysInStage(it, now = new Date()) {
 /** True when an item has sat in its column longer than STALE_DAYS allows. Your own ideas can wait in New. */
 export const isStale = (it, column, now = new Date()) => !(column === 'new' && (it.kind === 'idea' || it.runwayPending))
   && STALE_DAYS[column] != null && daysInStage(it, now) > STALE_DAYS[column];
+
+/* ---------- hand-offs with no movement (Loom flow cards v1, Hand to a person) ---------- */
+
+// Working days a hand-off may sit with no movement before the Inbox nudges you. Loom's "Nudge stalled hand-offs"
+// app setting turns the nudge off.
+export const NUDGE_DAYS = 3;
+/** Working days (Monday to Friday) after day a, up to and including day b. 0 when b is not after a. */
+export function workingDaysBetween(a, b) {
+  const x = dayNum(a), y = dayNum(b);
+  if (x == null || y == null || y <= x) return 0;
+  let n = 0;
+  for (let d = x + 1; d <= y; d++) { const wd = new Date(d * 864e5).getUTCDay(); if (wd !== 0 && wd !== 6) n++; }
+  return n;
+}
+/**
+ * Hand-offs with no movement: delegated, not merged, nothing changed in ADO since it was recorded, and no stage change
+ * or follow-up in `days` working days. [{id, title, assignee, days}], longest first.
+ */
+export function stalledHandoffs(items, now = new Date(), days = NUDGE_DAYS) {
+  const out = [];
+  for (const it of items || []) {
+    if (!it || it.stage !== 'delegated' || it.merged || changedInAdo(it)) continue;
+    const since = [stageSince(it), it.followedUp].filter(Boolean).sort().pop();
+    const n = workingDaysBetween(since, today(now));
+    if (n >= days) out.push({ id: it.id, title: it.title, assignee: it.assignee || null, days: n });
+  }
+  return out.sort((a, b) => b.days - a.days);
+}
 
 /* ---------- ownership (People's `owns`) ---------- */
 

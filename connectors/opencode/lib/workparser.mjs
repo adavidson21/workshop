@@ -580,6 +580,9 @@ export async function readWork({ workRoot, configPath, recent = 80, gitOk, hide 
         base.recommendation = section(f, "Recommendation");
         base.nextText = section(f, "Next step");
         base.state = f ? "Findings written" : "In progress";
+        // Loom's findings fork (flow cards v1): every path but Investigate again writes closed.md, "Closed: <what next>".
+        const closed = readText(path.join(folder, "closed.md"));
+        if (f && closed) { base.state = "Closed"; base.nextText = cleanValue(closed.split(/\r?\n/)[0].replace(/^Closed:\s*/i, "")) || null; }
       } else if (k === "tsd") {
         const t = readText(path.join(folder, "tsd.md"));
         if (t && (m = /^#\s+Technical spec:\s*(.+?)\s*$/im.exec(t)) && cleanValue(m[1])) base.title = m[1];
@@ -618,8 +621,16 @@ export async function readWork({ workRoot, configPath, recent = 80, gitOk, hide 
         else { base.state = "Milestones approved"; base.nextText = `\`/backlog ${n}\``; }
       } else {
         const hasCheck = exists(path.join(folder, "check.md"));
-        base.state = hasCheck ? "Fact-checked" : "Written, not checked yet";
-        base.nextText = hasCheck ? "Read check.md and fix anything it flags." : "Run /check-docs in a new session.";
+        const sources = readText(path.join(folder, "sources.md"));
+        // Saved: /publish docs-<name> writes "Status: SAVED to <path> on <date>" in sources.md (eng-agents Core 4.2.0),
+        // and Loom's Save to Folio writes saved.md.
+        const savedMd = readText(path.join(folder, "saved.md"));
+        const sm = sources ? /^[ \t]*Status:[ \t]*SAVED\b([^\r\n]*)/im.exec(sources) : null;
+        if (savedMd || sm) { base.state = "Saved"; base.nextText = cleanValue(savedMd ? savedMd.split(/\r?\n/)[0] : "Saved" + sm[1]) || null; }
+        else {
+          base.state = hasCheck ? "Fact-checked" : "Written, not checked yet";
+          base.nextText = hasCheck ? "Read check.md and fix anything it flags, then save it to the repo or Folio." : "Read the draft, then run /check-docs in a new session.";
+        }
       }
       items.push(base);
       continue;

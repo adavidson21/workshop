@@ -582,6 +582,29 @@ describe("settings and lifecycle", { skip }, () => {
     }
   });
 
+  test("docs.doc reads the doc a docs folder names, only a Markdown file inside the workspace (flow cards v1)", async () => {
+    const ws = makeWorkspace();
+    try {
+      await startConnector(configFor(ws.dir, { url: "http://127.0.0.1:9" }));
+      const d = path.join(ws.work, "docs-gateway");
+      fs.mkdirSync(d);
+      fs.mkdirSync(path.join(ws.dir, "docs"), { recursive: true });
+      fs.writeFileSync(path.join(ws.dir, "docs", "run.md"), "# Run the gateway\n");
+      fs.writeFileSync(path.join(d, "sources.md"), "Doc: `docs/run.md`\n\n- claim: file\n");
+      assert.deepEqual(await call("docs.doc", { folder: "docs-gateway" }), { folder: "docs-gateway", path: "docs/run.md", text: "# Run the gateway\n" });
+      fs.writeFileSync(path.join(d, "sources.md"), "Doc: ../../etc/passwd.md\n");
+      await rejects(call("docs.doc", { folder: "docs-gateway" }), "not_found");
+      fs.writeFileSync(path.join(d, "sources.md"), "Doc: docs/run.sh\n");
+      await rejects(call("docs.doc", { folder: "docs-gateway" }), "not_found");
+      fs.writeFileSync(path.join(d, "sources.md"), "- claim: file\n");
+      await rejects(call("docs.doc", { folder: "docs-gateway" }), "not_found");
+      await rejects(call("docs.doc", { folder: "41207-fix-login-timeout" }), "bad_request");
+    } finally {
+      await oc.stop();
+      ws.remove();
+    }
+  });
+
   test("stop ends the event stream and sends nothing more", async () => {
     const ws = makeWorkspace();
     const fake = await startFakeOpencode({ kind: "v1" });

@@ -14,7 +14,7 @@
    Everything goes through the opencode connector's chat.* actions; a message, a command or a click is the only
    thing that makes opencode act, and opencode's own permission settings decide what an agent may do, exactly as in
    the terminal. Drawn into its own element, so typing survives repaints (keepFocus). */
-import { esc } from './hub-model.js';
+import { esc, flowCardsHtml, flowRoute } from './hub-model.js';
 import { WRITING, groupChats, keepFocus, lastTandem, matchChat, tandemTurn, youTurn } from './thread.js';
 import { BUILTINS, HELP, cycleAgent, filesIn, matchCommands, matchModels, modelFromKey, modelKey, modelLabel, money, parseInput, popupFor, promptHtml, questionAnswers, richRows, splitRevert, tokens } from './parts.js';
 
@@ -265,11 +265,8 @@ export function startChat(ws, { hub = null, hubEl = null, asksHtml = () => '', n
     loadList();
   }
   function titleOf(sid) { const c = itemOf(sid) || conv || {}; return c.title || 'Chat'; }
-  async function spike() {
-    const topic = titleOf(sel);
-    try { await ws.connectors.call(OC, 'spike', { topic: topic.slice(0, 500) }, confirm); ws.toast('Spike started. Follow it in Loom.', { kind: 'success' }); }
-    catch (e) { ws.toast(e.message || 'Could not start the spike.', { kind: 'error' }); }
-  }
+  /** A flow card under the answer (Loom flow cards v1): Loom's Start work on that flow, filled in with the chat's ask. */
+  function openFlow(id) { ws.open({ app: 'slate', path: flowRoute(id, titleOf(sel)) }).catch(() => ws.toast('Turn Loom on in Settings, Apps.', { kind: 'warn' })); }
   function toggleSide() {
     if (phone()) drawer = !drawer;
     else { closed = !closed; saveSide(closed); }
@@ -460,7 +457,7 @@ export function startChat(ws, { hub = null, hubEl = null, asksHtml = () => '', n
     if (!conv && !first && !fromHub) rows += '<p class="hub-meta">Loading...</p>';
     if (conv && Array.isArray(conv.prompts)) rows += conv.prompts.map(p => promptHtml(p, { answers, custom })).join('');
     else if (conv && conv.waiting) rows += asksHtml(sel) || '<p class="hub-meta">opencode is asking you something. Answer it in Loom\'s Inbox.</p>';
-    if (conv && !busy && later.length && lastTandem(later)) rows += '<p class="hub-actions chat-after"><button class="btn" type="button" data-chat-spike>Make it a spike</button><button class="btn ghost" type="button" data-builtin="export">Save as note</button></p>';
+    if (conv && !busy && later.length && lastTandem(later)) rows += `<div class="chat-after">${flowCardsHtml(titleOf(sel), 'data-chat-flow')}<p class="hub-actions"><button class="btn ghost" type="button" data-builtin="export">Save as note</button></p></div>`;
     if (err) rows += `<p class="hub-error">${esc(err)}</p>`;
     return `<div class="chat-pane">${head}<div class="chat-scroll" data-chat-follow><div class="chat-col">${helpHtml()}<div class="turns">${rows}</div></div></div>${composeHtml()}</div>`;
   }
@@ -568,6 +565,7 @@ export function startChat(ws, { hub = null, hubEl = null, asksHtml = () => '', n
   el.addEventListener('click', e => {
     const b = e.target.closest('button,[data-chat-side]');
     if (!b || (hubEl && hubEl.contains(b))) return;
+    // A button in a hub chat's first answer (a flow card, Save as note, a suggested action, a choice).
     if (hub && b.closest('.hub-intro') && hub.click(b)) return;
     const d = b.dataset;
     if (d.chatOpen != null) select(d.chatOpen);
@@ -583,7 +581,7 @@ export function startChat(ws, { hub = null, hubEl = null, asksHtml = () => '', n
       const box = el.querySelector('[data-chat-rename-box]');
       if (box) { box.focus(); box.select(); }
     }
-    else if (d.chatSpike != null) spike();
+    else if (d.chatFlow != null) openFlow(d.chatFlow);
     else if (d.builtin != null) builtin(d.builtin, '');
     else if (d.pick != null) { if (pop && pop.kind === d.pick) { pop = null; draw(); } else openPop(d.pick); }
     else if (d.popI != null) choose(+d.popI);

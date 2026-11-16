@@ -112,3 +112,18 @@ test('ids and hub sessions', () => {
   assert.equal(isHubCommand('/hub C:\\x\\request.md'), true);
   assert.equal(isHubCommand('/spike x'), false);
 });
+
+test('flow cards: the one or two Loom flows an ask fits, and the route that opens Start work filled in', async () => {
+  const { suggestFlows, flowCardsHtml, flowRoute } = await import('../js/hub-model.js');
+  assert.deepEqual(suggestFlows('Export fails after one retry'), ['bug', 'spike']);
+  assert.deepEqual(suggestFlows('How hard would it be to add CSV export?'), ['spike', 'feature']);
+  assert.deepEqual(suggestFlows('Write a runbook for the gateway')[0], 'docs');
+  assert.deepEqual(suggestFlows('Billing asked for an audit log export')[0], 'request');
+  assert.deepEqual(suggestFlows('hmm'), ['spike', 'feature'], 'no clue: investigate first');
+  assert.equal(suggestFlows('Can we add paging? It fails with 500s').length, 2);
+  const html = flowCardsHtml('Export <fails>');
+  assert.match(html, /data-flow-card="bug"/);
+  assert.ok(!html.includes('<fails>'), 'the ask is never in the cards unescaped');
+  assert.equal(flowRoute('bug', 'a/b c'), 'start/bug/a%2Fb%20c');
+  assert.equal(flowRoute('nope', 'x'), 'start/spike/x');
+});

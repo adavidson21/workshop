@@ -73,3 +73,28 @@ body[data-loom-tab=inbox] #runs-root > #hub { display: none; }
 /* Board and Health keep the toolbar right under the tab bar. */
 body[data-loom-tab=board] #runs-root .wrap, body[data-loom-tab=health] #runs-root .wrap { padding-bottom: 0; }
 body[data-loom-tab=health] #board-root #top { display: none; }
+
+/* ---------- Flow cards v1 (claude/loom-flow-cards-v1-plan.md) ---------- */
+
+/* Path cards at a fork: a spike's findings, a doc's final read, and on the board the triage, the brief and Who builds
+   it?. Each card is a title and a line on what happens; the suggested one has a quiet tag. */
+:where(#runs-root, #board-root) .forks { display: grid; grid-template-columns: repeat(auto-fill, minmax(11.5rem, 1fr)); gap: 8px; margin: 10px 0 4px; flex-basis: 100%; width: 100%; }
+:where(#runs-root, #board-root) .fork { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; text-align: left; padding: 10px 12px;
+  border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink); font: inherit; cursor: pointer; min-height: 4.2rem; }
+:where(#runs-root, #board-root) .fork:hover, :where(#runs-root, #board-root) .fork:focus-visible { border-color: var(--accent); background: var(--hover, var(--bg)); outline: none; box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent); }
+:where(#runs-root, #board-root) .fork.rec { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); }
+:where(#runs-root, #board-root) .fork[disabled] { opacity: .55; cursor: not-allowed; }
+:where(#runs-root, #board-root) .fork .fk-t { font: 600 14px/1.25 var(--sans); display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+:where(#runs-root, #board-root) .fork .fk-d { font: 400 12.5px/1.35 var(--sans); color: var(--muted); }
+:where(#runs-root, #board-root) .fork .fk-rec { font: 500 11px/1 var(--sans); color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); padding: 3px 6px; border-radius: 999px; }
+#board-root .next .kg { margin-top: 6px; font-size: .85rem; color: var(--muted); }
+#board-root .next .kg summary { cursor: pointer; }
+
+/* A step that stops for you only sometimes (Review: only on blockers): a dashed ring. */
+:where(#runs-root, .loom-run) .fdots i.maybe { background: var(--surface); box-shadow: none; outline: 2px dashed color-mix(in srgb, var(--gate) 70%, transparent); outline-offset: -1px; }
+:where(#runs-root, .loom-run) .fline li.maybe { color: color-mix(in srgb, var(--gate) 65%, var(--ink)); }
+:where(#runs-root, .loom-run) .fstep.maybe .dot { box-shadow: 0 0 0 3px var(--surface), 0 0 0 4.5px color-mix(in srgb, var(--gate) 40%, transparent); }
+:where(#runs-root, .loom-run) .mtrack i.maybe:not(.done):not(.here) { border-style: dotted; }
+
+/* Hand-offs with no movement, in the Inbox. */
+#runs-root .nudge-row .rr-m { color: color-mix(in srgb, var(--gate) 75%, var(--ink)); }

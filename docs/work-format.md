@@ -106,9 +106,9 @@ HTML comments are removed, then the file is split at `## ` headings (regex `prSp
 
 ### Notes folders
 
-- `spike-*`: title from `# Spike findings: <topic>` in `findings.md` (regex `spikeTitle`). State is "Findings written" if `findings.md` exists, else "In progress".
+- `spike-*`: title from `# Spike findings: <topic>` in `findings.md` (regex `spikeTitle`). State is "Closed" if `findings.md` and `closed.md` exist (Loom writes `closed.md` when you pick a path at the findings: `Closed: <what next>` on its first line, which is the next text), "Findings written" if `findings.md` exists, else "In progress".
 - `tsd-*`: title from `# Technical spec: <name>` in `tsd.md` (regex `tsdTitle`). `check.md` rows with `| Wrong |` or `| Outdated |` are counted (regex `tsdCheckBad`).
-- `docs-*`: "Fact-checked" if `check.md` exists, else "Written, not checked yet".
+- `docs-*`: "Saved" if `saved.md` exists (Loom's Save to Folio) or `sources.md` has a `Status: SAVED ...` line (`/publish docs-<name>`, eng-agents Core 4.2.0); the rest of that line, or `saved.md`'s first line, is the next text. Otherwise "Fact-checked" if `check.md` exists, else "Written, not checked yet". `sources.md` names the doc on a `Doc: <path from the workspace>` line (Core 4.2.0), which the connector's `docs.doc` reads.
 - `scope-*`: title from `Epic: <name>` in `epics.md`. State follows the `Status:` lines of `stories.md` and `milestones.md`, then `backlog.csv` or `published.md`.
 - `pr-*`: a first-pass review of someone else's pull request (`/pr-review`). Title from `# Pull request <id>: <title>` in `context.md`; `Source commit:`, `Link:`, `Author:` and `- Repo: <name> (folder \`<folder>\`)` from the same file. `review.md` gives `Reviewed commit:`, `Recommendation:`, `Risk:`, the `## Summary` section, and one comment per `### C<n>` block under `## Comments` (`- File:`, `- Line:`, `- Severity:` (`blocking`, `should-fix` or `optional`), `- Why:`, and the comment as `>` quote lines). State is "Fetching" with no `context.md`, "Reviewing" with no `review.md`, "<recommendation>, <n> comments" once reviewed, and "Review is for an older commit" when `Reviewed commit:` is not the start of `Source commit:`.
 

@@ -1348,7 +1348,7 @@ def agents_checks(b, watch):
         run = af.locator('.run-page')
         seen(af, '.run-page#item-41300')
         check('a run opens its page with its own Abandon button', run.get_attribute('id') == 'item-41300' and run.locator('.item-head [data-remove]').inner_text() == 'Abandon')
-        check('the flow track: checked, current and later steps', run.locator('.fstep.done').count() == 1 and run.locator('.fstep.here .nm').inner_text() == 'Root cause' and run.locator('.fstep.later').count() == 4)
+        check('the flow track: checked, current and later steps', run.locator('.fstep.done').count() == 1 and run.locator('.fstep.here .nm').inner_text() == 'Root cause' and run.locator('.fstep.later').count() == 3)
         approve = run.locator('.do [data-run]')
         check('one main button per step; the command is in the tooltip', run.locator('.do .btn.primary').count() == 1 and '/approve 41300' in approve.get_attribute('title'))
         approve.click(); pg.wait_for_timeout(1500)
@@ -1427,8 +1427,10 @@ def agents_checks(b, watch):
         af.wait_for_selector('#item-41610', timeout=20000)
         check('Back to Loom returns to the run', af.locator('.run-page#item-41610').count() == 1)
 
-        # Remove: the dialog, typing the name, and the folder gone (from the spike's page on Work).
-        open_tab(af, 'work'); pg.wait_for_timeout(300)
+        # Remove: the dialog, typing the name, and the folder gone (from the spike's page: at its findings fork, the
+        # spike waits in the Inbox since flow cards v1).
+        open_tab(af, 'inbox'); pg.wait_for_timeout(300)
+        check('a spike at its findings shows its path cards in the Inbox', seen(af, '#item-spike-cache-options .forks [data-spike-close]'))
         af.click('#item-spike-cache-options [data-open-run] >> nth=0'); pg.wait_for_timeout(300)
         af.locator('.run-page#item-spike-cache-options .item-head [data-remove]').click(); pg.wait_for_timeout(300)
         go = af.locator('[data-remove-go]')
@@ -1485,8 +1487,8 @@ def agents_checks(b, watch):
         sp.click('.fchip:has-text("Orders API")')
         check('a run moves to a project from its chip', seen(sp, '.page .rrow#item-41207') and sp.locator('.page .rrow').count() == 1)
         sp.click('.top-start')
-        check('Start work opens on the flow picker, the presets in order', seen(sp, '.fcards') and sp.eval_on_selector_all('.fcard', 'els => els.map(e => e.dataset.flow)') == ['feature', 'bug', 'small', 'quick', 'spike', 'epic', 'docs', 'tsd'])
-        sp.click('.fcard[data-flow=quick]')
+        check('Start work opens on the flow cards, in order', seen(sp, '.fcards') and sp.eval_on_selector_all('.fcard', 'els => els.map(e => e.dataset.flow)') == ['request', 'feature', 'bug', 'spike', 'epic', 'handoff', 'docs'])
+        sp.click('.fcard[data-flow=feature]')
         check('a flow shows its steps, and starts in the project filtered to', seen(sp, '.fline') and sp.eval_on_selector('[data-start-project]', 'e => e.selectedOptions[0].textContent') == 'Orders API')
         sp.keyboard.press('Escape')
         sp.reload(); seen(sp, '#app .tabs'); open_tab(sp, 'work')

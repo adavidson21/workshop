@@ -12,7 +12,7 @@ import { SITE } from '../../../../shared/site.js';
 import { projectChip, projectList, projectsOn, projectName, projectSheetHtml, projectsSheetHtml, moveSheetHtml, INBOX } from './projects.js';
 import { pageHtml, tabsHtml } from './pages.js';
 import { BOARD_TABS } from '../loom.js';
-import { FLOWS, flowById, stepsOf, flowCardHtml } from './flows.js';
+import { PICKER, flowById, stepsOf, shownSteps, flowCardHtml } from './flows.js';
 
 // ---------------------------------------------------------------- helpers
 export function h(s) {
@@ -165,11 +165,20 @@ function trackLabel(it, stops, idx) {
 // quiet: a secondary button next to a primary one.
 export function runBtn(it, cmd, label, quiet) {
   if (!cmd) return '';
+  const r = runState(it, cmd);
+  return `<button type="button" class="btn${quiet ? '' : ' primary'}" data-run="${h(it.folder)}" data-cmd="${h(cmd)}" title="${h(r.tip)}"${r.blocked ? ' disabled' : ''}>${h(label || 'Run')}</button>`;
+}
+/** Why a command cannot run now ('' when it can), and its tooltip. */
+export function runState(it, cmd) {
   const s = itemSession(it);
   const fresh = /^\/(do-task|check-docs)\b/.test(cmd);
   const blocked = !ocReady() ? 'opencode is not connected' : (autoIs(it, 'running') ? 'Autopilot is running this item' : (isBusy(s) && !fresh ? "This item's session is still working" : (S.ui.busy[it.folder] ? 'Starting' : '')));
-  const tip = blocked || ('Runs ' + cmd + ' in opencode' + (fresh ? ' in a new session' : (s ? " in this item's session" : ' in a new session for this item')));
-  return `<button type="button" class="btn${quiet ? '' : ' primary'}" data-run="${h(it.folder)}" data-cmd="${h(cmd)}" title="${h(tip)}"${blocked ? ' disabled' : ''}>${h(label || 'Run')}</button>`;
+  return { blocked, tip: blocked || ('Runs ' + cmd + ' in opencode' + (fresh ? ' in a new session' : (s ? " in this item's session" : ' in a new session for this item'))) };
+}
+/** A path card (flows.js forkHtml) that runs a command, like runBtn. */
+export function runFork(it, cmd, label, desc, primary) {
+  const r = runState(it, cmd);
+  return { label, desc, primary, title: r.tip, disabled: !!r.blocked, attrs: `data-run="${h(it.folder)}" data-cmd="${h(cmd)}"` };
 }
 // The file to read before approving, for "Review spec.md" style steps.
 function gateFileLink(it) {
@@ -975,30 +984,48 @@ export function cfgBuild() {
 }
 
 // --------------------------------------------------------- start work: pick a flow (flows.js), then fill it in
-// Each flow starts with one connector action:
+// The flow cards are the main way work starts (Loom flow cards v1). Each flow starts with one action:
+//   request:  a board card from what was asked, then triage (board command `request`: the board half's triage).
 //   feature, bug: an ADO work item by number (`start`: /start <id> <lane>), shown when Tandem has ADO set up, or
-//                 described (`start.local`: writes .work/L<n>-<name>/workitem.md, then /start L<n> <lane>).
-//   quick:        described, feature or bug (`start.local`). No tracker needed.
-//   spike:        a question to investigate, no code changes (`spike`: /spike <topic>).
-//   epic:         an idea to scope into an epic, features and stories (`scope.start`: /scope <idea>).
-//   docs:         what to document (`docs.start`: /docs <target>).
-//   tsd:          a product or repos (`tsd.start`: /tsd <target>).
-// S.ui.start: {flow, src, lane, project, busy, error}. What the person types lives in S.ui.drafts['start:<field>'].
+//                 described (`start.local`: writes .work/L<n>-<name>/workitem.md, then /start L<n> <lane>). A feature
+//                 can be a small change (the quick lane: one short plan).
+//   spike:    a question to answer, an optional timebox, no code changes (`spike`: /spike <question> --timebox <t>).
+//   epic:     an idea to scope into an epic, features and stories (`scope.start`: /scope <idea>).
+//   handoff:  a board card to define and hand to a person (board command `handoff`: the board half's refine).
+//   docs:     what to document (`docs.start`: /docs <target>), or as a technical spec, a product or repos
+//             (`tsd.start`: /tsd <target>).
+// S.ui.start: {flow, src, lane, size, type, project, busy, error}. What the person types lives in S.ui.drafts['start:<field>'].
 export const adoOn = () => !!(S.D && S.D.tandem && S.D.tandem.ado);
-// Dispatch 2.x's start modes, still accepted (the hub and older links open Start work with one).
-const LEGACY = { describe: 'quick', spike: 'spike', ado: 'feature' };
-export function startFlowOf(st) { return (st && (st.flow || LEGACY[st.mode])) || null; }
-/** The action and args for the start sheet as filled in, or {error}. */
+// Older start modes and flows, still accepted (the hub, older links, Start work from findings).
+const LEGACY = { describe: 'feature', quick: 'feature', small: 'feature', tsd: 'docs', spike: 'spike', ado: 'feature' };
+export function startFlowOf(st) {
+  if (!st) return null;
+  if (st.flow && flowById(st.flow) && flowById(st.flow).picker !== false) return st.flow;
+  return LEGACY[st.flow] || LEGACY[st.mode] || null;
+}
+export const TIMEBOXES = [['', 'No timebox'], ['1h', '1 hour'], ['2h', '2 hours'], ['4h', 'Half a day'], ['1d', 'A day']];
+/** The action and args for the start sheet as filled in, or {error}. A board flow returns {board, args}. */
 export function startRequest(st, drafts) {
   const d = k => String(drafts['start:' + k] || '').trim();
   const one = k => d(k).replace(/\s+/g, ' ');
   const flow = startFlowOf(st);
   const project = st.project && st.project !== INBOX ? st.project : null;
   if (!flow) return { error: 'Pick a flow.' };
+  if (flow === 'request' || flow === 'handoff') {
+    const title = one('title');
+    if (!title) return { error: flow === 'request' ? 'Say what was asked for, in a few words.' : 'Give the work a short title.' };
+    if (title.length > 255) return { error: 'Keep the title under 255 characters.' };
+    const args = { title };
+    if (d('desc')) args.description = d('desc').slice(0, 32000);
+    if (flow === 'request' && one('requester')) args.requester = one('requester').slice(0, 200);
+    return { board: flow, args };
+  }
   if (flow === 'spike') {
     const topic = one('topic');
-    if (!topic) return { error: 'Say what to investigate.' };
-    return { action: 'spike', args: { topic: topic.slice(0, 500) } };
+    if (!topic) return { error: 'Say what question to answer.' };
+    const args = { topic: topic.slice(0, 500) };
+    if (st.timebox && TIMEBOXES.some(([k]) => k && k === st.timebox)) args.timebox = st.timebox;
+    return { action: 'spike', args };
   }
   if (flow === 'epic') {
     const idea = d('idea');
@@ -1008,19 +1035,18 @@ export function startRequest(st, drafts) {
   }
   if (flow === 'docs') {
     const target = one('target');
+    if (st.type === 'tsd' || st.flow === 'tsd') {
+      if (!target) return { error: 'Name the product, or the repo folders.' };
+      if (!TSD_TARGET.test(target)) return { error: 'A product name or repo folders separated by spaces: letters, numbers, spaces, dots, dashes, underscores and /.' };
+      return { action: 'tsd.start', args: { target } };
+    }
     if (!target) return { error: 'Say what to document.' };
     if (target.length > 500) return { error: 'Keep it under 500 characters.' };
     return { action: 'docs.start', args: { target } };
   }
-  if (flow === 'tsd') {
-    const target = one('target');
-    if (!target) return { error: 'Name the product, or the repo folders.' };
-    if (!TSD_TARGET.test(target)) return { error: 'A product name or repo folders separated by spaces: letters, numbers, spaces, dots, dashes, underscores and /.' };
-    return { action: 'tsd.start', args: { target } };
-  }
-  const lane = flow === 'quick' ? st.lane : flow === 'small' ? 'quick' : flow;
-  if (lane !== 'feature' && lane !== 'bug' && lane !== 'quick') return { error: 'Pick Feature, Small or Bug.' };
-  if (flow !== 'quick' && (st.src === 'ado' || (st.mode === 'ado' && !st.flow)) && adoOn()) {
+  const lane = flow === 'bug' || (st.flow === 'quick' && st.lane === 'bug') ? 'bug' : st.size === 'small' || st.flow === 'small' ? 'quick' : 'feature';
+  if (flow !== 'feature' && flow !== 'bug') return { error: 'Pick a flow.' };
+  if (startSrc(st) === 'ado') {
     const r = startCheck(d('id'), lane);
     if (r.error) return r;
     const args = { id: r.id, lane };
@@ -1036,52 +1062,71 @@ export function startRequest(st, drafts) {
   if (project) args.project = project;
   return { action: 'start.local', args };
 }
+/** Where a feature or bug comes from: an ADO item (when Tandem has ADO set up) or described ("No ADO item"). */
+export const startSrc = st => (adoOn() && (st.src || (st.mode === 'describe' || st.flow === 'quick' ? 'describe' : 'ado')) === 'ado' ? 'ado' : 'describe');
 // What /tsd takes: a product name from the repo map, or repo folders (as the connector checks).
 export const TSD_TARGET = /^[A-Za-z0-9][A-Za-z0-9 ._\/-]{0,299}$/;
 export function startCheck(raw, lane) {
   const id = String(raw || '').trim().replace(/^#/, '');
   if (!/^[0-9]{1,10}$/.test(id)) return { error: 'Type the work item number, like 12345.' };
-  if (lane !== 'feature' && lane !== 'bug') return { error: 'Pick Feature or Bug.' };
+  if (lane !== 'feature' && lane !== 'bug' && lane !== 'quick') return { error: 'Pick Feature or Bug.' };
   if ((S.D && S.D.items || []).some(it => String(it.id) === id)) return { error: `#${id} is already started. It is in the list.` };
   return { id, lane };
 }
 function startFormHtml(f, st) {
   const dv = k => h(S.ui.drafts['start:' + k] || '');
-  const lane = f.id === 'quick' ? st.lane : f.lane;
   const pnow = st.project || INBOX;
   const projectPick = projectsOn() && projectList().length > 1 ? `<label class="cfg-row"><span class="cfg-t">Project</span><span class="cfg-d">The run gets the project's instructions.</span><select data-start-project="1">` +
     projectList().map(p => `<option value="${h(p.id)}"${p.id === pnow ? ' selected' : ''}>${h(projectName(p))}</option>`).join('') + '</select></label>' : '';
+  const toggle = (attr, cur, opts, label) => `<div class="gos start-modes" role="group" aria-label="${h(label)}">` +
+    opts.map(([k, l]) => `<button type="button" ${attr}="${h(k)}" aria-pressed="${cur === k}"${cur === k ? ' class="on"' : ''}>${h(l)}</button>`).join('') + '</div>';
+  if (f.id === 'request') {
+    return `<p>Adds the request to the board's Shape column and starts a triage: Tandem reads it and the code, and says what is missing. Then you pick the path. Runs <code>/triage</code>.</p>` +
+      `<label class="cfg-row"><span class="cfg-t">What was asked for</span><input type="text" class="start-first" data-draft="start:title" value="${dv('title')}" placeholder="Export the audit log as CSV" maxlength="255" autocomplete="off"></label>` +
+      `<label class="cfg-row"><span class="cfg-t">Asked by</span><input type="text" data-draft="start:requester" value="${dv('requester')}" placeholder="A name, a team, or a customer" maxlength="200" autocomplete="off"></label>` +
+      `<label class="cfg-row"><span class="cfg-t">Their words, and anything you know</span><textarea rows="4" data-draft="start:desc" placeholder="Paste the message. The more it says, the fewer questions triage has.">${dv('desc')}</textarea></label>`;
+  }
+  if (f.id === 'handoff') {
+    return `<p>Adds it to the board and drafts one story for you to approve. Then you pick who builds it and assign it in ADO in one step, and the Inbox nudges you if it stalls. Runs <code>/refine</code>.</p>` +
+      `<label class="cfg-row"><span class="cfg-t">Title</span><input type="text" class="start-first" data-draft="start:title" value="${dv('title')}" placeholder="Add paging to the audit log" maxlength="255" autocomplete="off"></label>` +
+      `<label class="cfg-row"><span class="cfg-t">What is needed, and why</span><textarea rows="5" data-draft="start:desc" placeholder="What you know so far. The draft asks at most 2 questions.">${dv('desc')}</textarea></label>`;
+  }
   if (f.id === 'spike') {
-    return `<p>An agent reads the code and answers with options and a recommendation. No code changes. Runs <code>/spike</code>.</p>` +
-      `<label class="cfg-row"><span class="cfg-t">What to investigate</span><textarea class="start-first" rows="3" data-draft="start:topic" placeholder="How does login refresh its token, and what would it take to make sessions last 8 hours?">${dv('topic')}</textarea></label>`;
+    const tb = st.timebox || '';
+    return `<p>An agent reads the code and answers your question with up to 3 options and a recommendation. No code changes. Runs <code>/spike</code>.</p>` +
+      `<label class="cfg-row"><span class="cfg-t">The question to answer</span><textarea class="start-first" rows="3" data-draft="start:topic" placeholder="What would it take to make sessions last 8 hours?">${dv('topic')}</textarea></label>` +
+      `<div class="cfg-row"><span class="cfg-t">Timebox</span><span class="cfg-d">Optional. It reports what it has when the time is up.</span>${toggle('data-start-timebox', tb, TIMEBOXES, 'Timebox')}</div>`;
   }
   if (f.id === 'epic') {
     return `<p>Reads the repo map, the product docs and the code, asks at most 3 questions, then writes the epic and its stories for you to approve. Runs <code>/scope</code>.</p>` +
       `<label class="cfg-row"><span class="cfg-t">The idea</span><textarea class="start-first" rows="4" data-draft="start:idea" placeholder="Add a change request ticket type, with its own approval step">${dv('idea')}</textarea></label>`;
   }
   if (f.id === 'docs') {
-    return `<p>Asks where the doc lives, who reads it and what they need, shows you an outline, then writes it from the code. Runs <code>/docs</code>.</p>` +
+    const type = st.type === 'tsd' ? 'tsd' : 'docs';
+    const pick = `<div class="cfg-row"><span class="cfg-t">Type</span>${toggle('data-start-type', type, [['docs', 'Docs'], ['tsd', 'Technical spec']], 'Type')}</div>`;
+    if (type === 'tsd') {
+      return pick + `<p>Confirms the repos with you, lists what is there, asks you to pick the flows to trace, then writes the spec with diagrams. Runs <code>/tsd</code>.</p>` +
+        `<label class="cfg-row"><span class="cfg-t">Product or repos</span><span class="cfg-d">A product name from the repo map, or repo folders separated by spaces.</span><input type="text" class="mono start-first" data-draft="start:target" value="${dv('target')}" placeholder="Billing" maxlength="300" spellcheck="false" autocomplete="off"></label>`;
+    }
+    return pick + `<p>Picks where the doc lives, who reads it and what they need, then writes it from the code. Runs <code>/docs</code>.</p>` +
       `<label class="cfg-row"><span class="cfg-t">What to document</span><input type="text" class="start-first" data-draft="start:target" value="${dv('target')}" placeholder="How to run the gateway locally" maxlength="500" autocomplete="off"></label>`;
   }
-  if (f.id === 'tsd') {
-    return `<p>Confirms the repos with you, lists what is there, asks you to pick the flows to trace, then writes the spec with diagrams. Runs <code>/tsd</code>.</p>` +
-      `<label class="cfg-row"><span class="cfg-t">Product or repos</span><span class="cfg-d">A product name from the repo map, or repo folders separated by spaces.</span><input type="text" class="mono start-first" data-draft="start:target" value="${dv('target')}" placeholder="Billing" maxlength="300" spellcheck="false" autocomplete="off"></label>`;
-  }
-  const pick = (k, label, d) => `<button type="button" data-start-lane="${k}" aria-pressed="${lane === k}"${lane === k ? ' class="on"' : ''}>${label}<span>${d}</span></button>`;
-  const lanes = f.id === 'quick' ? `<div class="cfg-row"><span class="cfg-t">Kind of work</span><div class="lanes" role="group" aria-label="Kind of work">${pick('feature', 'Feature', 'Spec, plan, tasks, build, review, PR')}${pick('quick', 'Small', 'One plan to approve, 1 or 2 tasks, review, PR')}${pick('bug', 'Bug', 'Root cause, fix, review, PR')}</div></div>` : '';
-  const src = f.id !== 'quick' && adoOn() ? (st.src || 'ado') : 'describe';
-  const srcPick = f.id !== 'quick' && adoOn() ? `<div class="gos start-modes" role="group" aria-label="Where the work is">` +
-    `<button type="button" data-start-src="ado" aria-pressed="${src === 'ado'}"${src === 'ado' ? ' class="on"' : ''}>ADO work item</button>` +
-    `<button type="button" data-start-src="describe" aria-pressed="${src === 'describe'}"${src === 'describe' ? ' class="on"' : ''}>Describe it</button></div>` : '';
+  // Build a feature, Fix a bug: an ADO item, or no ADO item (described). A feature can be a small change.
+  const lane = f.id === 'bug' ? 'bug' : st.size === 'small' ? 'quick' : 'feature';
+  const src = startSrc(st);
+  const srcPick = adoOn() ? toggle('data-start-src', src, [['ado', 'ADO work item'], ['describe', 'No ADO item']], 'Where the work is') : '';
+  const sizePick = f.id === 'feature' ? `<div class="cfg-row"><span class="cfg-t">Size</span>${toggle('data-start-size', st.size === 'small' ? 'small' : 'normal', [['normal', 'Feature'], ['small', 'Small change']], 'Size')}` +
+    `<span class="cfg-d">${st.size === 'small' ? 'One repo, 1 or 2 tasks, no schema or API change: one short plan to approve instead of a spec and plan.' : 'Spec and plan to approve, then the build.'}</span></div>` : '';
   if (src === 'ado') {
-    return srcPick + `<p>Fetches the work item from Azure DevOps, sets up its <code>.work</code> folder and branches, then waits for you. Runs <code>/start</code>.</p>` +
+    return srcPick + sizePick + `<p>Fetches the work item from Azure DevOps, sets up its <code>.work</code> folder and branches, then waits for you. Runs <code>/start</code>.</p>` +
       `<label class="cfg-row"><span class="cfg-t">Work item number</span><input type="text" inputmode="numeric" class="mono start-id start-first" data-draft="start:id" value="${dv('id')}" placeholder="12345" autocomplete="off"></label>` + projectPick;
   }
-  return srcPick + `<p>Tandem saves this as a work item, picks the repos, makes branches, then waits for you.</p>` + projectPick + lanes +
+  return srcPick + sizePick + `<p>Tandem saves this as a local work item, picks the repos, makes branches, then waits for you. Link an ADO item later; the PR needs one.</p>` + projectPick +
     `<label class="cfg-row"><span class="cfg-t">Title</span><input type="text" class="start-first" data-draft="start:title" value="${dv('title')}" placeholder="${lane === 'bug' ? 'Export fails after one retry' : 'Add CSV export to reports'}" maxlength="200" autocomplete="off"></label>` +
     `<label class="cfg-row"><span class="cfg-t">What should change, and why</span><textarea rows="5" data-draft="start:desc" placeholder="The more you say, the fewer questions the agent asks.">${dv('desc')}</textarea></label>` +
     (lane === 'bug' ? `<label class="cfg-row"><span class="cfg-t">Steps to reproduce</span><textarea rows="3" data-draft="start:repro" placeholder="1. Open reports 2. Click Export twice">${dv('repro')}</textarea></label>` : '');
 }
+const GO_LABEL = { request: 'Add and triage', handoff: 'Add and define', spike: 'Investigate' };
 function startSheetHtml() {
   const st = S.ui.start;
   const o = (L() && L().opencode) || {};
@@ -1089,19 +1134,21 @@ function startSheetHtml() {
   const head = `<div class="sheet-head"><h3 id="start-h">${f ? h(f.name) : 'Start work'}</h3><button type="button" class="ibtn" data-close-sheet="1" aria-label="Close">${ICON.x}</button></div>`;
   let body, foot;
   if (!f) {
-    body = '<p class="start-lead">Pick how the work should go. Each flow shows its steps; a ring marks the ones that stop for you.</p>' +
-      `<div class="fcards">${FLOWS.map(flowCardHtml).join('')}</div>`;
+    body = '<p class="start-lead">Pick the path. Each card shows its steps; a ring marks the ones that stop for you, a dashed ring the ones that stop only sometimes.</p>' +
+      `<div class="fcards">${PICKER.map(flowCardHtml).join('')}</div>`;
     foot = '<span class="grow"></span><button type="button" class="btn" data-close-sheet="1">Cancel</button>';
   } else {
-    const steps = stepsOf(f, st.lane);
+    const lane = f.id === 'bug' ? 'bug' : st.size === 'small' ? 'quick' : 'feature';
+    const shown = flowById(f.id === 'docs' && st.type === 'tsd' ? 'tsd' : f.id === 'feature' && lane === 'quick' ? 'small' : f.id);
+    const steps = shownSteps(stepsOf(shown, lane));
     const flowLine = `<div class="start-flow"><button type="button" class="lnk plain" data-flow="">&larr; All flows</button>` +
-      `<ol class="fline">${steps.map(s => `<li class="${s.you ? 'you' : ''}">${h(s.name)}</li>`).join('')}</ol>` +
+      `<ol class="fline">${steps.map(s => `<li class="${s.you === true ? 'you' : s.you ? 'maybe' : ''}">${h(s.name)}</li>`).join('')}</ol>` +
       (f.handsOff ? '<p class="note">Hands-off after you approve: <b>Approve and build</b> runs the tasks, review and PR text, and stops only when it needs you. It never pushes.</p>' : '') + '</div>';
     body = flowLine + `<form class="cfg" data-start-form="1" novalidate>${startFormHtml(f, st)}</form>` +
       (o.connected ? '' : '<p class="gmsg bad">opencode is not connected, so nothing can start.</p>') +
       (st.error ? `<p class="gmsg bad" role="status">${md(st.error)}</p>` : '');
     foot = '<span class="grow"></span><button type="button" class="btn" data-close-sheet="1">Cancel</button>' +
-      `<button type="button" class="btn primary" data-start-go="1"${st.busy || !o.connected ? ' disabled' : ''}>${st.busy ? 'Starting' : f.id === 'spike' ? 'Investigate' : 'Start'}</button>`;
+      `<button type="button" class="btn primary" data-start-go="1"${st.busy || !o.connected ? ' disabled' : ''}>${st.busy ? 'Starting' : h(GO_LABEL[f.id] || 'Start')}</button>`;
   }
   return `<div class="modal" data-sheet="1"><div class="backdrop" data-close-sheet="1"></div><div class="sheet${f ? '' : ' wide'}" role="dialog" aria-modal="true" aria-labelledby="start-h">${head}${body}<footer>${foot}</footer></div></div>`;
 }

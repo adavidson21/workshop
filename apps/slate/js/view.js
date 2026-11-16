@@ -318,8 +318,15 @@ function agentSection(p) {
 
 /** Most buttons a step shows in its "next" box. Everything else is in the panel's More menu. */
 export const MAX_SHOWN = 3;
+// Path cards at a fork: up to 5 (the brief's).
+export const MAX_FORK = 5;
 
 const step = (text, shown = [], more = [], extra = '') => ({ text, shown, more, extra });
+/* A fork (Loom flow cards v1): the step ends with path cards, each a title and a line on what happens. Cards carry
+   data-act like buttons, so the same handlers run them. cards: [{act, label, desc, primary, title, out}]. */
+const pathCard = (act, label, desc, { primary = false, title = '', out = '' } = {}) =>
+  `<button type="button" class="fork${primary ? ' rec' : ''}" data-act="${esc(act)}"${title ? ` title="${esc(title)}"` : ''}${out ? ' data-out' : ''}><span class="fk-t">${esc(label)}${out ? ' ' + outsideMark(out) : ''}${primary ? '<span class="fk-rec">Suggested</span>' : ''}</span><span class="fk-d">${esc(desc)}</span></button>`;
+const fork = (text, cards, more = [], extra = '') => ({ text, shown: cards, more, extra, fork: true });
 
 /**
  * The step's next move: a sentence, the buttons shown (main one first, at most MAX_SHOWN), the buttons for More,
@@ -327,7 +334,7 @@ const step = (text, shown = [], more = [], extra = '') => ({ text, shown, more, 
  */
 /* Buttons that start or talk to a Tandem agent. With the opencode connector off they stay visible, disabled, with
    the reason as their tooltip, so the step still says what comes next. */
-export const AGENT_ACTS = new Set(['triage', 'shape', 'define', 'refine', 'scope', 'slice', 'approve', 'approve-publish', 'approve-build', 'revise', 'write-brief', 'keep-going', 'send-define', 'answers', 'myself', 'build-local', 'start', 'run-next', 'publish-build']);
+export const AGENT_ACTS = new Set(['skip-brief', 'fix-it', 'investigate', 'hand-off', 'build-it', 'triage', 'shape', 'define', 'refine', 'scope', 'slice', 'approve', 'approve-publish', 'approve-build', 'revise', 'write-brief', 'keep-going', 'send-define', 'answers', 'myself', 'build-local', 'start', 'run-next', 'publish-build']);
 const gate = (p, html) => {
   if (!p.tandemOff) return html;
   return html.map(h => {
@@ -367,18 +374,25 @@ function nextRaw(p) {
         [...(it.fromRunway ? [btn('dismiss', 'Hide from Slate', { title: 'Hides it here. It stays in Runway.' })] : [btn('roadmap-add', 'Add to roadmap')])]);
       if (it.kind === 'idea' || it.fromRunway || it.runwayPending) return step('Your idea. An agent interviews you, a round of questions at a time, until it is understood, then writes a brief.',
         [btn('shape', 'Shape it', { primary: true }), it.fromRunway ? btn('dismiss', 'Hide from Slate', { title: 'Hides it here. It stays in Runway.' }) : btn('roadmap-add', 'Add to roadmap')], build);
-      return step('Start with a triage: an agent reads the request and the code, and says what is missing and who should build it. Or skip to an interview with you.',
-        [btn('triage', 'Triage', { primary: true }), btn('shape', 'Interview me')],
-        [btn('define', 'Define now', { title: 'Skip triage and start the draft' }), ...build, btn('roadmap-add', 'Add to roadmap')]);
+      return fork('A request. Pick how to start.',
+        [pathCard('triage', 'Triage', 'An agent reads it and the code, and says what is missing and who should build it.', { primary: true }),
+          pathCard('shape', 'Interview me', 'Skip triage: a round of questions for you, then a brief.'),
+          pathCard('define', 'Define now', 'Skip to drafting the story.')],
+        [...build, btn('roadmap-add', 'Add to roadmap'), btn('decline', 'Decline')]);
     case 'triage':
       if (!p.triage) return step('Waiting for triage.md.', [btn('dispatch', 'Open the run')], build);
       if (p.triage.questions.length) {
         const q = `${p.triage.questions.length} question${p.triage.questions.length === 1 ? '' : 's'} for the requester.`;
         if (it.ado && p.canAdo) return step(`${q} Post them on #${it.ado.id} so whoever asked can answer there, or copy them to send another way.`,
-          [btn('post-questions', `Post on #${it.ado.id}`, { primary: true, out: sysOut(it), title: `Adds them as a comment on the ${sysName(it)} item, after you confirm` }), btn('ask', 'Copy questions and wait'), btn('define', 'Define')], [btn('shape', 'Interview me'), ...build]);
-        return step(q, [btn('ask', 'Copy questions and wait', { primary: true }), btn('define', 'Define')], [btn('shape', 'Interview me'), ...build]);
+          [btn('post-questions', `Post on #${it.ado.id}`, { primary: true, out: sysOut(it), title: `Adds them as a comment on the ${sysName(it)} item, after you confirm` }), btn('ask', 'Copy questions and wait'), btn('define', 'Define')], [btn('shape', 'Interview me'), ...build, btn('decline', 'Decline')]);
+        return step(q, [btn('ask', 'Copy questions and wait', { primary: true }), btn('define', 'Define')], [btn('shape', 'Interview me'), ...build, btn('decline', 'Decline')]);
       }
-      return step(`Nothing is missing. Define it next, or dig in yourself first.${p.suggestScope && p.triage.size ? ` Triage sized it ${esc(p.triage.size)}, so Define scopes and slices it.` : ''}`, [btn('define', 'Define', { primary: true }), btn('shape', 'Interview me')], build);
+      // The triage fork (flow cards v1): interview, skip to the brief, or decline. Triage's Path line suggests one.
+      return fork(`Triage is done and nothing is missing for the requester.${p.suggestScope && p.triage.size ? ` Triage sized it ${esc(p.triage.size)}.` : ''} Pick the path.`,
+        [pathCard('shape', 'Interview', 'A round of questions for you at a time, then a brief.', { primary: p.triage.path === 'interview' }),
+          pathCard('skip-brief', 'Skip to the brief', 'Write the brief from the triage now, no questions.', { primary: p.triage.path === 'brief' || !p.triage.path }),
+          pathCard('decline', 'Decline', 'Close it. Move back brings it back.', { primary: p.triage.path === 'decline' })],
+        [btn('define', 'Define now', { title: 'Skip the brief and start the draft' }), ...build]);
     case 'interview': {
       const sh = p.shape || {};
       if (sh.asking) return { html: `<div class="next"><p>Round ${esc(sh.round || 1)}. Pick an answer for each question, write your own, or skip it. The agent asks again until it has enough.</p>${interviewForm(sh.q)}</div>`, more: build };
@@ -388,9 +402,17 @@ function nextRaw(p) {
     case 'brief': {
       const b = parseBrief(p.files['brief.md']);
       const to = b && (b.level === 'story' || b.level === 'bug') ? 'refine (one story)' : 'scope and slice';
-      return step(b ? `Read the brief. Send to Define runs ${to} from it, asking only what it leaves open.` : 'Waiting for brief.md.',
-        [...(b ? [btn('send-define', 'Send to Define', { primary: true })] : []), btn('keep-going', 'Keep going')], build,
-        '<label class="lbl" for="bnotes">To keep going, say what to dig into (optional)</label><textarea id="bnotes" class="answers" rows="2" maxlength="8000"></textarea>');
+      if (!b) return step('Waiting for brief.md.', [btn('keep-going', 'Keep going')], build);
+      // The brief fork (flow cards v1): build it, fix it, investigate, hand it to a person, or decline.
+      const bug = b.level === 'bug';
+      return fork('Read the brief, then pick the path. Define asks only what the brief leaves open.',
+        [pathCard('build-it', 'Build it', `Define it (${to}), then you build it.`, { primary: !bug }),
+          pathCard('fix-it', 'Fix it', 'Define it as a bug, then you fix it.', { primary: bug }),
+          pathCard('investigate', 'Investigate', 'A spike on what the brief leaves open. No code changes.'),
+          pathCard('hand-off', 'Hand to a person', 'Define it, then pick who and assign it in ADO.'),
+          pathCard('decline', 'Decline', 'Close it. Move back brings it back.')],
+        [btn('keep-going', 'Keep going', { title: 'Another round of questions' }), ...build],
+        '<details class="kg"><summary>Keep going instead</summary><label class="lbl" for="bnotes">Say what to dig into (optional), then Keep going under More</label><textarea id="bnotes" class="answers" rows="2" maxlength="8000"></textarea></details>');
     }
     case 'waiting': return step(it.asked && it.ado ? `The questions are on #${it.ado.id}. Read replies brings in comments posted since; check them, then triage again.` : 'Paste the requester\'s answers. Triage runs again with them.',
       [btn('answers', 'Save answers and triage again', { primary: true }), ...(it.asked && it.ado && p.canAdo ? [btn('read-replies', `Read replies from #${it.ado.id}`)] : []), btn('define', 'Define anyway')], [],
@@ -420,22 +442,26 @@ function nextRaw(p) {
       if (!p.canAdo) return step('Approved. Without Azure DevOps it stays here in Slate.', [btn('to-decide', 'Who builds it?', { primary: true })]);
       return step(`Approved, not in ADO yet. ${it.ado && p.draft.kind === 'refine' ? `Publish updates #${it.ado.id} with the description and acceptance criteria.` : 'Publish creates the work items.'}`,
       [btn('publish', 'Publish to ADO', { primary: true, out: sysOut(it) }), btn('publish-build', 'Publish and build it myself', { out: sysOut(it) })], it.ado ? [] : [btn('build-local', 'Build it myself, skip ADO')]);
-    case 'decide': return step(`Who builds it?${p.owners && p.owners.length ? ` ${esc(p.owners[0].name)} owns ${esc(p.owners[0].hits.join(', '))}.` : ''}`,
-      [btn('delegate', 'Delegate', { primary: p.item.route === 'delegate' }), decideBuild(p)]);
-    case 'delegated': return step(`With ${esc(p.assigneeName || 'a teammate')}.${it.work.handoff ? ' The brief is in the handoff folder.' : ''}`,
-      [btn('take-back', 'Take it back'), ...(it.ado ? [btn('ado', `Open in ${sysName(it)}`)] : [btn('mark-resolved', 'Mark resolved', { title: 'Done, waiting for a release' })])]);
+    case 'decide': return fork(`Who builds it?${p.owners && p.owners.length ? ` ${esc(p.owners[0].name)} owns ${esc(p.owners[0].hits.join(', '))}.` : ''}`,
+      [pathCard('delegate', 'Hand to a person', `Pick who and assign it${it.ado ? ' in ADO' : ''}, in one step. A brief and a Docket follow-up are options.`, { primary: p.item.route === 'delegate' }), decideBuild(p, true)]);
+    case 'delegated': {
+      const stalled = p.stalled ? `No movement in ${esc(p.stalled.days)} working days. Check in with ${esc(p.assigneeName || 'them')}, then mark it followed up.` : '';
+      return step(`With ${esc(p.assigneeName || 'a teammate')}.${it.work.handoff ? ' The brief is in the handoff folder.' : ''}${stalled ? ' ' + stalled : ' Merged, then Resolve finishes it.'}`,
+        [...(p.stalled ? [btn('followed-up', 'Followed up', { primary: true, title: 'Restarts the count for the nudge' })] : []), btn('take-back', 'Take it back'), ...(it.ado ? [btn('ado', `Open in ${sysName(it)}`)] : [btn('mark-resolved', 'Mark resolved', { title: 'Done, waiting for a release' })])]);
+    }
     default: return step('');
   }
 }
 
 /** Build it myself, from Who builds it?. An approved draft not in ADO yet publishes first (main.js myself), so the
     button says so and carries the ADO mark; "skip ADO" never touches ADO. */
-function decideBuild(p) {
+function decideBuild(p, asCard) {
   const it = p.item;
   const primary = it.route !== 'delegate';
-  if (it.ado || !p.canAdo) return btn('myself', 'Build it myself', { primary, title: it.ado ? 'Starts Tandem on the ADO item' : 'Starts local work in Tandem' });
-  if (p.draft && p.draft.ready) return btn('myself', 'Publish and build it myself', { primary, out: 'ado', title: 'Creates the ADO items after you confirm the list, then starts Tandem' });
-  return btn('build-local', 'Build it myself, skip ADO', { primary, title: 'Starts local work in Tandem; link an ADO item later' });
+  const b = (act, label, desc, o) => asCard ? pathCard(act, label, desc, o) : btn(act, label, o);
+  if (it.ado || !p.canAdo) return b('myself', 'Build it myself', it.ado ? 'Tandem runs Build a feature or Fix a bug on the ADO item.' : 'Tandem runs it as local work.', { primary, title: it.ado ? 'Starts Tandem on the ADO item' : 'Starts local work in Tandem' });
+  if (p.draft && p.draft.ready) return b('myself', 'Publish and build it myself', 'Creates the ADO items (you confirm the list), then Tandem builds it.', { primary, out: 'ado', title: 'Creates the ADO items after you confirm the list, then starts Tandem' });
+  return b('build-local', 'Build it myself, skip ADO', 'Tandem runs it as local work. Link an ADO item later.', { primary, title: 'Starts local work in Tandem; link an ADO item later' });
 }
 
 /** Build it myself, as a skip ahead from Inbox, Shape and Define (in More). In ADO: Tandem on the item; else local work. */
@@ -459,8 +485,8 @@ function devNext(p) {
       [...(it.ado ? [btn('close-one', 'Close as released', { primary: true, out: sysOut(it) })] : [btn('done', 'Mark closed', { primary: true })]), ...adoBtn]);
     case 'merged':
       if (!it.ado) return step(`${it.mergedHow === 'manual' ? 'Marked merged.' : 'Merged.'} Mark it resolved here, or link its ADO item below to resolve it there.`, [btn('mark-resolved', 'Mark resolved', { primary: true }), btn('unmerge', 'Not merged yet'), btn('done', 'Mark closed')]);
-      return step(`${it.mergedHow === 'manual' ? 'Marked merged.' : 'Every linked pull request is merged.'} Mark it resolved: in main, waiting for the next release.`,
-        [btn('mark-resolved', 'Mark resolved', { primary: true, out: sysOut(it), title: `Sets #${it.ado.id} to Resolved in ${ghCard(it) ? 'GitHub (a resolved label)' : 'Azure DevOps'}, after a confirm` }), btn('unmerge', 'Not merged yet')]);
+      return step(`${it.mergedHow === 'manual' ? 'Marked merged.' : 'Every linked pull request is merged.'} Resolve in ${sysName(it)} finishes it: in main, waiting for the next release.`,
+        [btn('mark-resolved', `Resolve in ${sysName(it)}`, { primary: true, out: sysOut(it), title: `Sets #${it.ado.id} to Resolved in ${ghCard(it) ? 'GitHub (a resolved label)' : 'Azure DevOps'}, after a confirm` }), btn('unmerge', 'Not merged yet')]);
     case 'review': {
       const prs = (it.prs && it.prs.list) || [];
       const done = prs.filter(x => x.status === 'completed').length;
@@ -482,6 +508,7 @@ function devNext(p) {
 function nextHtml(n) {
   if (n.html) return n.html;
   if (!n.text && !n.shown.length && !n.extra) return '';
+  if (n.fork) return `<div class="next"><p>${n.text}</p><div class="forks" role="group" aria-label="Pick the next path">${n.shown.slice(0, MAX_FORK).join('')}</div>${n.extra || ''}</div>`;
   return `<div class="next"><p>${n.text}</p>${n.extra || ''}<div class="acts">${n.shown.slice(0, MAX_SHOWN).join('')}</div></div>`;
 }
 

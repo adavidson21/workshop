@@ -46,7 +46,7 @@ export function matchChat(c, query) {
   return words.every(w => title.includes(w));
 }
 
-/** The last thing Tandem said, for Save as note and Make it a spike. */
+/** The last thing Tandem said, for Save as note and the flow cards. */
 export function lastTandem(turns) {
   const list = Array.isArray(turns) ? turns : [];
   for (let i = list.length - 1; i >= 0; i--) if (list[i] && list[i].role === 'tandem' && list[i].text) return list[i].text;
