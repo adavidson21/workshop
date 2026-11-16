@@ -152,6 +152,19 @@ export function folderActs(it, inline) {
     out.push(runBtn(it, cmd, 'Fact-check it'), edit('tsd.md', 'Edit tsd.md'));
   } else if (id === 'tsd' && i === 3) {
     out.push(runBtn(it, `/publish ${it.folder}`, 'Publish'), edit('tsd.md', 'Edit tsd.md'));
+  } else if (id === 'diagnose' && i === 1) {
+    // The diagnosis fork (Core 4.3.0): a fix that changes no code comes first; you apply it, then this closes.
+    const d = fileOf(it.folder, 'findings.md');
+    const type = String(it.fixType || '').toLowerCase();
+    const noCode = ['configuration', 'data', 'infrastructure'].includes(type);
+    const doc = (flow, label, desc, primary) => ({ label, desc, primary, attrs: `data-doc-start="${h(it.folder)}" data-doc-flow="${flow}"`, title: 'Opens Start work with the diagnosis filled in. Nothing starts until Start.' });
+    out.push(forkHtml([
+      noCode ? { label: 'Apply the change', desc: `You make the ${type} change the diagnosis names, then this closes.`, primary: true, attrs: `data-spike-close="${h(it.folder)}" data-close-how="applied the ${h(type)} change"` } : null,
+      doc('bug', noCode ? 'Fix it in code instead' : 'Fix it', 'Start Fix a bug from the diagnosis: a failing test, then the fix.', !noCode),
+      doc('spike', 'Investigate more', 'A spike on what the diagnosis leaves open.'),
+      { label: 'Save as note', desc: 'Keep the diagnosis in Notes and close it.', attrs: `data-doc-note="${h(it.folder)}"`, disabled: !(d && d.text), title: d && d.text ? '' : 'Read the diagnosis first' },
+      { label: 'Close', desc: 'Not worth fixing, or already fixed.', attrs: `data-spike-close="${h(it.folder)}"` }
+    ], 'What next for this error'));
   } else if (id === 'spike' && i === 1) {
     const d = fileOf(it.folder, 'findings.md');
     const doc = (flow, label, desc) => ({ label, desc, attrs: `data-doc-start="${h(it.folder)}" data-doc-flow="${flow}"`, title: 'Opens Start work with the findings filled in. Nothing starts until Start.' });

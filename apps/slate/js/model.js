@@ -310,7 +310,7 @@ export function pendingIdeaCards(rows, items = [], dismissed = [], now = new Dat
 
 /* Loom: every run is a card. A Tandem run (the opencode connector's `state` items) that no stored card holds gets a
    card of its own on the board, not stored: a work item run in Build, an investigation, spec or doc in Shape. */
-export const RUN_KIND_CHIP = { spike: 'Investigate', tsd: 'Technical spec', docs: 'Docs', epic: 'Epic plan', research: 'Research' };
+export const RUN_KIND_CHIP = { log: 'Error log', spike: 'Investigate', tsd: 'Technical spec', docs: 'Docs', epic: 'Epic plan', research: 'Research' };
 const SLATE_FOLDER = /^(triage|shape|refine|scope|handoff)-/;
 /** Cards for runs no card holds: [{...item, id: 'run_<folder>', virtualRun: true, run, runKind}]. */
 export function runCards(runs = [], items = [], now = new Date()) {
@@ -327,7 +327,7 @@ export function runCards(runs = [], items = [], now = new Date()) {
       it.id = `run_${r.folder}`;
       it.virtualRun = true;
       it.run = r;
-      it.runKind = r.kind === 'item' ? 'item' : r.kind;
+      it.runKind = r.kind === 'item' ? 'item' : r.kind === 'spike' && r.fromLog ? 'log' : r.kind;
       it.stage = r.kind === 'item' ? 'dev' : 'new';
       it.history = [{ stage: it.stage, at: today(now), from: 'dispatch' }];
       if (r.kind === 'item' && /^\d{1,10}$/.test(String(r.id || ''))) it.ado = { id: Number(r.id), rev: 0, type: r.lane === 'bug' ? 'Bug' : '', url: '', connection: '', area: '', state: '' };

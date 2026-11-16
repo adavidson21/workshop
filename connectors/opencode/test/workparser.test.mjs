@@ -81,6 +81,9 @@ function richWorkspace() {
   // Flow cards v1: a closed spike, a doc saved to the repo (/publish), a doc saved to Folio (saved.md), CRLF in each.
   w("spike-sessions/findings.md", "# Spike findings: Longer sessions\n");
   w("spike-sessions/closed.md", "Closed: started L12 as a feature on 2026-11-16.\r\nmore\r\n");
+  // An error log diagnosis (Core 4.3.0): log.md and a Fix type header.
+  w("spike-log-timeout/log.md", "System.TimeoutException: The operation timed out\n");
+  w("spike-log-timeout/findings.md", "# Spike findings: Eligibility timeout\r\n\r\nKind: Error log\r\nFix type: Configuration\r\n\r\n## Short answer\r\n\r\nRaise the timeout.\r\n");
   w("docs-gateway/sources.md", "Doc: docs/run.md\r\n\r\nStatus: SAVED to docs/run.md on 2026-11-16\r\n");
   w("docs-gateway/check.md", "x\n");
   w("docs-folio/sources.md", "Doc: docs/a.md\n");
@@ -177,6 +180,10 @@ test("edge cases on their own: local ids, blocked, paused, PR review, scope, CRL
     assert.equal(by("scope-payments").state, "Import file ready");
     assert.equal(by("_private"), undefined);
     // Flow cards v1: a spike closed at its findings fork, and a doc saved to the repo or to Folio.
+    assert.equal(by("spike-log-timeout").fixType, "Configuration");
+    assert.equal(by("spike-log-timeout").fromLog, true);
+    assert.equal(by("spike-log-timeout").summary, "Raise the timeout.");
+    assert.equal(by("spike-sessions").fixType, undefined, "a spike without a Fix type line has none");
     assert.equal(by("spike-sessions").state, "Closed");
     assert.equal(by("spike-sessions").nextText, "started L12 as a feature on 2026-11-16.");
     assert.equal(by("docs-gateway").state, "Saved");

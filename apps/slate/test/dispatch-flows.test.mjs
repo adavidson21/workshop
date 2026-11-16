@@ -29,7 +29,7 @@ beforeEach(load);
 
 test('the flow cards: seven to pick from, each step named, the ones that stop for you marked (flow cards v1)', () => {
   assert.deepEqual(PICKER.map(f => f.id), ['request', 'feature', 'bug', 'spike', 'epic', 'handoff', 'docs']);
-  assert.deepEqual(FLOWS.filter(f => f.picker === false).map(f => f.id), ['tsd', 'small'], 'kept for runs: Technical spec is a Write docs type, Small change a Build a feature size');
+  assert.deepEqual(FLOWS.filter(f => f.picker === false).map(f => f.id), ['diagnose', 'tsd', 'small'], 'kept for runs: Diagnose is Fix a bug from an error log, Technical spec a Write docs type, Small change a Build a feature size');
   const keys = id => stepsOf(FLOWS.find(f => f.id === id), 'feature').map(s => s.key + (s.you === true ? '*' : s.you ? '?' : '') + (s.quiet ? '~' : ''));
   assert.deepEqual(keys('request'), ['triage*', 'interview*', 'brief*'], 'triage, interview, brief; triage and brief are forks');
   assert.deepEqual(keys('feature'), ['start~', 'spec*', 'build', 'review?', 'ship*'], 'Set up is quiet; Review stops only on blockers; Ship has the PR text');

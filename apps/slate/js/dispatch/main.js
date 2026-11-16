@@ -13,7 +13,7 @@ import { render, prompts, itemForFolder, itemKey, isBusy, dayKey, fileDirty, fil
 import { INBOX, projectById, projectArgs, startProject } from './projects.js';
 import { TAB_IDS, OLD_TABS, inboxCount, sessionAsksHtml, wantedFiles, walkList, runCardHtml } from './pages.js';
 import { FLOW_IDS, addOpenQuestion, sendBackCommand, gateFile } from './flows.js';
-import { closedLine, closedWith, prefillFor, safeDecode } from './start-prefill.js';
+import { closedLine, closedWith, looksLikeLog, prefillFor, safeDecode } from './start-prefill.js';
 import { reviewUrlCheck, reviewAllList, prArg } from './pr-reviews.js';
 import { createCaptureStore } from '../../../../shared/capture-box.js';
 import { slateLinks, summaryCards } from './summary.js';
@@ -416,7 +416,14 @@ function wantFocus(path) {
   if (/^reviews\/?$/.test(p)) { S.ui.inboxChip = 'prs'; setTab('inbox'); return; }
   // start/<flow>[/<text>]: Start work on that flow's card, filled in with the text (Chat's flow suggestions).
   const sm = /^start(?:\/([a-z]+))?(?:\/([\s\S]*))?$/.exec(p);
-  if (sm) { const fl = sm[1] || ''; const text = sm[2] ? safeDecode(sm[2]) : ''; setTab('board'); openStart(fl, text ? prefillFor(fl, { title: text, summary: text.length > 120 ? text : '' }, '') : null); return; }
+  if (sm) {
+    const fl = sm[1] || ''; const text = sm[2] ? safeDecode(sm[2]) : '';
+    setTab('board');
+    // A pasted error log goes to Fix a bug's Error log box (Chat's flow cards).
+    if (fl === 'bug' && looksLikeLog(text)) { openStart('bug', { log: text }); if (ui().start) ui().start.src = 'log'; paint(); return; }
+    openStart(fl, text ? prefillFor(fl, { title: text, summary: text.length > 120 ? text : '' }, '') : null);
+    return;
+  }
   const [head, rest] = [p.split('/')[0], p.split('/').slice(1).join('/')];
   if (!head) return;
   if ((head === 'work' || OLD_TABS[head]) && rest) { keyWanted = { key: rest, until: Date.now() + 15000 }; tryKey(); return; }
@@ -533,6 +540,7 @@ const STARTED = {
   spike: () => 'Investigating. Its card is on the board; the findings come to the Inbox.',
   'scope.start': () => 'Scoping the idea. Tandem may ask you a few questions; they show in the Inbox.',
   'docs.start': () => 'Drafting the doc. The draft comes to the Inbox for your read.',
+  'spike.log': () => 'Diagnosing the log. The diagnosis comes to the Inbox with a fix, configuration first.',
   'tsd.start': () => 'Drafting the technical spec. Tandem asks you to confirm the repos and pick the flows; the questions show in the Inbox.'
 };
 const BOARD_STARTED = { request: 'Added to the board. Triage is running; pick the path when it is done.', handoff: 'Added to the board. Tandem is drafting the story for you to approve.' };
@@ -562,7 +570,7 @@ async function startGo() {
     for (const k of Object.keys(ui().drafts)) if (k.startsWith('start:')) delete ui().drafts[k];
     closeOverlays();
     const pname = r.args.project ? ' in ' + ((projectById(r.args.project) || {}).name || 'the project') : '';
-    toast(STARTED[r.action] ? STARTED[r.action]()
+    toast(r.action === 'spike' && r.args.log ? STARTED['spike.log']() : STARTED[r.action] ? STARTED[r.action]()
       : r.action === 'start.local' ? `Started ${(res && res.id) || 'it'} as a ${r.args.lane === 'quick' ? 'small change' : r.args.lane}${pname}. It is on the board; the agent may ask you to confirm repos.`
       : `Starting #${r.args.id} as a ${r.args.lane === 'quick' ? 'small change' : r.args.lane}${pname}. Its card is on the board once its folder is ready.`);
     setTab('board');
@@ -977,7 +985,12 @@ listen('click', ev => {
     return;
   }
   const sclose = t.closest('[data-spike-close]');
-  if (sclose) { const f = sclose.getAttribute('data-spike-close'); act(() => closeSpike(f, closedWith('nothing more to do')), () => toast('Closed. It is in Done on the board.'), f); return; }
+  if (sclose) {
+    const f = sclose.getAttribute('data-spike-close');
+    const how = sclose.getAttribute('data-close-how') || 'nothing more to do';
+    act(() => closeSpike(f, closedWith(how)), () => toast(how === 'nothing more to do' ? 'Closed. It is in Done on the board.' : `Closed: ${how}. It is in Done on the board.`), f);
+    return;
+  }
   const dfolio = t.closest('[data-docs-folio]');
   if (dfolio) { saveDocToFolio(dfolio.getAttribute('data-docs-folio')); return; }
   if (t.closest('[data-proj-new]')) { openProject(null); return; }

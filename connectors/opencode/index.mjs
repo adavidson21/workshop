@@ -15,7 +15,7 @@ import { connectOpencode, disconnectOpencode } from "./lib/opencode-connect.mjs"
 import { abort, answerPermission, answerQuestion, openTerminal, pushBranch, removeItem, reply, resetActions, runCommand, shellData, startItem } from "./lib/actions.mjs";
 import { autopilot, autopilotAction, loadAuto } from "./lib/autopilot.mjs";
 import { pageData, resetLive } from "./lib/live.mjs";
-import { TIMEBOXES, addRepo, dismissLoose, onboardRepo, resetWorkspace, startLocal, startDocs, startReview, startSpike, startTsd } from "./lib/workspace.mjs";
+import { MAX_LOG, TIMEBOXES, addRepo, dismissLoose, onboardRepo, resetWorkspace, startLocal, startDocs, startReview, startSpike, startTsd } from "./lib/workspace.mjs";
 import { loadProviders } from "./lib/opencode-connect.mjs";
 import { clearQueue, loadPrQueue, prReviews, resetPrQueue, reviewAll, saveInbox, stopQueue } from "./lib/pr-queue.mjs";
 import { COLORS, INBOX, assignRun, createProject, deleteProject, loadProjects, resetProjects, updateProject } from "./lib/projects.mjs";
@@ -510,9 +510,14 @@ const actions = {
     },
   },
   spike: {
-    title: "Start a spike (investigate, no code changes)",
+    title: "Start a spike (investigate, no code changes), or diagnose an error log",
     write: true,
-    argsSchema: obj(["topic"], { topic: str("The question to answer", { minLength: 1, maxLength: 500 }), timebox: { type: "string", title: "Timebox (Core 4.2.0)", enum: TIMEBOXES } }),
+    argsSchema: obj([], {
+      topic: str("The question to answer (or, with a log, a note on it)", { maxLength: 500 }),
+      timebox: { type: "string", title: "Timebox (Core 4.2.0)", enum: TIMEBOXES },
+      log: { type: "string", title: "An error log or stack trace to diagnose (Core 4.3.0)", maxLength: MAX_LOG },
+      where: str("Where the log is from: service, environment", { maxLength: 300 }),
+    }),
     async run(args) {
       needReady();
       return startSpike(args);
