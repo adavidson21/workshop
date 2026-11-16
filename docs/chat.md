@@ -21,7 +21,7 @@ The Chat app (`apps/chat`, its own rail app since Loom 4.8.0; before that Loom's
 | Up (empty box) | Your last message |
 | Esc twice | Stop opencode |
 
-A message sent while opencode is working waits in a queue under the thread and goes when it is done (Stop clears the queue). Undo takes back your last message and its file changes and puts its text back in the box; the turns stay hidden until Redo, and your next message drops them, as in the TUI.
+Your message shows in the thread as soon as you send it, even before opencode has stored it (opencode takes prompts asynchronously, so its first reads can miss it); a New chat shows it with Starting... while the session is made (Chat 2.4.0). A message sent while opencode is working waits in a queue under the thread and goes when it is done (Stop clears the queue). Undo takes back your last message and its file changes and puts its text back in the box; the turns stay hidden until Redo, and your next message drops them, as in the TUI.
 
 ## Rules
 

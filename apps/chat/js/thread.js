@@ -79,3 +79,15 @@ export function keepFocus(root) {
     if (sel) try { el.setSelectionRange(sel[0], sel[1]); } catch (e) { /* not a text field */ }
   };
 }
+
+/* Messages you sent that opencode has not stored yet (Chat 2.4.0). opencode takes a prompt asynchronously, so the
+   first reads after a send often miss it; an echo stays on screen until the chat has more turns than when it was
+   sent. One opencode never stored (it failed, or was dropped) goes after ECHO_MS once opencode is idle. */
+export const ECHO_MS = 60000;
+export function liveEchoes(echoes, turns, { busy = false, now = Date.now() } = {}) {
+  const list = Array.isArray(turns) ? turns : [];
+  const said = text => list.some(t => t.role === 'you' && String(t.text || '').trim() === String(text || '').trim());
+  // base null: sent before the chat's turns were read, so only its text can say it arrived.
+  const stored = e => (e.base == null ? said(e.text) : list.length > e.base);
+  return (echoes || []).filter(e => !stored(e) && (busy || now - e.at < ECHO_MS));
+}
