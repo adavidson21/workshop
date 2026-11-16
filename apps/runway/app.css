@@ -296,3 +296,23 @@ dialog{border:0;border-radius:var(--r-lg);box-shadow:var(--raise),var(--shadow-l
   .rbar .eyebrow{display:none}
   .rbar .fld input[type=date]{width:8.4rem}
 }
+
+/* ---------- Runway UX v1: the list page ---------- */
+.rcards{list-style:none;margin:0 0 1.8rem;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(19rem,1fr));gap:.9rem}
+.rcard{display:flex;flex-direction:column;gap:.45rem;padding:1rem 1.1rem .8rem;border:1px solid var(--line);border-radius:var(--r-md);background:var(--surface);min-height:8.5rem}
+.rcard .rtitle{font:650 1.12rem/1.3 var(--sans);color:var(--ink);text-decoration:none}
+.rcard .rtitle:hover{color:var(--accent)}
+.rcard .rnext{margin:0;font-size:.88rem;color:var(--ink)}
+.rcard .rmeta{font-size:.8rem;color:var(--muted)}
+.rcard .rfoot{display:flex;align-items:center;gap:.5rem;margin-top:auto}
+.rcard .racts{margin-left:auto;display:flex;gap:.2rem}
+.starts .section-label{margin:0 0 .6rem}
+.tcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(13rem,1fr));gap:.7rem}
+.tcard{display:flex;flex-direction:column;align-items:flex-start;gap:.25rem;padding:.85rem 1rem;border:1px dashed var(--line);border-radius:var(--r-md);background:transparent;text-align:left;cursor:pointer;color:var(--ink);font:inherit}
+.tcard b{font-weight:650}
+.tcard span{font-size:.82rem;color:var(--muted);line-height:1.35}
+.tcard:hover{border-style:solid;border-color:var(--accent);background:var(--surface)}
+.tcard.main{border-style:solid;background:var(--surface)}
+.panel .pmore{border-top:1px solid var(--line);padding-top:.6rem;margin-top:.2rem}
+.panel .pmore summary{cursor:pointer;font-size:.86rem;color:var(--accent);margin-bottom:.4rem}
+.panel .pmore[open] summary{margin-bottom:.7rem}

@@ -63,11 +63,11 @@ def main():
         check('Runway opens on its own at the site root', pg.title() == 'Runway')
         check('it has the standalone top bar', pg.locator('.ws-bar .here').text_content() == 'Runway')
         check('with no Workshop, it saves in this browser', pg.evaluate(f'{R}.ws.mode + "/" + {R}.ws.backend') == 'browser/browser')
-        pg.wait_for_selector('.engcard [data-new]', timeout=5000)
-        check('an empty list offers a new roadmap and the example', pg.locator('.engcard [data-new]').count() == 1 and pg.locator('.engcard [data-example]').count() == 1)
+        pg.wait_for_selector('.starts [data-new]', timeout=5000)
+        check('an empty list offers a new roadmap and the example', pg.locator('.starts [data-new]').count() == 1 and pg.locator('.starts [data-example]').count() == 1)
 
         # New roadmap, then type the outline.
-        pg.click('.engcard [data-new]')
+        pg.click('.starts [data-new]')
         pg.wait_for_selector('[data-outline]')
         pg.fill('[data-outline]', OUTLINE)
         pg.wait_for_timeout(700)
@@ -266,8 +266,8 @@ def main():
 
         # Back to the list, the example, and remove.
         pg.click('[data-home]')
-        pg.wait_for_selector('.rlist')
-        check('the list shows the roadmap', 'E2E plan' in pg.inner_text('.rlist'))
+        pg.wait_for_selector('.rcards')
+        check('the list shows the roadmap', 'E2E plan' in pg.inner_text('.rcards'))
         pg.click('[data-example]')
         pg.wait_for_selector('[data-tl] g.bar')
         check('the example opens with no warnings', pg.locator('.warns').count() == 0 and pg.locator('[data-tl] g.bar').count() >= 8)
@@ -276,11 +276,11 @@ def main():
         check('Timeline mode hides the outline', not pg.is_visible('[data-outline]'))
         pg.click('button[data-mode="split"]')
         pg.click('[data-home]')
-        pg.wait_for_selector('.rlist')
+        pg.wait_for_selector('.rcards')
         pg.locator('[data-del]').first.click()
         pg.click('dialog[open] button[value="ok"]')
         pg.wait_for_timeout(300)
-        check('Remove takes a roadmap off the list', pg.locator('.rrow').count() == 1)
+        check('Remove takes a roadmap off the list', pg.locator('.rcard').count() == 1)
 
         # Narrow screen still works.
         pg.set_viewport_size({'width': 390, 'height': 844})

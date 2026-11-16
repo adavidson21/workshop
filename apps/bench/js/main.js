@@ -26,7 +26,9 @@ function errText(e) { return (e && (e.message || e.code)) || 'Something went wro
 
 function render() {
   const tab = st.view === 'result' ? 'history' : st.view === 'command' || st.view === 'lift' ? 'overview' : st.tab;
-  $('#tabs').innerHTML = tabsHtml(tab);
+  // Until Bench can read anything, its tabs would all show the same setup card: hide them (Bench UX v1).
+  $('#tabs').innerHTML = st.note ? '' : tabsHtml(tab);
+  $('#tabs').hidden = !!st.note;
   $('#body').innerHTML = bodyHtml(st);
 }
 

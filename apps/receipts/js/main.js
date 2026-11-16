@@ -223,8 +223,7 @@ function composerHtml(about, placeholder) {
       <button type="button" id="star-${esc(about)}" class="ibtn star${d.star ? ' on' : ''}" data-act="draft-star" aria-pressed="${d.star}" aria-label="Star for the review" title="Star for the review">${d.star ? I.starOn : I.star}</button>
       <button type="button" id="more-${esc(about)}" class="lnk" data-act="more" aria-expanded="${open}">${open ? 'Fewer details' : 'More details'}</button>
       <span class="grow"></span>
-      <span class="hint"><kbd>Ctrl</kbd> <kbd>Enter</kbd></span>
-      <button class="btn primary" type="submit">Save</button>
+      <button class="btn primary" type="submit" title="Save (Ctrl+Enter)">Save</button>
     </div>
     <div class="chips" role="group" aria-label="Review sections">${c.sections.map(s => `<button type="button" class="chip${d.sections.includes(s) ? ' on' : ''}" data-act="draft-sec" data-sec="${esc(s)}" aria-pressed="${d.sections.includes(s)}">${esc(s)}</button>`).join('')}</div>
     <div class="details"${open ? '' : ' hidden'}>
@@ -282,7 +281,9 @@ function feedHtml(list, emptyText, opts) {
   return R.groupByMonth(list).map(g => `<section class="month"><h3 class="section-label">${esc(g.label)}<span class="n mono">${g.items.length}</span></h3><ul class="feed">${g.items.map(e => entryHtml(e, opts)).join('')}</ul></section>`).join('');
 }
 
-function stat(n, label, cls = '') { return `<div class="stat ${cls}"><b class="mono">${n}</b><span>${esc(label)}</span></div>`; }
+function stat(n, label, cls = '') { return `<span class="stat ${cls}"><b>${n}</b> ${esc(label)}</span>`; }
+/** A period's counts as one line under the composer: the numbers that matter, without a wall of tiles. */
+const statLine = parts => `<p class="statline">${parts.filter(Boolean).join('<span class="sep" aria-hidden="true">·</span>')}</p>`;
 
 /* ---------- offers ---------- */
 // Me shows every offer (with whose it is when it is about a report); a report's page shows the ones about them.
@@ -324,14 +325,10 @@ function meView() {
   const all = entries();
   const list = R.filterEntries(all, { about: 'me', period, section: f.section, kind: f.kind, star: f.star, q: f.q });
   const rev = R.buildReview(all, { about: 'me', period, sections: cfg().sections });
-  return feedSplit(`<div class="stats">
-      ${stat(rev.total, period.label)}
-      ${stat(rev.kinds.win, 'Wins')}
-      ${stat(rev.starred, 'Starred')}
-      <button class="stat link${rev.gaps.length ? ' warn' : ''}" data-act="go" data-path="review" data-about="me">${`<b class="mono">${rev.gaps.length}</b><span>Sections with no receipts</span>`}</button>
-    </div>
-    ${offersHtml()}
-    ${composerHtml('me', 'What did you do?')}`,
+  return feedSplit(`${composerHtml('me', 'What did you do?')}
+    ${statLine([stat(rev.total, rev.total === 1 ? 'receipt' : 'receipts'), `<span class="stat">${esc(period.label.toLowerCase())}</span>`, stat(rev.kinds.win, rev.kinds.win === 1 ? 'win' : 'wins'), rev.starred ? stat(rev.starred, 'starred') : '',
+      rev.gaps.length ? `<button class="lnk stat-link" data-act="go" data-path="review" data-about="me">${rev.gaps.length} review section${rev.gaps.length === 1 ? '' : 's'} with nothing yet</button>` : ''])}
+    ${offersHtml()}`,
     `${filtersHtml('me')}
     <div class="list">${feedHtml(list, all.some(e => e.about === 'me') ? 'Nothing matches these filters.' : 'No receipts yet. Add one above.')}</div>`);
 }
@@ -353,10 +350,10 @@ function teamView() {
     ${S.addingPerson ? personForm({ id: '', name: '', role: '', since: '' }) : ''}
     ${rows.length ? `<ul class="roster">${rows.map(r => `<li class="rrow"><button class="prow" data-act="go" data-path="team/${esc(r.person.id)}">
         <span class="pname"><b>${esc(r.person.name || 'Unnamed')}</b><span>${esc(r.person.role)}</span></span>
-        <span class="pnums mono"><span title="Receipts in period">${r.total}</span><span title="Wins">${r.wins} W</span><span title="Feedback given">${r.feedback} F</span><span title="Growth areas">${r.growth} G</span>${r.concerns ? `<span class="cn" title="Concerns">${r.concerns} C</span>` : ''}</span>
+        <span class="pnums">${[r.wins ? `${r.wins} ${r.wins === 1 ? 'win' : 'wins'}` : '', r.feedback ? `${r.feedback} feedback` : '', r.growth ? `${r.growth} growth` : '', r.concerns ? `<span class="cn">${r.concerns} ${r.concerns === 1 ? 'concern' : 'concerns'}</span>` : ''].filter(Boolean).join(' · ') || `<span class="dim">${r.total ? `${r.total} receipts` : 'Nothing yet'}</span>`}</span>
         <span class="plast${r.stale ? ' stale' : ''}">${r.lastDate ? (r.daysSince === 0 ? 'Today' : `${r.daysSince}d ago`) : 'No receipts'}</span>
-      </button><button class="btn log" data-act="log-for" data-about="${esc(r.person.id)}" aria-label="Add a receipt for ${esc(r.person.name || 'this report')}">Add</button></li>`).join('')}</ul>
-      <p class="legend mono">W wins &middot; F feedback given &middot; G growth areas &middot; C concerns &middot; Highlighted: nothing in ${cfg().staleDays} days</p>`
+      </button><button class="btn ghost log" data-act="log-for" data-about="${esc(r.person.id)}" aria-label="Add a receipt for ${esc(r.person.name || 'this report')}">Add</button></li>`).join('')}</ul>
+      <p class="legend">Highlighted: nothing logged in ${cfg().staleDays} days.</p>`
     : (S.addingPerson ? '' : `<div class="engcard"><h2>No reports yet</h2><p>Add a direct report to log their wins, feedback, growth areas and concerns.</p><div class="acts"><button class="btn primary" data-act="add-person">Add a report</button></div></div>`)}
     ${archived.length ? `<details class="archived"><summary>Archived (${archived.length})</summary><ul>${archived.map(p => `<li><button class="lnk" data-act="go" data-path="team/${esc(p.id)}">${esc(p.name)}</button></li>`).join('')}</ul></details>` : ''}`;
 }
@@ -382,14 +379,15 @@ function personView(id) {
   const n = k => inP.filter(e => e.kind === k).length;
   return `<div class="bar"><button class="btn ghost" data-act="go" data-path="team">${I.back} Reports</button><span class="grow"></span>
       <button class="btn" data-act="go" data-path="review" data-about="${esc(id)}">Build review</button>
-      <button class="btn ghost" data-act="edit-person">Edit</button>
-      <button class="btn ghost" data-act="archive-person">${p.archived ? 'Restore' : 'Archive'}</button></div>
+      <button class="btn" data-act="edit-person">Edit</button>
+      <button class="btn" data-act="archive-person">${p.archived ? 'Restore' : 'Archive'}</button></div>
     ${S.addingPerson === id ? personForm(p) : `<div class="phead"><h2>${esc(p.name)}</h2><p>${esc([p.role, p.since && `since ${R.shortDate(p.since)} ${p.since.slice(0, 4)}`].filter(Boolean).join(', '))}</p></div>`}
     ${p.archived ? '' : oo.panel(id, p.name)}
     <h3 class="section-label rhead">Receipts</h3>
-    ${feedSplit(`<div class="stats">${stat(inP.length, period.label)}${stat(n('win'), 'Wins')}${stat(n('feedback'), 'Feedback given')}${stat(n('growth'), 'Growth areas')}${stat(n('concern'), 'Concerns', n('concern') ? 'warn' : '')}</div>
-    ${offersHtml(id)}
-    ${composerHtml(id, `What did ${p.name.split(' ')[0] || 'they'} do, or what feedback did you give?`)}`,
+    ${feedSplit(`${composerHtml(id, `What did ${p.name.split(' ')[0] || 'they'} do, or what feedback did you give?`)}
+    ${statLine([stat(inP.length, inP.length === 1 ? 'receipt' : 'receipts'), `<span class="stat">${esc(period.label.toLowerCase())}</span>`, n('win') ? stat(n('win'), n('win') === 1 ? 'win' : 'wins') : '', n('feedback') ? stat(n('feedback'), 'feedback') : '',
+      n('growth') ? stat(n('growth'), n('growth') === 1 ? 'growth area' : 'growth areas') : '', n('concern') ? stat(n('concern'), n('concern') === 1 ? 'concern' : 'concerns', 'warn') : ''])}
+    ${offersHtml(id)}`,
     `${filtersHtml(key)}
     <div class="list">${feedHtml(list, inP.length || all.some(e => e.about === id) ? 'Nothing matches these filters.' : `No receipts for ${p.name.split(' ')[0] || 'this report'} yet. Add one above.`)}</div>`)}`;
 }
@@ -428,9 +426,14 @@ function reviewView() {
     </div>
     <h3 class="section-label">Coverage<span class="n mono">${review.total} receipts</span></h3>
     <div class="coverage">${review.coverage.map(x => x.count ? `<span class="cov"><b class="mono">${x.count}</b>${esc(x.section)}</span>`
-      : `<button type="button" class="cov gap" data-act="log-gap" data-sec="${esc(x.section)}" title="Add a receipt for ${esc(x.section)}"><b class="mono">0</b>${esc(x.section)} +</button>`).join('')}</div>
+      : `<button type="button" class="cov gap" data-act="log-gap" data-sec="${esc(x.section)}" title="Add a receipt for ${esc(x.section)}"><b class="mono">0</b>${esc(x.section)}</button>`).join('')}</div>
     ${unlistedHere.length ? `<p class="note">Shown under Other because their sections are not in your list: ${esc(unlistedHere.join(', '))}. <button class="lnk" type="button" data-act="add-unlisted">Add them to your sections</button></p>` : ''}
-    ${review.gaps.length ? `<p class="note">${review.gaps.length === 1 ? '1 section has' : `${review.gaps.length} sections have`} no receipts yet. Click one above to add a receipt.</p>` : review.total ? `<p class="note ok">Every section has at least one receipt.</p>` : ''}
+    ${(() => {
+      // Receipts with no section are fine: say how to sort them, instead of making every section look empty (Rapport UX v1).
+      const untagged = review.groups.filter(g => g.section === 'Other').reduce((n, g) => n + g.items.length, 0);
+      if (untagged && untagged === review.total) return `<p class="note">None of these ${review.total} receipts has a section yet, so they are under Other. Edit a receipt to pick its sections, or pick them as you add new ones.</p>`;
+      return review.gaps.length ? `<p class="note">${review.gaps.length === 1 ? '1 section has' : `${review.gaps.length} sections have`} nothing yet. Pick one above to add a receipt.</p>` : review.total ? `<p class="note ok">Every section has at least one receipt.</p>` : '';
+    })()}
     <div class="rgrid">
       <div class="rgroups">${review.groups.filter(g => g.items.length).map(g => `<section><h3 class="section-label">${esc(g.section)}<span class="n mono">${g.items.length}</span></h3><ul class="feed">${g.items.map(e => entryHtml(e)).join('')}</ul></section>`).join('') || `<p class="empty">No receipts in this period.</p>`}</div>
       <div class="draft">
@@ -513,8 +516,9 @@ function paint() {
   else if (view === 'review') body = reviewView();
   else if (view === 'settings') body = settingsView(folderStatus);
   else body = meView();
+  // The selected tab is the page's title; the h1 stays for screen readers only (Rapport UX v1).
   app.innerHTML = `<header class="head">
-      <h1 class="page-title">${esc(title)}</h1>
+      <h1 class="page-title vh">${esc(title)}</h1>
     </header>
     <nav class="tabs" aria-label="Sections">${TABS().map(([k, l]) => `<button data-act="go" data-path="${k}"${k === view ? ' class="on" aria-current="page"' : ''}>${esc(l)}</button>`).join('')}</nav>
     <main class="v-${view}">${body}</main>`;
