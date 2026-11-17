@@ -2,7 +2,7 @@
 
 What Tandem (eng-agents) needs to know about your products, your team and your voice, kept once in your data folder and read by agents in one call. Plan and as-built notes: the Workshop project doc `claude/knowledge-base-v1-plan.md`.
 
-Version: Knowledge base V1 (Settings 7.0.0, Folio 4.9.0, Chat 3.1.0, opencode connector 1.19.0, Tandem Core 4.6.0).
+Version: Knowledge base V1 (Settings 7.0.0, Folio 4.9.0, Chat 3.1.0, opencode connector 1.19.0, Tandem Core 4.7.0).
 
 ## One home for each fact
 
@@ -46,7 +46,7 @@ Settings' own collection `repos` (`settings.repos` v1), not read by other apps. 
 
 ## Get-Knowledge.ps1
 
-`Get-Knowledge.ps1 -Product <name>` (Tandem Core 4.6.0) prints one block: the product's Settings fields, its glossary words (and words for any product), its owners from People (name, role, what they own), its product note without frontmatter, and the team handbook. `-Handbook` prints only the handbook. A product is found by name, another name or slug, case ignored. Missing parts are skipped with one line saying so; nothing is an error. Over about 400 lines, the handbook is cut first and the output says so.
+`Get-Knowledge.ps1 -Product <name>` (Tandem Core 4.7.0) prints one block: the product's Settings fields, its glossary words (and words for any product), its owners from People (name, role, what they own), its product note without frontmatter, and the team handbook. `-Handbook` prints only the handbook. A product is found by name, another name or slug, case ignored. Missing parts are skipped with one line saying so; nothing is an error. Over about 400 lines, the handbook is cut first and the output says so.
 
 Agents call it once, after matching work to a product in the repo map, instead of reading the map block and then the note. The hub and chat agents cannot run scripts, so they read the same files with `Get-Content`.
 
