@@ -1,6 +1,7 @@
 /* Notes: HTML for the page. Pure functions of state; every piece of note text is escaped here or by
    markdown.js. main.js owns events and the editor. */
-import { esc, plainText } from './markdown.js';
+import { esc, plainText, safeHref } from './markdown.js';
+import { KINDS, LINKS, filterLinks, hostOf } from './links.js';
 import { filterOptions } from '../../../shared/products.js';
 import { age, baseName, dirOf, stem, wordCount } from './model.js';
 import { HIDDEN, READ_ONLY, readProps } from './props.js';
@@ -64,18 +65,19 @@ export function sidebar(state) {
   const { notes, ui } = state;
   const q = ui.query;
   const sec = SECTIONS.find(s => s.id === ui.section) || SECTIONS[0];
-  const body = q.trim() ? results(state) : sectionBody(state);
+  const linksSec = ui.section === 'links';
+  const body = q.trim() && !linksSec ? results(state) : sectionBody(state);
   return `
     <div class="side-head">
       <p class="eyebrow">${esc(sec.name)}</p>
       <div class="side-actions">${sideActions(ui.section)}</div>
     </div>
-    <label class="search"><span class="sr">Search notes</span>
-      <input type="search" data-search value="${esc(q)}" placeholder="Search" autocomplete="off" spellcheck="false">
+    <label class="search"><span class="sr">${linksSec ? 'Filter links' : 'Search notes'}</span>
+      <input type="search" data-search value="${esc(q)}" placeholder="${linksSec ? 'Filter links' : 'Search'}" autocomplete="off" spellcheck="false">
     </label>
     ${!q.trim() && ui.section === 'notes' && (state.products || []).some(p => !p.archived) ? `<label class="prodf"><span class="sr">Product</span><select data-product aria-label="Show notes for a product">${filterOptions(state.products, state.product ? state.product.id : '', esc)}</select></label>` : ''}
     ${q.trim() || ui.section !== 'notes' ? '' : pinnedHtml(state)}
-    <nav class="side-body" aria-label="${q.trim() ? 'Search results' : esc(sec.name)}">${body}</nav>
+    <nav class="side-body" aria-label="${q.trim() && !linksSec ? 'Search results' : esc(sec.name)}">${body}</nav>
     ${notes.error ? `<p class="side-note bad">${esc(notes.error)}</p>` : ''}
     ${ui.section === 'notes' ? footHtml(state) : ''}`;
 }
@@ -85,6 +87,7 @@ function sideActions(section) {
   if (section === 'products') return b('new-product', 'New product note', ICON.plus);
   if (section === 'templates') return b('new-template', 'New template', ICON.plus);
   if (section === 'tandem') return b('tandem-refresh', 'Read .work again', ICON.refresh);
+  if (section === 'links') return b('open-links', 'Edit links.md as a note', ICON.pencil) + b('add-link', 'Add a link (L)', ICON.plus);
   return b('today', "Today's note (T)", ICON.today) + b('new-note', 'New note (N)', ICON.plus) + b('new-folder', 'New folder', ICON.folder);
 }
 function sectionBody(state) {
@@ -93,6 +96,7 @@ function sectionBody(state) {
   if (ui.section === 'products') return productsHtml(state);
   if (ui.section === 'templates') return templatesHtml(state);
   if (ui.section === 'tandem') return tandemHtml(state);
+  if (ui.section === 'links') return linksHtml(state);
   return treeHtml(state);
 }
 const pageRow = (path, title, cur, extra = '', trash = true) => `<li class="note${cur ? ' current' : ''}" data-path="${esc(path)}"><a class="row" href="#" data-open="${esc(path)}" style="--d:0"${cur ? ' aria-current="page"' : ''}><span class="name">${esc(title)}</span>${extra}</a>${trash ? trashBtn(path, title) : ''}</li>`;
@@ -116,9 +120,9 @@ function footHtml(state) {
   </div>`;
 }
 
-/* Pinned: Quick Notes, where Home's note captures go (pickup.js), always at the top once it exists, then your
-   bookmarks (bookmarks.js) in the order you added them. */
-export const PINNED = [QUICK];
+/* Pinned: Quick Notes, where Home's note captures go (pickup.js), always at the top once it exists, then Links
+   (links.md, links.js) once it exists, then your bookmarks (bookmarks.js) in the order you added them. */
+export const PINNED = [QUICK, LINKS];
 function pinnedHtml(state) {
   const { notes, ui } = state;
   const pins = [...PINNED, ...(state.bookmarks || []).filter(p => !PINNED.includes(p))].filter(p => notes.texts.has(p));
@@ -129,6 +133,36 @@ function pinnedHtml(state) {
     const mark = PINNED.includes(p) ? '' : `<button class="ibtn mini row-trash" data-act="unbookmark" data-path="${esc(p)}" title="Remove the bookmark" aria-label="Remove the bookmark on ${esc(n ? n.title : p)}">${ICON.unpin}</button>`;
     return `<li class="note${cur ? ' current' : ''}" data-path="${esc(p)}"><a class="row" href="#" data-open="${esc(p)}" style="--d:0"${cur ? ' aria-current="page"' : ''}><span class="pin">${ICON.pin}</span><span class="name">${esc(n ? n.title : p === QUICK ? QUICK_TITLE : stem(p))}</span></a>${mark}</li>`;
   }).join('')}</ul></nav>`;
+}
+
+/* Links (links.js): links.md's groups and links, filtered by the box above, each opening in a new tab, with Edit
+   and Remove on hover. Below, folded, the web links in other notes that aren't saved yet. */
+const kindChip = (kind) => `<span class="lkind k-${kind}" title="${esc(KINDS[kind].label)}" aria-hidden="true">${esc(KINDS[kind].short)}</span>`;
+function linkRow(l, on) {
+  const href = safeHref(l.url);
+  return `<li class="note link${on ? ' current' : ''}"><a class="row" href="${esc(href)}" target="_blank" rel="noopener noreferrer" title="${esc(l.url)}${l.note ? '\n' + esc(l.note) : ''}" style="--d:0">${kindChip(l.kind)}<span class="name">${esc(l.name)}</span>${l.tags.length ? `<span class="ltags">${l.tags.map(t => '#' + esc(t)).join(' ')}</span>` : ''}</a>`
+    + `<span class="row-acts"><button class="ibtn mini" data-act="edit-link" data-link-line="${l.line}" title="Edit" aria-label="Edit ${esc(l.name)}">${ICON.pencil}</button>`
+    + `<button class="ibtn mini row-del" data-act="remove-link" data-link-line="${l.line}" title="Remove" aria-label="Remove ${esc(l.name)}">${ICON.trash}</button></span></li>`;
+}
+function linksHtml(state) {
+  const { notes, ui, links } = state;
+  if (!notes.loaded) return '<p class="side-note">Loading notes.</p>';
+  const q = ui.query.trim();
+  const shown = filterLinks(links.groups, q);
+  let k = -1;
+  const list = shown.map(g => `<p class="section-label">${esc(g.name)} <span class="count">${g.links.length}</span></p><ul class="tree links">${g.links.map(l => { k++; return linkRow(l, Boolean(q) && k === ui.pick); }).join('')}</ul>`).join('');
+  const none = !links.groups.length
+    ? '<p class="side-note">One place for the links you keep going back to: SharePoint, Sheets, ADO, Teams, the wiki. Add one with <kbd>L</kbd>, or save one from <b>Found in notes</b>. They live in <code>links.md</code>, a plain note.</p>'
+    : !shown.length ? '<p class="side-note">No links match.</p>' : '';
+  return list + none + (q ? '' : foundHtml(state));
+}
+function foundHtml(state) {
+  const list = state.links.found || [];
+  if (!list.length) return '';
+  return `<details class="found"${state.ui.foundOpen ? ' open' : ''}><summary class="section-label">Found in notes <span class="count">${list.length}</span></summary>
+    <ul class="found-list">${list.map((f, k) => `<li><a class="f-link" href="${esc(safeHref(f.url))}" target="_blank" rel="noopener noreferrer" title="${esc(f.url)}">${kindChip(f.kind)}<span class="name">${esc(f.name)}</span></a>
+      <span class="f-where soft small">${esc(hostOf(f.url))} · ${f.paths.length === 1 ? `<a href="#" data-open="${esc(f.paths[0])}">1 note</a>` : `${f.paths.length} notes`}</span>
+      <span class="f-acts"><button class="btn ghost small" data-act="save-found" data-k="${k}" title="Add it to Links">Save</button><button class="btn ghost small" data-act="ignore-found" data-k="${k}" title="Don't suggest it again">Ignore</button></span></li>`).join('')}</ul></details>`;
 }
 
 /* Products: the product notes Tandem reads and writes (products.js), each marked when Tandem changed it since your
@@ -347,6 +381,7 @@ export function panel(state) {
         return `<li><a href="#" data-open="${esc(b.from)}" data-line="${b.line}"><span class="r-title">${esc(from ? from.title : b.from)}</span><span class="r-line">${esc(line.slice(0, 160))}</span></a></li>`;
       }).join('')}</ul>` : ''}</section>` : ''}
     ${mentionsHtml(state)}
+    ${productLinksHtml(state)}
     ${sendHtml(state, n)}
     ${state.versions ? `<section><h2 class="section-label">History</h2>
       <button class="btn ghost small" data-act="history">${state.versions} earlier version${state.versions === 1 ? '' : 's'}</button></section>` : ''}
@@ -366,6 +401,17 @@ function mentionsHtml(state) {
         <span class="r-line">${m.at > 60 ? '…' : ''}${esc(lead.replace(/^\s*([-*+]|\d+[.)]|#+|>)\s+/, ''))}<mark>${esc(m.match)}</mark>${esc(tail)}</span></a>
         <button class="btn ghost small" data-act="link-mention" data-k="${k}" title="Make this a [[link]] in ${esc(m.title)}">Link</button></li>`;
     }).join('')}</ul></details></section>`;
+}
+
+/* A product note's links (links.js linksForProduct): links.md's links whose group or a tag is the product's name,
+   slug or another name. Folded. */
+function productLinksHtml(state) {
+  const list = state.productLinks;
+  if (!list) return '';
+  return `<section class="plinks"><details${state.ui.plinksOpen ? ' open' : ''}><summary class="section-label">Links <span class="count">${list.length}</span></summary>
+    ${list.length ? `<ul class="plink-list">${list.map(l => `<li><a href="${esc(safeHref(l.url))}" target="_blank" rel="noopener noreferrer" title="${esc(l.url)}">${kindChip(l.kind)}<span class="name">${esc(l.name)}</span></a></li>`).join('')}</ul>`
+      : `<p class="soft small">None yet. Links in a group named ${esc(state.linkProduct.name)}, or tagged #${esc(state.linkProduct.slug)}, show here.</p>`}
+    <button class="btn ghost small" data-act="add-link" data-group="${esc(state.linkProduct.name)}">Add a link</button></details></section>`;
 }
 
 /* Properties: the note's frontmatter as fields (props.js). A field saves when it changes (Enter or leaving it);
@@ -459,6 +505,19 @@ export function promptHtml({ title, label, value = '', hint = '', ok = 'Save', e
     <div class="dlg-actions"><button class="btn" value="cancel" formnovalidate>Cancel</button><button class="btn primary" value="ok">${esc(ok)}</button></div></form>`;
 }
 
+/** Add or edit a link (links.js): address, name, group (with the groups there are) and tags. */
+export function linkFormHtml({ title, ok = 'Save', link = {}, group = '', groups = [] }) {
+  return `<form method="dialog" class="dlg link-form"><h2>${esc(title)}</h2>
+    <label>Address<input name="value" type="url" value="${esc(link.url || '')}" required autocomplete="off" spellcheck="false" placeholder="https://"></label>
+    <label>Name<input name="name" value="${esc(link.name || '')}" autocomplete="off" placeholder="${esc(link.placeholder || 'From the address')}"></label>
+    <label>Group<input name="group" value="${esc(group)}" list="link-groups" autocomplete="off" placeholder="Ungrouped"></label>
+    <datalist id="link-groups">${groups.map(g => `<option value="${esc(g)}"></option>`).join('')}</datalist>
+    <label>Tags<input name="tags" value="${esc((link.tags || []).join(', '))}" autocomplete="off" spellcheck="false" placeholder="runbook, dashboard"></label>
+    <p class="soft small">Saved in <code>links.md</code>. A group or tag named after a product shows the link on that product's note.</p>
+    <p class="dlg-err bad" hidden></p>
+    <div class="dlg-actions"><button class="btn" value="cancel" formnovalidate>Cancel</button><button class="btn primary" value="ok">${esc(ok)}</button></div></form>`;
+}
+
 export function confirmHtml({ title, body, ok = 'OK', danger = false }) {
   return `<form method="dialog" class="dlg"><h2>${esc(title)}</h2>${body}
     <div class="dlg-actions"><button class="btn" value="cancel">Cancel</button><button class="btn ${danger ? 'danger' : 'primary'}" value="ok">${esc(ok)}</button></div></form>`;
@@ -474,8 +533,8 @@ export function linkUpdatesHtml(updates, index) {
 
 export function pickerHtml(items, pick) {
   if (!items.length) return '<p class="soft small pad">No note by that name. Keep typing for a [[link]].</p>';
-  const first = items.findIndex(n => n.href);
-  return `<ul role="listbox">${items.map((n, k) => `${k === first ? '<li class="pick-div" role="presentation">In other apps</li>' : ''}<li role="option" aria-selected="${k === pick}" data-pick="${k}"><span class="r-title">${esc(n.title)}</span> <span class="soft mono">${esc(n.href ? n.name : n.path)}</span></li>`).join('')}</ul>`;
+  const first = items.findIndex(n => n.href), firstLink = items.findIndex(n => n.link);
+  return `<ul role="listbox">${items.map((n, k) => `${k === firstLink ? '<li class="pick-div" role="presentation">Saved links</li>' : ''}${k === first ? '<li class="pick-div" role="presentation">In other apps</li>' : ''}<li role="option" aria-selected="${k === pick}" data-pick="${k}"><span class="r-title">${esc(n.title)}</span> <span class="soft mono">${esc(n.href ? n.name : n.path)}</span></li>`).join('')}</ul>`;
 }
 
 /** Earlier versions of a note, newest first, with a preview of the picked one. */
