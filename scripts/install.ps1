@@ -29,8 +29,9 @@ $extra = @()
 if ($args -contains '-Login' -or $args -contains '--login') { $extra += '--login' }
 $work = $args -contains '-WorkMode' -or $args -contains '--work-mode'
 if ($work) { $extra += '--work-mode' }
-# A new install in work mode keeps its data in your company OneDrive when there is one (WORKSHOP_DATA_DIR overrides).
-if ($env:WORKSHOP_DATA_DIR) { $extra += @('--data-dir', $env:WORKSHOP_DATA_DIR) } elseif ($work) { $extra += '--onedrive' }
+# The data folder stays on this computer (~\Workshop) unless you choose otherwise: WORKSHOP_DATA_DIR names a folder,
+# WORKSHOP_ONEDRIVE=1 uses your company OneDrive. Nothing is uploaded unless you pick a synced folder yourself.
+if ($env:WORKSHOP_DATA_DIR) { $extra += @('--data-dir', $env:WORKSHOP_DATA_DIR) } elseif ($env:WORKSHOP_ONEDRIVE -eq '1') { $extra += '--onedrive' }
 
 # Create the data folder (and turn on start at login with -Login, work mode with -WorkMode).
 node "$repo\workshop.mjs" install @extra

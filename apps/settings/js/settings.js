@@ -29,6 +29,7 @@ import { mountFocus } from './focus-page.js';
 import { mountProducts } from './products-page.js';
 import { mountWriting } from './voice-page.js';
 import { mountGuide } from './guide.js';
+import { mountStorage } from './storage-page.js';
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -1605,6 +1606,7 @@ async function start() {
       await focusPage();
       await computerCard(cfg);
       await folderCard(cfg);
+      await mountStorage({ ws, card, esc, agentCall, toast, errText });
       await peoplePages();
       const list = await connectorsSetup();
       await productsPage();
@@ -1624,6 +1626,7 @@ async function start() {
     await appsCard();
     await focusPage();
     await folderCard(null);
+    await mountStorage({ ws, card, esc, agentCall, toast, errText });
     await peoplePages();
     await productsPage();
   }

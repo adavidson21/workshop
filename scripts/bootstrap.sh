@@ -284,8 +284,9 @@ EOF_APPS
   step "Setting up Workshop"
   local wargs=(install --allow "$SITE")
   [ "$WORK" = "1" ] && wargs=(install --work-mode)
-  # The data folder, for a new install only: WORKSHOP_DATA_DIR, else in work mode the company OneDrive if there is one.
-  if [ -n "${WORKSHOP_DATA_DIR:-}" ]; then wargs+=(--data-dir "$WORKSHOP_DATA_DIR"); elif [ "$WORK" = "1" ]; then wargs+=(--onedrive); fi
+  # The data folder, for a new install only: WORKSHOP_DATA_DIR, or the company OneDrive with WORKSHOP_ONEDRIVE=1,
+  # else ~/Workshop on this computer. Nothing leaves the computer unless you choose.
+  if [ -n "${WORKSHOP_DATA_DIR:-}" ]; then wargs+=(--data-dir "$WORKSHOP_DATA_DIR"); elif [ "${WORKSHOP_ONEDRIVE:-}" = "1" ]; then wargs+=(--onedrive); fi
   # Start at login is opt-in: run it by hand for a while first. A setting turned on earlier is kept either way.
   [ "${WORKSHOP_LOGIN:-}" = "1" ] && wargs+=(--login)
   if [ -n "$OPENCODE" ]; then

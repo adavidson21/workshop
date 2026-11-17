@@ -379,6 +379,27 @@ document.getElementById('allow').addEventListener('click', function () {
       ok({ ...r, readableCopy: copy ? { path: path.join(dataDir, 'Readable copy'), modified: new Date(copy.mtimeMs).toISOString() } : null });
       return;
     }
+    // Delete one thing the storage report lists as no longer used (an old copy, the trash, the backups), after the
+    // person confirmed it in Settings. Local only, and a write. Only paths the report names can be deleted.
+    if (parts[0] === 'storage' && parts[1] === 'delete' && parts.length === 2) {
+      only('POST');
+      if (!own) fail('local_only', 'Delete files from Workshop on this computer.');
+      const body = await readJsonBody(req);
+      const r = storageReport({ home, dataDir });
+      const id = body && body.id;
+      const targets = {
+        trash: path.join(dataDir, '.trash'),
+        backups: path.join(dataDir, '.backups'),
+        ...Object.fromEntries(r.leftovers.map(l => [l.id, l.path])),
+      };
+      if (typeof id !== 'string' || !Object.hasOwn(targets, id)) fail('bad_request', 'That is not something Workshop can delete.');
+      const target = targets[id];
+      const size = r.leftovers.find(l => l.id === id)?.size || (id === 'trash' ? r.trash : r.backups);
+      try { await fs.promises.rm(target, { recursive: true, force: true }); } catch (e) { fail('internal', `Workshop could not delete ${target} (${e.code || e.message}).`); }
+      log.for('data').info(`Deleted ${target} from Settings (${size ? `${size.files} files, ${size.bytes} bytes` : 'empty'}).`);
+      ok({ deleted: target });
+      return;
+    }
     if (parts[0] === 'storage' && parts[1] === 'readable' && parts.length === 2) {
       only('POST');
       try { ok(await readableCopy()); } catch (e) { fail('internal', `Workshop could not make the readable copy (${e.code || e.message}).`); }

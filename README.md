@@ -29,7 +29,7 @@ Every app can be turned on or off, so you only see what you use. More on each ap
 | **Best for** | A quick look | Your own laptop | A company laptop |
 | **Install** | Nothing | One command | One command |
 | **Admin rights** | No | No | No |
-| **Where data lives** | Your browser | Files on your computer | Your company OneDrive |
+| **Where data lives** | Your browser | Files on your computer | Files on your computer (company OneDrive if you choose) |
 | **Azure DevOps sync** | No | Yes | Yes |
 | **Dispatch (AI agents)** | No | Included | Off unless you add it |
 
@@ -58,7 +58,7 @@ Don't want Dispatch? Run `$env:WORKSHOP_DISPATCH='0'` (PowerShell) or `export WO
 
 #### Work computer
 
-Work mode runs Workshop from a copy on your computer that changes only when you update it. No website can reach it, and your data goes in your company OneDrive so it's backed up.
+Work mode runs Workshop from a copy on your computer that changes only when you update it. No website can reach it, and your data stays in the Workshop folder on your computer. To have it backed up, move it to your company OneDrive with `workshop data-folder --onedrive` (or install with `WORKSHOP_ONEDRIVE=1`).
 
 > **Before you start:** if you're unsure your company allows it, share [docs/for-security-teams.md](docs/for-security-teams.md) with your security team. It explains what Workshop stores and where it sends data.
 

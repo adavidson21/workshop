@@ -443,3 +443,12 @@ label.btn{cursor:pointer}
 .fh-exact{margin:.6rem 0 .4rem}
 .fh-exact summary{cursor:pointer;font-size:.86rem;color:var(--accent)}
 #import[hidden],.card[hidden]{display:none}
+
+/* Settings, Data: where your data can go, and old copies (js/storage-page.js) */
+.go-list, .old-list { list-style: none; margin: 8px 0 0; padding: 0; }
+.go-list li { padding: 8px 0; border-top: 1px solid var(--line); }
+.go-list li p { margin: 2px 0 0 18px; }
+.go-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 8px; background: var(--line); vertical-align: middle; }
+.go-dot.on { background: var(--accent); }
+.old-list li { display: flex; gap: 12px; align-items: center; justify-content: space-between; padding: 8px 0; border-top: 1px solid var(--line); }
+.old-list code { font-size: 12px; word-break: break-all; }
