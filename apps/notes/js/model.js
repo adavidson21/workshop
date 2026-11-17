@@ -93,7 +93,7 @@ export function buildIndex(list) {
     const f = facts(n.content, stem(n.path));
     // Templates go by their name (template-info.js), not their "# {{title}}" heading.
     const tpl = isTemplate(n.path) ? templateInfo(n.path, n.content) : null;
-    notes.set(n.path, { path: n.path, title: tpl ? tpl.name : f.title || stem(n.path), use: tpl ? tpl.use : undefined, tags: f.tags, headings: f.headings, code: f.code, tasks: f.tasks, review: f.review, raw: f, mtime: n.mtime, size: n.size });
+    notes.set(n.path, { path: n.path, title: tpl ? tpl.name : f.title || stem(n.path), aliases: f.aliases || [], use: tpl ? tpl.use : undefined, tags: f.tags, headings: f.headings, code: f.code, tasks: f.tasks, review: f.review, raw: f, mtime: n.mtime, size: n.size });
   }
   const byTitle = titleMap(notes);
   const backlinks = new Map(), tags = new Map(), missing = new Map();
@@ -135,6 +135,8 @@ function titleMap(notes) {
   for (const n of notes.values()) {
     for (const k of [n.title.toLowerCase(), stem(n.path)]) if (!m.has(k)) m.set(k, n.path);
   }
+  // Aliases (frontmatter `aliases:`) come after every title and file name, so they never take a name from another note.
+  for (const n of notes.values()) for (const a of n.aliases || []) { const k = a.toLowerCase(); if (!m.has(k)) m.set(k, n.path); }
   return m;
 }
 /** [[target]] to a note path: by path, by title, then by file name. Null if none. */
@@ -191,7 +193,7 @@ export function search(index, contents, query, limit = 50) {
     if (q.has.length && !q.has.every(h => HAS[h](n))) continue;
     const text = contents.get(n.path) || '';
     const lower = text.toLowerCase();
-    const title = n.title.toLowerCase();
+    const title = [n.title, ...(n.aliases || [])].join(' | ').toLowerCase();
     let score = 0, line = 0, lineText = '';
     let ok = true;
     for (const w of q.words) {
@@ -319,6 +321,17 @@ export function movedPath(p, from, to) {
 
 /** Starting text for a new note. */
 export const newNoteText = (title) => `# ${String(title || 'Untitled').replace(/\n/g, ' ')}\n\n`;
+
+/** Words in a note's text (frontmatter, Markdown marks and code fences left out) and minutes to read it at 230 a minute. */
+export function wordCount(text) {
+  const body = String(text || '').replace(/^\uFEFF?---[ \t]*\r?\n[\s\S]*?\r?\n---[ \t]*(?:\r?\n|$)/, '');
+  const prose = body.replace(/^ {0,3}(`{3,}|~{3,})[^\n]*$/gm, ' ')
+    .replace(/!?\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_, a, b) => b || a)
+    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/[#>*_`~=|[\]()-]+/g, ' ');
+  const words = (prose.match(/[\p{L}\p{N}][\p{L}\p{N}'’.]*/gu) || []).length;
+  return { words, minutes: words ? Math.max(1, Math.round(words / 230)) : 0 };
+}
 
 /** "3 min ago" style age. */
 export function age(ms, now = Date.now()) {

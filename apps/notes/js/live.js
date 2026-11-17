@@ -6,7 +6,7 @@
    - blocks (a StateField, since a block widget spans lines): ```mermaid fences, tables, callouts and embed
      paragraphs at the top level, drawn by ctx.block(). Click one (not a link or button in it) to edit its source.
    - inline (a ViewPlugin, visible lines only): headings sized, emphasis and code marks hidden, links shown as
-     links, images drawn, list bullets and task boxes, quotes, rules, code blocks shaded, [[wikilinks]] and #tags.
+     links, ==highlights== marked, images drawn, list bullets and task boxes, quotes, rules, code blocks shaded, [[wikilinks]] and #tags.
 
    "The lines the cursor is on" counts only while the editor has focus, so a note reads clean until you click in.
    Clicking a link, tag or task box acts at once (the document's click handler in main.js, as in the preview);
@@ -26,6 +26,7 @@ const FRONT = /^---[ \t]*\n[\s\S]*?\n(?:---|\.\.\.)[ \t]*(?:\n|$)/;
 const CALLOUT = /^ {0,3}>[ \t]?\[!(note|tip|important|warning|caution)\]/i;
 const WIKI = /(^|[^!])\[\[([^\[\]\n]+)\]\]/g;
 const TAG = /(^|[\s(])#([A-Za-z0-9_][A-Za-z0-9_/-]*)/g;
+const MARK = /(^|[^=])==(?=[^\s=])([^\n]*?[^\s=])==(?!=)/g;
 
 export function liveExtension(cm, ctx) {
   const { EditorView, Decoration, WidgetType, ViewPlugin, StateField, StateEffect, syntaxTree, ensureSyntaxTree } = cm;
@@ -311,6 +312,15 @@ export function liveExtension(cm, ctx) {
           out.push(hide.range(a, labelFrom));
           out.push(markWith(attrs).range(labelFrom, labelTo));
           out.push(hide.range(labelTo, b));
+        }
+        // ==highlights== (not in Markdown's grammar either): the text marked, the == hidden.
+        MARK.lastIndex = 0;
+        while ((m = MARK.exec(l.text))) {
+          const a = l.from + m.index + m[1].length, b = a + 4 + m[2].length;
+          if (skipped(a, b)) continue;
+          out.push(hide.range(a, a + 2));
+          out.push(Decoration.mark({ class: 'lp-mark' }).range(a + 2, b - 2));
+          out.push(hide.range(b - 2, b));
         }
         if (/^ {0,3}#{1,6}(\s|$)/.test(l.text)) continue; // headings never hold tags
         TAG.lastIndex = 0;

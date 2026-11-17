@@ -143,6 +143,58 @@ def live_checks(b):
     lc.close()
 
 
+def gaps_checks(b):
+    """Folio 4.6.0 and later (Workshop project doc claude/folio-obsidian-gaps-v1-plan.md): highlights, word count,
+    properties and aliases, bookmarks."""
+    gc = b.new_context(viewport={'width': 1400, 'height': 900})
+    pg = gc.new_page()
+    errs = []
+    pg.on('pageerror', lambda e: errs.append(str(e)))
+    pg.goto(SITE); pg.wait_for_selector('.side-head', timeout=15000)
+    pg.click('#side [data-act=new-note]'); pg.wait_for_timeout(800)
+    fill_editor(pg, '# Gap target\n\nSome ==marked== words here.\n')
+    pg.keyboard.press('Control+s'); pg.wait_for_timeout(800)
+    pg.click('.nb-name'); pg.wait_for_timeout(500)
+    check('==highlight== is marked in Live, its == hidden', pg.locator('.lp-mark').count() == 1 and pg.inner_text('.lp-mark') == 'marked'
+          and '==' not in pg.evaluate("document.querySelectorAll('.cm-line')[2].textContent"))
+    check('the header shows the word count and reading time', 'words' in pg.inner_text('#head .wc') and 'min' in pg.inner_text('#head .wc'))
+    look(pg)
+    check('==highlight== is a <mark> in the preview', pg.locator('#preview mark').count() == 1)
+    pg.click('[data-mode=live]'); pg.wait_for_timeout(300)
+
+    pg.click('#panel [data-act=prop-add]'); pg.wait_for_timeout(300)
+    pg.fill('#dlg input[name=value]', 'aliases'); pg.click('#dlg button[value=ok]'); pg.wait_for_timeout(500)
+    check('Add a property puts it in the frontmatter and focuses its field', 'aliases: []' in pg.input_value('#editor')
+          and pg.evaluate("document.activeElement && document.activeElement.dataset.prop") == 'aliases')
+    pg.keyboard.type('GT, Target'); pg.keyboard.press('Enter'); pg.wait_for_timeout(1200)
+    check('a property field writes the frontmatter and saves', pg.input_value('#editor').startswith('---\naliases: [GT, Target]\n---\n# Gap target')
+          and 'saved' in pg.inner_text('#head .status').lower())
+    pg.click('#panel [data-act=prop-add]'); pg.wait_for_timeout(300)
+    pg.fill('#dlg input[name=value]', 'status'); pg.click('#dlg button[value=ok]'); pg.wait_for_timeout(400)
+    pg.keyboard.type('draft'); pg.keyboard.press('Enter'); pg.wait_for_timeout(400)
+    pg.click('#panel [data-act=prop-remove][data-prop-key=status]'); pg.wait_for_timeout(400)
+    check('a property can be removed', 'status' not in pg.input_value('#editor') and 'aliases: [GT, Target]' in pg.input_value('#editor'))
+
+    pg.click('#side [data-act=new-note]'); pg.wait_for_timeout(800)
+    fill_editor(pg, '# Linker\n\nSee [[GT]] for it.\n')
+    pg.keyboard.press('Control+s'); pg.wait_for_timeout(800)
+    pg.click('.nb-name'); pg.wait_for_timeout(500)
+    check('an alias resolves a [[link]]', pg.locator('.lp-link.missing').count() == 0 and pg.locator('.lp-link[data-note]').count() == 1)
+
+    pg.click('#head [data-act=menu]'); pg.click('#head .menu [data-act=bookmark]'); pg.wait_for_timeout(800)
+    check('Bookmark pins the note under Pinned', 'Linker' in pg.inner_text('#side .pinned'))
+    pg.click('#head [data-act=menu]')
+    check('the menu then offers Remove bookmark', 'Remove bookmark' in pg.inner_text('#head .menu'))
+    pg.keyboard.press('Escape'); pg.wait_for_timeout(200)
+    pg.reload(); pg.wait_for_selector('.side-head', state='attached'); pg.wait_for_timeout(1500)
+    check('bookmarks stay after a reload', 'Linker' in pg.inner_text('#side .pinned'))
+    pg.click('#side .pinned [data-act=unbookmark]', force=True); pg.wait_for_timeout(800)
+    check('the x on a bookmark removes it', pg.locator('#side .pinned').count() == 0 or 'Linker' not in pg.inner_text('#side .pinned'))
+    check('gaps: no page errors', not errs)
+    if errs: print('      ' + '\n      '.join(errs[:5]))
+    gc.close()
+
+
 def main():
     srv = http.server.ThreadingHTTPServer(('127.0.0.1', PORT), functools.partial(Static, directory=ROOT))
     threading.Thread(target=srv.serve_forever, daemon=True).start()
@@ -403,6 +455,7 @@ def main():
             phone.close()
 
             live_checks(b)
+            gaps_checks(b)
 
             # Without the editor bundle, notes open in the plain textarea and still save.
             plain = b.new_context()
