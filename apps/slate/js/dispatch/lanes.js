@@ -11,6 +11,7 @@ import { S } from './state.js';
 import { h, plural, asking, itemSession, isBusy, autoIs, itemForFolder, adoOn } from './view.js';
 import { flowOf, stepIndex, isFinished, turnHtml, stepLine } from './flows.js';
 import { workItems, startingSessions, inboxData, inboxFolders, isShip, runCardHtml, asksFor } from './pages.js';
+import { pickable } from '../loom.js';
 
 export const LANES = [
   { id: 'clarify', name: 'Clarify', desc: 'A first look, then any questions for you' },
@@ -27,6 +28,7 @@ export const KINDS = {
   ask: { name: 'Ask', lanes: ['clarify', 'work', 'ready'] },
   docs: { name: 'Docs', lanes: ['plan', 'work', 'ready'] },
   epic: { name: 'Epic', lanes: ['clarify', 'plan', 'work', 'ready'] },
+  handoff: { name: 'Hand off', lanes: ['clarify', 'plan', 'work', 'ready'] },
   other: { name: 'Run', lanes: ['clarify', 'work', 'ready'] }
 };
 /** The kinds the drop box starts (the other flows are under Other flows). */
@@ -114,12 +116,14 @@ export function lanesData(filter = 'all') {
   const dayOf = ms => { const x = new Date(ms); return isNaN(x) ? '' : x.getFullYear() + '-' + String(x.getMonth() + 1).padStart(2, '0') + '-' + String(x.getDate()).padStart(2, '0'); };
   const cards = [];
   let done = 0;
+  const doneList = [];
   for (const it of workItems()) {
     const lane = laneOf(it);
-    if (lane === 'done') { if (it.modifiedMs && dayOf(it.modifiedMs) === today) done++; continue; }
+    if (lane === 'done') { if (it.modifiedMs && dayOf(it.modifiedMs) === today) { done++; doneList.push({ folder: it.folder, title: it.title || it.folder, kind: kindOf(it), id: it.id || null }); } continue; }
     const kind = kindOf(it);
     const mine = yourTurn(it, folders);
-    cards.push({ it, folder: it.folder, kind, lane, mine, title: it.title || it.folder, id: it.id || null, status: statusOf(it, lane), action: mine ? actionOf(it, kind, lane) : '', dots: laneDots(kind, lane), at: it.modifiedMs || 0 });
+    const ses = itemSession(it);
+    cards.push({ it, sid: ses && ses.id ? ses.id : null, folder: it.folder, kind, lane, mine, title: it.title || it.folder, id: it.id || null, status: statusOf(it, lane), action: mine ? actionOf(it, kind, lane) : '', dots: laneDots(kind, lane), at: it.modifiedMs || 0 });
   }
   for (const o of startingSessions()) {
     const s = o.s || {};
@@ -132,7 +136,7 @@ export function lanesData(filter = 'all') {
   const lanes = LANES.map(l => ({ ...l, cards: shown.filter(c => c.lane === l.id).sort((a, b) => (b.mine - a.mine) || (b.at - a.at)) }));
   const counts = { all: cards.length, mine: cards.filter(c => c.mine).length };
   for (const k of Object.keys(KINDS)) counts[k] = cards.filter(c => c.kind === k).length;
-  return { lanes, done, counts, cards, prs: d.prs || 0 };
+  return { lanes, done, doneList, counts, cards, prs: d.prs || 0 };
 }
 
 // ------------------------------------------------------------------ the drop box
@@ -148,8 +152,17 @@ export function guessKind(text) {
 }
 /** An ADO work item number on its own ("12345", "#12345", "ADO 12345"), or null. */
 export function adoIdOf(text) {
-  const m = /^\s*(?:ado\s*|#)?([0-9]{3,10})\s*$/i.exec(String(text || ''));
+  const t = String(text || '');
+  const m = /^\s*(?:ado\s*|#)?([0-9]{3,10})\s*$/i.exec(t) || /^\s*(?:ado\s*#?|#)([0-9]{3,10})(?:\s|$)/i.exec(t);
   return m ? m[1] : null;
+}
+/** The kind an ADO item starts as: a bug is fixed (Build), a spike investigated (Ask), anything else built. */
+export function kindOfAdoType(type) { return /spike|research|investigat/i.test(String(type || '')) ? 'ask' : 'build'; }
+/** The From ADO picker's rows for a search: by number or every word of the title, at most `max`. */
+export function pickRows(list, q = '', max = 8) {
+  const words = String(q || '').toLowerCase().replace(/^#/, '').split(/\s+/).filter(Boolean);
+  const hit = it => !words.length || words.every(w => String(it.id).startsWith(w) || String(it.title || '').toLowerCase().includes(w));
+  return (Array.isArray(list) ? list : []).filter(hit).slice(0, max);
 }
 /** What Start work runs for the drop box: a Start work state and its drafts, for view.js startRequest. A Build with
  *  only an ADO number starts that item (when Tandem has ADO set up); otherwise the first line is the title and the
@@ -161,8 +174,18 @@ export function dropStart(text, kind, opts = {}) {
   const base = { src: null, size: 'normal', type: 'docs', timebox: '', project: opts.project || null, busy: false, error: null, back: 'lanes' };
   if (kind === 'diagnose') return { st: { ...base, flow: 'bug', src: 'log' }, drafts: { log: raw } };
   if (kind === 'ask') return { st: { ...base, flow: 'spike' }, drafts: { topic: t.replace(/\s+/g, ' ').slice(0, 500) } };
+  const lines0 = t.split('\n').map(l => l.trim()).filter(Boolean);
+  if (kind === 'handoff') {
+    // Hand off: the board's Hand to a person flow. Tandem drafts what to build; you pick who builds it.
+    let title = lines0[0].replace(/^#+\s*/, '');
+    if (title.length > 255) title = title.slice(0, 252).replace(/\s+\S*$/, '') + '...';
+    const drafts = { title };
+    if (lines0.length > 1) drafts.desc = t;
+    return { st: { ...base, flow: 'handoff' }, drafts };
+  }
   const id = adoIdOf(t);
-  if (id && (opts.ado === undefined ? adoOn() : opts.ado)) return { st: { ...base, flow: 'feature', src: 'ado' }, drafts: { id } };
+  // An ADO item: a Bug is fixed (Fix a bug from the item), anything else built (Build a feature).
+  if (id && (opts.ado === undefined ? adoOn() : opts.ado)) return { st: { ...base, flow: /bug/i.test(opts.adoType || '') ? 'bug' : 'feature', src: 'ado' }, drafts: { id } };
   const lines = t.split('\n').map(l => l.trim()).filter(Boolean);
   let title = lines[0].replace(/^#+\s*/, '');
   if (title.length > 200) title = title.slice(0, 197).replace(/\s+\S*$/, '') + '...';
@@ -172,6 +195,7 @@ export function dropStart(text, kind, opts = {}) {
 }
 
 // ------------------------------------------------------------------ drawing
+const CHAT = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg>';
 const X = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
 function dotsHtml(dots) {
   return `<span class="ln-dots" aria-hidden="true">${dots.map(d => `<i class="ln-${d.lane} ${d.st}" title="${h(d.title)}"></i>`).join('')}</span>`;
@@ -189,7 +213,8 @@ function laneHtml(l, sel, done) {
   return `<section class="ln-lane ln-${l.id}" aria-label="${h(l.name)}"><header><span class="ln-dot" aria-hidden="true"></span><h2>${h(l.name)}</h2><span class="ln-n">${l.cards.length}</span></header>` +
     `<p class="ln-desc">${h(l.desc)}</p>` +
     (l.cards.length ? l.cards.map(c => cardHtml(c, sel)).join('') : '<p class="ln-empty">Nothing here.</p>') +
-    (l.id === 'ready' && done ? `<p class="ln-done">${plural(done, 'done today', 'done today')}</p>` : '') + '</section>';
+    (l.id === 'ready' && done.length ? `<button type="button" class="lnk plain ln-done" data-lane-done="1" aria-expanded="${!!S.ui.laneDone}">${done.length} done today</button>` +
+      (S.ui.laneDone ? `<ul class="ln-donelist" role="list">${done.map(d => `<li><button type="button" class="lnk plain" data-open-run="${h(d.folder)}">${d.id ? '#' + h(d.id) + ' ' : ''}${h(d.title)}</button></li>`).join('')}</ul>` : '') : '') + '</section>';
 }
 function panelHtml(key, data) {
   const c = data.cards.find(x => (x.folder || 'session:' + x.session) === key);
@@ -200,7 +225,8 @@ function panelHtml(key, data) {
   let body = asks ? `<div class="ln-asks">${asks}</div>` : '';
   if (c.it) {
     body += `<div class="loom-run ln-run">${runCardHtml(c.folder)}</div>` +
-      `<div class="ln-foot"><button type="button" class="btn ghost" data-open-run="${h(c.folder)}">Open the run</button></div>`;
+      `<div class="ln-foot"><button type="button" class="btn ghost" data-open-run="${h(c.folder)}">Open the run</button>` +
+      (c.sid ? `<button type="button" class="ibtn" data-open-chat="${h(c.sid)}" aria-label="Open the conversation in Chat" title="Open the conversation in Chat">${CHAT}</button>` : '') + '</div>';
   } else {
     body += asks ? '' : '<p class="dim">Tandem is taking a first look. The card gets its folder in a moment; any question it has shows here and in the Inbox.</p>' +
       `<div class="ln-foot"><button type="button" class="btn ghost" data-tab="inbox">Open the Inbox</button></div>`;
@@ -217,10 +243,22 @@ export function dropHtml() {
   const ready = S.connector && S.connector.state === 'ready';
   const pick = text.trim() ? `<select class="ln-kindpick" data-lane-kind="1" aria-label="Kind of work (guessed from what you pasted)" title="Guessed from what you pasted. Change it if it is wrong.">` +
     DROP_KINDS.map(k => `<option value="${k}"${k === kind ? ' selected' : ''}>${h(KINDS[k].name)}</option>`).join('') + '</select>' : '';
+  const list = pickable();
+  const ado = list.length ? `<button type="button" class="lnk plain ln-adobtn" data-ado-toggle="1" aria-expanded="${!!S.ui.dropPick}">From ADO</button>` : '';
   return `<section class="ln-drop" aria-label="Start something"><label for="ln-drop" class="ln-dl">Drop anything: a user story or ADO number, an error log, or a question</label>` +
     `<textarea id="ln-drop" rows="3" data-draft="lanes:drop" placeholder="Paste a story, a stack trace or a question. Enter starts it; Shift+Enter for a new line.">${h(text)}</textarea>` +
-    `<div class="ln-drow"><button type="button" class="lnk plain" data-start-open="1" title="Plan an epic, write docs, handle a request, hand to a person">Other flows</button><span class="grow"></span>${pick}` +
-    `<button type="button" class="btn primary" data-lane-start="1"${ready ? '' : ' disabled title="Connect opencode to start work"'}${S.ui.dropBusy ? ' disabled' : ''}>${S.ui.dropBusy ? 'Starting…' : 'Start'}</button></div></section>`;
+    `<div class="ln-drow">${ado}<button type="button" class="lnk plain" data-start-open="1" title="Plan an epic, write docs, handle a request">Other flows</button><span class="grow"></span>${pick}` +
+    `<button type="button" class="btn primary" data-lane-start="1"${ready ? '' : ' disabled title="Connect opencode to start work"'}${S.ui.dropBusy ? ' disabled' : ''}>${S.ui.dropBusy ? 'Starting…' : 'Start'}</button></div>` +
+    (S.ui.dropPick && list.length ? pickerHtml(list) : '') + '</section>';
+}
+/** The From ADO picker: your team's backlog items nobody has started, newest change first, with a search. */
+function pickerHtml(list) {
+  const q = S.ui.drafts['lanes:adoq'] || '';
+  const rows = pickRows(list, q);
+  return `<div class="ln-pick"><input type="search" id="ln-adoq" data-draft="lanes:adoq" value="${h(q)}" placeholder="Search by number or title" aria-label="Search your ADO backlog">` +
+    (rows.length ? `<ul role="list">${rows.map(r => `<li><button type="button" class="ln-prow" data-ado-pick="${h(r.id)}"><span class="ln-pid">#${h(r.id)}</span><span class="ln-ptitle">${h(r.title)}</span>` +
+      `${r.type ? `<span class="ln-ptype">${h(r.type)}</span>` : ''}</button></li>`).join('')}</ul>` : '<p class="dim">Nothing matches.</p>') +
+    `<p class="ln-pnote">Your team's open backlog, not started in Loom yet.</p></div>`;
 }
 /** The Lanes tab: the drop box, the filter chips, the four lanes, and the open card's panel beside them. */
 export function lanesHtml() {
@@ -231,7 +269,7 @@ export function lanesHtml() {
   const chips = `<div class="chips ln-chips" role="group" aria-label="Show">${LANE_FILTERS.map(([k, label]) =>
     `<button type="button" class="chip${filter === k ? ' on' : ''}" data-lane-filter="${k}" aria-pressed="${filter === k}">${h(label)}<span class="n">${data.counts[k] || 0}</span></button>`).join('')}` +
     (data.prs ? `<span class="grow"></span><button type="button" class="lnk plain" data-inbox-chip="prs">${plural(data.prs, "teammate's PR", "teammates' PRs")} to review</button>` : '') + '</div>';
-  return `<div class="ln-page">${dropHtml()}${chips}<div class="ln-body${panel ? ' has-panel' : ''}"><div class="ln-lanes">${data.lanes.map(l => laneHtml(l, sel, data.done)).join('')}</div>${panel}</div></div>`;
+  return `<div class="ln-page">${dropHtml()}${chips}<div class="ln-body${panel ? ' has-panel' : ''}"><div class="ln-lanes">${data.lanes.map(l => laneHtml(l, sel, data.doneList)).join('')}</div>${panel}</div></div>`;
 }
 /** The tab bar's count on Lanes: cards waiting on you. */
 export function lanesCount() { return lanesData('all').counts.mine; }

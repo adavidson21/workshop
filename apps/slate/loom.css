@@ -176,3 +176,15 @@ body[data-loom-tab=lanes] #runs-root > #hub { display: none; }
 #runs-root .ln-pt h3 { display: block; }
 #runs-root .ln-pt h3 .num { display: inline; color: var(--muted); font-weight: 500; margin-right: 4px; font-size: inherit; }
 #runs-root .ln-asks .asks.inline { margin: 0; }
+
+/* From ADO picker and Done today (Loom 5.1.0) */
+#runs-root .ln-pick { display: flex; flex-direction: column; gap: 6px; border-top: 1px solid var(--line); padding-top: 8px; }
+#runs-root .ln-pick input { font: inherit; border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; background: var(--surface); color: var(--ink); }
+#runs-root .ln-pick ul, #runs-root .ln-donelist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+#runs-root .ln-prow { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; font: inherit; color: var(--ink); background: none; border: 0; border-top: 1px solid var(--line); padding: 9px 4px; min-height: 40px; cursor: pointer; }
+#runs-root .ln-prow:hover, #runs-root .ln-prow:focus-visible { background: color-mix(in srgb, var(--accent) 7%, var(--surface)); }
+#runs-root .ln-pid { font-size: 12.5px; color: var(--muted); min-width: 4.2em; font-variant-numeric: tabular-nums; }
+#runs-root .ln-ptitle { flex: 1; min-width: 0; }
+#runs-root .ln-ptype { font-size: 11.5px; color: var(--muted); border: 1px solid var(--line); border-radius: 6px; padding: 2px 7px; }
+#runs-root .ln-pnote { margin: 0; font-size: 12px; color: var(--muted); }
+#runs-root .ln-donelist li { padding: 2px; font-size: 13px; }

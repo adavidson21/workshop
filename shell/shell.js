@@ -127,7 +127,8 @@ async function loadApps() {
   byId = Object.fromEntries(apps.map(a => [a.id, a]));
   homeApp = apps.find(a => a.manifest.home === true) || null;
   panelApp = apps.find(a => a.manifest.panel === true && a !== homeApp) || null;
-  railApps = apps.filter(a => a !== homeApp && a !== panelApp);
+  // `rail: false` (Chat since 3.0.0): no rail button or Alt+<n>; its address, commands and ws.open still work.
+  railApps = apps.filter(a => a !== homeApp && a !== panelApp && a.manifest.rail !== false);
   // Names and aliases as addresses: an id always wins, then the first app by order.
   aliasTo = {};
   const key = w => String(w).toLowerCase().replace(/\s+/g, '');
