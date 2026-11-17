@@ -175,3 +175,4 @@ body[data-loom-tab=lanes] #runs-root > #hub { display: none; }
 #runs-root .ln-foot { display: flex; gap: 6px; border-top: 1px solid var(--line); padding-top: 8px; }
 #runs-root .ln-pt h3 { display: block; }
 #runs-root .ln-pt h3 .num { display: inline; color: var(--muted); font-weight: 500; margin-right: 4px; font-size: inherit; }
+#runs-root .ln-asks .asks.inline { margin: 0; }

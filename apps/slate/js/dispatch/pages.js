@@ -98,6 +98,14 @@ export function sessionAsksHtml(sid) {
   const perms = L().permissions.filter(p => p.sessionID === sid), qs = L().questions.filter(q => q.sessionID === sid);
   return perms.length || qs.length ? `<div class="asks inline">${perms.map(p => permHtml(p, false)).join('')}${qs.map(q => questionHtml(q, false)).join('')}</div>` : '';
 }
+/** A run's open prompts and questions, answerable in place (the lanes' panel): by its folder, or by a session that
+ *  has no folder yet. '' when it asks nothing. */
+export function asksFor(folder, sid) {
+  if (!L()) return '';
+  const mine = x => (folder && x.folder === folder) || (sid && x.sessionID === sid);
+  const perms = L().permissions.filter(mine), qs = L().questions.filter(mine);
+  return perms.length || qs.length ? `<div class="asks inline">${perms.map(p => permHtml(p, false)).join('')}${qs.map(q => questionHtml(q, false)).join('')}</div>` : '';
+}
 function askHtml(a) {
   const src = askSource(a.x.sessionID, a.x.folder);
   return `<div class="inbox-ask icard" data-ask="${h(a.x.id)}"><p class="src"><span class="tag">${h(src.what)}</span><span class="st">${h(src.label)}</span>` +
