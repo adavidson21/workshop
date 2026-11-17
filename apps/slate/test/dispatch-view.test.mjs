@@ -28,11 +28,11 @@ const count = (html, re) => (html.match(re) || []).length;
 
 beforeEach(() => load());
 
-test('Loom 5.0 the page is a header with four tabs, Lanes first; every folder is in one place: the Inbox, Work or Reviews', () => {
+test('Loom 6.0 the page is a header with two tabs, Lanes and Health; every folder is in one place: the Inbox, Work or Reviews (views kept for now, no tab)', () => {
   const html = render();
   assert.match(html, /<nav class="tabs" aria-label="Loom">/);
-  assert.deepEqual([...html.matchAll(/class="tab[^"]*" data-tab="(\w+)"/g)].map(m => m[1]), ['lanes', 'inbox', 'board', 'health']);
-  assert.match(html, /class="tab on" data-tab="inbox" aria-current="page"/, 'the view state starts on the Inbox (main.js opens Loom on Lanes)');
+  assert.deepEqual([...html.matchAll(/class="tab[^"]*" data-tab="(\w+)"/g)].map(m => m[1]), ['lanes', 'health']);
+  assert.doesNotMatch(html, /data-tab="inbox"/, 'no Inbox tab (Loom 6.0.0)');
   assert.match(html, /class="pill on"[^>]*><span class="led"><\/span>Live/);
   assert.doesNotMatch(html, /class="side|<aside|Repos with work in progress|Recent activity/, 'no sidebar and no side column');
   for (const it of S.D.items) {
@@ -206,7 +206,6 @@ test('2.0 Inbox: every prompt answerable in place with where it came from, then 
   assert.match(html, /<h3 id="gh-gates">Ready for your review <span class="n">3<\/span>/, '41300 waits for bug.md, the spike at its findings, the TSD draft to read');
   assert.match(html, /<h3 id="gh-code">Code reviews to do <span class="n">1<\/span>/);
   assert.match(html, /<h3 id="gh-failed">Stopped or blocked <span class="n">1<\/span>/, '41502 is blocked');
-  assert.match(html, /data-tab="inbox" aria-current="page"><span>Inbox<\/span><span class="cnt gate">8<\/span>/);
   assert.match(html, /data-inbox-chip="all" aria-selected="true">All<span class="n">8<\/span>.*data-walk="start"[^>]*>Go through them</s);
   assert.ok(html.indexOf('gh-failed') < html.indexOf('gh-asks') && html.indexOf('gh-asks') < html.indexOf('gh-gates') && html.indexOf('gh-gates') < html.indexOf('gh-code'), 'most urgent first');
   assert.deepEqual(prompts().map(p => p.id), ['per_1', 'per_2', 'que_1']);
@@ -381,15 +380,13 @@ test('opencode settings: a form from the connector schema; hosted pages edit onl
 test('3.0 start work: pick a flow card, then fill it in; each flow sends its own action (flow cards v1)', () => {
   load(clone(FIXTURE));
   let html = render();
-  assert.match(html, /<header class="top">.*data-start-open="1"[^>]*>Start work/s, 'the header has the button');
+  assert.doesNotMatch(html, /<header class="top">[^]*?data-start-open="1"[^]*?<\/header>/, 'no Start work button in the header (Loom 6.0.0): the drop box starts work');
   S.ui.start = { flow: null, busy: false, error: null };
   S.L.opencode = { ...(S.L.opencode || {}), connected: true };
   html = render();
-  assert.match(html, /<h3 id="start-h">Start work<\/h3>/);
-  assert.deepEqual([...html.matchAll(/class="fcard" data-flow="(\w+)"/g)].map(m => m[1]), ['request', 'feature', 'bug', 'spike', 'epic', 'handoff', 'docs']);
-  assert.match(html, /data-flow="feature".*4 steps, 2 stops for you.*Hands-off after you approve/s);
-  assert.match(html, /data-flow="spike"[^>]*>.*2 steps, 1 stop for you/s);
-  assert.match(html, /data-flow="request"[^>]*>.*3 steps, 3 stops for you.*Runs on the board/s);
+  assert.match(html, /<h3 id="start-h">Other flows<\/h3>/);
+  assert.deepEqual([...html.matchAll(/class="fcard" data-flow="(\w+)"/g)].map(m => m[1]), ['request', 'epic', 'docs'], 'Loom 6.0.0: the drop box starts a build, a fix, a question or a hand-off');
+  assert.match(html, /data-flow="request"[^>]*>.*3 steps, 3 stops for you.*A card in Lanes, worked in its panel/s);
   // Feature: no ADO set up, so it is described.
   S.ui.start.flow = 'feature';
   html = render();
@@ -423,7 +420,9 @@ test('3.0 start work: pick a flow card, then fill it in; each flow sends its own
   S.ui.start.flow = 'handoff';
   assert.match(render(), /<li class="you">Define<\/li><li class="you">Assign<\/li>.*data-start-go="1">Add and define</s);
   S.L.opencode.connected = false;
-  assert.match(render(), /opencode is not connected.*data-start-go="1" disabled/s, 'no start without opencode');
+  assert.match(render(), /data-start-go="1">Add and define/, 'a board flow adds its card without opencode (Loom 6.0.0: no Board tab to add it from)');
+  S.ui.start.flow = 'epic';
+  assert.match(render(), /data-start-go="1" disabled/, 'a Tandem flow does not start without opencode');
 
   const req = (st, drafts) => startRequest({ ...st }, drafts);
   assert.match(req({ flow: null }, {}).error, /Pick a flow/);

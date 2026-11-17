@@ -13,6 +13,8 @@ import { projectChip, projectList, projectsOn, projectName, projectSheetHtml, pr
 import { pageHtml, tabsHtml } from './pages.js';
 import { BOARD_TABS } from '../loom.js';
 import { PICKER, flowById, stepsOf, shownSteps, flowCardHtml } from './flows.js';
+/** The flows Other flows offers (Loom 6.0.0); the drop box starts the rest. */
+export const OTHER_FLOWS = ['request', 'epic', 'docs'];
 
 // ---------------------------------------------------------------- helpers
 export function h(s) {
@@ -778,7 +780,6 @@ function headerHtml() {
   const tip = S.conn === 'on' && S.D ? (S.D.workspace ? S.D.workspace + '. ' : '') + 'Updated ' + timeOf(S.D.generatedMs) + '. opencode ' + (o.connected ? (o.version || '') + ' at ' + (o.url || '') : 'not connected') : '';
   return `<header class="top">${brandHtml()}${tabsHtml()}<span class="fresh">` +
     `<span class="pill ${st[0]}" title="${h(tip)}"><span class="led"></span>${h(st[1])}</span>` +
-    `<button type="button" class="btn primary top-start" data-start-open="1" title="Pick a flow: build a feature, fix a bug, investigate, plan an epic, write docs or a technical spec">Start work</button>` +
     `<button type="button" class="ibtn" data-more-menu="1" aria-label="More" title="More" aria-haspopup="menu">${ICON.more}</button></span></header>`;
 }
 function bannersHtml() {
@@ -1092,13 +1093,13 @@ function startFormHtml(f, st) {
   const toggle = (attr, cur, opts, label) => `<div class="gos start-modes" role="group" aria-label="${h(label)}">` +
     opts.map(([k, l]) => `<button type="button" ${attr}="${h(k)}" aria-pressed="${cur === k}"${cur === k ? ' class="on"' : ''}>${h(l)}</button>`).join('') + '</div>';
   if (f.id === 'request') {
-    return `<p>Adds the request to the board's Shape column and starts a triage: Tandem reads it and the code, and says what is missing. Then you pick the path. Runs <code>/triage</code>.</p>` +
+    return `<p>Adds the request as a card in Clarify and starts a triage: Tandem reads it and the code, and says what is missing. Then you pick the path. Runs <code>/triage</code>.</p>` +
       `<label class="cfg-row"><span class="cfg-t">What was asked for</span><input type="text" class="start-first" data-draft="start:title" value="${dv('title')}" placeholder="Export the audit log as CSV" maxlength="255" autocomplete="off"></label>` +
       `<label class="cfg-row"><span class="cfg-t">Asked by</span><input type="text" data-draft="start:requester" value="${dv('requester')}" placeholder="A name, a team, or a customer" maxlength="200" autocomplete="off"></label>` +
       `<label class="cfg-row"><span class="cfg-t">Their words, and anything you know</span><textarea rows="4" data-draft="start:desc" placeholder="Paste the message. The more it says, the fewer questions triage has.">${dv('desc')}</textarea></label>`;
   }
   if (f.id === 'handoff') {
-    return `<p>Adds it to the board and drafts one story for you to approve. Then you pick who builds it and assign it in ADO in one step, and the Inbox nudges you if it stalls. Runs <code>/refine</code>.</p>` +
+    return `<p>Adds it as a card in Lanes and drafts one story for you to approve. Then you pick who builds it and assign it in ADO in one step, and its card nudges you if it stalls. Runs <code>/refine</code>.</p>` +
       `<label class="cfg-row"><span class="cfg-t">Title</span><input type="text" class="start-first" data-draft="start:title" value="${dv('title')}" placeholder="Add paging to the audit log" maxlength="255" autocomplete="off"></label>` +
       `<label class="cfg-row"><span class="cfg-t">What is needed, and why</span><textarea rows="5" data-draft="start:desc" placeholder="What you know so far. The draft asks at most 2 questions.">${dv('desc')}</textarea></label>`;
   }
@@ -1148,11 +1149,12 @@ function startSheetHtml() {
   const st = S.ui.start;
   const o = (L() && L().opencode) || {};
   const f = flowById(startFlowOf(st));
-  const head = `<div class="sheet-head"><h3 id="start-h">${f ? h(f.name) : 'Start work'}</h3><button type="button" class="ibtn" data-close-sheet="1" aria-label="Close">${ICON.x}</button></div>`;
+  const head = `<div class="sheet-head"><h3 id="start-h">${f ? h(f.name) : 'Other flows'}</h3><button type="button" class="ibtn" data-close-sheet="1" aria-label="Close">${ICON.x}</button></div>`;
   let body, foot;
   if (!f) {
-    body = '<p class="start-lead">Pick the path. Each card shows its steps; a ring marks the ones that stop for you, a dashed ring the ones that stop only sometimes.</p>' +
-      `<div class="fcards">${PICKER.map(flowCardHtml).join('')}</div>`;
+    // Loom 6.0.0: a build, a bug, a question or a hand-off starts from Lanes' drop box; these are the rest.
+    body = '<p class="start-lead">Less common work. A story, an error log, a question or a hand-off goes in the drop box.</p>' +
+      `<div class="fcards">${PICKER.filter(x => OTHER_FLOWS.includes(x.id)).map(flowCardHtml).join('')}</div>`;
     foot = '<span class="grow"></span><button type="button" class="btn" data-close-sheet="1">Cancel</button>';
   } else {
     const lane = f.id === 'bug' ? 'bug' : st.size === 'small' ? 'quick' : 'feature';
@@ -1165,7 +1167,7 @@ function startSheetHtml() {
       (o.connected ? '' : '<p class="gmsg bad">opencode is not connected, so nothing can start.</p>') +
       (st.error ? `<p class="gmsg bad" role="status">${md(st.error)}</p>` : '');
     foot = '<span class="grow"></span><button type="button" class="btn" data-close-sheet="1">Cancel</button>' +
-      `<button type="button" class="btn primary" data-start-go="1"${st.busy || !o.connected ? ' disabled' : ''}>${st.busy ? 'Starting' : h(f.id === 'bug' && startSrc(st) === 'log' ? 'Diagnose' : GO_LABEL[f.id] || 'Start')}</button>`;
+      `<button type="button" class="btn primary" data-start-go="1"${st.busy || (!o.connected && !f.board) ? ' disabled' : ''}>${st.busy ? 'Starting' : h(f.id === 'bug' && startSrc(st) === 'log' ? 'Diagnose' : GO_LABEL[f.id] || 'Start')}</button>`;
   }
   return `<div class="modal" data-sheet="1"><div class="backdrop" data-close-sheet="1"></div><div class="sheet${f ? '' : ' wide'}" role="dialog" aria-modal="true" aria-labelledby="start-h">${head}${body}<footer>${foot}</footer></div></div>`;
 }

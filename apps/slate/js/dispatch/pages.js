@@ -21,13 +21,16 @@ import { FLOWS, flowOf, flowTag, flowById, stepsOf, stepIndex, currentStep, here
 
 export { TABS } from '../loom.js';
 import { TABS, BOARD_TABS, panelRun, currentNudges } from '../loom.js';
-import { lanesHtml, lanesCount, laneRun } from './lanes.js';
+import { lanesHtml, lanesCount, laneRun, setLaneHelpers } from './lanes.js';
 import { setLanesView } from './view.js';
 setLanesView(() => lanesHtml());
+setLaneHelpers({ onboard: () => onboardHtml(), askSource: x => askSource(x.sessionID, x.folder) });
 // `work` is All runs: under Board on the tab bar (the board's toolbar opens it), every run in one list.
-export const TAB_IDS = [...TABS.map(t => t[0]), 'work'];
+export const TAB_IDS = TABS.map(t => t[0]);
 /** Dispatch 2.x's tabs: Runs, Ship and Research are all Work now. */
-export const OLD_TABS = { runs: 'work', ship: 'work', research: 'work' };
+// Retired tabs open Lanes (Loom 6.0.0): the Inbox is Lanes' Your turn, the Board's items are lane cards, All runs and
+// Reviews are cards too. Remove these addresses after Feb 1, 2027 with the other retired redirects.
+export const OLD_TABS = { runs: 'lanes', ship: 'lanes', research: 'lanes', work: 'lanes', inbox: 'lanes', board: 'lanes', reviews: 'lanes' };
 const L = () => S.L;
 const all = () => (S.D && S.D.items) || [];
 const newest = list => list.slice().sort((a, b) => (b.modifiedMs || 0) - (a.modifiedMs || 0));

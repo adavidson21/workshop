@@ -261,8 +261,8 @@ function detail(s, ctx) {
       return `<p>Rapport keeps evidence of your and your team's work for reviews, next to your 1:1s. Add one thing you did this week.</p><p>${btn('Open Rapport', 'data-open="receipts" data-path="me"', true)}</p>`;
     case 'dispatch':
       return f.workMode
-        ? `<p>Loom runs coding agents with an AI provider, so work mode leaves it out. Add it only if your company allows a coding agent: follow "Dispatch in work mode" in docs/install.md (install opencode and Tandem at its release tag, set the Workspace folder, then <b>Approved AI providers</b>), or run the one-line installer again with <code>WORKSHOP_DISPATCH=1</code>.</p><p>${btn('Open Loom', 'data-open="slate" data-path="inbox"')}</p>`
-        : `<p>Loom runs opencode coding agents on your work items. It needs opencode, Tandem and an AI model; the setup guide on Loom's Inbox walks you through it.</p><p>${btn('Open Loom', 'data-open="slate" data-path="inbox"', true)}</p>`;
+        ? `<p>Loom runs coding agents with an AI provider, so work mode leaves it out. Add it only if your company allows a coding agent: follow "Dispatch in work mode" in docs/install.md (install opencode and Tandem at its release tag, set the Workspace folder, then <b>Approved AI providers</b>), or run the one-line installer again with <code>WORKSHOP_DISPATCH=1</code>.</p><p>${btn('Open Loom', 'data-open="slate" data-path="lanes"')}</p>`
+        : `<p>Loom runs opencode coding agents on your work items. It needs opencode, Tandem and an AI model; the setup guide at the top of Loom's Lanes walks you through it.</p><p>${btn('Open Loom', 'data-open="slate" data-path="lanes"', true)}</p>`;
     case 'login':
       return `<p>Run Workshop by hand for a few days first. When it has been trouble free, turn on <b>Start at login</b> in ${settingsWhere} (This computer), or run:</p>${copy('workshop install --login')}<p>${settingsBtn('Open Settings', 'computer')}</p>`;
     default: return '';

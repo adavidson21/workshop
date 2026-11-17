@@ -303,19 +303,21 @@ def browser_mode_checks(ctx, pg, frame, watch):
     slf = next((f for f in pg.frames if '/apps/slate/' in f.url), None)
     check('Loom is on the rail and opens', slf is not None and pg.url.endswith('#/slate'))
     if slf:
-        slf.click('#app .tabs [data-tab=board]'); pg.wait_for_timeout(400)
-        slf.wait_for_selector('.empty, .board', timeout=10000)
-        # Two setup notes (ADO and Dispatch) fold into one line that opens (docs/layout.md, .ws-notices).
-        check('Slate in browser mode says the agent steps need Workshop on this computer', 'Connect Workshop on this computer' in slf.text_content('#top')
-              and '2 setup notes' in slf.text_content('#top .ws-notices summary'))
-        slf.click('.top [data-act=new]'); slf.fill('dialog input[name=title]', 'Export orders to CSV'); slf.fill('dialog textarea[name=description]', 'Finance asked for it')
-        slf.click('dialog button[type=submit]'); pg.wait_for_timeout(600)
-        check('a new request lands in Inbox and opens its panel; without Dispatch it offers Write it myself', slf.locator('.col[aria-label=Shape] .card').count() == 1 and 'Export orders to CSV' in slf.input_value('#ptitle')
-              and slf.locator('.panel .next [data-act=write-myself]').count() == 1)
-        cols = slf.eval_on_selector_all('.col', 'cs => cs.map(c => c.getAttribute("aria-label"))')
-        check('one board of four lanes, no lane switcher, Loom\'s four tabs', cols == ['Shape', 'Decide', 'Build', 'Done']
-              and slf.locator('.top [data-act=lane]').count() == 0
-              and slf.eval_on_selector_all('#app .tabs .tab', 'bs => bs.map(b => b.dataset.tab)') == ['lanes', 'inbox', 'board', 'health'])
+        # Loom 6.0.0: two tabs, Lanes and Health. A request starts from Other flows; without Tandem it waits as a card
+        # in Clarify and opens the board's own panel as a drawer over Lanes (the Board and the Inbox are retired).
+        slf.wait_for_selector('#ln-drop', timeout=10000)
+        check('Loom is Lanes and Health, no Start work button; without Tandem the setup folds into one line', slf.eval_on_selector_all('#app .tabs .tab', 'bs => bs.map(b => b.dataset.tab)') == ['lanes', 'health']
+              and slf.locator('.ln-setup').count() == 1 and slf.locator('#app .top-start').count() == 0)
+        slf.click('#app .ln-drop [data-start-open]'); pg.wait_for_timeout(400)
+        check('Other flows offers only Handle a request, Plan an epic and Write docs', slf.eval_on_selector_all('.fcard', 'cs => cs.map(c => c.dataset.flow)') == ['request', 'epic', 'docs'])
+        slf.click('.fcard[data-flow=request]'); pg.wait_for_timeout(300)
+        slf.fill('[data-draft="start:title"]', 'Export orders to CSV'); slf.fill('[data-draft="start:desc"]', 'Finance asked for it')
+        slf.click('[data-start-go]'); pg.wait_for_timeout(1000)
+        check('a request is a card in Clarify, waiting on you', seen(slf, '.ln-clarify .ln-card.mine[data-lane-open^="board:"]', 5000)
+              and 'Export orders to CSV' in slf.inner_text('.ln-clarify'))
+        slf.click('.ln-clarify [data-lane-open^="board:"]'); pg.wait_for_timeout(700)
+        check('it opens the board\'s own panel as a drawer over Lanes; without Tandem it offers Write it myself', not slf.locator('#board-root').evaluate('el => el.hidden')
+              and not slf.locator('#main').is_visible() and 'Export orders to CSV' in slf.input_value('#ptitle') and slf.locator('.panel .next [data-act=write-myself]').count() == 1)
         shown = slf.eval_on_selector_all('.panel .next .acts button', 'bs => bs.map(b => b.dataset.act)')
         check('without Dispatch the request shows Write it myself and Who builds it?; Add to roadmap and Move to are in More', shown == ['write-myself', 'to-decide']
               and slf.locator('.panel details.more:not([open])').count() == 1)
@@ -325,64 +327,27 @@ def browser_mode_checks(ctx, pg, frame, watch):
         slf.click('.panel .more [data-act=roadmap-add]'); pg.wait_for_timeout(600)
         offered = slf.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'slate'}); const e = await ws.data.get('handoffs'); return e.items.map(h => [h.to, h.accepted, h.payload.kind]); }""")
         check('Add to roadmap (in More) offers the idea to Runway, and the menu closes', offered == [['runway', True, 'idea']] and slf.locator('.panel details.more[open]').count() == 0)
-        slf.click('.top [data-act=fields]'); slf.wait_for_selector('dialog form[data-form=fields]')
-        card_defaults = slf.eval_on_selector_all('dialog input[name=card]:checked', 'is => is.map(i => i.value)')
-        check('cards show Assigned to, Priority and Tags by default', sorted(card_defaults) == ['assignee', 'priority', 'tags'])
-        slf.uncheck('dialog input[name=card][value=tags]'); slf.check('dialog input[name=detail-story][value=severity]')
-        slf.fill('dialog input[name=custom-feature]', 'Custom.Team, bad name!'); slf.click('dialog button[type=submit]'); pg.wait_for_timeout(600)
-        fields = slf.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'slate'}); const e = await ws.data.get('items'); const f = e.meta.fields; return [f.card.includes('tags'), f.detail.story.includes('severity'), f.custom.feature, e.items.length]; }""")
-        check('Fields saves which ADO fields show in the items meta, dropping bad field names', fields == [False, True, ['Custom.Team'], 1])
         slf.click('.panel details.more > summary'); pg.wait_for_timeout(200)
         skip_opts = slf.eval_on_selector_all('#backTo optgroup[label="Skip ahead"] option', 'os => os.map(o => o.value)')
-        check('a card in Inbox can only skip ahead (to Who builds it? or Define), from More', skip_opts == ['decide', 'defining'] and slf.locator('#backTo optgroup[label="Move back"]').count() == 0)
+        check('a new card can only skip ahead (to Who builds it? or Define), from More', skip_opts == ['decide', 'defining'] and slf.locator('#backTo optgroup[label="Move back"]').count() == 0)
         slf.select_option('#backTo', 'decide'); slf.click('.panel [data-act=back]'); slf.wait_for_selector('dialog form[data-form=confirm]')
-        slf.click('dialog button[type=submit]'); pg.wait_for_timeout(600)
-        check('Skip ahead moves a card straight to Who builds it?, on the same board', slf.locator('.col[aria-label=Decide] .card').count() == 1
+        slf.click('dialog button[type=submit]'); pg.wait_for_timeout(700)
+        check('Skip ahead moves it to Who builds it?: its card is in Plan, the drawer still open', slf.locator('.ln-plan .ln-card.mine[data-lane-open^="board:"]').count() == 1
               and slf.locator('.panel .next [data-act=delegate]').count() == 1)
-        # Lanes (Loom 5.2.0): the board's item is a card in Plan, and opens the board's own panel as a drawer.
-        slf.click('#app .tabs [data-tab=lanes]'); pg.wait_for_timeout(600)
-        check('a board item is a card in Lanes\' Plan, waiting on you', slf.locator('.ln-plan .ln-card.mine[data-lane-open^="board:"]').count() == 1)
-        slf.click('.ln-plan [data-lane-open^="board:"]'); pg.wait_for_timeout(600)
-        check('it opens the board\'s own panel as a drawer over Lanes', slf.locator('#board-root .panel:not([hidden]) .next [data-act=delegate]').count() == 1
-              and not slf.locator('#board-root').evaluate('el => el.hidden') and not slf.locator('#main').is_visible())
-        slf.click('#board-root .panel [data-act=close]'); pg.wait_for_timeout(500)
-        check('its Close closes the drawer and the card', slf.locator('#board-root').evaluate('el => el.hidden') and slf.locator('.ln-card.on').count() == 0)
-        slf.click('#app .tabs [data-tab=board]'); pg.wait_for_timeout(500)
-        slf.click('.col[aria-label=Decide] .card'); pg.wait_for_timeout(500)
         slf.click('.panel details.more > summary'); pg.wait_for_timeout(200)
         slf.click('.panel .more [data-act=done]'); pg.wait_for_timeout(600)
+        check('Done takes it off the lanes', slf.locator('.ln-card[data-lane-open^="board:"]').count() == 0)
         slf.click('.panel details.more > summary'); pg.wait_for_timeout(200)
         slf.select_option('#backTo', 'new'); slf.click('.panel [data-act=back]'); slf.wait_for_selector('dialog form[data-form=confirm]')
         slf.click('dialog button[type=submit]'); pg.wait_for_timeout(600)
         moved = slf.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'slate'}); const e = await ws.data.get('items'); const it = e.items[0]; return [it.stage, it.reopened, it.history.map(h => h.stage)]; }""")
-        check('Move back takes a done card back to Inbox and holds it there', moved == ['new', 'new', ['new', 'decide', 'done', 'new']] and slf.locator('.col[aria-label=Shape] .card').count() == 1)
-        areas = slf.eval_on_selector_all('#area option', 'os => os.map(o => o.value)')
-        slf.select_option('#area', '-'); pg.wait_for_timeout(300)
-        shown_none = slf.locator('.col[aria-label=Shape] .card').count()
-        slf.evaluate("() => { const s = document.getElementById('area'); const o = new Option('x', 'Proj\\\\Elsewhere'); s.add(o); s.value = o.value; s.dispatchEvent(new Event('change', {bubbles: true})); }"); pg.wait_for_timeout(300)
-        shown_other = slf.locator('.board .card').count()
-        empty_msg = 'match the area path' in slf.inner_text('#main')
-        slf.select_option('#area', ''); pg.wait_for_timeout(300)
-        check('the area path view picks which cards show (a request with no area under No area path)', areas == ['', '-'] and shown_none == 1 and shown_other == 0 and empty_msg
-              and slf.locator('.col[aria-label=Shape] .card').count() == 1)
-        slf.click('.top [data-act=new-idea]'); slf.fill('dialog input[name=title]', 'Bulk export'); slf.fill('dialog textarea[name=description]', 'For account managers')
-        slf.click('dialog button[type=submit]'); pg.wait_for_timeout(600)
-        check('a new idea lands in Inbox, marked Idea, with Write it myself (no Dispatch here)', slf.locator('.col[aria-label=Shape] .card').count() == 2
-              and slf.locator('.col[aria-label=Shape] .card:has-text("Bulk export") .chip:text-is("Idea")').count() == 1
-              and slf.locator('.panel .next [data-act=write-myself]').count() == 1 and slf.locator('.panel [data-act=skip]').count() == 0)
-        slf.click('.panel details.more > summary'); pg.wait_for_timeout(200)
-        slf.select_option('#backTo', 'decide'); slf.click('.panel [data-act=back]'); slf.wait_for_selector('dialog form[data-form=confirm]')
-        slf.click('dialog button[type=submit]'); pg.wait_for_timeout(700)
-        skipped = slf.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'slate'}); const e = await ws.data.get('items'); const it = e.items.find(x => x.title === 'Bulk export'); return [it.kind, it.stage, it.history.at(-1).skipped === true]; }""")
-        check('Skip ahead to Who builds it? marks it skipped', skipped == ['idea', 'decide', True] and slf.locator('.col[aria-label=Decide] .card').count() == 1)
-        slf.click('.panel details.more > summary'); pg.wait_for_timeout(200)
-        slf.select_option('#backTo', 'new'); slf.click('.panel [data-act=back]'); slf.wait_for_selector('dialog form[data-form=confirm]')
-        slf.click('dialog button[type=submit]'); pg.wait_for_timeout(600)
-        check('Move back undoes it, back in Inbox', slf.locator('.col[aria-label=Shape] .card').count() == 2)
+        check('Move back takes a done card back to new and holds it there: in Clarify again', moved == ['new', 'new', ['new', 'decide', 'done', 'new']] and slf.locator('.ln-clarify .ln-card[data-lane-open^="board:"]').count() == 1)
         details = slf.locator('.panel details.fold[data-fold=details]')
         check('Details starts closed', details.count() == 1 and details.get_attribute('open') is None)
         slf.click('.panel details.fold[data-fold=details] > summary'); pg.wait_for_timeout(200)
         check('opening Details is remembered in this browser', slf.evaluate("localStorage.getItem('slate.fold.details')") == '1')
+        slf.click('#board-root .panel [data-act=close]'); pg.wait_for_timeout(500)
+        check('the drawer\'s Close closes it', slf.locator('#board-root').evaluate('el => el.hidden') and slf.locator('.ln-card.on').count() == 0)
         slf.click('#app .tabs [data-tab=health]'); pg.wait_for_timeout(1500)
         hrows = slf.eval_on_selector_all('.htable tbody th', 'ts => ts.map(t => t.textContent)')
         check('Health lists the four lanes, with Sprints inside it', hrows == ['Shape', 'Decide', 'Build', 'Done'] and slf.locator('#sprints #sprintsBox').count() == 1)
@@ -1289,9 +1254,9 @@ def agents_checks(b, watch):
         if af: seen(af, '.pill.on'); pg.wait_for_timeout(500)
         check('Agents is a same-origin app on the SDK, no frame from another origin', af is not None and all(f.url.startswith(HOSTED) or f.url == 'about:blank' for f in pg.frames))
         check('Agents reads the opencode connector and shows Live', af is not None and af.inner_text('.pill') == 'Live')
-        check('Loom has four tabs, Lanes first, and no sidebar', af.eval_on_selector_all('#app .tabs .tab', 'els => els.map(e => e.dataset.tab)') == ['lanes', 'inbox', 'board', 'health']
+        check('Loom has two tabs, Lanes and Health, and no sidebar (Loom 6.0.0)', af.eval_on_selector_all('#app .tabs .tab', 'els => els.map(e => e.dataset.tab)') == ['lanes', 'health']
               and af.locator('#app .side, #app aside').count() == 0)
-        check('#/slate/<id> opens that run on its own page, under Board', seen(af, '.run-page#item-41610') and af.get_attribute('#app .tab.on', 'data-tab') == 'board')
+        check('#/slate/<id> opens that run on its own page, under Lanes', seen(af, '.run-page#item-41610') and af.get_attribute('#app .tab.on', 'data-tab') == 'lanes')
         check('the shell keeps the address, and the name and theme are the shell\'s', pg.url.endswith('#/slate') and af.locator('#app .brand').count() == 0 and af.locator('[data-theme-menu]').count() == 0)
 
         # Lanes (Loom 5.0.0): the drop box, four lanes, a card per run in its lane, and the run's own card in the panel.
@@ -1315,24 +1280,24 @@ def agents_checks(b, watch):
         bg = af.evaluate("getComputedStyle(document.body).backgroundColor")
         check('Agents draws with Workshop\'s theme colors (shared/themes.css)', bg == ('rgb(26, 21, 23)' if want == 'dark' else 'rgb(250, 246, 241)'))
 
-        # Loom: every run is a card on the board, and a card's panel holds its run (its step and buttons).
-        open_tab(af, 'board'); seen(af, '#board-root .board'); pg.wait_for_timeout(600)
-        build = af.inner_text('#board-root .col[aria-label=Build]')
-        shape = af.inner_text('#board-root .col[aria-label=Shape]')
-        check('every work item run is a card in Build, and an investigation is a card in Shape', all(t in build for t in ('Fix login timeout', 'Export retry fails', 'CSV export'))
-              and 'Investigate' in shape and af.locator('#board-root .card').count() >= 6)
-        af.locator('#board-root .col[aria-label=Build] .card', has_text='Export retry fails').first.click(); pg.wait_for_timeout(800)
-        check('the card\'s panel holds its run: the step to read and its buttons', seen(af, '#panel .loom-run .icard.gate') and af.locator('#panel .loom-run [data-act=approve-start]').count() == 1
-              and af.locator('#panel .run-in [data-act=dispatch]').count() == 1)
-        if os.environ.get('LOOM_SHOTS'): pg.screenshot(path='/tmp/loom-board.png')
-        af.click('#panel .loom-run [data-sb-toggle]'); pg.wait_for_timeout(500)
-        check('the run\'s buttons work inside the card (Send back opens its note box there)', af.locator('#panel .loom-run [data-sb-toggle][aria-expanded=true]').count() == 1
-              and af.locator('#panel .loom-run textarea').count() == 1 and 'Root cause' in af.inner_text('#panel .loom-run'))
-        af.click('#panel .loom-run [data-sb-toggle]'); pg.wait_for_timeout(300)
-        af.click('#panel .run-in [data-act=dispatch]'); pg.wait_for_timeout(500)
-        check('Open the run opens its full page', seen(af, '.run-page#item-41300') and af.locator('#board-root').is_hidden())
-        af.click('[data-close-run]'); pg.wait_for_timeout(300)
-        af.click('#board-root [data-act=close]'); pg.wait_for_timeout(200)
+        # Loom 6.0.0: every run is a card in the lanes, and a card's panel holds its run (its step and buttons).
+        af.click('#app .tabs [data-tab=lanes]'); pg.wait_for_timeout(600)
+        keys = af.eval_on_selector_all('.ln-card[data-lane-open]', 'els => els.map(e => e.dataset.laneOpen)')
+        folders = sorted(k for k in keys if not k.startswith(('board:', 'session:', 'reviews')))
+        check('every open .work folder is one card in the lanes (a finished one is under Done today)', folders == sorted(['41207-fix-login-timeout', '41300-export-retry-fails', '41455-audit-log-filter', '41502-csv-export', '41610-rate-limit-headers', '41720-show-item-count', 'spike-cache-options']))
+        if folders != sorted(['41207-fix-login-timeout', '41300-export-retry-fails', '41455-audit-log-filter', '41502-csv-export', '41610-rate-limit-headers', '41720-show-item-count', 'spike-cache-options']): print('    lanes have:', folders)
+        af.click('.ln-card[data-lane-open="41300-export-retry-fails"]'); pg.wait_for_timeout(800)
+        check('the card\'s panel holds its run: the step to read and its buttons', seen(af, '.ln-panel .loom-run .icard.gate') and af.locator('.ln-panel [data-act=approve-start]').count() == 1)
+        check('the panel keeps the draft closed until Read', af.locator('.ln-panel .finline').count() == 0)
+        af.click('.ln-panel [data-peek="card:41300-export-retry-fails"]'); pg.wait_for_timeout(400)
+        check('Read shows the file you are approving (file.read)', seen(af, '.ln-panel .finline .doc') and 'Root cause' in af.inner_text('.ln-panel .finline'))
+        af.click('.ln-panel [data-peek="card:41300-export-retry-fails"]'); pg.wait_for_timeout(200)
+        af.click('.ln-panel [data-sb-toggle]'); pg.wait_for_timeout(500)
+        check('the run\'s buttons work inside the panel (Send back opens its note box there)', af.locator('.ln-panel [data-sb-toggle][aria-expanded=true]').count() == 1
+              and af.locator('.ln-panel textarea').count() == 1)
+        af.click('.ln-panel [data-sb-toggle]'); pg.wait_for_timeout(300)
+        check('a run at Ship is a card in Ready that says Open PR', af.locator('.ln-ready .ln-card.mine[data-lane-open="41610-rate-limit-headers"] .ln-act').inner_text() == 'Open PR')
+        if os.environ.get('LOOM_SHOTS'): pg.screenshot(path='/tmp/loom-lanes.png')
 
         # Health > Tandem: the opencode connector's tandem.health, read from the example .work (docs/tandem-health.md).
         af.click('#app .tabs [data-tab=health]')
@@ -1344,32 +1309,11 @@ def agents_checks(b, watch):
         af.click('#tandemBox [data-act=open-run][data-id="41610-rate-limit-headers"]'); pg.wait_for_timeout(500)
         check('an item in Tandem opens its run page', seen(af, '.run-page#item-41610'))
         af.click('[data-close-run]'); pg.wait_for_timeout(300)
-        af.click('#app .tabs [data-tab=board]'); pg.wait_for_timeout(300)
-
-        # Every .work folder has one place: what waits on you in the Inbox, everything else on Work.
-        found = []
-        for tab in ('inbox', 'work'):
-            open_tab(af, tab); pg.wait_for_timeout(250)
-            found += af.eval_on_selector_all('.page [id^="item-"]', 'els => els.map(e => e.id)')
-        check('every .work folder is in one place', sorted(found) == sorted(['item-41207', 'item-41300', 'item-41455', 'item-41502', 'item-41610', 'item-41720', 'item-spike-cache-options', 'item-tsd-billing-api']))
-        af.click('#app .tabs [data-tab=inbox]'); pg.wait_for_timeout(250)
-        inbox = af.text_content('.page')
-        check('the Inbox has the run to review and the code review to do', 'Ready for your review' in inbox and '#41300' in inbox and 'Code reviews to do' in inbox and '#41610' in inbox)
-        check('the Inbox card keeps the draft closed until Read', af.locator('#item-41300 .finline').count() == 0)
-        af.click('#item-41300 [data-peek="card:41300-export-retry-fails"]'); pg.wait_for_timeout(300)
-        check('Read shows the file you are approving (file.read)', seen(af, '#item-41300 .finline .doc') and 'Root cause' in af.inner_text('#item-41300 .finline'))
-        af.click('#item-41300 [data-peek="card:41300-export-retry-fails"]'); pg.wait_for_timeout(200)
-
-        # Go through them: one at a time, with keys.
-        af.click('[data-walk=start]'); pg.wait_for_timeout(300)
-        check('Go through them shows one row at a time', af.locator('.walk .icard, .walk .rrow').count() == 1 and '1 of' in af.inner_text('.walk-n').lower())
-        af.locator('body').press('n'); pg.wait_for_timeout(250)
-        check('N skips to the next one', '2 of' in af.inner_text('.walk-n').lower())
-        af.locator('body').press('Escape'); pg.wait_for_timeout(250)
-        check('Esc stops', af.locator('.walk').count() == 0 and af.locator('#g-gates').count() == 1)
+        af.click('#app .tabs [data-tab=lanes]'); pg.wait_for_timeout(300)
 
         # The run page: the flow track, the main button, and a write action sent with confirm from the click.
-        af.click('.page [data-open-run="41300-export-retry-fails"] >> nth=0')
+        if af.locator('.ln-panel').count() == 0: af.click('.ln-card[data-lane-open="41300-export-retry-fails"]'); pg.wait_for_timeout(400)
+        af.click('.ln-panel .ln-foot [data-open-run="41300-export-retry-fails"]')
         run = af.locator('.run-page')
         seen(af, '.run-page#item-41300')
         check('a run opens its page with its own Abandon button', run.get_attribute('id') == 'item-41300' and run.locator('.item-head [data-remove]').inner_text() == 'Abandon')
@@ -1392,17 +1336,18 @@ def agents_checks(b, watch):
               af.locator('.sheet [data-file-mode=edit]').is_disabled() and 'read-only until it stops' in af.inner_text('.sheet'))
         af.press('.sheet', 'Escape'); pg.wait_for_timeout(200)
         af.click('[data-close-run]')
-        check('Back from a run page returns to the Inbox it was opened from', seen(af, '#g-code') and af.get_attribute('#app .tab.on', 'data-tab') == 'inbox')
+        check('Back from a run page returns to Lanes, where it was opened from', seen(af, '#ln-drop') and af.get_attribute('#app .tab.on', 'data-tab') == 'lanes')
 
-        # Prompts: shown in the Inbox with where they came from, counted on the rail badge, answered there.
+        # Prompts: a card in Clarify waiting on you, counted on the rail badge, answered in its panel (Loom 6.0.0).
         before = int(pg.inner_text('.app-btn[data-app=slate] .badge') or 0)
-        af.click('#app .tabs [data-tab=inbox]')
-        ask({'ask': {'id': 'per_e2e', 'session': None, 'title': 'npm test'}}); pg.wait_for_timeout(1200)
-        check('a prompt from opencode shows in the Inbox under Agents asking you', 'npm test' in af.inner_text('#g-asks'))
-        check('the rail badge counts what is in the Inbox', pg.inner_text('.app-btn[data-app=slate] .badge') == str(before + 1))
-        af.click('#g-asks [data-perm=per_e2e][data-answer=once]'); pg.wait_for_timeout(1200)
+        ask({'ask': {'id': 'per_e2e', 'session': None, 'title': 'npm test'}}); pg.wait_for_timeout(1500)
+        check('a prompt from opencode is a card in Clarify, waiting on you', seen(af, '.ln-clarify .ln-card.mine[data-lane-open="session:ses_tui0"]', 5000))
+        check('the rail badge counts it', pg.inner_text('.app-btn[data-app=slate] .badge') == str(before + 1))
+        af.click('.ln-clarify .ln-card[data-lane-open="session:ses_tui0"]'); pg.wait_for_timeout(500)
+        check('its panel shows the prompt with its answers', 'npm test' in af.inner_text('.ln-panel .ln-asks'))
+        af.click('.ln-panel [data-perm=per_e2e][data-answer=once]'); pg.wait_for_timeout(1200)
         r = ask({'requests': True})
-        check('Allow once answers it in opencode', 'POST /session/ses_tui0/permissions/per_e2e' in r['requests'] and af.locator('#g-asks').count() == 0)
+        check('Allow once answers it in opencode', 'POST /session/ses_tui0/permissions/per_e2e' in r['requests'] and af.locator('[data-perm=per_e2e]').count() == 0)
         check('and the badge goes back down', pg.inner_text('.app-btn[data-app=slate] .badge') == str(before))
 
         # Chat (its own app since Loom 4.8.0): a sidebar of chats and one chat in view. It opens on New chat, with the hub's box in it.
@@ -1421,8 +1366,9 @@ def agents_checks(b, watch):
         # Ship: the run's page has the PR box, with copy buttons, then Review instead of Push. The code review
         # (review.html) reads the diff from git through the connector. Approve pushes nothing; Push to origin, after the
         # shared git confirm, pushes the pr.md branch.
-        af.click('#app .tabs [data-tab=inbox]'); pg.wait_for_timeout(300)
-        af.click('#item-41610 [data-open-run] >> nth=0'); pg.wait_for_timeout(300)
+        af.click('#app .tabs [data-tab=lanes]'); pg.wait_for_timeout(300)
+        if af.locator('.ln-panel [data-open-run="41610-rate-limit-headers"]').count() == 0: af.click('.ln-card[data-lane-open="41610-rate-limit-headers"]'); pg.wait_for_timeout(400)
+        af.click('.ln-panel .ln-foot [data-open-run="41610-rate-limit-headers"]'); pg.wait_for_timeout(300)
         ship = af.locator('.run-page#item-41610')
         branch = 'dev/bug/41610-rate-limit-headers'
         check('the PR card has Copy title, Copy description, and Review instead of Push', ship.locator('button.copy', has_text='Copy title').count() == 1
@@ -1455,9 +1401,11 @@ def agents_checks(b, watch):
 
         # Remove: the dialog, typing the name, and the folder gone (from the spike's page: at its findings fork, the
         # spike waits in the Inbox since flow cards v1).
-        open_tab(af, 'inbox'); pg.wait_for_timeout(300)
-        check('a spike at its findings shows its path cards in the Inbox', seen(af, '#item-spike-cache-options .forks [data-spike-close]'))
-        af.click('#item-spike-cache-options [data-open-run] >> nth=0'); pg.wait_for_timeout(300)
+        af.click('#app .tabs [data-tab=lanes]'); pg.wait_for_timeout(300)
+        if af.locator('.ln-card.on[data-lane-open="spike-cache-options"]').count() == 0: af.click('.ln-card[data-lane-open="spike-cache-options"]'); pg.wait_for_timeout(500)
+        check('a spike at its findings is a card in Ready with its path cards in its panel', af.locator('.ln-ready .ln-card[data-lane-open="spike-cache-options"]').count() == 1
+              and seen(af, '.ln-panel .forks [data-spike-close]'))
+        af.click('.ln-panel .ln-foot [data-open-run="spike-cache-options"]'); pg.wait_for_timeout(300)
         af.locator('.run-page#item-spike-cache-options .item-head [data-remove]').click(); pg.wait_for_timeout(300)
         go = af.locator('[data-remove-go]')
         check('Remove asks you to type the name first', go.is_disabled() and 'cannot be undone' in af.inner_text('.sheet'))
@@ -1497,27 +1445,29 @@ def agents_checks(b, watch):
         sp.goto(HOSTED + '/apps/slate/#41502'); seen(sp, '#item-41502'); sp.wait_for_timeout(300)
         check('Loom works on its own page, with the top bar (crumbs and light/dark toggle)', 'Loom' in sp.text_content('.ws-bar .here') and sp.locator('.ws-bar [data-theme-toggle]').count() == 1 and sp.locator('.run-page#item-41502').count() == 1)
 
-        # Projects (through the connector) as a filter on Work; the filter stays in this browser.
-        check('the Inbox tab counts what waits on you', int(sp.inner_text('#app .tabs [data-tab=inbox] .cnt') or 0) >= 1)
-        open_tab(sp, 'work')
-        check('All runs lists what is in flight, on one column, and points at the Inbox', seen(sp, '#item-41207') and sp.inner_text('.scope-head h2') == 'All runs' and sp.locator('#app aside').count() == 0 and sp.locator('.inbox-prs.waiting').count() == 1)
-        sp.click('#item-41207 [data-open-run]')
-        check('a row opens its run page', seen(sp, '.run-page#item-41207'))
-        open_tab(sp, 'inbox'); sp.click('[data-inbox-chip=prs]')
-        check('Reviews is the Inbox\'s PRs chip', seen(sp, '.inbox-reviews') and 'Review a link' in sp.inner_text('.inbox-reviews'))
+        # Projects (through the connector) as a filter on Lanes (Loom 6.0.0); the filter stays in this browser.
+        check('the Lanes tab counts what waits on you', int(sp.inner_text('#app .tabs [data-tab=lanes] .cnt') or 0) >= 1)
+        sp.click('[data-close-run]'); sp.wait_for_timeout(300)
+        sp.evaluate("location.hash = '#reviews'"); sp.wait_for_timeout(600)
+        check('the old Reviews address opens the Review panel in Lanes', seen(sp, '.ln-panel .ln-reviews') and 'Review a link' in sp.inner_text('.ln-panel'))
+        sp.click('.ln-panel [data-lane-close]'); sp.wait_for_timeout(200)
         sp.click('[data-more-menu]'); sp.click('[data-projects-open]'); sp.click('[data-proj-new]')
         sp.fill('[data-draft="proj:name"]', 'Orders API'); sp.click('[data-proj-save]'); sp.wait_for_timeout(800)
-        open_tab(sp, 'work')
-        check('New project saves through the connector and Work shows only its runs', seen(sp, '.fchip.on[data-filter-project]') and 'Orders API' in sp.inner_text('.fchip.on[data-filter-project]') and sp.locator('.page .rrow').count() == 0)
-        sp.click('[data-filter-project=all]'); sp.click('[data-move="41207-fix-login-timeout"] >> nth=0'); sp.click('[data-move-to]:has-text("Orders API")'); sp.wait_for_timeout(800)
-        sp.click('.fchip:has-text("Orders API")')
-        check('a run moves to a project from its chip', seen(sp, '.page .rrow#item-41207') and sp.locator('.page .rrow').count() == 1)
-        sp.click('.top-start')
-        check('Start work opens on the flow cards, in order', seen(sp, '.fcards') and sp.eval_on_selector_all('.fcard', 'els => els.map(e => e.dataset.flow)') == ['request', 'feature', 'bug', 'spike', 'epic', 'handoff', 'docs'])
-        sp.click('.fcard[data-flow=feature]')
-        check('a flow shows its steps, and starts in the project filtered to', seen(sp, '.fline') and sp.eval_on_selector('[data-start-project]', 'e => e.selectedOptions[0].textContent') == 'Orders API')
+        sp.click('#app .tabs [data-tab=lanes]'); sp.wait_for_timeout(300)
+        check('New project saves through the connector and Lanes shows only its runs (none yet)', seen(sp, '.fchip.on[data-filter-project]') and 'Orders API' in sp.inner_text('.fchip.on[data-filter-project]')
+              and sp.locator('.ln-card[data-lane-open="41207-fix-login-timeout"]').count() == 0)
+        sp.click('[data-filter-project=all]'); sp.wait_for_timeout(300)
+        sp.click('.ln-card[data-lane-open="41207-fix-login-timeout"]'); sp.wait_for_timeout(400)
+        sp.click('.ln-panel [data-move="41207-fix-login-timeout"] >> nth=0'); sp.click('[data-move-to]:has-text("Orders API")'); sp.wait_for_timeout(800)
+        sp.click('.fchip:has-text("Orders API")'); sp.wait_for_timeout(300)
+        runs = [k for k in sp.eval_on_selector_all('.ln-card[data-lane-open]', 'els => els.map(e => e.dataset.laneOpen)') if not k.startswith(('board:', 'session:', 'reviews'))]
+        check('a run moves to a project from its panel, and the filter shows only it', runs == ['41207-fix-login-timeout'])
+        sp.click('.ln-drop [data-start-open]')
+        check('Other flows opens on the flows the drop box does not start', seen(sp, '.fcards') and sp.eval_on_selector_all('.fcard', 'els => els.map(e => e.dataset.flow)') == ['request', 'epic', 'docs'])
+        sp.click('.fcard[data-flow=epic]')
+        check('a flow shows its steps', seen(sp, '.fline'))
         sp.keyboard.press('Escape')
-        sp.reload(); seen(sp, '#app .tabs'); open_tab(sp, 'work')
+        sp.reload(); seen(sp, '#app .tabs')
         check('the project filter stays in this browser after a reload', seen(sp, '.fchip.on[data-filter-project]') and 'Orders API' in sp.inner_text('.fchip.on[data-filter-project]'))
 
         # Settings, Repos: Hide leaves a workspace repo out (opencode hiddenRepos), Show brings it back.
@@ -1622,8 +1572,11 @@ def main():
             pg.click('.app-btn[data-app=slate]'); pg.wait_for_timeout(1200)
             af = next((f for f in pg.frames if '/apps/slate/' in f.url), None)
             check('Loom opens from the rail, as an app in the shell, on Lanes', af is not None and pg.url.endswith('#/slate') and af.get_attribute('#app .tab.on', 'data-tab') == 'lanes')
-            if af: af.click('#app .tabs [data-tab=inbox]'); pg.wait_for_timeout(300)
-            check('Loom\'s Inbox in browser mode shows the setup guide', af is not None and 'Connect Loom to your computer' in af.inner_text('#app') and af.locator('.gstep').count() == 2)
+            # Loom 6.0.0: no Inbox; Lanes in browser mode shows the lanes, with the setup folded into one line that opens.
+            check('Loom has only Lanes and Health in browser mode', af is not None and af.eval_on_selector_all('#app .tabs .tab', 'els => els.map(e => e.dataset.tab)') == ['lanes', 'health'])
+            if af: af.click('#app .ln-setup > summary'); pg.wait_for_timeout(300)
+            check('Lanes in browser mode folds the setup guide into one line that opens', af is not None and af.locator('#ln-drop').count() == 1
+                  and 'Connect Loom to your computer' in af.inner_text('#app .ln-setup') and af.locator('.ln-setup .gstep').count() == 2)
             pg.evaluate("location.hash = '#/chat'"); pg.wait_for_timeout(1500)
             af = next((f for f in pg.frames if '/apps/chat/' in f.url), None)
             check('Chat opens from its address in browser mode', af is not None and pg.url.endswith('#/chat'))
