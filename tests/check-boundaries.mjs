@@ -5,7 +5,7 @@
 // fails on:
 //   B1  an app (apps/<a>/) using another app's files (apps/<b>/)
 //   B2  an app or shared/ using shell/, agent/, connectors/ or worker/; the shell using an app's files
-//   B3  agent/ or connectors/<id>/ using anything outside its own folder except shared/site.js
+//   B3  agent/ or connectors/<id>/ using anything outside its own folder except shared/site.js and shared/app-folders.js
 //   B4  an app or the shell using a shared/ file that docs/shared.md does not list as public, or a file in
 //       shared/ that docs/shared.md does not list at all (public or internal), or a listed file that is gone
 // Tests (test/ folders, tests/) may also use tests/lib/ and docs/; they still may not use another app's files.
@@ -134,9 +134,9 @@ for (const f of files) {
       if (toArea.startsWith('apps/')) say('B2', 'the shell frames apps and never imports their code.');
       else if (['agent', 'worker'].includes(toArea) || toArea.startsWith('connectors/')) say('B2', 'the shell reaches the agent only over its API.');
     } else if (area === 'agent' || area.startsWith('connectors/')) {
-      if (to === 'shared/site.js' || toArea === area) continue;
+      if (to === 'shared/site.js' || to === 'shared/app-folders.js' || toArea === area) continue;
       if (test && (toArea === 'tests' || toArea === 'agent' || toArea === 'docs' || toArea === 'scripts' || to === 'workshop.mjs')) continue;
-      say('B3', `${area} uses only its own files and shared/site.js.`);
+      say('B3', `${area} uses only its own files, shared/site.js and shared/app-folders.js.`);
     }
   }
 }

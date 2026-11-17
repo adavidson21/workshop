@@ -40,7 +40,7 @@ test('planSnapshot: keeps the old text, at most one per window, trims to KEEP', 
 test('saving a note keeps the text it replaced in history/', async () => {
   const fs = new FakeFolder();
   fs.write('notes/a.md', '# A\n\nfirst');
-  const s = _internals.makeFolderStore({ clientId: 'w-a' }, fs.root, { timers: false, channel: null });
+  const s = _internals.makeFolderStore({ clientId: 'w-a' }, fs.root, { folders: {}, timers: false, channel: null });
   const ws = { files: {
     list: (folder) => s.files.list('notes', folder), read: (p) => s.files.read('notes', p),
     write: (p, c, o) => s.files.write('notes', p, c, o), trash: (p, o) => s.files.trash('notes', p, o), subscribe: () => () => {} } };

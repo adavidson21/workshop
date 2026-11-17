@@ -60,7 +60,8 @@ export class FolderWatch {
 
   #onChange(filename) {
     if (this.#stopped || !filename) return;
-    const rel = String(filename).split(path.sep).join('/');
+    const rel = this.#root.idRel(String(filename).split(path.sep).join('/'));
+    if (!rel) return; // a folder under an app's old name
     // Ignored names (dot files and folders, including .trash and .backups) and temp files send nothing.
     if (rel.split('/').some(g => g.startsWith('.')) || rel.endsWith('.tmp')) return;
     if (!isVisible(rel)) return;

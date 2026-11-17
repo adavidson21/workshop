@@ -115,3 +115,18 @@ test('connectors get the data folder and their own working folder in ctx', async
   assert.match(src, /dataDir: this\.#dataDir/);
   assert.match(src, /scratch: this\.#dataDir \? path\.join\(this\.#dataDir, '\.scratch', entry\.id\)/);
 });
+
+test('the report names app folders still under their old names', () => {
+  const home = tempHome();
+  const dd = dataDirOf(home);
+  try {
+    fs.mkdirSync(path.join(dd, 'prioritizer'), { recursive: true });
+    fs.mkdirSync(path.join(dd, 'notes'), { recursive: true });
+    fs.mkdirSync(path.join(dd, 'folio'), { recursive: true });
+    fs.writeFileSync(path.join(dd, 'notes', 'a.md'), 'x');
+    const r = storageReport({ home, dataDir: dd });
+    const text = storageLines(r).join('\n');
+    assert.match(text, /prioritizer\/ is renamed to docket\/ the next time Workshop starts/);
+    assert.match(text, /Old copy: The notes\/ folder, its old name \(Workshop uses folio\/\)/);
+  } finally { rmHome(home); }
+});

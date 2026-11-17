@@ -100,14 +100,44 @@ export function isCollectionText(rel, text) {
  * The data folder: where it is, where it really is, and the rule that nothing leaves it.
  */
 export class DataRoot {
-  /** @param {string} dir the data folder, absolute. Must exist. */
-  constructor(dir) {
+  /**
+   * @param {string} dir the data folder, absolute. Must exist.
+   * @param {Record<string, string>} [folders] app id -> folder name (shared/app-folders.js); others use the id
+   */
+  constructor(dir, folders = {}) {
     this.dir = dir;
     this.real = realpath(dir);
+    this.folders = Object.freeze({ ...folders });
+    this.ids = Object.freeze(Object.fromEntries(Object.entries(this.folders).map(([id, f]) => [f, id])));
   }
 
-  /** Absolute path for a path relative to the data folder ("/"-separated). Does not check links. */
-  abs(rel) { return path.join(this.dir, ...rel.split('/')); }
+  /** The folder an app's data is in. */
+  folderOf(app) { return Object.hasOwn(this.folders, app) ? this.folders[app] : app; }
+
+  /**
+   * A path relative to the data folder in app ids ("prioritizer/tasks.json", ".trash/notes/a.md",
+   * ".backups/<date>/slate/x.json") as it is on disk, with each app id swapped for its folder.
+   */
+  diskParts(rel) {
+    const parts = rel.split('/');
+    const at = parts[0] === '.trash' ? 1 : parts[0] === '.backups' ? 2 : 0;
+    if (parts.length > at) parts[at] = this.folderOf(parts[at]);
+    return parts;
+  }
+
+  /**
+   * The reverse of diskParts for a path in an app folder ("docket/tasks.json" -> "prioritizer/tasks.json").
+   * Null for a folder under an app's old name (its id, when it has another folder): Workshop never reads those.
+   */
+  idRel(diskRel) {
+    const parts = diskRel.split('/');
+    if (Object.hasOwn(this.folders, parts[0])) return null;
+    if (Object.hasOwn(this.ids, parts[0])) parts[0] = this.ids[parts[0]];
+    return parts.join('/');
+  }
+
+  /** Absolute path for a path relative to the data folder ("/"-separated, app ids). Does not check links. */
+  abs(rel) { return path.join(this.dir, ...this.diskParts(rel)); }
 
   /** Is this absolute path, after following links, inside the data folder? Missing parts are fine. */
   contains(abs) {
@@ -138,7 +168,7 @@ export class DataRoot {
     const fsp = fs.promises;
     const out = [];
     const startParts = folder ? folder.split('/') : [];
-    const start = path.join(this.dir, app, ...startParts);
+    const start = path.join(this.dir, this.folderOf(app), ...startParts);
     if (!this.contains(start)) return out;
     const visit = async (abs, parts) => {
       let entries;
@@ -160,12 +190,15 @@ export class DataRoot {
     return out.sort((a, b) => (a.rel < b.rel ? -1 : a.rel > b.rel ? 1 : 0));
   }
 
-  /** App folders (names that are app ids), sorted. */
+  /**
+   * The apps with a folder, as app ids, sorted. A folder under an app's old name (its id, when it has another
+   * folder) is left out: it is a leftover the agent could not rename (see renameAppFolders).
+   */
   apps() {
     try {
       return fs.readdirSync(this.dir, { withFileTypes: true })
-        .filter(d => NAME.test(d.name) && (d.isDirectory() || d.isSymbolicLink()))
-        .map(d => d.name).sort();
+        .filter(d => NAME.test(d.name) && (d.isDirectory() || d.isSymbolicLink()) && !Object.hasOwn(this.folders, d.name))
+        .map(d => (Object.hasOwn(this.ids, d.name) ? this.ids[d.name] : d.name)).sort();
     } catch { return []; }
   }
 }

@@ -1,6 +1,6 @@
 # Data format
 
-App data lives in one folder the user owns, the data folder (`dataDir` in [config.md](config.md), default `~/Workshop`). Each collection is one JSON file, `<dataDir>/<app>/<collection>.json`, written by the agent or, without the agent, by the browser's folder backend ([run-modes.md](run-modes.md)). Until a browser has been given a folder, its collections are IndexedDB records instead. The same envelope is used on disk, over the API, in the browser, and in export bundles.
+App data lives in one folder the user owns, the data folder (`dataDir` in [config.md](config.md), default `~/Workshop`). Each collection is one JSON file, `<dataDir>/<app folder>/<collection>.json` (App folders below), written by the agent or, without the agent, by the browser's folder backend ([run-modes.md](run-modes.md)). Until a browser has been given a folder, its collections are IndexedDB records instead. The same envelope is used on disk, over the API, in the browser, and in export bundles.
 
 Apps can also keep plain files that are not envelopes (for example a Markdown summary) in the same folder, through the files API ([agent-api.md](agent-api.md), Files). See Data folder below.
 
@@ -138,14 +138,30 @@ For example:
 
 ```
 ~/Workshop/
-  prioritizer/tasks.json
-  receipts/config.json
-  receipts/entries/person-one/2026.json
-  receipts/summaries/person-one/2026-h2.md
-  receipts/summaries/person-one/2026-h2.json
-  .trash/receipts/summaries/person-one/2026-h1.20261025T140500123Z.md
-  .backups/2026-10-25/prioritizer/tasks.v2.json
+  docket/tasks.json                       app id prioritizer, schema "prioritizer.tasks"
+  rapport/config.json
+  rapport/entries/person-one/2026.json
+  rapport/summaries/person-one/2026-h2.md
+  rapport/summaries/person-one/2026-h2.json
+  .trash/rapport/summaries/person-one/2026-h1.20261025T140500123Z.md
+  .backups/2026-10-25/docket/tasks.v2.json
 ```
+
+### App folders
+
+Each app's folder is named the way people know the app, so the data folder makes sense without Workshop. App ids (in the API, the SDK, schemas and handoffs) are internal and did not change; only the folder on disk did. The list is `shared/app-folders.js`:
+
+| App | App id | Folder |
+| --- | --- | --- |
+| Docket | `prioritizer` | `docket/` |
+| Rapport | `receipts` | `rapport/` |
+| Loom | `slate` | `loom/` |
+| Folio | `notes` | `folio/` |
+| Every other app | its id | its id (`settings/`, `runway/`, `chat/`, `home/`, `bench/`) |
+
+So `schema` inside a file names the app id (`"prioritizer.tasks"` in `docket/tasks.json`). Paths in this document written as `<app>/...` mean the app's folder. The same names are used in `.trash/` and `.backups/`.
+
+**Renaming old folders.** On start, before anything else reads the data folder, the agent renames each folder that still has the old name (`prioritizer/` to `docket/` and so on). It is a rename, so nothing is copied and nothing can be half done. It is logged and recorded in `.backups/<yyyy-mm-dd>/renamed.json`. If the new folder already holds files, the old folder is left as it is, Workshop uses the new one, and `workshop doctor` and Settings point at the old one so you can move what you need and delete it. If a rename fails (a file held open by another program), the old folder keeps being used until the next start. The browser's folder store (no agent) cannot rename folders: it keeps using a folder under its old name while that is the only one there, and switches once the agent has renamed it.
 
 ### What is a collection, what is a file
 
