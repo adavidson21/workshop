@@ -8,7 +8,7 @@
    No DOM, so Node tests run it. Supported: frontmatter, ATX headings, paragraphs, emphasis, strong,
    strikethrough, code spans, fenced code (with syntax colors, highlight.js), block quotes, callouts
    (> [!NOTE]), footnotes ([^1]), nested lists, task lists, pipe tables, rules, links, images, [[wikilinks]],
-   autolinks and #tags. ```mermaid blocks become diagram figures (diagrams.js draws them). Links to other apps (ws:<app>/<route>, applinks.js) become chips. */
+   autolinks, #tags and ==highlights==. ```mermaid blocks become diagram figures (diagrams.js draws them). Links to other apps (ws:<app>/<route>, applinks.js) become chips. */
 import { appLink } from './applinks.js';
 import { highlight } from './highlight.js';
 
@@ -23,7 +23,7 @@ export function safeHref(raw) {
 
 /* ---------- frontmatter ---------- */
 
-/** {data: {title?, tags?: [], reviewed?, tandemChanged?, template?, description?}, body, offset} where offset is the number of lines the
+/** {data: {title?, tags?: [], aliases?: [], reviewed?, tandemChanged?, template?, description?}, body, offset} where offset is the number of lines the
     frontmatter took. `reviewed` and `tandem-changed` are the product-note review fields (products.js), as written; `template` and
     `description` name a template and say what it is for (template-info.js). */
 export function frontmatter(text) {
@@ -37,10 +37,16 @@ export function frontmatter(text) {
     if (!kv) continue;
     const key = kv[1].toLowerCase();
     let val = kv[2].trim();
-    if (val === '' && key === 'tags') {
+    if (val === '' && (key === 'tags' || key === 'aliases')) {
       const list = [];
       while (i + 1 < lines.length && /^\s*-\s+/.test(lines[i + 1])) list.push(lines[++i].replace(/^\s*-\s+/, ''));
-      data.tags = list.map(unquote).map(normTag).filter(Boolean);
+      if (key === 'tags') data.tags = list.map(unquote).map(normTag).filter(Boolean);
+      else data.aliases = list.map(unquote).map(s => s.trim()).filter(Boolean);
+      continue;
+    }
+    if (key === 'aliases') {
+      const inner = /^\[(.*)\]$/.exec(val);
+      data.aliases = (inner ? inner[1].split(',') : [val]).map(unquote).map(s => s.trim()).filter(Boolean);
       continue;
     }
     if (key === 'tags') {
@@ -270,6 +276,13 @@ export function inline(text, ctx = {}) {
       i += m[0].length; continue;
     }
     if (c === '~' && s[i + 1] === '~') { html += toggle(stack, '~~', 'del', html.length); i += 2; continue; }
+    // ==highlight== (Obsidian's syntax): opens before a non-space, closes after one; an unclosed == stays text.
+    if (c === '=' && s[i + 1] === '=' && s[i + 2] !== '=') {
+      const prev = s[i - 1] || ' ', next = s[i + 2] || ' ';
+      const open = stack.findLastIndex(e => e.marker === '==');
+      if (open >= 0 && !/\s/.test(prev)) { html = closeTo(stack, open, html, 'mark'); i += 2; continue; }
+      if (!/\s/.test(next)) { stack.push({ marker: '==', at: html.length, tag: 'mark' }); html += '=='; i += 2; continue; }
+    }
     if (c === '*' || c === '_') {
       const run = new RegExp(`^\\${c}+`).exec(rest)[0];
       const prev = s[i - 1] || ' ', next = s[i + run.length] || ' ';
@@ -439,7 +452,7 @@ export function facts(md, fallbackTitle = '') {
   };
   walk(blocks(body));
   const h1 = headings.find(h => h.level === 1);
-  return { title: data.title || (h1 && h1.text) || fallbackTitle, tags: [...tags].sort(), links, wikilinks, headings, code: [...code], tasks,
+  return { title: data.title || (h1 && h1.text) || fallbackTitle, aliases: data.aliases || [], tags: [...tags].sort(), links, wikilinks, headings, code: [...code], tasks,
     review: { reviewed: data.reviewed || '', tandemChanged: data.tandemChanged || '' } };
 }
 
@@ -465,6 +478,6 @@ export function plainText(text) {
     .replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_, a, b) => b || a)
     .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
     .replace(/`([^`]*)`/g, '$1')
-    .replace(/(\*\*|__|\*|_|~~)(.+?)\1/g, '$2')
+    .replace(/(\*\*|__|\*|_|~~|==)(.+?)\1/g, '$2')
     .trim();
 }

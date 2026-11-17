@@ -93,7 +93,7 @@ export function buildIndex(list) {
     const f = facts(n.content, stem(n.path));
     // Templates go by their name (template-info.js), not their "# {{title}}" heading.
     const tpl = isTemplate(n.path) ? templateInfo(n.path, n.content) : null;
-    notes.set(n.path, { path: n.path, title: tpl ? tpl.name : f.title || stem(n.path), use: tpl ? tpl.use : undefined, tags: f.tags, headings: f.headings, code: f.code, tasks: f.tasks, review: f.review, raw: f, mtime: n.mtime, size: n.size });
+    notes.set(n.path, { path: n.path, title: tpl ? tpl.name : f.title || stem(n.path), aliases: f.aliases || [], use: tpl ? tpl.use : undefined, tags: f.tags, headings: f.headings, code: f.code, tasks: f.tasks, review: f.review, raw: f, mtime: n.mtime, size: n.size });
   }
   const byTitle = titleMap(notes);
   const backlinks = new Map(), tags = new Map(), missing = new Map();
@@ -135,6 +135,8 @@ function titleMap(notes) {
   for (const n of notes.values()) {
     for (const k of [n.title.toLowerCase(), stem(n.path)]) if (!m.has(k)) m.set(k, n.path);
   }
+  // Aliases (frontmatter `aliases:`) come after every title and file name, so they never take a name from another note.
+  for (const n of notes.values()) for (const a of n.aliases || []) { const k = a.toLowerCase(); if (!m.has(k)) m.set(k, n.path); }
   return m;
 }
 /** [[target]] to a note path: by path, by title, then by file name. Null if none. */
@@ -191,7 +193,7 @@ export function search(index, contents, query, limit = 50) {
     if (q.has.length && !q.has.every(h => HAS[h](n))) continue;
     const text = contents.get(n.path) || '';
     const lower = text.toLowerCase();
-    const title = n.title.toLowerCase();
+    const title = [n.title, ...(n.aliases || [])].join(' | ').toLowerCase();
     let score = 0, line = 0, lineText = '';
     let ok = true;
     for (const w of q.words) {
@@ -208,6 +210,58 @@ export function search(index, contents, query, limit = 50) {
     out.push({ path: n.path, title: n.title, line, text: lineText, score });
   }
   return out.sort((a, b) => b.score - a.score || (a.title < b.title ? -1 : 1)).slice(0, limit);
+}
+
+/* ---------- unlinked mentions ---------- */
+
+const reEsc = (t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+/* What is not prose on a line, blanked to spaces so positions stay: code spans, links, [[wikilinks]], URLs, #tags. */
+const NOT_PROSE = /`+[^`]*`+|!?\[\[[^\]\n]*\]\]|!?\[(?:[^\]\\\n]|\\.)*\]\([^)\n]*\)|<[^>\n]*>|https?:\/\/\S+|(?:^|(?<=[\s(]))#[\w/-]+/g;
+
+/**
+ * Where other notes say this note's title or one of its aliases without linking to it: whole words, any case,
+ * outside frontmatter, code, links and tags. [{from, title, line, at, len, match, text}] by note title, then line;
+ * at most `limit`. Titles shorter than 3 characters (aliases 2) are left out: too many false hits.
+ */
+export function unlinkedMentions(index, contents, path, limit = 50) {
+  const n = index.notes.get(path);
+  if (!n) return [];
+  const names = [...new Set([n.title, ...(n.aliases || [])].map(x => String(x).trim()).filter((x, k) => x.length >= (k ? 2 : 3)))];
+  if (!names.length) return [];
+  names.sort((a, b) => b.length - a.length);
+  const re = new RegExp(`(?<![\\p{L}\\p{N}_])(?:${names.map(reEsc).join('|')})(?![\\p{L}\\p{N}_])`, 'giu');
+  const out = [];
+  const others = [...index.notes.values()].filter(o => o.path !== path && !isTemplate(o.path)).sort((a, b) => (a.title < b.title ? -1 : a.title > b.title ? 1 : 0));
+  for (const o of others) {
+    const text = contents.get(o.path);
+    if (!text) continue;
+    const lines = text.split('\n');
+    let i = 0, fence = null;
+    if (/^\uFEFF?---[ \t]*$/.test(lines[0] || '')) { i = 1; while (i < lines.length && !/^---[ \t]*$/.test(lines[i])) i++; i++; }
+    for (; i < lines.length; i++) {
+      const l = lines[i];
+      const f = /^ {0,3}(`{3,}|~{3,})/.exec(l);
+      if (fence) { if (f && f[1][0] === fence[0] && f[1].length >= fence.length) fence = null; continue; }
+      if (f) { fence = f[1]; continue; }
+      const prose = l.replace(NOT_PROSE, m => ' '.repeat(m.length));
+      re.lastIndex = 0;
+      let m;
+      while ((m = re.exec(prose))) {
+        out.push({ from: o.path, title: o.title, line: i, at: m.index, len: m[0].length, match: l.slice(m.index, m.index + m[0].length), text: l });
+        if (out.length >= limit) return out;
+      }
+    }
+  }
+  return out;
+}
+
+/** Turn one mention into a link: line `line`, characters at..at+len, if they still say `match`. New text or null. */
+export function linkMention(content, { line, at, len, match }, link) {
+  const lines = String(content).split('\n');
+  const l = lines[line];
+  if (l === undefined || l.slice(at, at + len) !== match) return null;
+  lines[line] = l.slice(0, at) + link + l.slice(at + len);
+  return lines.join('\n');
 }
 
 /* ---------- the tree ---------- */
@@ -319,6 +373,17 @@ export function movedPath(p, from, to) {
 
 /** Starting text for a new note. */
 export const newNoteText = (title) => `# ${String(title || 'Untitled').replace(/\n/g, ' ')}\n\n`;
+
+/** Words in a note's text (frontmatter, Markdown marks and code fences left out) and minutes to read it at 230 a minute. */
+export function wordCount(text) {
+  const body = String(text || '').replace(/^\uFEFF?---[ \t]*\r?\n[\s\S]*?\r?\n---[ \t]*(?:\r?\n|$)/, '');
+  const prose = body.replace(/^ {0,3}(`{3,}|~{3,})[^\n]*$/gm, ' ')
+    .replace(/!?\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_, a, b) => b || a)
+    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/[#>*_`~=|[\]()-]+/g, ' ');
+  const words = (prose.match(/[\p{L}\p{N}][\p{L}\p{N}'’.]*/gu) || []).length;
+  return { words, minutes: words ? Math.max(1, Math.round(words / 230)) : 0 };
+}
 
 /** "3 min ago" style age. */
 export function age(ms, now = Date.now()) {

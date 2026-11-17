@@ -843,7 +843,7 @@
         "manifestVersion": 1,
         "id": "notes",
         "name": "Folio",
-        "version": "4.5.0",
+        "version": "4.7.0",
         "description": "Folio, your notebook: notes, daily notes, product notes, templates, and Tandem's plans, specs and reviews, as Markdown files. Mermaid diagrams, links and backlinks, tags, search and images.",
         "icon": "icon.svg",
         "entry": "index.html",
@@ -898,6 +898,14 @@
           {
             "id": "toggle-panel",
             "title": "Show or hide the page panel"
+          },
+          {
+            "id": "bookmark",
+            "title": "Bookmark this note (or remove it)"
+          },
+          {
+            "id": "window",
+            "title": "Open this note in a new window"
           }
         ],
         "handoffs": {
@@ -909,11 +917,13 @@
         "data": [
           "taken",
           "products-made",
+          "bookmarks",
           "handoffs",
           "summary"
         ],
         "files": [
           "js/applinks.js",
+          "js/bookmarks.js",
           "js/daily.js",
           "js/data.js",
           "js/diagram-kits.js",
@@ -934,6 +944,7 @@
           "js/pickup.js",
           "js/product-setup.js",
           "js/products.js",
+          "js/props.js",
           "js/records.js",
           "js/sections.js",
           "js/slash.js",

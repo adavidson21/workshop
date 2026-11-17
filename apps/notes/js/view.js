@@ -2,7 +2,8 @@
    markdown.js. main.js owns events and the editor. */
 import { esc, plainText } from './markdown.js';
 import { filterOptions } from '../../../shared/products.js';
-import { age, baseName, dirOf, stem } from './model.js';
+import { age, baseName, dirOf, stem, wordCount } from './model.js';
+import { HIDDEN, READ_ONLY, readProps } from './props.js';
 import { QUICK, QUICK_TITLE } from './pickup.js';
 import { actionItems, forRapport, handlesIn, offerId, rapportOffers, readable, whoOf } from './offers.js';
 import { needsReview, productNotes, toReview } from './products.js';
@@ -26,6 +27,7 @@ const ICON = {
   drawer: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M2.5 4h11M2.5 8h11M2.5 12h11"/></svg>',
   refresh: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M13 8a5 5 0 1 1-1.5-3.6M13 2.5v3h-3"/></svg>',
   copy: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><rect x="5.2" y="5.2" width="8.6" height="8.6" rx="1.5"/><path d="M10.8 5.2V3.6a1.4 1.4 0 0 0-1.4-1.4H3.6a1.4 1.4 0 0 0-1.4 1.4v5.8a1.4 1.4 0 0 0 1.4 1.4h1.6"/></svg>',
+  unpin: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>',
   chev: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>'
 };
 
@@ -114,16 +116,18 @@ function footHtml(state) {
   </div>`;
 }
 
-/* Pinned: Quick Notes, where Home's note captures go (pickup.js), always at the top once it exists. */
+/* Pinned: Quick Notes, where Home's note captures go (pickup.js), always at the top once it exists, then your
+   bookmarks (bookmarks.js) in the order you added them. */
 export const PINNED = [QUICK];
 function pinnedHtml(state) {
   const { notes, ui } = state;
-  const pins = PINNED.filter(p => notes.texts.has(p));
+  const pins = [...PINNED, ...(state.bookmarks || []).filter(p => !PINNED.includes(p))].filter(p => notes.texts.has(p));
   if (!notes.loaded || !pins.length) return '';
   return `<nav class="pinned" aria-label="Pinned"><p class="section-label">Pinned</p><ul class="tree">${pins.map(p => {
     const n = notes.index.notes.get(p);
     const cur = ui.path === p;
-    return `<li class="note${cur ? ' current' : ''}" data-path="${esc(p)}"><a class="row" href="#" data-open="${esc(p)}" style="--d:0"${cur ? ' aria-current="page"' : ''}><span class="pin">${ICON.pin}</span><span class="name">${esc(n ? n.title : QUICK_TITLE)}</span></a></li>`;
+    const mark = PINNED.includes(p) ? '' : `<button class="ibtn mini row-trash" data-act="unbookmark" data-path="${esc(p)}" title="Remove the bookmark" aria-label="Remove the bookmark on ${esc(n ? n.title : p)}">${ICON.unpin}</button>`;
+    return `<li class="note${cur ? ' current' : ''}" data-path="${esc(p)}"><a class="row" href="#" data-open="${esc(p)}" style="--d:0"${cur ? ' aria-current="page"' : ''}><span class="pin">${ICON.pin}</span><span class="name">${esc(n ? n.title : p === QUICK ? QUICK_TITLE : stem(p))}</span></a>${mark}</li>`;
   }).join('')}</ul></nav>`;
 }
 
@@ -227,6 +231,8 @@ export function header(state) {
     ['download-html', 'Download HTML'],
     ['print', 'Save as PDF'],
     ['rename', 'Rename or move', 'F2'],
+    ['bookmark', state.bookmarked ? 'Remove bookmark' : 'Bookmark'],
+    ...(state.canWindow ? [['window', 'Open in new window']] : []),
     ...(n && n.use === undefined ? [['save-template', 'Save as template']] : []),
     ...(state.isStarter ? [['reset-template', 'Reset to starter']] : []),
     ...(state.versions ? [['history', 'History']] : []),
@@ -234,7 +240,7 @@ export function header(state) {
   ];
   return `<div class="note-head">
     <div class="crumbs"><span class="path" title="${esc(ui.path)}">${dirOf(ui.path) ? `<span class="dir">${esc(dirOf(ui.path))}/</span>` : ''}<span class="file mono">${esc(baseName(ui.path))}</span></span>
-      <span class="status ${ui.status.kind}" role="status">${esc(statusText(ui.status, known))}</span></div>
+      <span class="status ${ui.status.kind}" role="status">${esc(statusText(ui.status, known))}</span>${countHtml(state)}</div>
     <div class="head-actions">
       ${segHtml(state)}
       <button class="ibtn" data-act="copy-wiki" title="Copy, with images, to paste into a wiki or any editor" aria-label="Copy">${ICON.copy}</button>
@@ -242,6 +248,12 @@ export function header(state) {
       ${menuHtml(ui, items)}${panelBtn(ui)}
     </div></div>
     ${conflictBar(ui) || review || tpl || startBar(state.start)}`;
+}
+/* Word count and reading time, beside the save status. */
+function countHtml(state) {
+  const c = wordCount(state.text || '');
+  if (!c.words) return '';
+  return `<span class="wc soft" title="${c.words} word${c.words === 1 ? '' : 's'}, about ${c.minutes} min to read">${c.words.toLocaleString()} words · ${c.minutes} min</span>`;
 }
 function segHtml(state) {
   const modes = [...(state.live ? ['live'] : []), 'edit', 'preview'];
@@ -321,7 +333,7 @@ export function panel(state) {
   const heads = n ? n.headings.filter(h => h.level <= 3) : [];
   const tags = [...notes.index.tags];
   const lines = (p) => (notes.texts.get(p)?.content || '').split('\n');
-  return `
+  return `${propsHtml(state, n)}
     <section><h2 class="section-label">Outline</h2>
       ${heads.length ? `<ul class="outline">${heads.map(h => `<li style="--l:${h.level}"><a href="#" data-line="${h.line}" data-anchor="${esc(h.id)}">${esc(h.text)}</a></li>`).join('')}</ul>` : '<p class="soft small">No headings.</p>'}</section>
     ${backs.length ? `<section><h2 class="section-label">Backlinks <span class="count">${backs.length}</span></h2>
@@ -330,11 +342,39 @@ export function panel(state) {
         const line = plainText((lines(b.from)[b.line] || '').trim().replace(/^([-*+]|\d+[.)]|#+|>)\s+/, ''));
         return `<li><a href="#" data-open="${esc(b.from)}" data-line="${b.line}"><span class="r-title">${esc(from ? from.title : b.from)}</span><span class="r-line">${esc(line.slice(0, 160))}</span></a></li>`;
       }).join('')}</ul>` : ''}</section>` : ''}
+    ${mentionsHtml(state)}
     ${sendHtml(state, n)}
     ${state.versions ? `<section><h2 class="section-label">History</h2>
       <button class="btn ghost small" data-act="history">${state.versions} earlier version${state.versions === 1 ? '' : 's'}</button></section>` : ''}
     ${tags.length ? `<section><h2 class="section-label">Tags</h2>
       ${tags.length ? `<ul class="all-tags">${tags.map(([t, ps]) => `<li><a href="#" class="tag${n && n.tags.includes(t) ? ' on' : ''}" data-tag="${esc(t)}"${n && n.tags.includes(t) ? ' title="On this note"' : ''}>#${esc(t)}</a> <span class="count">${ps.length}</span></li>`).join('')}</ul>` : ''}</section>` : ''}`;
+}
+
+/* Unlinked mentions (model.js): lines in other notes that say this note's title or an alias without a link,
+   folded under Backlinks, each with Link to make that text a [[link]]. */
+function mentionsHtml(state) {
+  const list = state.mentions || [];
+  if (!list.length) return '';
+  return `<section class="mentions"><details${state.ui.mentionsOpen ? ' open' : ''}><summary class="section-label">Unlinked mentions <span class="count">${list.length}${list.length >= 50 ? '+' : ''}</span></summary>
+    <ul class="backlinks">${list.map((m, k) => {
+      const lead = m.text.slice(Math.max(0, m.at - 60), m.at), tail = m.text.slice(m.at + m.len, m.at + m.len + 80);
+      return `<li class="mention"><a href="#" data-open="${esc(m.from)}" data-line="${m.line}"><span class="r-title">${esc(m.title)}</span>
+        <span class="r-line">${m.at > 60 ? '…' : ''}${esc(lead.replace(/^\s*([-*+]|\d+[.)]|#+|>)\s+/, ''))}<mark>${esc(m.match)}</mark>${esc(tail)}</span></a>
+        <button class="btn ghost small" data-act="link-mention" data-k="${k}" title="Make this a [[link]] in ${esc(m.title)}">Link</button></li>`;
+    }).join('')}</ul></details></section>`;
+}
+
+/* Properties: the note's frontmatter as fields (props.js). A field saves when it changes (Enter or leaving it);
+   lists are comma-separated. Templates keep their own bar for name and description. */
+function propsHtml(state, n) {
+  if (n && n.use !== undefined) return '';
+  const props = readProps(state.text || '').filter(p => !HIDDEN.includes(p.key.toLowerCase()));
+  const ro = (k) => READ_ONLY.includes(k.toLowerCase());
+  return `<section class="props"><h2 class="section-label">Properties${props.length ? ` <span class="count">${props.length}</span>` : ''}</h2>
+    ${props.length ? `<ul class="prop-list">${props.map(p => `<li><label class="prop"><span class="prop-k mono" title="${esc(p.key)}">${esc(p.key)}</span>
+      <input data-prop="${esc(p.key)}" data-list="${p.list ? '1' : ''}" value="${esc(p.value)}"${ro(p.key) ? ' readonly title="Set by Folio"' : p.list ? ' placeholder="a, b" title="Comma-separated"' : ''} autocomplete="off" spellcheck="false"></label>
+      ${ro(p.key) ? '' : `<button class="ibtn mini" data-act="prop-remove" data-prop-key="${esc(p.key)}" title="Remove ${esc(p.key)}" aria-label="Remove ${esc(p.key)}">${ICON.unpin}</button>`}</li>`).join('')}</ul>` : ''}
+    <button class="linkish small" data-act="prop-add">Add a property</button></section>`;
 }
 
 /* A Tandem page's panel: its outline and the run's other documents. */

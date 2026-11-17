@@ -26,6 +26,7 @@ All methods that talk to the shell or the agent return promises. Failures reject
 | Method | Meaning |
 | --- | --- |
 | `ws.open(target)` | Go to another app or a route. `target` is `{app, path?}`, for example `{app: 'agents', path: '41207'}`. Same as `#/agents/41207`. |
+| `ws.window(path)` | Opens this app at `path` (what comes after `#/<app>/`) in a window of its own, beside the main one. Unlike Pop out, the app stays in the main window too, and each path gets its own window (asking again brings it forward). Rejects with `blocked` when the browser blocks pop-ups. Standalone it opens the page at `#/<path>`. Folio uses it for Open in new window. |
 | `ws.route.set(path, {replace?})` | Tells the shell where this app is now, so the address bar, Back and Forward, refresh and bookmarks follow it (see Routes below). `path` is what comes after `#/<app>/`, empty for the app itself. Default adds a history entry; `replace: true` changes the current one. The shell sends no `route` event back for it. Standalone it writes `#/<path>` on the page itself. |
 | `ws.toast(text, {kind?, action?, hold?, breakThrough?})` | Short message at the bottom of the shell. `kind`: `info` (default), `success`, `warn`, `error`. `action: {label, command}` adds a button that sends the app a `command` event. `hold: true` marks an interruption (a pickup, new items from a sync) that the shell drops during a focus or lunch span; the app counts it in its `held` card ([focus.md](focus.md)). `breakThrough: true` with `hold` shows it during focus anyway (blocking pull requests only), never during lunch. |
 | `ws.badge(count, {breakThrough?})` | Count on the app's rail icon. Integer 0 to 999, or `null` to clear. `0` also clears. During a focus or lunch span the shell hides it and restores it after ([focus.md](focus.md)); during focus it shows `breakThrough` instead (the part of `count` that comes only from blocking pull requests), if that is above 0. |
@@ -216,7 +217,7 @@ Every message is an object with `workshop: 1`. Schema [sdk-message](schemas/sdk-
 | `response` | shell to app | `id` of the request, `ok`, then `result` or `error: {code, message}` |
 | `event` | shell to app | `event`, `payload` |
 
-Request methods: `ready` (`{app, sdk: 1}`; the shell replies with `{theme, route, visible}`), `open`, `route.set`, `toast`, `badge`, `notify`, `status.set`, `status.clear`, `commands.register`, `commands.unregister`. `params` match the SDK method arguments.
+Request methods: `ready` (`{app, sdk: 1}`; the shell replies with `{theme, route, visible}`), `open`, `window.open` (`{path}`), `route.set`, `toast`, `badge`, `notify`, `status.set`, `status.clear`, `commands.register`, `commands.unregister`. `params` match the SDK method arguments.
 
 Rules:
 
