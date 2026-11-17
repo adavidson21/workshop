@@ -1,7 +1,7 @@
 /* Slate: your ADO backlog as one board, from request to resolved. model.js is pure, data.js talks to Workshop,
    view.js builds HTML; Health shows the team reports (js/reports/, loaded the first time). This file owns the page: state,
    refreshing from ADO and Tandem, and what each button does. */
-import { getWs, setBadge, setCards, setSummaryWriter, onTab, onBoardRoute, currentTab, requestTab, runHtml, onRunsPainted, openRunPage, setPanelRun, BOARD_TABS, onBoardCommand, setNudges, setPickable } from './loom.js';
+import { getWs, setBadge, setCards, setSummaryWriter, onTab, onBoardRoute, currentTab, requestTab, runHtml, onRunsPainted, openRunPage, setPanelRun, BOARD_TABS, onBoardCommand, setNudges, setPickable, setBoardFeed, setBoardDrawer, boardDrawer, onBoardDrawer } from './loom.js';
 import { readCards } from '../../../shared/summary.js';
 import { createHolder } from '../../../shared/focus.js';
 import * as People from '../../../shared/people.js';
@@ -13,6 +13,7 @@ import {
   APP, NO_AREA, applyRoadmapItem, SHAPE_FILES, STAGE_TITLE, STEP_CHIP, aboutText, areaOf, boardColumn, releaseGroups, releaseNotesMd, runStep, timeline, answersBlock, appendAnswers, asksFor, questionAnswers, areaOptions, backTargets, forwardTargets, bySprint, cardFacts, cards, cleanPrefs, customRefs, daysInStage, decisionNote, devColumn, draftState, filterCards, health, isStale, newItem, notesBlock, ownersFor, parseBrief, parseTriage,
   moveBack, pendingIdeaCards, pmColumn, publishPlan, roadmapIdea, setStage, shapeState, skipToDecide, summaryCards, waitingTask, winOffer,
   RUN_KIND_CHIP, runCards, stalledHandoffs, levelOfType, needsAdoTitle, needsAdoConnection, adoFromFind, pickFields, mergeBacklogs, sameAdo, virtualAdoId, questionsText, repliesSince, sourceComment, suggestsScope, manualDraft, withStatus
+  , STEP_TITLE
 } from './model.js';
 import { outsideConfirmHtml } from '../../../shared/outside.js';
 import { boardHtml, closeGroupDialogHtml, confirmHtml, linkAdoDialogHtml, linkPickDialogHtml, delegateDialogHtml, fieldsDialogHtml, newDialogHtml, newIdeaDialogHtml, panelHtml, publishDialogHtml, readFieldsForm, topHtml } from './view.js';
@@ -398,6 +399,28 @@ function ownersOf(c) {
   return ownersFor(list, aboutText(c, parseTriage(filesOf(c.work && c.work.triage)['triage.md'])));
 }
 
+/** The board's items as Lanes cards (Loom 5.2.0): requests and their briefs in Clarify, drafts to approve and "who
+ *  builds it?" in Plan, hand-offs with a person in Work, merged work to resolve in Ready. What waits on you, and its
+ *  action, come from the summary's `needs` rows (the same words as Home and the Inbox). */
+function laneFeed(items, sumCards) {
+  const needs = new Map(((sumCards.find(c => c.id === 'needs') || {}).rows || []).filter(x => x.flag !== 'waiting' || /Merged/.test(x.note || '')).map(x => [x.id, x.note || '']));
+  const out = [];
+  for (const it of items) {
+    if (it.stage === 'done' || it.stage === 'resolved') continue;
+    const col = columnOf(it);
+    if (it.stage === 'dev' && runFor(it)) continue;
+    const lane = it.stage === 'dev' ? (it.merged ? 'ready' : 'work')
+      : it.stage === 'delegated' ? 'work'
+      : ['define', 'publish', 'decide'].includes(col) ? 'plan' : 'clarify';
+    const kind = it.stage === 'delegated' || it.route === 'delegate' ? 'handoff' : it.level === 'epic' ? 'epic' : 'request';
+    const who = it.stage === 'delegated' && it.assignee ? personName(it.assignee) : '';
+    const note = needs.get(it.id) || '';
+    const status = who ? `With ${who}` : it.stage === 'dev' ? (it.merged ? 'Merged' : 'Building it yourself, not started in Tandem') : (STEP_TITLE[col] || col).replace(/^\w+: /, '');
+    out.push({ id: it.id, title: it.title, adoId: it.ado ? String(it.ado.id) : null, kind, lane, mine: needs.has(it.id), action: note, status: status.charAt(0).toUpperCase() + status.slice(1), at: Date.parse(((it.history || []).slice(-1)[0] || {}).at || it.createdAt || '') || 0 });
+  }
+  return out;
+}
+
 function columnOf(it) {
   if (it.stage === 'done') return 'done';
   if (['dev', 'resolved'].includes(it.stage)) return devColumn(runFor(it), it);
@@ -425,6 +448,8 @@ function publishSummary() {
     setCards('board', cards);
     // Hand-offs with no movement: the Inbox nudges you (flow cards v1), unless the app setting is off.
     setNudges(nudgeOn ? stalledHandoffs(store.v.items).map(x => ({ ...x, assigneeName: personName(x.assignee) })) : []);
+    // Lanes (Loom 5.2.0): the board's own items as lane cards. A build with a run is left out: its run is the card.
+    setBoardFeed(laneFeed(items, cards));
   }, 300);
 }
 
@@ -543,7 +568,7 @@ function paint() {
 
 function paintPanel() {
   const c = findCard(ui.open);
-  if (!c) { panelEl.hidden = true; setHtml(panelEl, ''); delete panelEl.dataset.item; setPanelRun(''); return; }
+  if (!c) { panelEl.hidden = true; setHtml(panelEl, ''); delete panelEl.dataset.item; setPanelRun(''); if (store.v.loaded && currentTab() === 'lanes' && boardDrawer()) setBoardDrawer(''); return; }
   // Keep text the person is typing, and the interview's picks and notes for the same item.
   const keep = ['draft', 'answers', 'linkAdo'].map(id => [id, $(id) && $(id).value]);
   const same = panelEl.dataset.item === c.id;
@@ -1507,6 +1532,8 @@ async function fromRunway(map, item) {
 // Routes come through the runs half's router, which owns the tab bar (loom.js splitRoute).
 onBoardRoute((p) => route(p || ''));
 // Switching tabs closes the card panel: it belongs to the board, not to Health (Loom UX v1).
+// Lanes opens a board item's panel as a drawer (loom.js setBoardDrawer); closing the panel closes the drawer.
+onBoardDrawer((id) => { if (currentTab() !== 'lanes') return; ui.open = id || null; ui.editing = false; ui.shapeEditing = null; ui.error = ''; paint(); });
 onTab((t) => { if (BOARD_TABS.includes(t) && ui.tab !== t) { ui.tab = t; ui.open = null; ui.editing = false; ui.shapeEditing = null; paint(); } });
 // The runs half repainted: the run in the open card's panel follows it.
 onRunsPainted(() => { if (ui.open && !panelEl.hidden) paintPanel(); });

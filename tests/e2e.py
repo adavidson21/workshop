@@ -339,6 +339,16 @@ def browser_mode_checks(ctx, pg, frame, watch):
         slf.click('dialog button[type=submit]'); pg.wait_for_timeout(600)
         check('Skip ahead moves a card straight to Who builds it?, on the same board', slf.locator('.col[aria-label=Decide] .card').count() == 1
               and slf.locator('.panel .next [data-act=delegate]').count() == 1)
+        # Lanes (Loom 5.2.0): the board's item is a card in Plan, and opens the board's own panel as a drawer.
+        slf.click('#app .tabs [data-tab=lanes]'); pg.wait_for_timeout(600)
+        check('a board item is a card in Lanes\' Plan, waiting on you', slf.locator('.ln-plan .ln-card.mine[data-lane-open^="board:"]').count() == 1)
+        slf.click('.ln-plan [data-lane-open^="board:"]'); pg.wait_for_timeout(600)
+        check('it opens the board\'s own panel as a drawer over Lanes', slf.locator('#board-root .panel:not([hidden]) .next [data-act=delegate]').count() == 1
+              and not slf.locator('#board-root').evaluate('el => el.hidden') and not slf.locator('#main').is_visible())
+        slf.click('#board-root .panel [data-act=close]'); pg.wait_for_timeout(500)
+        check('its Close closes the drawer and the card', slf.locator('#board-root').evaluate('el => el.hidden') and slf.locator('.ln-card.on').count() == 0)
+        slf.click('#app .tabs [data-tab=board]'); pg.wait_for_timeout(500)
+        slf.click('.col[aria-label=Decide] .card'); pg.wait_for_timeout(500)
         slf.click('.panel details.more > summary'); pg.wait_for_timeout(200)
         slf.click('.panel .more [data-act=done]'); pg.wait_for_timeout(600)
         slf.click('.panel details.more > summary'); pg.wait_for_timeout(200)

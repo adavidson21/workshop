@@ -1303,6 +1303,9 @@ function overlaysHtml() {
 
 /** The whole page: the header with its tabs, then the tab in view (pages.js). Resets the copy list, so call it
  *  once per paint. Before the connector is ready: what is wrong, and the hub's capture box under it (#hub-slot). */
+// var, set before this module's body runs: pages.js (which this module imports) hands over the Lanes page.
+var lanesView; // eslint-disable-line no-var
+export function setLanesView(f) { lanesView = f; }
 export function render() {
   S.copyStore = [];
   // The afternoon digest shows here too: with the opencode connector off it lists what other apps report.
@@ -1310,6 +1313,12 @@ export function render() {
   // The tab bar is always there: Board and Health work without the agents (loom.js); the other tabs show the setup.
   const bar = `<header class="top">${brandHtml()}${tabsHtml()}</header>`;
   if ((!S.connector || S.connector.state !== 'ready' || !S.D) && BOARD_TABS.includes(S.ui.tab)) return bar + overlaysHtml();
+  // Lanes without the agents (Loom 5.2.0): the board's own items, From ADO and the drop box still work; what is
+  // missing for Tandem's runs folds into one line that opens.
+  if ((!S.connector || S.connector.state !== 'ready' || !S.D) && S.ui.tab === 'lanes') {
+    return bar + `<details class="ln-setup"><summary>Tandem is not connected, so runs can't start or show here. Set it up</summary>${setupHtml()}</details>` +
+      `<div class="page" data-page="lanes">${lanesView ? lanesView() : ''}</div>` + overlaysHtml();
+  }
   if (!S.connector || S.connector.state !== 'ready' || !S.D) return bar + (S.digestHtml ? S.digestHtml(h) : '') + setupHtml() + overlaysHtml();
   return headerHtml() + bannersHtml() + `<div class="page" data-page="${h(S.ui.tab)}">${pageHtml()}</div>` + (S.D.gitAvailable ? '' : '<p class="note">git was not found on PATH, so repo state is missing.</p>') + overlaysHtml();
 }
