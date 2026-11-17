@@ -33,6 +33,8 @@ import { SOURCES, matchRecords, recordLink, recordsFrom } from './records.js';
 import { dataUrl, inlineImages, pageHtml, wikiHtml, wikiMarkdown } from './export.js';
 import { EMBED_DEPTH, embedHtml, embedSpec, expandEmbeds, sectionText } from './embeds.js';
 import { noteMap, nodeAt } from './map.js';
+import { createBookmarks } from './bookmarks.js';
+import { removeProp, setProp, validKey } from './props.js';
 import { esc, facts, inline, render, headingId } from './markdown.js';
 import { paintDiagrams, pngBytes, svgFile } from './diagrams.js';
 import { KITS, blockInsert, kit, kitBlock, lineOf, mermaidFences } from './diagram-kits.js';
@@ -97,6 +99,8 @@ let found = [];
 let pendingRoute = null;    // a route that came before the notes were read
 
 const notes = createNotes(ws, { onChange: () => { paintChrome(); if (notes.loaded) summary.schedule(); }, onExternal });
+// Bookmarks (bookmarks.js): notes pinned under Quick Notes, in Folio's own collection.
+const bookmarks = createBookmarks(ws, { onChange: () => paintChrome() });
 // The Tandem section (tandem.js): .work documents through the opencode connector, where it runs.
 const tandem = createTandem(ws, { onChange: () => { if (ui.path && isTandem(ui.path)) doc.item = (findDoc(tandem.state.items, ui.path) || {}).item || doc.item; paintChrome(); }, onModel: () => onTandemModel() });
 let doc = null; // the open Tandem page: {item, busy}
@@ -174,6 +178,7 @@ function state() {
   const isTpl = ui.path && !tdoc && sectionOf(ui.path) === 'templates';
   return { live: hasLive, notes, ui, found, tree: tree(productPaths(notesPaths(notes.texts.keys())), Products.picked(products, ui.product) ? [] : [...ui.extraFolders]), products, product: Products.picked(products, ui.product), where: whereSaved(), sent, canSend, dir,
     versions: ui.path && !tdoc ? notes.history(ui.path).length : 0, start: startOffer(), tandem: tandem.state, today: dayOf(new Date()),
+    text: ui.path ? editor.value : '', bookmarks: bookmarks.list, bookmarked: Boolean(ui.path && bookmarks.has(ui.path)),
     doc: tdoc, brief: tdoc ? briefNow() : null, outline: tdoc ? facts(editor.value).headings : null, phone: isPhone(), hintSeen: store('hint-send') === '1',
     isStarter: isTpl && Object.prototype.hasOwnProperty.call(STARTERS, ui.path), tplFields: isTpl ? templateFields(editor.value) : null };
 }
@@ -207,7 +212,8 @@ function paintChrome() {
   side.innerHTML = sidebar(st);
   if (inSearch) { const s = side.querySelector('[data-search]'); s.focus(); s.setSelectionRange(pos, pos); }
   paintHead(st);
-  panelEl.innerHTML = panel(st);
+  // A property being typed in keeps its field: the panel waits until it is committed (change).
+  if (!(active && panelEl.contains(active) && active.matches('input[data-prop]'))) panelEl.innerHTML = panel(st);
   const showing = Boolean(ui.path);
   emptyEl.hidden = showing;
   bodyEl.hidden = !showing;
@@ -1100,6 +1106,7 @@ async function applyMoves(moves, label, { quiet = false } = {}) {
   }
   for (const f of [...ui.extraFolders]) for (const [from] of moves) if (from.startsWith(f + '/')) ui.extraFolders.delete(f);
   if (opened && moves.has(opened)) { ui.path = null; await openNote(moves.get(opened)); }
+  bookmarks.follow(moves).catch(() => {});
   paintChrome();
   if (problems.length) ws.toast(`Moved. Could not update ${problems.join(', ')}: they changed meanwhile. Check their links.`, { kind: 'warn' });
   else ws.toast(`Moved ${moves.size === 1 ? 'the note' : `${moves.size} notes`}.`, { kind: 'success' });
@@ -1157,6 +1164,7 @@ async function trashNote(path = ui.path) {
   const text = path === ui.path ? editor.value : notes.texts.get(path)?.content;
   try {
     await notes.trash(path);
+    if (bookmarks.has(path)) bookmarks.follow(new Map(), [path]).catch(() => {});
     if (ui.path === path) { ui.path = null; ui.base = null; ui.status = { kind: 'saved' }; editor.value = ''; if (fresh && fresh.path === path) fresh = null; }
     paintChrome();
     lastTrashed = text === undefined ? null : { path, text };
@@ -1563,6 +1571,10 @@ document.addEventListener('click', async (e) => {
   else if (act === 'rename') renameNote();
   else if (act === 'trash') trashNote();
   else if (act === 'trash-path') trashNote(x.dataset.path);
+  else if (act === 'bookmark') toggleBookmark(ui.path);
+  else if (act === 'unbookmark') toggleBookmark(x.dataset.path);
+  else if (act === 'prop-add') addProp();
+  else if (act === 'prop-remove') changeProps((t) => removeProp(t, x.dataset.propKey));
   else if (act === 'copy') copyMarkdown();
   else if (act === 'copy-wiki') copyForWiki();
   else if (act === 'insert-diagram') pickDiagram();
@@ -1595,6 +1607,43 @@ preview.addEventListener('dblclick', (e) => {
   window.getSelection()?.removeAllRanges();
   goToLine(line);
 });
+/* ---------- bookmarks and properties ---------- */
+
+async function toggleBookmark(path) {
+  if (!path || isTandem(path)) return;
+  try {
+    const on = await bookmarks.toggle(path);
+    ws.toast(on ? 'Bookmarked. It is under Pinned.' : 'Bookmark removed.', { kind: 'success' }).catch(() => {});
+  } catch (e) { toastErr(e); }
+}
+/** Change the open note's frontmatter (props.js) as an edit: undo, autosave, history and conflicts as usual. */
+function changeProps(fn) {
+  if (!ui.path || isTandem(ui.path) || editor.readOnly || ['conflict', 'gone'].includes(ui.status.kind)) return;
+  const next = fn(editor.value);
+  if (next === null || next === editor.value) return;
+  editor.value = next;
+  editor.dispatchEvent(new Event('input'));
+  paintChrome();
+  paintPreview(true);
+}
+async function addProp() {
+  if (!ui.path || isTandem(ui.path)) return;
+  const form = await showDialog(promptHtml({ title: 'Add a property', label: 'Name', ok: 'Add', hint: 'Letters, digits, - and _, starting with a letter. aliases are other names [[links]] find this note by.' }),
+    (fd) => (validKey(String(fd.get('value')).trim()) ? '' : 'Start with a letter; use letters, digits, - and _.'));
+  if (!form) return;
+  const key = String(form.get('value')).trim();
+  changeProps((t) => setProp(t, key, ''));
+  requestAnimationFrame(() => panelEl.querySelector(`input[data-prop="${CSS.escape(key)}"]`)?.focus());
+}
+panelEl.addEventListener('change', (e) => {
+  const inp = e.target.closest && e.target.closest('input[data-prop]');
+  if (!inp || inp.readOnly) return;
+  changeProps((t) => setProp(t, inp.dataset.prop, inp.value, { list: inp.dataset.list === '1' }));
+});
+panelEl.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && e.target.matches && e.target.matches('input[data-prop]')) { e.preventDefault(); e.target.blur(); }
+});
+
 /* A box ticked in the preview: flip that line and save like any edit (history, conflict check). */
 function toggleTaskAt(line) {
   if (!ui.path || editor.readOnly || ['conflict', 'gone'].includes(ui.status.kind)) return;
@@ -1691,6 +1740,7 @@ ws.commands.register({ id: 'today', title: "Open today's note" });
 ws.commands.register({ id: 'diagram', title: 'Insert diagram' });
 ws.commands.register({ id: 'toggle-pages', title: 'Show or hide the pages list' });
 ws.commands.register({ id: 'toggle-panel', title: 'Show or hide the page panel' });
+ws.commands.register({ id: 'bookmark', title: 'Bookmark this note (or remove it)' });
 ws.on('command', (p) => {
   if (p.id === 'reload-new' && swReload) { swReload(); return; }
   if (p.id === 'undo-trash') { undoTrash(); return; }
@@ -1699,6 +1749,7 @@ ws.on('command', (p) => {
   else if (p.id === 'diagram') pickDiagram();
   else if (p.id === 'toggle-pages') toggleSide();
   else if (p.id === 'toggle-panel') togglePanel();
+  else if (p.id === 'bookmark') toggleBookmark(ui.path);
   else if (p.id === 'search') side.querySelector('[data-search]')?.focus();
 });
 function route(raw) {
