@@ -131,6 +131,7 @@ Bundles carry collections only. Files written through the files API are not in b
   <app>/<path>.png (.jpg .jpeg .gif .webp)  images written through the files API
   .trash/<app>/<path>.<stamp>.<ext>        files moved to the trash
   .backups/<yyyy-mm-dd>/<app>/...          copies kept before a version or envelope upgrade
+  .scratch/<connector>/<kind>/<run>/       connectors' working files, removed 7 days after they last changed
 ```
 
 For example:
@@ -156,10 +157,14 @@ For example:
 
 Workshop only sees paths that follow the name rules above, under an app folder. It ignores, and never changes or deletes:
 
-- any file or folder whose name starts with `.` (other than its own `.trash` and `.backups`, which only it writes to), for example `.git`, `.obsidian`, `.DS_Store`;
+- any file or folder whose name starts with `.` (other than its own `.trash`, `.backups` and `.scratch`, which only it writes to), for example `.git`, `.obsidian`, `.DS_Store`;
 - names that break the rules (`Notes.md`, `my notes.md`, `-draft.md`), top-level folders that are not app ids (`<dataDir>/2026/`), files with other extensions, and anything deeper than 4 segments;
 - files at the top of the data folder (`<dataDir>/readme.md`);
 - leftover `*.tmp` files (see Disk rules).
+
+### Working files
+
+`<dataDir>/.scratch/<connector>/<kind>/<run>/` holds files a connector hands to another program for one run, for example a hub request or a 1:1 packet for opencode ([connector.md](connector.md), `ctx.scratch`). The agent removes a run folder 7 days after anything in it last changed, on start and every 6 hours. This is the only place Workshop removes files on its own; nothing else in the data folder is ever removed by code.
 
 ### Trash
 
@@ -197,4 +202,5 @@ These apply to every backend that writes the data folder (the agent, and the bro
 - Atomic writes: write `<name>.tmp` in the same folder, flush, then rename over the old file. A failed write never loses the previous file. (The folder backend gets the same effect from the File System Access API, which writes to a temporary file and moves it into place on `close()`.)
 - On start, the agent deletes leftover `.tmp` files it finds next to collections and files, and uses the main file.
 - Files the backend cannot parse are left untouched and reported (in the log and as `500 internal` on read); the backend never overwrites them.
+- Permissions (macOS and Linux): a data folder the agent creates is `700`, and every folder and file it writes is `700` and `600`, so other users on the computer cannot read them. An existing data folder keeps its permissions; the agent logs a warning and `workshop doctor` says how to fix it when others can read it. On Windows the folder's ACL decides (the user's home folder is private by default).
 - Paths never leave the data folder. A request whose path, after following symbolic links and junctions, is outside the data folder is refused with `400 bad_request`. The data folder itself may be a link (for example to another drive); paths are checked against where it really is.

@@ -1,8 +1,9 @@
 // opencode connector: the optional draft step of Rapport's 1:1s (js/oneonones in adavidson21/receipts). Not in the eng-agents live
 // server; Workshop only.
 //
-// oneonone.draft saves the app's packet (Markdown, people data) as packet.md in this connector's own storage
-// folder, <Workshop home>/data/_connectors/opencode/oneonones/<personId>-<date>/, never in the code workspace
+// oneonone.draft saves the app's packet (Markdown, people data) as packet.md in this connector's working
+// folder, <dataDir>/.scratch/opencode/oneonones/<personId>-<date>/ (ctx.scratch, removed 7 days after it last
+// changed; before connector 1.18.0, <Workshop home>/data/_connectors/opencode/oneonones/), never in the code workspace
 // or .work, and runs Tandem's /one-on-one <path to packet.md> in a new session (eng-agents Core 2.8.0). The
 // people-prep agent writes draft.md next to it. oneonone.result reads that back.
 //
@@ -29,8 +30,9 @@ export function resetOneOnOnes() {
   runs.clear();
 }
 
-/** The connector's own folder for 1:1 packets (docs/connector.md, ctx.storage lives in the same place). */
-export function oneOnOneRoot(home = ctx && ctx.home) {
+/** The connector's working folder for 1:1 packets: ctx.scratch/oneonones, or the Workshop home on an older agent. */
+export function oneOnOneRoot(home = ctx && ctx.home, scratch = ctx && ctx.scratch) {
+  if (scratch) return path.join(scratch, "oneonones");
   if (!home) throw httpError(503, "The opencode connector is not ready yet.");
   return path.join(home, "data", "_connectors", "opencode", "oneonones");
 }

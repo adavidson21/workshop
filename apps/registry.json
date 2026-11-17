@@ -440,6 +440,9 @@
           "handoffs",
           "summary"
         ],
+        "privateFiles": [
+          "reports"
+        ],
         "files": [
           "slate.css",
           "js/main.js",

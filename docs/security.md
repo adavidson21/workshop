@@ -44,7 +44,8 @@ In browser-only mode there is no agent: the UI is static files, and Chrome reads
 | App data | Your data folder, `~/Workshop` by default (`dataDir` in settings): `<app>/...` | Your tasks, notes and so on. A folder you own: Workshop is a view over it, and deleting Workshop leaves it. Workshop never syncs or uploads it. |
 | Trash and backups | `.trash/` and `.backups/` in your data folder | Files you deleted in Workshop, and copies kept before a format upgrade. Workshop never empties them. |
 | App data from before the data folder | `~/.workshop/data/<app>/` | Copied into the data folder once, then left as a backup. Never deleted by Workshop. |
-| A connector's private storage | `~/.workshop/data/_connectors/<id>/` | For example a connector's cache. Stays on this computer, never in the data folder. |
+| A connector's private state | `~/.workshop/data/_connectors/<id>/` | Settings it saved and sync cursors. Stays on this computer. Never content you wrote. |
+| A connector's working files | `<dataDir>/.scratch/<id>/` | Files handed to another program for one run (a hub request, a 1:1 packet). Removed 7 days after they last changed. |
 | Logs | `~/.workshop/logs/` | Never contain the token, PATs or the contents of your data. |
 | Browser data (browser and hosted modes) | that browser's IndexedDB and `localStorage` | The handle to the folder you picked (IndexedDB), or app data until you pick one (IndexedDB, kept and marked moved after you do), your theme, and in hosted mode the paired agent address and token (`localStorage`, key `workshop.agent`). |
 

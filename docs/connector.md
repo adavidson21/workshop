@@ -75,11 +75,13 @@ The agent creates one `ctx` per start and passes the same object to `start` and 
 | `ctx.env(name)` | Returns the value of environment variable `name`, or `undefined`. Only names that appear in `ctx.config` under a field marked `x-workshop-env` are readable; any other name throws. This is how a connector gets a PAT. Never log, store, emit or return the value. On Windows the agent looks the name up in the user's saved variables (`HKCU\Environment`) first, cached for a few seconds, then in its own environment, so a variable saved after Workshop started (for example with `workshop pat`) is seen without a restart. Read it each time it is needed rather than keeping a copy. |
 | `ctx.log.info(msg, data?)`, `.warn`, `.error` | Writes to `~/.workshop/logs/` tagged with the connector id. The agent redacts the token and every `ctx.env` value it has handed out, but connectors must not pass them in the first place. |
 | `ctx.storage.get(key)` | Async. The JSON value stored under `key`, or `undefined`. |
-| `ctx.storage.put(key, value)` | Async. Stores a JSON value, atomically, in `~/.workshop/data/_connectors/<id>/<key>.json` (in the Workshop home, never the data folder). Keys match `^[a-z0-9][a-z0-9._-]{0,63}$`. Private to this connector. |
+| `ctx.storage.put(key, value)` | Async. Stores a JSON value, atomically, in `~/.workshop/data/_connectors/<id>/<key>.json` (in the Workshop home, never the data folder). Keys match `^[a-z0-9][a-z0-9._-]{0,63}$`. Private to this connector. For the connector's own state only (settings it saved, sync cursors); content a person would want back goes in `ctx.dataDir`, working files in `ctx.scratch`. |
 | `ctx.emit(event, payload)` | Sends a `connector` event on `/api/events` with `{id, event, payload}`. `event` matches `^[a-z][a-zA-Z0-9.-]{0,63}$`. Payload is JSON, under 64 KB, no secrets. |
 | `ctx.statusChanged()` | Tells the agent to call `status()` again and send `connector-status`. |
 | `ctx.signal` | An `AbortSignal` aborted when `stop()` is called. Pass it to `fetch`. |
 | `ctx.home` | The Workshop home folder (read-only use, for example to find a workspace path from config). |
+| `ctx.dataDir` | The data folder. Content a connector keeps for a person (something they wrote or would want back, like the Chat list) goes here, under the app it belongs to (`<dataDir>/chat/chats.json`), following the disk rules in [data-format.md](data-format.md): atomic writes, `600` files, never outside the folder. `null` only in tests. |
+| `ctx.scratch` | This connector's working folder, `<dataDir>/.scratch/<id>/`. For files handed to another program for one run (a request for opencode, a 1:1 packet). Use one subfolder per kind and one folder per run: `<scratch>/<kind>/<run>/`. The agent removes a run folder 7 days after anything in it last changed, on start and every 6 hours. Workshop's apps never see it. `null` only in tests. |
 
 ## Rules
 
