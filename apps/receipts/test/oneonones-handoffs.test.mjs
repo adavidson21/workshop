@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as M from '../js/oneonones/model.js';
 import { createOneOnOnes } from '../js/oneonones/data.js';
-import { logHtml, personHtml, tidyHtml } from '../js/oneonones/view.js';
+import { personHtml, wrapHtml } from '../js/oneonones/view.js';
 import { SchemaSet } from '../../../tests/lib/schema.mjs';
 import { NOW, PERSON, TODAY, fakeWs } from './oneonones-fake.mjs';
 
@@ -72,8 +72,8 @@ test('ids are stable per note and line: owner, spacing, case and a Tidy mark do 
 test('no link to People: sent without people, still waiting, their name in the notes', () => {
   const [h] = M.followUpHandoffs({ person: UNLINKED, day: TODAY, nowIso: ISO, lines: [{ text: 'Pat to send the quote', owner: 'them' }] });
   assert.deepEqual(h.payload, { kind: 'task', title: 'Pat to send the quote', notes: `From your 1:1 with Pat Vendor on ${TODAY} (Rapport). Waiting on Pat Vendor.`, waiting: true });
-  const html = logHtml({ followUps: [{ text: 'Pat to send the quote', owner: 'them', sent: false }], wins: [], canOffer: false, canSend: true, linked: false, name: 'Pat Vendor' });
-  assert.match(html, /Pat Vendor is not linked to People, so their tasks go to Docket without a person/);
+  const html = wrapHtml({ followUps: [{ text: 'Pat to send the quote', owner: 'them', sent: false }], wins: [], canOffer: false, canSend: true, linked: false, name: 'Pat Vendor' });
+  assert.match(html, /Pat Vendor is not in People, so their tasks go to Docket without a person/);
 });
 
 test('the envelope: missing is empty, a newer version is not written, old offers are trimmed after 60 days', () => {
@@ -118,42 +118,31 @@ test('a newer handoffs collection is refused, never written over', async () => {
 
 /* ---------- the dialog ---------- */
 
-test('the dialog: owner picker per line, Sent lines unticked, Copy as quick-add lines as a secondary button', () => {
-  const html = logHtml({ followUps: [{ text: 'Dev to share', owner: 'them', sent: false }, { text: 'Book it', owner: 'me', sent: true }], wins: [], canOffer: true, canSend: true, linked: true, name: 'Dev One' });
+test('Wrap up: owner picker per line, Sent lines unticked, Tandem lines marked, wins only for a report', () => {
+  const html = wrapHtml({ followUps: [{ text: 'Dev to share', owner: 'them', sent: false }, { text: 'Book it', owner: 'me', sent: true }, { text: 'From Tandem', owner: 'me', sent: false, tandem: true }],
+    wins: [{ text: 'Shipped it' }, { text: 'Tandem win', tandem: true }], canOffer: true, canSend: true, linked: true, name: 'Dev One', day: TODAY });
   assert.match(html, /name="f" value="0" checked/);
   assert.match(html, /name="f" value="1">/);
-  assert.match(html, /<option value="them" selected>Dev One's \(waiting on them\)<\/option>/);
-  assert.match(html, /<option value="me" selected>Mine<\/option>/);
+  assert.match(html, /<option value="them" selected>Dev One, waits on them<\/option>/);
+  assert.match(html, /<option value="me" selected>Me<\/option>/);
   assert.match(html, /class="sent soft small">Sent</);
-  assert.match(html, /<button class="btn" value="copy" data-copy-lines>Copy as quick-add lines<\/button>/);
-  assert.match(html, /<button class="btn primary" value="ok">Log<\/button>/);
-  const away = logHtml({ followUps: [{ text: 'Book it', owner: 'me', sent: false }], wins: [], canOffer: false, canSend: false, name: 'Dev One' });
-  assert.doesNotMatch(away, /data-copy-lines|<select/, 'outside Workshop, Log copies the lines');
+  assert.equal((html.match(/oo-tandem/g) || []).length, 2);
+  assert.match(html, /Wins to Dev One's Log/);
+  assert.match(html, /<button class="btn primary" value="ok">Send<\/button>/);
+  assert.doesNotMatch(html, /data-copy-lines/, 'one way: Send');
+  const away = wrapHtml({ followUps: [{ text: 'Book it', owner: 'me', sent: false }], wins: [{ text: 'x' }], canOffer: false, canSend: false, name: 'Dev One' });
+  assert.doesNotMatch(away, /<select|Wins to/, 'outside Workshop, Wrap up copies the lines; no wins for a non-report');
   assert.match(away, /copied as Docket quick-add lines/);
 });
 
-/* ---------- Tidy notes ---------- */
-
-test('Tidy is hidden without the connector, with the steps off, or with no note open', () => {
-  const tidy = { state: 'idle', error: '', followUps: [], wins: [] };
+test('the 1:1 tab: Wrap up only with a note, Draft with Tandem only when Tandem is on', () => {
   const note = { day: TODAY, path: 'x', text: '', mode: 'edit' };
-  assert.equal(tidyHtml(tidy, { enabled: true, ready: false, note }), '');
-  assert.equal(tidyHtml(tidy, { enabled: false, ready: true, note }), '');
-  assert.equal(tidyHtml(tidy, { enabled: true, ready: true, note: null }), '');
-  assert.match(tidyHtml(tidy, { enabled: true, ready: true, note }), /data-tidy>Tidy notes</);
-  const page = (ready) => personHtml({ person: PERSON, packet: { docket: { state: 'unlinked' }, slate: { state: 'unlinked' }, receipts: { state: 'unlinked' }, last: { state: 'none' }, since: TODAY, sinceFrom: 'cadence' },
-    note, notes: [], today: TODAY, ai: { state: 'idle' }, aiOpts: { enabled: true, ready }, tidy });
-  assert.doesNotMatch(page(false), /data-tidy/);
-  assert.match(page(true), /data-tidy/);
-});
-
-test('Tidy shows the proposal escaped, with unticked lines kept unticked', () => {
-  const bad = '<img src=x onerror=alert(1)>';
-  const html = tidyHtml({ state: 'done', error: '', followUps: [{ text: bad, owner: 'them', use: false }], wins: [{ text: bad, use: true }] }, { enabled: true, ready: true, note: {}, name: bad });
-  assert.ok(!html.includes('<img'));
-  assert.match(html, /data-tidy-f="0" aria-label/);
-  assert.match(html, /data-tidy-w="0" checked/);
-  assert.match(html, /data-tidy-accept/);
+  const page = (enabled, n = note) => personHtml({ person: PERSON, packet: { docket: { state: 'unlinked' }, slate: { state: 'unlinked' }, receipts: { state: 'unlinked' }, last: { state: 'none' }, since: TODAY, sinceFrom: 'cadence' },
+    note: n, notes: [], today: TODAY, ai: { state: 'idle' }, aiOpts: { enabled, ready: true } });
+  assert.doesNotMatch(page(false), /data-draft/);
+  assert.match(page(true), /data-draft/);
+  assert.match(page(false), /data-wrap/);
+  assert.doesNotMatch(page(false, null), /data-wrap/);
 });
 
 test('what Tidy sends: no title, no Since summary, the person named "them"', () => {

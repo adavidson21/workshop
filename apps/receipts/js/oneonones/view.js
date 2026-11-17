@@ -4,15 +4,7 @@
 import { KINDS, KIND_LABELS, esc } from './model.js';
 import { render as renderMd } from '../markdown.js';
 
-const plural = (n, w, ws = w + 's') => `${n} ${n === 1 ? w : ws}`;
 const opt = (value, label, sel) => `<option value="${esc(value)}"${sel ? ' selected' : ''}>${esc(label)}</option>`;
-
-const GEAR = '<svg viewBox="0 0 20 20" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M4 6h12M4 14h12"/><circle cx="8" cy="6" r="2" fill="var(--bg)"/><circle cx="12.5" cy="14" r="2" fill="var(--bg)"/></svg>';
-
-/** A bar under Rapport's tabs: an optional title on the left, buttons on the right. */
-export function header(title, eyebrow, acts = '') {
-  return `<div class="oo-head">${title ? `<div>${eyebrow ? `<p class="eyebrow">${esc(eyebrow)}</p>` : ''}<h2 class="oo-title">${esc(title)}</h2></div>` : ''}<span class="grow"></span><div class="oo-acts">${acts}</div></div>`;
-}
 
 /** Shown instead of the page when it cannot work yet. Returns '' when it can. */
 export function setupCard(v, embedded) {
@@ -24,33 +16,15 @@ export function setupCard(v, embedded) {
   return '';
 }
 
-/* ---------- the people list ---------- */
-
-/** rows: [{person, lastDay, days, due}] */
-export function homeHtml(rows, ui, fromDir = []) {
-  const acts = `<button class="btn" data-route="settings" title="People you meet with, links and cadence">${GEAR} People and links</button>`;
-  if (!rows.length) {
-    return header('', '', acts) + `<section class="engcard"><h2>Who do you meet with?</h2>
-      <p>Add the people you have 1:1s with: your reports, your manager, peers, skip-levels. Link each one to what Docket and Rapport already know about them, and prep gathers it in one place.</p>
-      <p><button class="btn primary" data-route="settings">Add people</button></p>${fromDir.length ? fromDirectoryHtml(fromDir) : ''}</section>`;
-  }
-  return header('', '', acts) + `<p class="oo-hint soft">Due means the last 1:1 note is as old as that person's cadence. Reports open on their page in Reports.</p>
-    <ul class="oo-people" role="list">${rows.map((r, i) => `<li><button class="oo-row${ui.selected === i ? ' on' : ''}" data-person="${esc(r.person.id)}">
-      <span class="oo-name">${esc(r.person.name)}</span>
-      <span class="oo-last soft">${r.lastDay ? `Last 1:1 ${esc(r.lastDay)} (${r.days === 0 ? 'today' : plural(r.days, 'day') + ' ago'})` : 'No 1:1 notes yet'}</span>
-      ${r.due ? '<span class="due">Due</span>' : '<span class="oo-ok soft">Every ' + esc(plural(r.person.cadenceDays, 'day')) + '</span>'}
-    </button></li>`).join('')}</ul>`;
-}
-
 /* ---------- the packet ---------- */
 
 const UNAVAILABLE = {
-  unlinked: 'Not in People. Pick who this is in People and links.',
+  unlinked: 'Not in People, so nothing to gather. Add them in Settings, People.',
   missing: 'Nothing saved there yet.',
   unreadable: 'Saved by a version this app does not know. Update Workshop to read it.'
 };
 // missing: a message for that source when it has a better one (Docket writes its summary only when it runs).
-const unavailable = (s, link, missing) => `<p class="soft">${esc((s.state === 'missing' && missing) || UNAVAILABLE[s.state] || 'Not available.')}${s.state === 'unlinked' && link ? ` <button class="lnk" data-route="settings">People and links</button>` : ''}</p>`;
+const unavailable = (s, link, missing) => `<p class="soft">${esc((s.state === 'missing' && missing) || UNAVAILABLE[s.state] || 'Not available.')}</p>`;
 
 // One date format everywhere on the page: "Nov 14" (Rapport UX v1).
 const day = d => { const t = new Date(String(d || '') + 'T12:00:00'); return isNaN(t) ? String(d || '') : t.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); };
@@ -76,16 +50,15 @@ export function packetHtml(p) {
     : unavailable(p.receipts, true);
   // Slate: shown only when Slate is here and has delegated something to them.
   const slate = p.slate && p.slate.state === 'ok' && p.slate.items.length
-    ? `<section><h3 class="section-label">Delegated in Slate</h3>${rows('With them now', p.slate.items, t => `<button class="lnk" data-slate="${esc(t.id)}">${esc(t.title)}</button>`)}</section>` : '';
+    ? `<section><h3 class="section-label">With them in Loom</h3>${rows('With them now', p.slate.items, t => `<button class="lnk" data-slate="${esc(t.id)}">${esc(t.title)}</button>`)}</section>` : '';
   const last = p.last.state === 'ok'
     ? rows(`Open follow-ups from ${day(p.last.day)}`, p.last.open, t => esc(t))
     : `<p class="soft">${p.last.state === 'unreadable' ? "Couldn't read the last note." : 'No earlier 1:1 note.'}</p>`;
-  return `<section class="packet" aria-label="Prep">
-    <p class="since soft">Since ${esc(day(p.since))}${p.sinceFrom === 'note' ? ', the last 1:1 note' : ''}</p>
-    <section><h3 class="section-label">Docket</h3>${docket}</section>
+  return `<section class="packet" aria-label="Bring up">
+    <section><h3 class="section-label">Open from last time</h3>${last}</section>
+    <section><h3 class="section-label">Waiting on them (Docket)</h3>${docket}</section>
     ${slate}
     <section><h3 class="section-label">New receipts</h3>${receipts}</section>
-    <section><h3 class="section-label">Last 1:1</h3>${last}</section>
   </section>`;
 }
 
@@ -119,10 +92,10 @@ export function noteHtml(n, notes, today) {
 export function aiHtml(ai, { enabled, ready }) {
   if (!enabled || !ready) return '';
   const busy = ai.state === 'starting' || ai.state === 'running';
-  return `<section class="ai" aria-label="Draft talking points">
-    <div class="abar"><h3 class="section-label">Draft talking points</h3><span class="grow"></span>
+  return `<section class="ai" aria-label="Draft talking points with Tandem">
+    <div class="abar"><h3 class="section-label">Draft talking points with Tandem</h3><span class="grow"></span>
       <label class="chk"><input type="checkbox" data-include-concerns${ai.includeConcerns ? ' checked' : ''}${busy ? ' disabled' : ''}> Include concerns</label>
-      <button class="btn" data-draft${busy ? ' disabled' : ''}>${busy ? 'Drafting…' : ai.state === 'done' ? 'Draft again' : 'Draft talking points'}</button></div>
+      <button class="btn" data-draft${busy ? ' disabled' : ''}>${busy ? 'Drafting…' : ai.state === 'done' ? 'Draft again' : 'Draft'}</button></div>
     <p class="soft small">Sends this prep (without the name, and without Receipts concerns unless you tick the box) to your opencode agents through Workshop on this computer. It drafts only.</p>
     ${ai.state === 'failed' ? `<p class="bad">${esc(ai.error || 'The draft step did not finish.')}</p>` : ''}
     ${ai.state === 'done' ? `<div class="md oo-draft">${renderMd(ai.text)}</div><p><button class="btn" data-draft-insert>Add to the note</button></p>` : ''}
@@ -132,143 +105,65 @@ export function aiHtml(ai, { enabled, ready }) {
 /* ---------- a person ---------- */
 
 /**
- * A person's prep and note. On the 1:1s tab it has the person's name and a way back; on a report's page in
- * Reports (`panel`) it is a section above their receipts, with how often you meet.
+ * A person's 1:1 tab (Rapport 5.0.0): Bring up on the left, today's note on the right. One action per job:
+ * Copy for Lattice (talking points for Lattice's shared agenda), Wrap up (follow-ups to Docket, wins to their Log),
+ * and, with Tandem on, Draft talking points with Tandem. wrap: Tandem reading the note for Wrap up
+ * ({state: 'idle' | 'starting' | 'running' | 'failed', error}).
  */
-export function personHtml({ person, packet, note, notes, today, ai, aiOpts, tidy = null, panel = false, due = null }) {
-  const log = note ? '<button class="btn" data-log>Log follow-ups</button>' : '';
-  const cols = `<div class="cols">
-    <div class="left">${packetHtml(packet)}</div>
-    <div class="right">${noteHtml(note, notes, today)}${tidy ? tidyHtml(tidy, { ...aiOpts, note, name: person.name }) : ''}${aiHtml(ai, aiOpts)}</div>
+export function personHtml({ person, packet, note, notes, today, ai, aiOpts, wrap = null }) {
+  const since = `<span class="soft small">since ${esc(day(packet.since))}${packet.sinceFrom === 'note' ? ', the last 1:1' : ''}</span>`;
+  const busy = wrap && (wrap.state === 'starting' || wrap.state === 'running');
+  return `<div class="cols oo-cols">
+    <section class="left oo-card" aria-label="Bring up">
+      <div class="oo-cardhead"><h3>Bring up</h3>${since}</div>
+      ${packetHtml(packet)}
+      <div class="oo-foot"><button class="btn" data-lattice-points title="Talking points for Lattice's shared agenda. Concerns are left out.">Copy for Lattice</button>
+        <span class="soft small">talking points for the shared agenda, no concerns</span></div>
+      ${aiHtml(ai, aiOpts)}
+    </section>
+    <section class="right oo-card" aria-label="Today's note">
+      ${noteHtml(note, notes, today)}
+      ${note ? `<div class="oo-foot"><button class="btn primary" data-wrap${busy ? ' disabled' : ''}>${busy ? 'Tandem is reading the note…' : 'Wrap up'}</button>
+        <span class="soft small">follow-ups to Docket${person.canLog ? ', wins to the Log' : ''}</span></div>
+        ${wrap && wrap.state === 'failed' ? `<p class="bad small">${esc(wrap.error || 'Tandem did not finish.')} Wrap up again to go on with your own lines.</p>` : ''}` : ''}
+    </section>
   </div>`;
-  if (panel) {
-    const when = due ? (due.lastDay ? `Last 1:1 ${esc(day(due.lastDay))}` : 'No 1:1 notes yet') + ` · every ${esc(plural(person.cadenceDays, 'day'))}` : '';
-    return `<section class="oo-panel" aria-label="1:1">
-      <div class="oo-head"><h3 class="section-label">1:1${due && due.due ? ' <span class="due">Due</span>' : ''}</h3><span class="soft small">${when}</span><span class="grow"></span>
-        <div class="oo-acts">${log}<button class="btn" data-route="settings">People and links</button></div></div>
-      ${cols}</section>`;
-  }
-  return header(person.name, '1:1 prep', `${log}<button class="btn" data-route="">All 1:1s</button>`) + cols;
 }
 
-/** On a report's page when they have no 1:1s yet: one click starts them, linked. */
-export function startPanelHtml(name) {
-  return `<section class="oo-panel oo-start" aria-label="1:1">
-    <div class="oo-head"><h3 class="section-label">1:1</h3><span class="grow"></span></div>
-    <p class="soft">No 1:1s with ${esc(name)} yet. Prep gathers what Docket and Rapport know about them since your last 1:1, next to a plain Markdown note.</p>
-    <p><button class="btn" data-start-report>Start 1:1s with ${esc(name)}</button></p></section>`;
+/** A person you have no 1:1s with yet: one click starts them, linked to People. */
+export function startHtml(name) {
+  return `<section class="oo-card oo-start" aria-label="1:1">
+    <p>No 1:1s with ${esc(name)} yet. Prep gathers what Docket and Rapport know since your last 1:1, next to a plain Markdown note.</p>
+    <p><button class="btn primary" data-start-dir>Start 1:1s with ${esc(name)}</button></p></section>`;
 }
 
 /* ---------- after the meeting ---------- */
 
 /**
- * The Log follow-ups dialog. followUps: open follow-up lines of the note, [{text, owner: 'me' | 'them', sent}];
- * each ticked one goes to Docket as a task (yours, or delegated to them), or is copied as quick-add lines with
- * the secondary button. wins: lines under Wins (each can become a receipt). canOffer: the person is one of your
- * reports. canSend: Docket shares this data folder (inside Workshop). linked: they are in the people directory,
- * so a delegated task names them in Docket. name: their name.
+ * The Wrap up dialog. followUps: open follow-up lines, [{text, owner: 'me' | 'them', sent, tandem}]; each ticked
+ * one goes to Docket as a task (yours, or handed to them and waiting on them). wins: [{text, tandem}] (each can
+ * become a receipt in their Log). tandem: a line Tandem found, added to the note when sent. canOffer: their Log
+ * takes wins (a report). canSend: Docket shares this data folder; otherwise the follow-ups are copied as Docket
+ * quick-add lines. linked: they are in People. name: their name. day: the note's day.
  */
-export function logHtml({ followUps, wins, canOffer, canSend = true, linked = true, name = 'them' }) {
+export function wrapHtml({ followUps, wins, canOffer, canSend = true, linked = true, name = 'them', day: d = '' }) {
+  const mark = x => (x.tandem ? ' <span class="oo-tandem soft small">Tandem</span>' : '');
   const owner = (f, i) => `<select name="o${i}" aria-label="Who does it">
-      <option value="me"${f.owner === 'me' ? ' selected' : ''}>Mine</option>
-      <option value="them"${f.owner === 'them' ? ' selected' : ''}>${esc(name)}'s (waiting on them)</option></select>`;
-  const fRows = followUps.map((f, i) => `<li class="frow"><label class="chk"><input type="checkbox" name="f" value="${i}"${f.sent ? '' : ' checked'}> ${esc(f.text)}</label>
+      <option value="me"${f.owner === 'me' ? ' selected' : ''}>Me</option>
+      <option value="them"${f.owner === 'them' ? ' selected' : ''}>${esc(name)}, waits on them</option></select>`;
+  const fRows = followUps.map((f, i) => `<li class="frow"><label class="chk"><input type="checkbox" name="f" value="${i}"${f.sent || f.use === false ? '' : ' checked'}> ${esc(f.text)}${mark(f)}</label>
       ${canSend ? owner(f, i) : ''}${f.sent ? '<span class="sent soft small">Sent</span>' : ''}</li>`).join('');
-  const wRows = wins.map((t, i) => `<li><label class="chk"><input type="checkbox" name="w" value="${i}" checked> ${esc(t)}</label></li>`).join('');
-  const fHelp = canSend
-    ? `Ticked follow-ups go to Docket as tasks: yours, or handed to ${esc(name)} and waiting on them, with a follow-up date from Docket's working days. A line already sent is not sent again.${linked ? '' : ` ${esc(name)} is not linked to People, so their tasks go to Docket without a person.`}`
-    : 'Ticked follow-ups are copied as Docket quick-add lines. Paste them into Docket\'s command bar to add them.';
-  return `<form method="dialog" class="confirm log">
-    <h2>Log follow-ups</h2>
-    <h3 class="section-label">Docket tasks</h3>
-    ${followUps.length ? `<ul class="picks">${fRows}</ul><p class="soft small">${fHelp}</p>` : '<p class="soft">No open follow-ups in this note.</p>'}
-    <h3 class="section-label">Receipts</h3>
-    ${!wins.length ? '<p class="soft">No lines under Wins in this note.</p>'
-      : canOffer ? `<ul class="picks">${wRows}</ul><p class="soft small">Ticked wins become receipts about this report, dated the day of the note.</p>`
-      : '<p class="soft">Wins become receipts only for a report. Link this person to a report in People and links.</p>'}
+  const wRows = wins.map((w, i) => `<li><label class="chk"><input type="checkbox" name="w" value="${i}"${w.use === false ? '' : ' checked'}> ${esc(w.text)}${mark(w)}</label></li>`).join('');
+  return `<form method="dialog" class="confirm log wrap">
+    <h2>Wrap up: ${esc(name)}${d ? `, ${esc(day(d))}` : ''}</h2>
+    <p class="soft small">Picked from the note. Untick anything you don't want sent. A line already sent is not sent again.</p>
+    <h3 class="section-label">Follow-ups to Docket</h3>
+    ${followUps.length ? `<ul class="picks">${fRows}</ul>${canSend ? (linked ? '' : `<p class="soft small">${esc(name)} is not in People, so their tasks go to Docket without a person.</p>`)
+      : '<p class="soft small">Docket is not in this folder, so these are copied as Docket quick-add lines to paste.</p>'}` : '<p class="soft">No open follow-ups in this note.</p>'}
+    ${canOffer ? `<h3 class="section-label">Wins to ${esc(name)}'s Log</h3>
+    ${wins.length ? `<ul class="picks">${wRows}</ul>` : '<p class="soft">No lines under Wins in this note.</p>'}` : ''}
     <div class="acts"><button class="btn" value="cancel" formnovalidate>Cancel</button>
-      ${canSend && followUps.length ? '<button class="btn" value="copy" data-copy-lines>Copy as quick-add lines</button>' : ''}
-      <button class="btn primary" value="ok">Log</button></div>
-  </form>`;
-}
-
-/* ---------- Tidy notes (optional) ---------- */
-
-/**
- * tidy: {state: 'idle' | 'starting' | 'running' | 'done' | 'failed', error, followUps: [{text, owner, use}],
- * wins: [{text, use}]}. `use` false: unticked.
- * Shown only with the draft step on, the opencode connector ready and a note open.
- */
-export function tidyHtml(tidy, { enabled, ready, note, name = 'them' }) {
-  if (!enabled || !ready || !note) return '';
-  const busy = tidy.state === 'starting' || tidy.state === 'running';
-  const done = tidy.state === 'done';
-  const empty = done && !tidy.followUps.length && !tidy.wins.length;
-  const fRow = (f, i) => `<li class="trow"><input type="checkbox" data-tidy-f="${i}"${f.use === false ? '' : ' checked'} aria-label="Use this follow-up">
-      <input type="text" data-tidy-ft="${i}" value="${esc(f.text)}" maxlength="400" aria-label="Follow-up">
-      <select data-tidy-fo="${i}" aria-label="Who does it"><option value="me"${f.owner === 'me' ? ' selected' : ''}>Mine</option><option value="them"${f.owner === 'them' ? ' selected' : ''}>${esc(name)}'s</option></select></li>`;
-  const wRow = (w, i) => `<li class="trow"><input type="checkbox" data-tidy-w="${i}"${w.use === false ? '' : ' checked'} aria-label="Use this win">
-      <input type="text" data-tidy-wt="${i}" value="${esc(w.text)}" maxlength="400" aria-label="Win"></li>`;
-  return `<section class="ai tidy" aria-label="Tidy notes">
-    <div class="abar"><h3 class="section-label">Tidy notes</h3><span class="grow"></span>
-      <button class="btn" data-tidy${busy ? ' disabled' : ''}>${busy ? 'Tidying…' : done ? 'Tidy again' : 'Tidy notes'}</button></div>
-    <p class="soft small">Sends this note's lines (${esc(name)}'s name left out) to your opencode agents through Workshop on this computer, which propose Follow-ups and Wins. Nothing changes in the note until you add what you keep.</p>
-    ${tidy.state === 'failed' ? `<p class="bad">${esc(tidy.error || 'Tidy notes did not finish.')}</p>` : ''}
-    ${empty ? '<p class="soft">No follow-ups or wins proposed.</p>' : ''}
-    ${done && !empty ? `${tidy.followUps.length ? `<h4 class="section-label">Follow-ups</h4><ul class="tlist">${tidy.followUps.map(fRow).join('')}</ul>` : ''}
-      ${tidy.wins.length ? `<h4 class="section-label">Wins</h4><ul class="tlist">${tidy.wins.map(wRow).join('')}</ul>` : ''}
-      <p class="acts"><button class="btn" data-tidy-discard>Discard</button><button class="btn primary" data-tidy-accept>Add to the note</button></p>` : ''}
-  </section>`;
-}
-
-/* ---------- settings ---------- */
-
-/**
- * v.people: 1:1s people with the directory's name and relation (withDirectory).
- * pick: {choices: [{id, name, relation, archived}], fromDirectory: [{id, name}], embedded}
- * edit: the person being edited ({} for a new one) or null.
- */
-export function settingsHtml(v, pick, edit) {
-  const back = '<button type="button" class="btn" data-route="">All 1:1s</button>';
-  const active = v.people.filter(p => !p.archived), archived = v.people.filter(p => p.archived);
-  const row = p => `<li class="srow"><span class="oo-name">${esc(p.name)}</span>
-    <span class="links soft">${p.linked ? esc(RELATION[p.relation] || 'In People') + (p.handle ? ` · @${esc(p.handle)}` : '') : 'Not in People'} · every ${esc(plural(p.cadenceDays, 'day'))}</span>
-    <button class="lnk" data-edit-person="${esc(p.id)}">Edit</button></li>`;
-  return header('People and links', '1:1s', back) + `
-    ${edit ? personForm(edit, pick) : `<p><button class="btn primary" data-add-person>Add a person</button></p>`}
-    ${!edit && pick.fromDirectory.length ? fromDirectoryHtml(pick.fromDirectory) : ''}
-    ${active.length ? `<ul class="slist">${active.map(row).join('')}</ul>` : ''}
-    ${archived.length ? `<details class="archived"><summary>Archived (${archived.length})</summary><ul class="slist">${archived.map(row).join('')}</ul></details>` : ''}
-    <form class="oo-settings" data-settings>
-      <h3 class="section-label">AI steps</h3>
-      <label class="chk"><input type="checkbox" name="aiDraft"${v.settings.aiDraft ? ' checked' : ''}> Offer "Draft talking points" and "Tidy notes" when the opencode connector is on</label>
-      <p class="soft small">Off: the buttons never show and nothing is sent to opencode. Prep, notes and Log follow-ups never need them.</p>
-      <div class="acts"><button class="btn">Save</button></div>
-    </form>`;
-}
-
-/** Reports and your manager in People with no 1:1s person yet: one click adds them. */
-export function fromDirectoryHtml(list) {
-  return `<div class="from-dir"><p class="soft small">From People: add in one click. Their Docket tasks and receipts come along.</p>
-    ${list.map(p => `<button class="oo-chip" data-add-dir="${esc(p.id)}">+ ${esc(p.name)}</button>`).join('')}</div>`;
-}
-
-const RELATION = { report: 'Direct report', manager: 'Manager', peer: 'Peer', contact: 'Contact' };
-
-export function personForm(p, pick) {
-  const cur = p.personId || '';
-  const known = pick.choices.some(c => c.id === cur);
-  const options = pick.choices.map(c => opt(c.id, `${c.name} (${RELATION[c.relation] || c.relation}${c.archived ? ', archived' : ''})`, c.id === cur)).join('');
-  return `<form class="oo-pform" data-person-form data-id="${esc(p.id || '')}" autocomplete="off">
-    <h3 class="section-label">${p.id ? 'Edit person' : 'New person'}</h3>
-    <div class="two">
-      <label>Person<select name="personId" required>${opt('', 'Pick someone from People', !cur)}${options}${cur && !known ? opt(cur, `${p.name || cur} (not in People)`, true) : ''}</select>
-        ${pick.choices.length ? '' : `<span class="soft">No one in People yet. Add them in ${pick.embedded ? 'People' : 'Workshop\'s People app'}.</span>`}</label>
-      <label>Cadence (days between 1:1s)<input name="cadenceDays" type="number" min="1" max="90" value="${esc(p.cadenceDays || 7)}"></label>
-    </div>
-    <p class="soft small">Their Docket tasks (and tasks on groups they are in) and, for a report or your manager, their receipts show in prep.</p>
-    ${p.id ? `<label class="chk"><input type="checkbox" name="archived"${p.archived ? ' checked' : ''}> Archived (hidden from the list; notes are kept)</label>` : ''}
-    <div class="acts"><button type="button" class="btn" data-cancel-person>Cancel</button><button class="btn primary">${p.id ? 'Save' : 'Add'}</button></div>
+      <button class="btn primary" value="ok">${canSend ? 'Send' : 'Copy and log'}</button></div>
   </form>`;
 }
 

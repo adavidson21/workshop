@@ -78,9 +78,9 @@ test('questions and places', () => {
   assert.deepEqual(parseCapture('what version of .NET is the portal on?', ctx), { kind: 'ask', text: 'what version of .NET is the portal on?' });
   assert.equal(parseCapture('? where did I leave off', ctx).kind, 'ask');
   assert.deepEqual(parseCapture('> receipts', ctx), { kind: 'go', app: 'receipts', text: '> receipts' });
-  assert.deepEqual(parseCapture('> 1:1s', ctx), { kind: 'go', app: 'receipts', path: '1on1s', text: '> 1:1s' }, '1:1s are part of Rapport');
-  assert.deepEqual(parseCapture('> goals', ctx), { kind: 'go', app: 'receipts', path: 'goals', text: '> goals' }, 'Goals are part of Rapport');
-  assert.deepEqual(parseCapture('> OKRs', ctx), { kind: 'go', app: 'receipts', path: 'goals', text: '> OKRs' });
+  assert.deepEqual(parseCapture('> 1:1s', ctx), { kind: 'go', app: 'receipts', path: 'people', text: '> 1:1s' }, '1:1s are part of Rapport');
+  assert.deepEqual(parseCapture('> goals', ctx), { kind: 'go', app: 'receipts', path: 'team', text: '> goals' }, 'Goals are part of Rapport');
+  assert.deepEqual(parseCapture('> OKRs', ctx), { kind: 'go', app: 'receipts', path: 'team', text: '> OKRs' });
   assert.deepEqual(parseCapture('> the rapport', ctx), { kind: 'go', app: 'receipts', text: '> the rapport' });
   assert.equal(parseCapture('> queue', ctx).kind, 'ask', 'Queue was removed');
   assert.equal(parseCapture('> docket', ctx).app, 'prioritizer');
@@ -178,7 +178,7 @@ test('useApps: capture targets, names and places come from the manifests on this
     C.useApps([{ id: 'prioritizer', name: 'Docket', order: 10 }, { id: 'receipts', name: 'Rapport', order: 30 }]);
     assert.equal(C.parseCapture('t write it', ctx).to, 'prioritizer', 'built-in targets count for apps that are there');
     assert.equal(C.parseCapture('r shipped it', ctx).to, 'receipts');
-    assert.equal(C.parseCapture('> 1:1s', ctx).path, '1on1s', 'built-in places too');
+    assert.equal(C.parseCapture('> 1:1s', ctx).path, 'people', 'built-in places too');
     assert.equal(C.parseCapture('n a note', ctx).to, 'prioritizer', 'Notes is not here');
 
     C.useApps([{ id: 'home', name: 'Home', order: 0 }]);

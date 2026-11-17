@@ -189,12 +189,12 @@ export const GUIDE = [
     section: 'day',
     ask: 'I have a 1:1 coming up.',
     app: 'receipts',
-    path: '1on1s',
+    path: 'people',
     steps: [
-      'In Rapport, open the <b>1:1s</b> tab and pick the person.',
-      'Read the prep. It gathers what Docket, Loom and Rapport know since your last 1:1.',
-      'Take notes during the meeting.',
-      'After, send follow-ups to Docket and save wins as receipts.'
+      'In Rapport, pick the person on People. Whoever is due is on top.',
+      'Read Bring up on their 1:1 tab. It gathers what Docket, Loom and Rapport know since your last 1:1. Copy for Lattice puts talking points for the shared agenda on your clipboard.',
+      'Take notes in today\'s note during the meeting.',
+      'After, Wrap up sends follow-ups to Docket and wins to their Log.'
     ],
     why: 'You walk in prepared without digging through apps.',
     also: [],

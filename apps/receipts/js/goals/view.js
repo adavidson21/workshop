@@ -90,6 +90,7 @@ export function treeHtml(s) {
   const pick = `<label class="g-q"><span class="sr">Quarter</span><select data-g-quarter>${s.quarters.map(k => opt(k, quarterLabel(k) + (k === s.current ? ' (this quarter)' : ''), k === q)).join('')}</select></label>`;
   const bar = `<div class="g-top">${pick}<span class="grow"></span>
     ${s.hasTeam ? '<button type="button" class="btn ghost" data-g-expand="all">Expand all</button><button type="button" class="btn ghost" data-g-expand="none">Collapse all</button>' : ''}
+    <button type="button" class="btn" data-g-import title="Paste or pick a goals export from Lattice">Import from Lattice</button>
     ${s.hasTeam ? `<button type="button" class="btn" data-g-open="${esc(s.teamPath)}">Team goals</button>` : ''}</div>`;
   if (s.loading) return bar + '<p class="loading">Loading goals.</p>';
   const t = s.tree;
@@ -161,7 +162,7 @@ export function previewHtml({ doc, path, isReport, teamTitles = [], popover = nu
         <button type="button" class="lnk" data-g-sup-open="${o.line}" aria-haspopup="menu" aria-expanded="${menu === o.line}">Change</button></p>${menu === o.line ? supportsMenuHtml({ current: o.supports, options: teamTitles }) : ''}` : '';
     const p = o.krs.length ? o.krs.map(k => k.progress) : [];
     return `<section class="g-card" id="g-obj-${o.line}" data-g-obj="${o.line}">
-      <h3 class="g-ctitle">${esc(o.title)}</h3>${sup}
+      <div class="g-chead"><h3 class="g-ctitle">${esc(o.title)}</h3><span class="grow"></span><button type="button" class="btn ghost g-lattice" data-g-lattice="${o.line}" title="This objective and its key results, for a goal in Lattice">Copy for Lattice</button></div>${sup}
       ${o.krs.length ? `<div class="g-krbox">${o.krs.map(k => krRowHtml(k, { path, editable: true, popover })).join('')}</div>` : (p.length ? '' : '<p class="soft small">No key results yet. Add bullets like <code>- Key result: 0%</code>.</p>')}
       ${o.body ? `<div class="md g-body">${renderMd(o.body)}</div>` : ''}
     </section>`;
@@ -174,15 +175,19 @@ export function previewHtml({ doc, path, isReport, teamTitles = [], popover = nu
 /**
  * One owner's doc for a quarter.
  * s: {owner, ownerName, quarter, isReport, file: {path, text, mtime, dirty, saving, error, conflict, exists} or null,
- *     doc (parsed), mode: 'edit' | 'preview' | 'split', teamTitles, popover, menu, formatOpen, canCopy, loading}
+ *     doc (parsed), mode: 'edit' | 'preview' | 'split', teamTitles, popover, menu, formatOpen, canCopy, loading,
+ *     inPerson (on a person's Goals tab: a quarter picker instead of the way back), quarters, current}
  */
 export function docHtml(s) {
   const f = s.file;
+  const where = s.inPerson
+    ? `<label class="g-q"><span class="sr">Quarter</span><select data-g-quarter>${(s.quarters || [s.quarter]).map(k => opt(k, quarterLabel(k) + (k === s.current ? ' (this quarter)' : ''), k === s.quarter)).join('')}</select></label>`
+    : `<button type="button" class="btn ghost" data-g-back><svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4l-6 6 6 6"/></svg> Back to the tree</button>
+    <div class="g-who-head"><p class="eyebrow">${esc(quarterLabel(s.quarter))}</p><h2 class="oo-title">${esc(s.ownerName)}</h2></div>`;
   const head = `<div class="g-dhead">
-    <button type="button" class="btn ghost" data-g-back><svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4l-6 6 6 6"/></svg> Back to the tree</button>
-    <div class="g-who-head"><p class="eyebrow">${esc(quarterLabel(s.quarter))}</p><h2 class="oo-title">${esc(s.ownerName)}</h2></div>
+    ${where}
     <span class="grow"></span>
-    ${f && f.exists ? `<div class="seg" role="group" aria-label="View">${['edit', 'preview', 'split'].map(m => `<button type="button" class="${s.mode === m ? 'on' : ''}" data-g-mode="${m}" aria-pressed="${s.mode === m}">${m[0].toUpperCase() + m.slice(1)}</button>`).join('')}</div>
+    ${f && f.exists ? `<div class="seg" role="group" aria-label="View">${[['preview', 'Goals'], ['edit', 'Markdown'], ['split', 'Split']].map(([m, l]) => `<button type="button" class="${s.mode === m ? 'on' : ''}" data-g-mode="${m}" aria-pressed="${s.mode === m}">${l}</button>`).join('')}</div>
     <span class="g-status soft" role="status">${f.conflict ? '' : f.error ? `<span class="bad">Not saved yet: ${esc(f.error)}</span>` : f.saving ? 'Saving…' : f.dirty ? 'Unsaved' : 'Saved'}</span>
     <button type="button" class="btn" data-g-save${f.dirty ? '' : ' disabled'}>Save</button>` : ''}
   </div>`;
@@ -197,7 +202,39 @@ export function docHtml(s) {
   const editor = `<div class="g-edit"><textarea class="editor" id="g-editor" data-g-editor aria-label="Goals for ${esc(s.ownerName)}, ${esc(quarterLabel(s.quarter))}" spellcheck="true">${esc(f.text)}</textarea>${formatCardHtml(s.formatOpen)}</div>`;
   const preview = `<div class="g-preview" data-g-preview>${previewHtml({ doc: s.doc, path: f.path, isReport: s.isReport, teamTitles: s.teamTitles, popover: s.popover, menu: s.menu })}</div>`;
   const body = s.mode === 'preview' ? preview : s.mode === 'split' ? `<div class="g-split">${editor}${preview}</div>` : editor;
-  return head + conflict + body + `<p class="soft small">Saved as <span class="num">${esc(f.path)}</span> in your Workshop folder: a plain Markdown file.</p>`;
+  return head + conflict + body + `<p class="soft small">Saved as <span class="num">${esc(f.path)}</span> in your Workshop folder: a plain Markdown file. Click a progress value to update that line only.</p>`;
+}
+
+/**
+ * Import from Lattice. s: {step: 'paste' | 'review', text, error, plan: [{key, title, who, owner, unknownOwner,
+ * action, changes, krs, use}], people: [{folder, name}], quarter}
+ */
+export function importHtml(s) {
+  if (s.step !== 'review') {
+    return `<form method="dialog" class="confirm g-import" data-g-import-form>
+      <h2>Import goals from Lattice</h2>
+      <p class="soft small">Export your team's goals from Lattice as a CSV, or copy the rows from a spreadsheet, and paste them here. The first row needs headers (Goal, Owner, Progress, Status, Parent). Into ${esc(quarterLabel(s.quarter))}.</p>
+      <label class="sr" for="g-import-text">Goals to import</label>
+      <textarea id="g-import-text" name="text" rows="8" placeholder="Goal,Owner,Progress,Status,Parent goal">${esc(s.text || '')}</textarea>
+      <p><label class="btn">Pick a file<input type="file" accept=".csv,.tsv,.txt,text/csv,text/plain" data-g-import-file hidden></label></p>
+      ${s.error ? `<p class="bad" role="alert">${esc(s.error)}</p>` : ''}
+      <div class="acts"><button class="btn" value="cancel" formnovalidate>Cancel</button><button class="btn primary" value="review">Review</button></div>
+    </form>`;
+  }
+  const label = { new: 'New', update: 'Changes', same: 'No change' };
+  const rows = s.plan.map((it, i) => `<li class="g-irow">
+      <input type="checkbox" name="use" value="${i}"${it.use ? ' checked' : ''}${it.action === 'same' ? ' disabled' : ''} aria-label="Import ${esc(it.title)}">
+      <span class="g-ititle">${esc(it.title)}${it.changes.length ? `<span class="soft small">${it.changes.map(esc).join('; ')}</span>` : ''}</span>
+      ${it.unknownOwner ? `<select name="owner${i}" aria-label="Whose goal is ${esc(it.title)}"><option value="">Pick a person (${esc(it.who || 'no owner')})</option><option value="team">Team</option>${s.people.map(p => `<option value="${esc(p.folder)}">${esc(p.name)}</option>`).join('')}</select>` : `<span>${esc(it.who)}</span>`}
+      <span class="g-iact g-iact-${esc(it.action)}">${label[it.action] || ''}</span></li>`).join('');
+  const n = s.plan.filter(it => it.use && it.action !== 'same').length;
+  return `<form method="dialog" class="confirm g-import" data-g-import-form>
+    <h2>Import goals from Lattice</h2>
+    <p class="soft small">${esc(quarterLabel(s.quarter))} · ${s.plan.length} objective${s.plan.length === 1 ? '' : 's'} found, matched to people by name. Nothing in Rapport is deleted; your notes and other goals stay.</p>
+    ${s.plan.length ? `<ul class="g-ilist">${rows}</ul>` : '<p class="soft">No goals found in that text.</p>'}
+    ${s.error ? `<p class="bad" role="alert">${esc(s.error)}</p>` : ''}
+    <div class="acts"><button class="btn" value="back" formnovalidate>Back</button><button class="btn" value="cancel" formnovalidate>Cancel</button><button class="btn primary" value="import"${n ? '' : ' disabled'}>Import ${n}</button></div>
+  </form>`;
 }
 
 /** Shown instead of Goals when the browser's folder needs Allow. */

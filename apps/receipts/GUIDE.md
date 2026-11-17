@@ -2,18 +2,17 @@
 
 Receipts, 1:1s and goals for you, your reports and your manager. Rapport was called Receipts until 2.0.0, when it took in the 1:1s app; its app id is still `receipts`, so its data, folder and links did not move. Full guide: [README.md](README.md).
 
-- **Me**: your own receipts for a self review. Star the ones that should lead your review.
-- **Reports**: one page per direct report. At the top, your 1:1 with them: prep from what Docket and Rapport know since your last 1:1, and today's note. Below, their receipts (wins, feedback given, growth areas, concerns). Anyone with nothing noted in 30 days is flagged.
-- **1:1s**: everyone you meet with, sorted by who is due: reports, your manager, peers, skip-levels. Reports open on their page in Reports; anyone else gets a 1:1 page of their own. **People and links** sets each person's cadence and links (their report, their Docket name).
-- **Goals**: the team's and each report's OKRs for a quarter as a tree: team objectives, each report objective under the one its `Supports:` line names, and a Not aligned group. Click a key result's progress to update that line in place. Each doc is a plain Markdown file (Edit, Preview, Split); renaming a team objective here offers to update the reports that support it. Format: the repo README's Goals format.
-- **Upward**: optional, turned on in Settings. Support received, asks, and feedback for your manager, with a link to your 1:1s with them when a 1:1s person has their name.
-- **From Docket**: finished tasks ticked in Docket's Wrap up wait at the top of Me to accept or dismiss.
-- **After a 1:1**: **Log follow-ups** sends the open follow-ups you tick to Docket as tasks, yours or handed to the person you met (waiting on them), and turns the wins you tick into receipts about that report (evidence "From a 1:1"). Logging the same note twice sends each follow-up and adds each win once. **Copy as quick-add lines** copies the follow-ups to paste into Docket instead.
-- **Tidy notes** (optional, opencode connector): proposes Follow-ups and Wins from today's note, without the person's name. Tick, edit, then **Add to the note**; nothing is written before that.
-- **People**: reports and your manager are people in Workshop's people directory (workshop `docs/people.md`), shared with Docket, Home and Settings. Adding or editing a report here changes it there.
-- **Review**: coverage per review section, gaps called out, and a plain-text draft to copy, plus CSV.
+- **People** (home): My team, you, your reports, your manager and the peers you meet with, whoever is due for a 1:1 first.
+- **The Log box** on every page adds a receipt: about the open page's person, the About you pick, or `@handle` at the start.
+- **A person's page**: 1:1 (Bring up, today's note, Wrap up, Copy for Lattice), Log, Goals (reports) and Review, as that person has them. You: Log and Review. Peers: 1:1.
+- **My team**: the team's goals as a tree, with Import from Lattice.
+- **Wrap up** sends ticked follow-ups to Docket as tasks (yours, or handed to the person and waiting on them) and ticked wins to a report's Log (evidence "From a 1:1"). Each line goes once. With Tandem on, it can ask Tandem to read the note first.
+- **Copy for Lattice**: talking points, a receipt, a goal, a review section, or the whole review. Concerns are never copied.
+- **Settings**: Workshop's Settings, Apps, Rapport (review cycle, review sections, flag a report after, Tandem in 1:1s), stored as Rapport's app settings (`docs/app-settings.md`). Until 5.0.0 they were in `config.meta` (copied once; `meta.settingsMovedAt`, `meta.tandemMovedAt`). People: Settings, People.
 
-`N` focuses the new-receipt box, `Ctrl+Enter` saves. On the 1:1s tab `j`/`k` move, `Enter` opens, `Esc` goes back; with a note or goals doc open `Ctrl+S` saves and `Ctrl+E` switches Edit and Preview. In the goals tree, arrow keys move, open and close, `Enter` opens. Palette commands: Add a receipt, Prep a 1:1, Build a review, Open goals.
+`N` focuses the Log box, Enter saves. With a note or goals doc open `Ctrl+S` saves and `Ctrl+E` switches Edit and Preview. Palette commands: Log a receipt, Prep a 1:1, Build my review, Open team goals.
+
+Routes (after `#/receipts/`): `people` (or nothing), `me`, `me/review`, `p/<person id>[/1on1|log|goals|review]`, `p/<id>/goals/<yyyy-qN>`, `o/<1:1s id>` (someone not in People), `up` (your manager), `team[/<yyyy-qN>[/team]]`. Rapport 4 addresses (`team/<id>`, `1on1s[/<id>]`, `goals[/...]`, `review`, `settings`) open the same places.
 
 Data, all under the `receipts` app through the SDK like every other app:
 
@@ -21,7 +20,7 @@ Data, all under the `receipts` app through the SDK like every other app:
 | --- | --- |
 | `entries`, `config` | Receipts and settings. Reports are in the people directory, not here. |
 | `oneonones/people` | People you have 1:1s with: `{id, personId, name, cadenceDays, archived}`. `personId` is the person in the people directory; `id` names their notes folder. |
-| `oneonones/settings` | No items. `meta.aiDraft` (`false` turns the draft step off), `meta.moved` (the copy from the old 1:1s app). |
+| `oneonones/settings` | No items. `meta.aiDraft` (read once, into the Tandem setting, since 5.0.0), `meta.moved` (the copy from the old 1:1s app). |
 | `oneonones/notes/<person>/<yyyy-mm-dd>.md` | 1:1 notes, plain Markdown files (`ws.files`). |
 | `goals/team/<yyyy-qN>.md`, `goals/<person>/<yyyy-qN>.md` | Goals for the team and each report, one plain Markdown file per quarter (`ws.files`). `<person>` is the person id as a folder (`p_mh3k9x2a` is `p-mh3k9x2a`). |
 
@@ -29,4 +28,4 @@ Reads and changes Workshop's people directory through `ws.people` (workshop `doc
 
 **Moving from 1:1s.** On first open, Rapport copies the old 1:1s app's people and settings (only if Rapport has none yet) and its notes (any not already here) into the paths above, and says so once. The old files in `<Workshop folder>/oneonones/` are never changed or removed. For 30 days after that first copy, notes still in the old folder and missing here are copied on each open; after that a note removed by hand stays removed.
 
-**Draft talking points** (optional): with the opencode connector on and allowed in People and links, sends the prep (without the name, and without concerns unless ticked for that run) to Tandem's `/one-on-one` through the connector's `oneonone.draft` and `oneonone.result` actions. It drafts only; **Add to the note** appends it. Needs Tandem Core 2.8.0 or later. Nothing else uses the network.
+**Draft talking points with Tandem** and Wrap up's **Ask Tandem** (optional): with the opencode connector on and Tandem in 1:1s on in Settings, Apps, Rapport. Drafting sends the prep (without the name, and without concerns unless ticked for that run) to Tandem's `/one-on-one` through the connector's `oneonone.draft` and `oneonone.result` actions. It drafts only; **Add to the note** appends it. Ask Tandem sends the note's lines (the name left out) through `oneonone.tidy`. Needs Tandem Core 2.8.0 or later. Nothing else uses the network.

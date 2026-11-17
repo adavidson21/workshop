@@ -6,13 +6,16 @@
    with view(). Clicks on this module's controls are handled here by their data-g-* attributes. model.js and
    view.js are pure. Files go through ws.files with the mtime write loop, as 1:1 notes do. */
 import { GOALS, TEAM, buildTree, carryOver, goalsPath, isQuarter, norm, ownerFolder, parseDoc, parseFiles, quarterKey, quarterLabel, quartersFrom, renameSupports, renamedObjectives, reportTemplate, setKr, setSupports, shiftQuarter, teamTemplate, validProgress } from './model.js';
-import { docHtml, previewHtml, setupHtml, treeHtml } from './view.js';
+import { docHtml, importHtml, previewHtml, setupHtml, treeHtml } from './view.js';
+import { applyImport, objectiveText, parseLatticeGoals, planImport } from '../lattice.js';
 
 /**
  * ws: the SDK. root: the element main.js paints into. host: what this module needs from main.js:
- *   repaint()     paint the page again
- *   go(path)      open a Rapport path ('goals', 'goals/2026-q4/team', ...)
- *   reports()     your reports, archived included: [{id, name, archived}] in Reports' order
+ *   repaint()            paint the page again
+ *   open(quarter, owner) open the tree (owner ''), the team's doc ('team') or a report's (their folder); main.js
+ *                        turns it into a Rapport path (team/<q>, team/<q>/team, p/<id>/goals/<q>)
+ *   reports()            your reports, archived included: [{id, name, archived}] in Reports' order
+ *   meNames()            names that mean you, for Import from Lattice (goals you own are the team's)
  */
 export function createGoalsPage(ws, root, host) {
   const ui = {
@@ -31,6 +34,7 @@ export function createGoalsPage(ws, root, host) {
     formatOpen: false,
     focusLine: null,         // scroll this objective into view after the next paint
     loadingTree: false,
+    inPerson: false,         // the doc is on a person's Goals tab
   };
   const cache = new Map();   // path -> {mtime, text, doc}
   const paint = () => host.repaint();
@@ -142,7 +146,8 @@ export function createGoalsPage(ws, root, host) {
       owner, ownerName: ownerName(owner, d && d.exists ? parseDoc(d.text) : null), quarter: ui.quarter, isReport: owner !== TEAM,
       file: d && !d.loading ? d : null, doc: d && d.exists ? parseDoc(d.text) : null, mode: ui.mode,
       teamTitles: teamTitles(), popover: ui.popover, menu: ui.menu, formatOpen: ui.formatOpen,
-      canCopy: !!ui.files.find(f => f.path === prev), loading: !d || d.loading
+      canCopy: !!ui.files.find(f => f.path === prev), loading: !d || d.loading,
+      inPerson: ui.inPerson, quarters: quartersFrom(ui.files), current: quarterKey()
     });
   }
 
@@ -267,7 +272,7 @@ export function createGoalsPage(ws, root, host) {
     ui.mode = 'edit';
     ui.doc = null;
     if (ui.owner === owner) await openDoc(owner);
-    else host.go(`goals/${q}/${owner}`);
+    else host.open(q, owner);
     setTimeout(() => root.querySelector('[data-g-editor]')?.focus(), 60);
   }
 
@@ -326,6 +331,103 @@ export function createGoalsPage(ws, root, host) {
     saveDoc();
   }
 
+  /* ---------- Lattice ---------- */
+
+  /** Copy for Lattice: one objective and its key results, for a goal in Lattice. */
+  async function copyObjective(line) {
+    const d = ui.doc;
+    const o = d ? parseDoc(d.text).objectives.find(x => x.line === line) : null;
+    if (!o) return;
+    const text = objectiveText(o);
+    try { await navigator.clipboard.writeText(text); ws.toast('Copied. Paste it into the goal in Lattice.', { kind: 'success' }); }
+    catch { ws.toast('Could not copy. Switch to Markdown and copy the lines by hand.', { kind: 'warn' }); }
+  }
+
+  /* Import from Lattice: paste or pick an export, review what lands where, then write only what changed. */
+  const idlg = document.createElement('dialog');
+  idlg.className = 'oo-dlg g-import-dlg';
+  idlg.setAttribute('aria-label', 'Import goals from Lattice');
+  document.body.appendChild(idlg);
+  let imp = null;
+  const people = () => reports().filter(p => !p.archived).map(p => ({ id: p.id, name: p.name, folder: ownerFolder(p.id) }));
+  function showImport() {
+    idlg.innerHTML = importHtml({ ...imp, people: people(), quarter: ui.quarter });
+    if (!idlg.open) idlg.showModal();
+    idlg.querySelector(imp.step === 'review' ? 'button.primary' : 'textarea')?.focus();
+  }
+  function importGoals() { imp = { step: 'paste', text: '', error: '', plan: [] }; showImport(); }
+  async function reviewImport() {
+    let goals;
+    try { goals = parseLatticeGoals(imp.text); } catch (e) { imp.error = e.message; return showImport(); }
+    if (!goals.length) { imp.error = 'No goals found. Paste the rows with their header row.'; return showImport(); }
+    const q = ui.quarter, docs = {};
+    for (const owner of [TEAM, ...people().map(p => p.folder)]) {
+      const path = goalsPath(owner, q);
+      try { const f = await readFile(path); if (f) docs[path] = f.text; } catch (e) { /* treated as missing */ }
+    }
+    const plan = planImport(goals, { people: people(), meNames: host.meNames ? host.meNames() : [], docs, quarter: q });
+    imp = { ...imp, step: 'review', error: '', plan: plan.map(it => ({ ...it, use: it.action !== 'same' && !it.unknownOwner })) };
+    showImport();
+  }
+  async function runImport(form) {
+    const fd = new FormData(form);
+    const use = new Set(fd.getAll('use').map(Number));
+    const picked = imp.plan.map((it, i) => {
+      if (!use.has(i) || it.action === 'same') return null;
+      const owner = it.unknownOwner ? String(fd.get(`owner${i}`) || '') : it.owner;
+      return owner ? { ...it, owner, supports: owner === TEAM ? '' : it.supports } : null;
+    }).filter(Boolean);
+    if (!picked.length) { imp.error = 'Tick at least one, and pick a person for any goal whose owner was not found.'; return showImport(); }
+    idlg.close();
+    const q = ui.quarter;
+    let wroteN = 0;
+    const failed = [];
+    for (const owner of [...new Set(picked.map(it => it.owner))]) {
+      const path = goalsPath(owner, q);
+      const items = picked.filter(it => it.owner === owner);
+      try {
+        for (let tries = 0; tries < 2; tries++) {
+          const f = await ws.files.read(path).catch(e => { if (e && e.code === 'not_found') return null; throw e; });
+          const title = owner === TEAM ? `Team goals, ${quarterLabel(q)}` : quarterLabel(q);
+          const next = applyImport(f ? f.content : '', items, { title });
+          if (f && next === f.content) break;
+          try {
+            const w = await ws.files.write(path, next, f ? { mtime: f.mtime } : { create: true });
+            wrote(path, next, w.mtime);
+            wroteN += items.length;
+            break;
+          } catch (e) { if (e.code !== 'conflict' || tries) throw e; }
+        }
+      } catch (e) { failed.push(ownerName(owner)); }
+    }
+    await listFiles();
+    try { await loadQuarter(q); } catch (e) { /* shown on the next try */ }
+    if (ui.doc) { const f = await readFile(ui.doc.path).catch(() => null); if (f && !ui.doc.dirty) Object.assign(ui.doc, { text: f.text, mtime: f.mtime, exists: true, base: f.doc }); }
+    if (wroteN) ws.toast(`Imported ${wroteN} objective${wroteN === 1 ? '' : 's'} from Lattice.`, { kind: 'success' });
+    if (failed.length) ws.toast(`Not imported (changed elsewhere, try again): ${failed.join(', ')}.`, { kind: 'warn' });
+    imp = null;
+    paint();
+  }
+  idlg.addEventListener('close', () => {
+    const v = idlg.returnValue, form = idlg.querySelector('form');
+    if (!imp || !form) return;
+    if (imp.step === 'paste' && form.elements.text) imp.text = form.elements.text.value;
+    idlg.returnValue = '';
+    if (v === 'review') reviewImport();
+    else if (v === 'back') { imp.step = 'paste'; imp.error = ''; showImport(); }
+    else if (v === 'import') runImport(form);
+    else imp = null;
+  });
+  idlg.addEventListener('change', async e => {
+    if (!e.target.matches('[data-g-import-file]')) return;
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    if (file.size > 2e6) { imp.error = 'That file is too big for a goals export.'; return showImport(); }
+    imp.text = await file.text();
+    imp.error = '';
+    showImport();
+  });
+
   /* ---------- HTML for main.js ---------- */
 
   function view() {
@@ -344,10 +446,12 @@ export function createGoalsPage(ws, root, host) {
 
   /* ---------- routes ---------- */
 
-  /** Rapport's route changed: view, then the quarter and the owner from the path. */
-  async function route(view, id, sub) {
+  /** Rapport's route changed: view ('goals' when Goals shows), the quarter and the owner ('' the tree).
+      opts.inPerson: the doc is on a person's Goals tab. */
+  async function route(view, id, sub, opts = {}) {
     if (view !== 'goals') { ui.on = false; await leaveDoc(); return; }
     ui.on = true;
+    ui.inPerson = !!opts.inPerson;
     const q = isQuarter(id) ? id : quarterKey();
     const owner = sub && /^[a-z0-9][a-z0-9-]{0,39}$/.test(sub) ? sub : '';
     const changed = q !== ui.quarter;
@@ -365,10 +469,10 @@ export function createGoalsPage(ws, root, host) {
   }
 
   /** First load: list the files, then open whatever the route asked for. */
-  async function start(view, id, sub) {
+  async function start(view, id, sub, opts) {
     await listFiles();
     ui.loaded = true;
-    await route(view, id, sub);
+    await route(view, id, sub, opts);
   }
 
   /* ---------- input ---------- */
@@ -399,9 +503,11 @@ export function createGoalsPage(ws, root, host) {
       if (!m) return;
       ui.focusLine = x.dataset.gAt != null ? Number(x.dataset.gAt) : null;
       if (ui.focusLine != null) ui.mode = 'preview';
-      host.go(`goals/${m[2]}/${m[1]}`); return;
+      host.open(m[2], m[1]); return;
     }
-    if (el('[data-g-back]')) { host.go(`goals/${ui.quarter}`); return; }
+    if (el('[data-g-back]')) { host.open(ui.quarter, ''); return; }
+    if ((x = el('[data-g-lattice]'))) { copyObjective(Number(x.dataset.gLattice)); return; }
+    if (el('[data-g-import]')) { importGoals(); return; }
     if ((x = el('[data-g-start]'))) { startDoc(x.dataset.gStart); return; }
     if (el('[data-g-copy]')) { startDoc(ui.owner, true); return; }
     if ((x = el('[data-g-mode]'))) { const was = ui.mode; ui.mode = x.dataset.gMode; if (was !== 'preview' && ui.mode === 'preview') await settle(); paint(); return; }
@@ -416,7 +522,7 @@ export function createGoalsPage(ws, root, host) {
 
   root.addEventListener('change', e => {
     if (!ui.on) return;
-    if (e.target.matches('[data-g-quarter]')) host.go(`goals/${e.target.value}`);
+    if (e.target.matches('[data-g-quarter]')) host.open(e.target.value, ui.inPerson ? ui.owner : '');
   });
 
   root.addEventListener('input', e => {
@@ -492,7 +598,7 @@ export function createGoalsPage(ws, root, host) {
     if (ui.on && !ui.owner) { try { await loadQuarter(ui.quarter); } catch (e) { /* shown on the next try */ } }
     paint();
   });
-  ws.on('command', ({ id }) => { if (id === 'goals-rename') applyRenames(); if (id === 'goals') host.go('goals'); });
+  ws.on('command', ({ id }) => { if (id === 'goals-rename') applyRenames(); if (id === 'goals') host.open(quarterKey(), ''); });
   ws.on('online', async p => { if (p && p.online) { await listFiles(); paint(); } });
 
   return { ui, view, route, start, afterPaint, settle, isWide: () => ui.on };

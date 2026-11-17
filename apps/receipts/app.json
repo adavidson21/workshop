@@ -2,8 +2,8 @@
   "manifestVersion": 1,
   "id": "receipts",
   "name": "Rapport",
-  "version": "4.3.0",
-  "description": "Receipts, 1:1s and goals for you, your reports and your manager: log wins and feedback, prep 1:1s, keep the team's OKRs as a tree, and build review drafts by section.",
+  "version": "5.0.0",
+  "description": "Your private notebook about the people you work with, next to Lattice: one People list, one Log box, and a page per person with their 1:1, Log, goals and review.",
   "icon": "icon.svg",
   "entry": "index.html",
   "order": 30,
@@ -14,52 +14,72 @@
   ],
   "routes": [
     {
+      "path": "people",
+      "title": "People"
+    },
+    {
       "path": "me",
-      "title": "My receipts"
+      "title": "My Log"
     },
     {
-      "path": "team",
-      "title": "Reports"
+      "path": "me/review",
+      "title": "My review"
     },
     {
-      "path": "team/:id",
-      "title": "A report: 1:1 and receipts"
+      "path": "p/:id",
+      "title": "A person"
     },
     {
-      "path": "1on1s",
-      "title": "1:1s"
+      "path": "p/:id/:tab",
+      "title": "A person: 1:1, Log, Goals or Review"
     },
     {
-      "path": "1on1s/settings",
-      "title": "1:1s people and links"
+      "path": "p/:id/goals/:quarter",
+      "title": "A report's goals for a quarter"
     },
     {
-      "path": "1on1s/:id",
-      "title": "Prep a 1:1 with a person"
-    },
-    {
-      "path": "goals",
-      "title": "Goals for this quarter"
-    },
-    {
-      "path": "goals/:quarter",
-      "title": "Goals for a quarter"
-    },
-    {
-      "path": "goals/:quarter/:owner",
-      "title": "Goals: the team's or one report's doc"
+      "path": "o/:id",
+      "title": "A 1:1 with someone not in People"
     },
     {
       "path": "up",
-      "title": "Upward"
+      "title": "Your manager's Log"
+    },
+    {
+      "path": "team",
+      "title": "My team's goals"
+    },
+    {
+      "path": "team/:quarter",
+      "title": "My team's goals for a quarter"
+    },
+    {
+      "path": "team/:quarter/team",
+      "title": "The team's goals doc"
+    },
+    {
+      "path": "1on1s",
+      "title": "People (old address)"
+    },
+    {
+      "path": "1on1s/:id",
+      "title": "A 1:1 (old address)"
+    },
+    {
+      "path": "goals",
+      "title": "My team's goals (old address)"
+    },
+    {
+      "path": "goals/:quarter/:owner",
+      "title": "A goals doc (old address)"
     },
     {
       "path": "review",
-      "title": "Build a review"
+      "title": "My review (old address)"
     },
     {
       "path": "settings",
-      "title": "Rapport settings"
+      "title": "Rapport's settings, in Settings"
     }
   ],
   "connectors": [
@@ -76,27 +96,27 @@
     "receipts",
     {
       "name": "1:1s",
-      "path": "1on1s"
+      "path": "people"
     },
     {
       "name": "1:1",
-      "path": "1on1s"
+      "path": "people"
     },
     {
       "name": "oneonones",
-      "path": "1on1s"
+      "path": "people"
     },
     {
       "name": "one-on-ones",
-      "path": "1on1s"
+      "path": "people"
     },
     {
       "name": "goals",
-      "path": "goals"
+      "path": "team"
     },
     {
       "name": "okrs",
-      "path": "goals"
+      "path": "team"
     }
   ],
   "data": [
@@ -114,23 +134,23 @@
   "commands": [
     {
       "id": "new",
-      "title": "Add a receipt",
-      "route": "me"
+      "title": "Log a receipt",
+      "route": "people"
     },
     {
       "id": "prep",
       "title": "Prep a 1:1",
-      "route": "1on1s"
+      "route": "people"
     },
     {
       "id": "review",
-      "title": "Build a review",
-      "route": "review"
+      "title": "Build my review",
+      "route": "me/review"
     },
     {
       "id": "goals",
-      "title": "Open goals",
-      "route": "goals"
+      "title": "Open team goals",
+      "route": "team"
     }
   ],
   "files": [
@@ -138,6 +158,7 @@
     "js/goals/model.js",
     "js/goals/page.js",
     "js/goals/view.js",
+    "js/lattice.js",
     "js/main.js",
     "js/markdown.js",
     "js/oneonones/data.js",
@@ -146,5 +167,51 @@
     "js/oneonones/view.js",
     "js/state.js"
   ],
-  "privateFiles": true
+  "privateFiles": true,
+  "settings": [
+    {
+      "id": "cycleStart",
+      "type": "date",
+      "title": "Review cycle starts",
+      "description": "The first day your next review covers. Rapport's default period everywhere.",
+      "default": ""
+    },
+    {
+      "id": "cycleEnd",
+      "type": "date",
+      "title": "Review cycle ends",
+      "default": ""
+    },
+    {
+      "id": "sections",
+      "type": "lines",
+      "title": "Review sections",
+      "description": "Matching your review form in Lattice. Renaming one does not retag old receipts.",
+      "default": [
+        "Results",
+        "Craft",
+        "Ownership",
+        "Collaboration",
+        "Communication",
+        "Leadership",
+        "Growth"
+      ]
+    },
+    {
+      "id": "staleDays",
+      "type": "number",
+      "title": "Flag a report after (days)",
+      "description": "Highlights a report on People when nothing is logged about them for this many days.",
+      "default": 30,
+      "min": 1,
+      "max": 365
+    },
+    {
+      "id": "tandem",
+      "type": "boolean",
+      "title": "Tandem in 1:1s",
+      "description": "Draft talking points with Tandem, and let Wrap up ask it to read the note. Needs the opencode connector. Off: nothing is sent to opencode.",
+      "default": true
+    }
+  ]
 }

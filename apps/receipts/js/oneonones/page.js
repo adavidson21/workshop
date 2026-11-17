@@ -1,25 +1,27 @@
-/* Rapport's 1:1s: the 1:1s tab and the 1:1 section on a report's page.
+/* Rapport's 1:1s: the 1:1 tab on a person's page (Rapport 5.0.0).
 
-   For one person and the time since your last 1:1, gathers what Docket and Rapport already know (read only,
-   no AI), keeps the 1:1 note as a plain Markdown file in your Workshop folder, and after the meeting sends
+   For one person and the time since your last 1:1, gathers what Docket, Loom and Rapport already know (read only,
+   no AI), keeps the 1:1 note as a plain Markdown file in your Workshop folder, and after the meeting Wrap up sends
    follow-ups to Docket as tasks (accepted handoffs, Workshop docs/handoffs.md; or copies them as quick-add lines)
-   and turns wins into receipts. Optional steps ask your opencode agents, through the opencode connector, for
-   draft talking points and to tidy a note's rough lines into follow-ups and wins.
+   and turns wins into receipts. Copy for Lattice puts talking points for Lattice's shared agenda on the clipboard.
+   With Tandem on (Rapport's Tandem setting and the opencode connector), Tandem can draft talking points, and
+   Wrap up can ask it to read the note for follow-ups and wins you didn't mark.
 
-   main.js owns the page, the hash and the paint loop. It calls route() on every route change and asks for HTML
-   with view() (the 1:1s tab) and panel() (a report's page). Clicks on this module's controls are handled here
-   by their data- attributes. data.js loads and saves; model.js, view.js and markdown.js are pure. */
+   main.js owns the page, the hash and the paint loop. It calls show() when a person's 1:1 tab opens or closes and
+   asks for HTML with panel(). Clicks on this module's controls are handled here by their data- attributes.
+   data.js loads and saves; model.js, view.js and markdown.js are pure. */
 import { createOneOnOnes } from './data.js';
-import { DEFAULT_CADENCE, NOTES, addDays, PEOPLE, SETTINGS, SOURCES, buildPacket, cadenceState, directoryChoices, directorySuggestions, isoDay, personFromDirectory, noteTemplate, packetMarkdown, parseFollowUps, parseWins, quickAddLines, winEntries, withDirectory, esc, applyTidy, followUpHandoffs, followUpId, followUpOwner, parseTidy, tidyInput } from './model.js';
-import { confirmHtml, homeHtml, logHtml, personHtml, settingsHtml, setupCard, startPanelHtml } from './view.js';
+import { DEFAULT_CADENCE, NOTES, addDays, PEOPLE, SETTINGS, SOURCES, buildPacket, cadenceState, isoDay, personFromDirectory, noteTemplate, packetMarkdown, parseFollowUps, parseWins, quickAddLines, winEntries, withDirectory, esc, applyTidy, followUpHandoffs, followUpId, followUpOwner, parseTidy, tidyInput } from './model.js';
+import { confirmHtml, personHtml, setupCard, startHtml, wrapHtml } from './view.js';
+import { talkingPoints } from '../lattice.js';
 
 /**
  * ws: the SDK. root: the element main.js paints into. host: what this module needs from main.js:
  *   repaint()            paint the page again
- *   go(path)             open a Rapport path ('1on1s', 'team/<id>', ...)
  *   isReport(id)         id is one of your reports (in the people directory)
- *   reportName(id)       a report's name
+ *   reportName(id)       a directory person's name
  *   addWins(entries)     add receipts that are not there yet; resolves how many were added
+ *   tandem()             Rapport's Tandem setting is on (Settings, Apps, Rapport)
  */
 export function createOneOnOnesPage(ws, root, host) {
   const dlg = document.createElement('dialog');
@@ -31,20 +33,17 @@ export function createOneOnOnesPage(ws, root, host) {
   const v = d.v;
 
   const ui = {
-    view: '',              // Rapport's view: '1on1s', 'team' or another
-    mode: 'off',           // 'list', 'settings', 'person' (1:1s tab), 'panel' (a report's page), 'off'
+    mode: 'off',           // 'panel' (a person's 1:1 tab) or 'off'
     personId: null,        // the 1:1s person shown
-    reportId: null,        // on a report's page
-    selected: -1,          // row in the list, for j and k
-    edit: null,            // settings: the person being edited, {} for a new one
+    dirId: null,           // the directory person whose page is open ('' for a 1:1s person not in People)
     note: null,            // {day, path, text, mtime, dirty, saving, error, conflict, mode}
     lastText: {},          // path -> text of earlier notes, for the packet
     ai: { state: 'idle', text: '', error: '', includeConcerns: false },
-    tidy: { state: 'idle', error: '', followUps: [], wins: [] },
+    wrap: { state: 'idle', error: '' }, // Tandem reading the note for Wrap up
   };
+  const tandemOn = () => !!(host.tandem ? host.tandem() : v.settings.aiDraft) && !!v.oc;
   // Docket shares this data folder: inside Workshop, or with the agent (docs/handoffs.md, rule 5).
   const canSend = () => !!ws.embedded || ws.backend === 'agent';
-  const noTidy = () => ({ state: 'idle', error: '', followUps: [], wins: [] });
   // You, from the people directory, so a follow-up naming you is yours.
   const meInDir = () => (v.dir && Array.isArray(v.dir.items) ? v.dir.items.find(it => it && it.kind === 'person' && it.relation === 'self' && !it.archived) : null) || null;
   const today = () => isoDay(new Date());
@@ -62,9 +61,11 @@ export function createOneOnOnesPage(ws, root, host) {
       .sort((a, b) => (b.due - a.due) || ((b.days ?? 1e9) - (a.days ?? 1e9)) || a.person.name.localeCompare(b.person.name));
   }
   const personNow = () => shown().find(p => p.id === ui.personId) || null;
-  // A report's 1:1s person: the active one linked to them, else an archived one (so no second one is made).
-  const personForReport = rid => shown().find(p => p.personId === rid && !p.archived) || shown().find(p => p.personId === rid) || null;
+  // A directory person's 1:1s person: the active one linked to them, else an archived one (so no second one is made).
+  const personFor = did => shown().find(p => p.personId === did && !p.archived) || shown().find(p => p.personId === did) || null;
   const reportOf = p => (p && p.personId && host.isReport(p.personId) ? p.personId : '');
+  // Where a 1:1s person's page is: their People page, or their own when they are not in People.
+  const routeOf = p => (p.personId && p.linked ? `p/${p.personId}` : `o/${p.id}`);
 
   function packetFor(person) {
     const notes = d.notesOf(person.id);
@@ -83,92 +84,60 @@ export function createOneOnOnesPage(ws, root, host) {
     return packet;
   }
 
-  // Who a 1:1s person can be: anyone in the people directory (reports first), and the ones to add in one click.
-  function pickers() {
-    return {
-      choices: directoryChoices(v.dir, ui.edit && ui.edit.personId),
-      fromDirectory: directorySuggestions(v.people, v.dir),
-      embedded: !!ws.embedded
-    };
-  }
-
-  function personBody(person, panel) {
+  function personBody(person) {
     return personHtml({
-      person, packet: packetFor(person), note: ui.note, notes: d.notesOf(person.id), today: today(),
-      ai: ui.ai, aiOpts: { enabled: v.settings.aiDraft, ready: v.oc }, tidy: ui.tidy,
-      panel, due: panel ? cadenceState(d.notesOf(person.id), today(), person.cadenceDays) : null
+      person: { ...person, canLog: !!reportOf(person) }, packet: packetFor(person), note: ui.note, notes: d.notesOf(person.id), today: today(),
+      ai: ui.ai, aiOpts: { enabled: tandemOn(), ready: true }, wrap: ui.wrap
     });
   }
 
   /* ---------- HTML for main.js ---------- */
 
-  /** The 1:1s tab. */
-  function view() {
+  /** The 1:1 tab: for a directory person (dirId), or for a 1:1s person not in People (oid). */
+  function panel({ dirId = '', oid = '', name = '' } = {}) {
     const setup = setupCard(v, ws.embedded);
     if (setup) return setup;
     if (!v.loaded) return '<p class="loading">Loading your 1:1s.</p>';
-    if (ui.mode === 'settings') return settingsHtml({ ...v, people: shown() }, pickers(), ui.edit);
-    if (ui.mode === 'person') {
-      const person = personNow();
-      if (person) return personBody(person, false);
-      return `<div class="engcard"><h2>Not found</h2><p>This person is not in your 1:1s.</p><div class="acts"><button class="btn" data-route="">All 1:1s</button></div></div>`;
-    }
-    return homeHtml(rows(), ui, directorySuggestions(v.people, v.dir));
-  }
-
-  /** The 1:1 section on a report's page. */
-  function panel(rid, name) {
-    const setup = setupCard(v, ws.embedded);
-    if (setup) return setup;
-    if (!v.loaded) return '<p class="loading">Loading your 1:1s.</p>';
-    const person = personForReport(rid);
-    if (!person) return startPanelHtml(name || host.reportName(rid) || 'this report');
+    const person = oid ? shown().find(p => p.id === oid) || null : personFor(dirId);
+    if (!person) return oid ? '<div class="engcard"><h2>Not found</h2><p>This person is not in your 1:1s.</p></div>' : startHtml(name || host.reportName(dirId) || 'them');
+    if (person.archived && !oid) return startHtml(person.name);
     if (person.id !== ui.personId) {
       // Linked since the route was shown (another window, or the first load): open them.
-      if (ui.mode === 'panel' && ui.reportId === rid) queueMicrotask(() => { if (ui.reportId === rid) openPerson(person.id); });
+      if (ui.mode === 'panel') queueMicrotask(() => { if (ui.mode === 'panel' && (oid ? oid === person.id : ui.dirId === dirId)) openPerson(person.id); });
       return '<p class="loading">Loading your 1:1s.</p>';
     }
-    return personBody(person, true);
+    return personBody(person);
   }
 
   /* ---------- routes ---------- */
 
   async function leaveNote() { if (ui.note && ui.note.dirty) await saveNote(); }
 
-  /** Rapport's route changed (or the data loaded): show the matching 1:1s person, if any. */
-  async function route(view, id) {
-    ui.view = view;
-    if (view === '1on1s') {
-      ui.reportId = null;
-      if (id === 'settings') { await leaveNote(); ui.mode = 'settings'; return paint(); }
-      ui.edit = null;
-      if (id) { ui.mode = 'person'; return openPerson(id); }
+  /** A person's 1:1 tab opened ({dirId} or {oid}), or closed (null). */
+  async function show(ref) {
+    if (!ref) {
       await leaveNote();
-      ui.mode = 'list'; ui.personId = null; ui.note = null;
-      return paint();
+      ui.mode = 'off'; ui.personId = null; ui.dirId = null; ui.note = null;
+      return;
     }
-    ui.edit = null;
-    if (view === 'team' && id) {
-      ui.mode = 'panel'; ui.reportId = id;
-      const p = personForReport(id);
-      if (p) return openPerson(p.id);
-      await leaveNote();
-      ui.personId = null; ui.note = null;
-      return paint();
-    }
+    ui.mode = 'panel';
+    ui.dirId = ref.dirId || '';
+    const p = ref.oid ? shown().find(x => x.id === ref.oid) : personFor(ref.dirId);
+    if (p && !(p.archived && !ref.oid)) return openPerson(p.id);
     await leaveNote();
-    ui.mode = 'off'; ui.personId = null; ui.reportId = null; ui.note = null;
+    ui.personId = null; ui.note = null;
+    return paint();
   }
 
   /* ---------- a person and their note ---------- */
 
-  async function openPerson(id, day = null) {
-    if (ui.personId === id && !day) return paint(); // already open: keep the note being edited
+  async function openPerson(id, day = null, force = false) {
+    if (ui.personId === id && !day && !force) return paint(); // already open: keep the note being edited
     await leaveNote();
     ui.personId = id;
     ui.note = null;
     ui.ai = { state: 'idle', text: '', error: '', includeConcerns: false };
-    ui.tidy = noTidy();
+    ui.wrap = { state: 'idle', error: '' };
     paint();
     if (!v.people.some(p => p.id === id)) return;
     const notes = d.notesOf(id);
@@ -208,15 +177,29 @@ export function createOneOnOnesPage(ws, root, host) {
     if (ed) { ed.focus(); const at = ed.value.indexOf('## Talking points'); if (at >= 0) ed.setSelectionRange(at + 21, at + 21); }
   }
 
-  /** A report's first 1:1s person, linked to them in the people directory. */
-  async function startForReport() {
-    const rid = ui.reportId;
-    if (!rid || personForReport(rid)) return;
-    const dp = v.dir && v.dir.byId.get(rid);
-    const base = dp ? personFromDirectory(dp) : { name: host.reportName(rid) || 'Unnamed', personId: rid, cadenceDays: DEFAULT_CADENCE, archived: false };
+  /** The first 1:1s person for the directory person whose page is open (or the archived one, back). */
+  async function startForDir() {
+    const did = ui.dirId;
+    if (!did) return;
+    const old = personFor(did);
     try {
+      if (old) { await d.savePerson({ ...v.people.find(p => p.id === old.id), archived: false }); return openPerson(old.id, null, true); }
+      const dp = v.dir && v.dir.byId.get(did);
+      const base = dp ? personFromDirectory(dp) : { name: host.reportName(did) || 'Unnamed', personId: did, cadenceDays: DEFAULT_CADENCE, archived: false };
       const p = await d.savePerson(base);
       await openPerson(p.id);
+    } catch (e) { toastErr(e); }
+  }
+
+  /** How often you meet: a number of days, or 0 for no regular 1:1s (archived; notes are kept). */
+  async function setCadence(days, id = ui.personId) {
+    const p = v.people.find(x => x.id === id);
+    if (!p) return;
+    try {
+      await d.savePerson(days ? { ...p, cadenceDays: days, archived: false } : { ...p, archived: true });
+      ws.toast(days ? `1:1s every ${days} days.` : 'No regular 1:1s. Notes are kept.', { kind: 'success' });
+      if (!days && id === ui.personId) { await leaveNote(); ui.personId = null; ui.note = null; }
+      paint();
     } catch (e) { toastErr(e); }
   }
 
@@ -274,32 +257,106 @@ export function createOneOnOnesPage(ws, root, host) {
     });
   }
 
-  /* ---------- after the meeting ---------- */
+  /* ---------- after the meeting: Wrap up ---------- */
 
-  async function logFollowUps() {
+  /** Talking points for Lattice's shared agenda on the clipboard: the note's own, else built from the prep. */
+  async function copyPoints() {
+    const person = personNow();
+    if (!person) return;
+    const text = talkingPoints(ui.note ? ui.note.text : '', packetFor(person));
+    if (!text) { ws.toast('Nothing to bring up yet. Add lines under Talking points in the note.', { kind: 'warn' }); return; }
+    try { await navigator.clipboard.writeText(text); ws.toast('Talking points copied. Paste them into the 1:1 agenda in Lattice.', { kind: 'success' }); }
+    catch {
+      await showDialog(`<form method="dialog" class="confirm"><h2>Copy these into Lattice</h2><textarea rows="8" readonly>${esc(text)}</textarea>
+        <div class="acts"><button class="btn primary" value="ok">Done</button></div></form>`);
+    }
+  }
+
+  /** Wrap up: with Tandem on, it can read the note first; then the dialog with every line to send. */
+  async function wrapUp() {
     const person = personNow(), n = ui.note;
     if (!person || !n) return;
+    if (ui.wrap.state === 'starting' || ui.wrap.state === 'running') return;
+    if (tandemOn() && tidyInput(n.text, person).trim()) {
+      const { value } = await showDialogValue(`<form method="dialog" class="confirm">
+        <h2>Ask Tandem to read the note too?</h2>
+        <ul class="lines"><li>${esc(`Tandem looks for follow-ups and wins you didn't mark. ${person.name}'s name is left out.`)}</li>
+          <li>Sent to your opencode agents through Workshop on this computer, saved in Workshop's own folder.</li></ul>
+        <div class="acts"><button class="btn" value="mine">Just my lines</button><button class="btn primary" value="tandem" autofocus>Ask Tandem</button></div></form>`);
+      if (value === 'tandem') return askTandem(person, n);
+      if (value !== 'mine') return;
+    }
+    return wrapDialog([]);
+  }
+
+  let tidyTimer = null;
+  async function askTandem(person, n) {
+    const day = n.day;
+    ui.wrap = { state: 'starting', error: '' };
+    paint();
+    try {
+      await d.tidy(person.id, day, tidyInput(n.text, person));
+      ui.wrap.state = 'running';
+      paint();
+      pollTidy(person.id, day, Date.now());
+    } catch (e) {
+      ui.wrap = { state: 'failed', error: e.message || 'Tandem did not start.' };
+      paint();
+    }
+  }
+  function pollTidy(personId, day, started) {
+    clearTimeout(tidyTimer);
+    tidyTimer = setTimeout(async () => {
+      if (ui.personId !== personId || ui.wrap.state !== 'running') return;
+      try {
+        const r = await d.tidyResult(personId, day);
+        if (r.state === 'done') {
+          ui.wrap = { state: 'idle', error: '' };
+          paint();
+          const p = parseTidy(r.text);
+          return wrapDialog([...p.followUps.map(x => ({ ...x, kind: 'f' })), ...p.wins.map(text => ({ text, kind: 'w' }))]);
+        }
+        if (r.state === 'failed') { ui.wrap = { state: 'failed', error: r.error || '' }; paint(); return; }
+      } catch { /* keep waiting; Workshop may be busy */ }
+      if (Date.now() - started > 15 * 60000) { ui.wrap = { state: 'failed', error: 'Nothing after 15 minutes. Check the session in Loom.' }; paint(); return; }
+      pollTidy(personId, day, started);
+    }, 3000);
+  }
+
+  /** The Wrap up dialog. extra: lines Tandem found, [{kind: 'f', text, owner} | {kind: 'w', text}]. */
+  async function wrapDialog(extra) {
+    const person = personNow(), n = ui.note;
+    if (!person || !n) return;
+    await leaveNote();
     const send = canSend();
     const sent = send ? await d.sentHandoffs() : new Set();
     const me = meInDir();
-    const followUps = parseFollowUps(n.text).open.map(text => ({ text, owner: followUpOwner(text, person, me), sent: sent.has(followUpId(person.id, n.day, text)) }));
-    const wins = parseWins(n.text);
+    const known = new Set([...parseFollowUps(n.text).open, ...parseWins(n.text)].map(t => t.toLowerCase()));
+    const fresh = extra.filter(x => x.text && !known.has(x.text.toLowerCase()));
+    const followUps = [...parseFollowUps(n.text).open.map(text => ({ text, owner: followUpOwner(text, person, me) })),
+      ...fresh.filter(x => x.kind === 'f').map(x => ({ text: x.text, owner: x.owner === 'them' ? 'them' : 'me', tandem: true }))]
+      .map(f => ({ ...f, sent: sent.has(followUpId(person.id, n.day, f.text)) }));
+    const wins = [...parseWins(n.text).map(text => ({ text })), ...fresh.filter(x => x.kind === 'w').map(x => ({ text: x.text, tandem: true }))];
     const canOffer = !!reportOf(person);
-    const { form, value } = await showDialogValue(logHtml({ followUps, wins, canOffer, canSend: send, linked: !!person.linked, name: person.name }));
-    if (!form || (value !== 'ok' && value !== 'copy')) return;
+    const { form, value } = await showDialogValue(wrapHtml({ followUps, wins, canOffer, canSend: send, linked: !!person.linked, name: person.name, day: n.day }));
+    if (!form || value !== 'ok') return;
     const f = new FormData(form);
     const pickedF = f.getAll('f').map(Number).filter(i => followUps[i]).map(i => ({ ...followUps[i], owner: f.get(`o${i}`) === 'them' ? 'them' : f.get(`o${i}`) === 'me' ? 'me' : followUps[i].owner }));
+    const pickedW = canOffer ? f.getAll('w').map(Number).map(i => wins[i]).filter(Boolean) : [];
+    // Lines Tandem found that you kept go into the note too, so the note stays the record.
+    const fromTandem = { followUps: pickedF.filter(x => x.tandem).map(({ text, owner }) => ({ text, owner })), wins: pickedW.filter(x => x.tandem).map(x => x.text) };
+    if (fromTandem.followUps.length || fromTandem.wins.length) {
+      const next = applyTidy(n.text, fromTandem, person);
+      if (next !== n.text) { n.text = next; n.dirty = true; await saveNote(); paint(); }
+    }
     const done = [];
-    // Copy as quick-add lines: the ticked follow-ups only, for pasting into Docket by hand.
-    if (value === 'copy' || (!send && pickedF.length)) {
-      if (!pickedF.length) return;
+    if (pickedF.length && !send) {
       const lines = quickAddLines(pickedF.map(x => x.text), person.handle).join('\n');
       try { await navigator.clipboard.writeText(lines); done.push(`${pickedF.length} Docket quick-add line${pickedF.length === 1 ? '' : 's'} copied`); }
       catch {
         await showDialog(`<form method="dialog" class="confirm"><h2>Copy these into Docket</h2><textarea rows="6" readonly>${esc(lines)}</textarea>
           <div class="acts"><button class="btn primary" value="ok">Done</button></div></form>`);
       }
-      if (value === 'copy') { if (done.length) ws.toast(done.join('. ') + '.', { kind: 'success' }); return; }
     } else if (pickedF.length) {
       try {
         const added = await d.sendHandoffs(followUpHandoffs({ person, day: n.day, lines: pickedF, nowIso: new Date().toISOString() }));
@@ -308,85 +365,14 @@ export function createOneOnOnesPage(ws, root, host) {
           : added ? `${added} of ${pickedF.length} follow-ups sent to Docket (the rest were sent already)` : `${pickedF.length === 1 ? 'That follow-up was' : 'Those follow-ups were'} sent to Docket already`);
       } catch (e) { toastErr(e); }
     }
-    const pickedW = canOffer ? f.getAll('w').map(Number).map(i => wins[i]).filter(Boolean) : [];
     if (pickedW.length) {
       try {
-        const added = await host.addWins(winEntries({ person, day: n.day, wins: pickedW, nowIso: new Date().toISOString() }));
-        done.push(added === pickedW.length ? `${added} receipt${added === 1 ? '' : 's'} added`
-          : added ? `${added} of ${pickedW.length} wins added (the rest were receipts already)` : `${pickedW.length === 1 ? 'That win is' : 'Those wins are'} receipts already`);
+        const added = await host.addWins(winEntries({ person, day: n.day, wins: pickedW.map(w => w.text), nowIso: new Date().toISOString() }));
+        done.push(added === pickedW.length ? `${added} win${added === 1 ? '' : 's'} logged`
+          : added ? `${added} of ${pickedW.length} wins logged (the rest were in the Log already)` : `${pickedW.length === 1 ? 'That win is' : 'Those wins are'} in the Log already`);
       } catch (e) { toastErr(e); }
     }
     if (done.length) ws.toast(done.join('. ') + '.', { kind: 'success' });
-  }
-
-  /* ---------- Tidy notes (optional, opencode connector) ---------- */
-
-  let tidyTimer = null;
-  async function tidyNotes() {
-    const person = personNow(), n = ui.note;
-    if (!person || !n || !v.settings.aiDraft || !v.oc) return;
-    const notes = tidyInput(n.text, person);
-    if (!notes.trim()) { ws.toast('This note has nothing to tidy yet.', { kind: 'warn' }); return; }
-    const ok = await showDialog(confirmHtml({
-      title: 'Tidy notes?',
-      lines: [
-        `Sends this note's lines to your opencode agents through Workshop on this computer. ${person.name}'s name is left out.`,
-        'They propose Follow-ups and Wins. Nothing changes in the note until you add what you keep.',
-        'The lines are saved in Workshop\'s own folder, not in your code workspace.'
-      ],
-      action: 'Tidy'
-    }));
-    if (!ok) return;
-    const day = n.day;
-    ui.tidy = { ...noTidy(), state: 'starting' };
-    paint();
-    try {
-      await d.tidy(person.id, day, notes);
-      ui.tidy.state = 'running';
-      paint();
-      pollTidy(person.id, day, Date.now());
-    } catch (e) {
-      ui.tidy = { ...noTidy(), state: 'failed', error: e.message || 'Tidy notes did not start.' };
-      paint();
-    }
-  }
-  function pollTidy(personId, day, started) {
-    clearTimeout(tidyTimer);
-    tidyTimer = setTimeout(async () => {
-      if (ui.personId !== personId || ui.tidy.state !== 'running') return;
-      try {
-        const r = await d.tidyResult(personId, day);
-        if (r.state === 'done') {
-          const p = parseTidy(r.text);
-          ui.tidy = { ...noTidy(), state: 'done', followUps: p.followUps.map(x => ({ ...x, use: true })), wins: p.wins.map(text => ({ text, use: true })) };
-          paint(); return;
-        }
-        if (r.state === 'failed') { ui.tidy = { ...noTidy(), state: 'failed', error: r.error || '' }; paint(); return; }
-      } catch { /* keep waiting; Workshop may be busy */ }
-      if (Date.now() - started > 15 * 60000) { ui.tidy = { ...noTidy(), state: 'failed', error: 'Nothing after 15 minutes. Check the session in Loom.' }; paint(); return; }
-      pollTidy(personId, day, started);
-    }, 3000);
-  }
-  /** A change to the proposal (tick, text or owner), kept in ui.tidy so a repaint keeps it. */
-  function editTidy(t) {
-    const d = t.dataset, f = ui.tidy.followUps, w = ui.tidy.wins;
-    if (d.tidyF !== undefined && f[+d.tidyF]) f[+d.tidyF].use = t.checked;
-    else if (d.tidyFt !== undefined && f[+d.tidyFt]) f[+d.tidyFt].text = t.value;
-    else if (d.tidyFo !== undefined && f[+d.tidyFo]) f[+d.tidyFo].owner = t.value === 'them' ? 'them' : 'me';
-    else if (d.tidyW !== undefined && w[+d.tidyW]) w[+d.tidyW].use = t.checked;
-    else if (d.tidyWt !== undefined && w[+d.tidyWt]) w[+d.tidyWt].text = t.value;
-  }
-
-  /** Add to the note: only the ticked lines, as edited. */
-  function acceptTidy() {
-    const person = personNow(), n = ui.note;
-    if (!person || !n || ui.tidy.state !== 'done') return;
-    const followUps = ui.tidy.followUps.filter(x => x.use).map(({ text, owner }) => ({ text, owner }));
-    const wins = ui.tidy.wins.filter(x => x.use).map(x => x.text);
-    const next = applyTidy(n.text, { followUps, wins }, person);
-    ui.tidy = noTidy();
-    if (next !== n.text) { n.text = next; n.dirty = true; n.mode = 'edit'; paint(); saveNote(); }
-    else paint();
   }
 
   /* ---------- the optional draft step ---------- */
@@ -394,7 +380,7 @@ export function createOneOnOnesPage(ws, root, host) {
   let pollTimer = null;
   async function draftTalkingPoints() {
     const person = personNow();
-    if (!person || !v.settings.aiDraft || !v.oc) return;
+    if (!person || !tandemOn()) return;
     const day = ui.note ? ui.note.day : today();
     const include = ui.ai.includeConcerns;
     const ok = await showDialog(confirmHtml({
@@ -444,49 +430,30 @@ export function createOneOnOnesPage(ws, root, host) {
 
   /* ---------- input ---------- */
 
-  function openRow(p) {
-    const rid = reportOf(p);
-    host.go(rid ? `team/${rid}` : `1on1s/${p.id}`);
-  }
-
   root.addEventListener('click', async e => {
+    if (ui.mode !== 'panel') return;
     const el = s => e.target.closest(s);
     let x;
-    if ((x = el('[data-person]'))) { const p = shown().find(q => q.id === x.dataset.person); if (p) openRow(p); return; }
-    if ((x = el('[data-route]'))) { host.go(x.dataset.route === 'settings' ? '1on1s/settings' : '1on1s'); return; }
     if ((x = el('[data-slate]'))) { ws.open({ app: 'slate', path: `item/${x.dataset.slate}` }).catch(() => {}); return; }
-    if ((x = el('[data-add-dir]'))) {
-      const dp = v.dir && v.dir.byId.get(x.dataset.addDir);
-      if (dp) {
-        try { await d.savePerson(personFromDirectory(dp)); ws.toast(`Added ${dp.name}.`, { kind: 'success' }); paint(); }
-        catch (err) { toastErr(err); }
-      }
-      return;
-    }
-    if (el('[data-start-report]')) { startForReport(); return; }
-    if (el('[data-add-person]')) { ui.edit = {}; paint(); root.querySelector('[data-person-form] input')?.focus(); return; }
-    if ((x = el('[data-edit-person]'))) { ui.edit = v.people.find(p => p.id === x.dataset.editPerson) || null; paint(); return; }
-    if (el('[data-cancel-person]')) { ui.edit = null; paint(); return; }
+    if (el('[data-start-dir]')) { startForDir(); return; }
     if (el('[data-start-note]')) { startNote(); return; }
     if ((x = el('[data-mode]')) && ui.note) { ui.note.mode = x.dataset.mode; paint(); return; }
     if (el('[data-save]')) { saveNote(); return; }
     if ((x = el('[data-conflict]'))) { resolveConflict(x.dataset.conflict); return; }
-    if (el('[data-log]')) { await leaveNote(); logFollowUps(); return; }
+    if (el('[data-wrap]')) { await leaveNote(); wrapUp(); return; }
+    if (el('[data-lattice-points]')) { copyPoints(); return; }
     if (el('[data-draft]')) { draftTalkingPoints(); return; }
     if (el('[data-draft-insert]')) { insertDraft(); return; }
-    if (el('[data-tidy-accept]')) { acceptTidy(); return; }
-    if (el('[data-tidy-discard]')) { ui.tidy = noTidy(); paint(); return; }
-    if (el('[data-tidy]')) { await leaveNote(); tidyNotes(); return; }
   });
 
   root.addEventListener('change', async e => {
+    if (ui.mode !== 'panel') return;
     const t = e.target;
     if (t.matches('[data-include-concerns]')) { ui.ai.includeConcerns = t.checked; return; }
-    if (t.closest('.tidy')) { editTidy(t); return; }
     if (t.matches('[data-pick-note]')) {
       await leaveNote();
       const day = t.value;
-      ui.tidy = noTidy();
+      ui.wrap = { state: 'idle', error: '' };
       if (!day) { ui.note = null; paint(); return; }
       const n = d.notesOf(ui.personId).find(x => x.day === day);
       if (n) { await loadNote(n.path, n.day); paint(); }
@@ -494,7 +461,6 @@ export function createOneOnOnesPage(ws, root, host) {
   });
 
   root.addEventListener('input', e => {
-    if (e.target.closest('.tidy')) { editTidy(e.target); return; }
     if (!e.target.matches('[data-editor]') || !ui.note) return;
     ui.note.text = e.target.value;
     ui.note.dirty = true;
@@ -503,62 +469,19 @@ export function createOneOnOnesPage(ws, root, host) {
     saveTimer = setTimeout(saveNote, 1500);
   });
 
-  root.addEventListener('submit', async e => {
-    const f = e.target;
-    if (!f.matches('[data-person-form], [data-settings]')) return;
-    e.preventDefault();
-    e.stopImmediatePropagation();
-    const data = new FormData(f);
-    if (f.matches('[data-person-form]')) {
-      const id = f.dataset.id || '';
-      const prev = v.people.find(p => p.id === id);
-      try {
-        await d.savePerson({
-          ...(prev || {}), id,
-          name: (v.dir && v.dir.byId.get(String(data.get('personId') || '')) || {}).name || (prev && prev.name) || 'Unnamed',
-          personId: String(data.get('personId') || ''),
-          cadenceDays: Number(data.get('cadenceDays')),
-          archived: data.get('archived') === 'on'
-        });
-        ui.edit = null; paint();
-        ws.toast(prev ? 'Saved.' : 'Added.', { kind: 'success' });
-      } catch (err) { toastErr(err); }
-      return;
-    }
-    try { await d.saveSettings({ aiDraft: data.get('aiDraft') === 'on' }); ws.toast('Saved the 1:1s settings.', { kind: 'success' }); paint(); }
-    catch (err) { toastErr(err); }
-  }, true);
-
-  // Keyboard on the 1:1s tab: j and k move, Enter opens, Escape goes back. With a note open (here or on a
-  // report's page): Ctrl+S saves it, Ctrl+E switches Edit and Preview.
+  // With a note open: Ctrl+S saves it, Ctrl+E switches Edit and Preview.
   document.addEventListener('keydown', e => {
-    if (dlg.open || ui.mode === 'off') return;
-    if ((e.ctrlKey || e.metaKey) && !e.altKey && ui.note && (ui.mode === 'person' || ui.mode === 'panel')) {
+    if (dlg.open || ui.mode !== 'panel' || !ui.note) return;
+    if ((e.ctrlKey || e.metaKey) && !e.altKey) {
       if (e.key === 's') { e.preventDefault(); saveNote(); return; }
-      if (e.key === 'e') { e.preventDefault(); ui.note.mode = ui.note.mode === 'edit' ? 'preview' : 'edit'; paint(); return; }
+      if (e.key === 'e') { e.preventDefault(); ui.note.mode = ui.note.mode === 'edit' ? 'preview' : 'edit'; paint(); }
     }
-    if (e.ctrlKey || e.metaKey || e.altKey || ui.view !== '1on1s') return;
-    const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement && document.activeElement.tagName);
-    if (e.key === 'Escape') {
-      if (typing) { document.activeElement.blur(); return; }
-      if (ui.mode !== 'list') host.go('1on1s');
-      return;
-    }
-    if (typing || ui.mode !== 'list') return;
-    const list = rows();
-    if ((e.key === 'j' || e.key === 'k') && list.length) {
-      ui.selected = Math.max(0, Math.min(list.length - 1, ui.selected < 0 ? 0 : ui.selected + (e.key === 'j' ? 1 : -1)));
-      paint();
-      root.querySelectorAll('.oo-row')[ui.selected]?.scrollIntoView({ block: 'nearest' });
-      return;
-    }
-    if (e.key === 'Enter' && list[ui.selected]) openRow(list[ui.selected].person);
   });
 
-  /** The Prep a 1:1 command: the 1:1s tab with the most overdue person picked. */
+  /** The Prep a 1:1 command: the most overdue person's page. */
   function prep() {
-    ui.selected = rows().length ? 0 : -1;
-    host.go('1on1s');
+    const r = rows()[0];
+    return r ? routeOf(r.person) : '';
   }
 
   /* ---------- live updates ---------- */
@@ -573,32 +496,45 @@ export function createOneOnOnesPage(ws, root, host) {
   if (ws.backend === 'agent') ws.connectors.onStatus('opencode', () => d.checkConnectors());
 
   /** First load: copy the old 1:1s data in if needed, load, then open whatever the route asked for. */
-  async function start(view, id) {
+  async function start(ref) {
     const copied = await d.loadAll();
     if (copied && copied.first && (copied.people || copied.notes)) {
       ws.toast(`Your 1:1s moved into Rapport: ${copied.people} ${copied.people === 1 ? 'person' : 'people'}, ${copied.notes} ${copied.notes === 1 ? 'note' : 'notes'}. The old copy is kept.`, { kind: 'success' });
     }
     ui.personId = null; // open again now that people and notes are known
-    await route(view, id);
+    await show(ref);
   }
 
-  /** The active 1:1s person for a directory person, for Upward's link to your manager's 1:1s. */
-  const findByPerson = personId => shown().find(p => !p.archived && p.personId === personId) || null;
+  /** For the People list: a directory person's 1:1s (or a 1:1s person's by id), at a glance. null when none. */
+  function glance({ dirId = '', oid = '' } = {}) {
+    if (!v.loaded) return null;
+    const p = oid ? shown().find(x => x.id === oid) : personFor(dirId);
+    if (!p || p.archived) return null;
+    const t = today();
+    const st = cadenceState(d.notesOf(p.id), t, p.cadenceDays);
+    const next = st.lastDay ? addDays(st.lastDay, p.cadenceDays) : t;
+    const pk = packetFor(p);
+    return { id: p.id, cadenceDays: p.cadenceDays, lastDay: st.lastDay, due: st.due, days: st.days, next,
+      waiting: pk.docket.state === 'ok' ? pk.docket.waiting.length : 0, open: pk.last.state === 'ok' ? pk.last.open.length : 0 };
+  }
+  /** 1:1s people not in People (or whose directory person is gone), for the People list. */
+  const unlinked = () => shown().filter(p => !p.archived && !p.linked);
+  /** The 1:1s person shown on the 1:1 tab, for the cadence control. */
+  const current = () => personNow();
 
   /** 1:1s that are due, for Rapport's summary (Home's Needs you): [{id, name, days, route}]. Names only. */
   function dueList() {
     if (!v.loaded) return [];
-    return rows().filter(r => r.due).map(r => { const rid = reportOf(r.person); return { id: r.person.id, name: r.person.name, days: r.days, route: rid ? `team/${rid}` : `1on1s/${r.person.id}` }; });
+    return rows().filter(r => r.due).map(r => ({ id: r.person.id, name: r.person.name, days: r.days, route: routeOf(r.person) }));
   }
   // When each 1:1 is next due by cadence (Home's Coming up): the day after the last one plus the cadence, or today.
   function upcomingList() {
     if (!v.loaded) return [];
     const t = today();
     return rows().map(r => {
-      const rid = reportOf(r.person);
       const next = r.lastDay ? addDays(r.lastDay, r.person.cadenceDays) : t;
-      return { id: r.person.id, name: r.person.name, due: next < t ? t : next, route: rid ? `team/${rid}` : `1on1s/${r.person.id}` };
+      return { id: r.person.id, name: r.person.name, due: next < t ? t : next, route: routeOf(r.person) };
     });
   }
-  return { d, v, ui, view, panel, route, start, prep, findByPerson, setOwn: d.setOwn, saveNote, dueList, upcomingList, isWide: () => ui.mode === 'person' || ui.mode === 'panel' };
+  return { d, v, ui, panel, show, start, prep, glance, unlinked, current, setCadence, setOwn: d.setOwn, saveNote, dueList, upcomingList, routeOf };
 }

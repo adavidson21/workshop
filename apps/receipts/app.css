@@ -167,8 +167,8 @@ dialog.edit::backdrop{background:color-mix(in srgb,#000 35%,transparent)}
 }
 
 /* ---------- 1:1s (js/oneonones/): the 1:1s tab and the 1:1 section on a report's page ---------- */
-.v-1on1s .soft,.oo-panel .soft,.oo-dlg .soft{color:var(--muted)}
-.v-1on1s .small,.oo-panel .small,.oo-dlg .small{font-size:.8rem}
+.v-person .soft,.oo-panel .soft,.oo-dlg .soft{color:var(--muted)}
+.v-person .small,.oo-panel .small,.oo-dlg .small{font-size:.8rem}
 .bad{color:var(--danger)}
 .num{font-family:var(--mono);font-size:.82em}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
@@ -438,3 +438,80 @@ button.cov.gap:hover{border-style:solid;background:var(--surface);color:var(--in
 /* Coverage: an empty section is a quiet outlined pill you can click to add to it. */
 .cov.gap{border:1px solid var(--line);border-style:solid;background:transparent}
 button.cov.gap:hover{background:var(--hover);color:var(--ink)}
+
+/* ---------- Rapport 5.0.0: People, one Log box, a page per person ---------- */
+.phead3{display:flex;align-items:baseline;flex-wrap:wrap;gap:.35rem .7rem;margin:0 0 1rem}
+.phead3 .ptitle{margin:0;font:700 1.45rem/1.2 var(--serif);color:var(--ink)}
+.phead3 .psub{color:var(--muted);font-size:.9rem}
+.phead3 .crumb{font-size:.9rem}
+.phead3 .sep{color:var(--muted)}
+.phead3 .cad{margin-left:auto}
+.lsel{width:auto;max-width:14rem;padding:.35rem .5rem;font-size:.88rem}
+.logbox{padding:.6rem .8rem;margin-bottom:1.2rem;gap:.5rem}
+.logbox .lrow{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
+.logbox .lbl{font:700 .78rem/1 var(--sans);color:var(--muted);letter-spacing:.02em}
+.logbox textarea{flex:1 1 18rem;min-height:2rem;height:2.1rem;resize:none;padding:.35rem 0;font-size:.98rem}
+.logbox .lmore{display:none;align-items:center;gap:.5rem;flex-wrap:wrap}
+.logbox.has-text .lmore,.logbox:focus-within .lmore{display:flex}
+.logbox .lmore .chips{flex:1 1 auto}
+.logbox .details{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.5rem .8rem}
+.logbox .details .wide{grid-column:1/-1}
+.dim{color:var(--muted)}
+.pbar{display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;margin:0 0 .8rem}
+.ptable{border:1px solid var(--line);border-radius:var(--r-md);background:var(--surface);overflow:hidden}
+.plist{list-style:none;margin:0;padding:0}
+.prow2{display:grid;grid-template-columns:minmax(0,2.2fr) minmax(0,1.2fr) minmax(0,2fr) minmax(0,1fr);gap:1rem;align-items:center;padding:.8rem 1rem;border-top:1px solid var(--line);color:var(--ink);text-decoration:none;font-size:.92rem}
+.plist li:first-child .prow2{border-top:0}
+a.prow2:hover{background:var(--hover)}
+a.prow2:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.phead2{background:var(--panel);font:700 .74rem/1.3 var(--sans);color:var(--muted);letter-spacing:.02em;padding:.55rem 1rem;border-top:0}
+.prow2 .pname{display:flex;flex-wrap:wrap;align-items:baseline;gap:.15rem .5rem}
+.prow2 .pname b{font-weight:600}
+.prow2 .pname > span{color:var(--muted);font-size:.85rem}
+.prow2.isdue{background:color-mix(in srgb,var(--warn) 7%,transparent)}
+.prow2 .due,.prow2 .stale{color:var(--warn);font-weight:600}
+.teamrow{background:color-mix(in srgb,var(--accent) 6%,transparent)}
+.keep{font:700 .72rem/1.4 var(--sans);color:var(--accent);background:var(--accent-soft);border-radius:999px;padding:0 .45rem}
+.legend{margin:.7rem 0 0;color:var(--muted);font-size:.82rem}
+@media (max-width:720px){ .prow2{grid-template-columns:minmax(0,1fr) minmax(0,1fr)} .phead2{display:none} }
+.tabbody{margin-top:1rem}
+.oo-cols{gap:1.2rem}
+.oo-card{border:1px solid var(--line);border-radius:var(--r-md);background:var(--surface);padding:1rem 1.1rem;display:flex;flex-direction:column;gap:.8rem}
+.oo-cardhead{display:flex;align-items:baseline;gap:.6rem}
+.oo-cardhead h3{margin:0;font:700 1rem/1.3 var(--sans)}
+.oo-foot{display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:.7rem;margin-top:auto}
+.oo-start{max-width:44rem}
+.oo-tandem{border:1px solid var(--line);border-radius:999px;padding:0 .4rem;margin-left:.3rem}
+.offers{list-style:none;margin:0 0 1rem;padding:.4rem .8rem;display:grid;gap:.4rem;background:var(--surface)}
+.offer{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
+.offer .ofrom{font:700 .74rem/1.3 var(--sans);color:var(--accent)}
+.offer .otext{flex:1 1 16rem}
+.filters{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin:0 0 1rem}
+.filters .chips{display:flex;gap:.35rem;flex-wrap:wrap}
+.filters .chip .n{opacity:.75;margin-left:.15rem}
+.filters input[type=search]{width:12rem}
+.etext{display:block;width:100%;text-align:left;background:none;border:0;padding:0;font:inherit;color:inherit;cursor:pointer;line-height:1.45}
+.etext:hover{text-decoration:underline;text-decoration-color:var(--line2)}
+.eacts{display:flex;align-items:center;gap:.3rem}
+.btn.small{padding:.2rem .5rem;font-size:.78rem}
+.review-ctl .statline{margin:0}
+.rsecs{border:1px solid var(--line);border-radius:var(--r-md);background:var(--surface);overflow:hidden}
+.rsec{display:grid;grid-template-columns:12rem minmax(0,1fr) auto;gap:1rem;align-items:start;padding:.9rem 1rem;border-top:1px solid var(--line)}
+.rsec:first-child{border-top:0}
+.rsec.empty{background:var(--panel)}
+.rsname{display:flex;flex-direction:column;gap:.15rem}
+.rsname .dim{font-size:.82rem}
+.rsdraft{width:100%;min-height:3rem;font-size:.9rem;line-height:1.45;resize:vertical}
+.rsnone{margin:.2rem 0 0}
+.rsfoot{grid-column:2/-1;margin:0}
+@media (max-width:720px){ .rsec{grid-template-columns:minmax(0,1fr)} }
+.g-chead{display:flex;align-items:baseline;gap:.5rem}
+.g-chead .g-ctitle{margin:0}
+.g-ilist{list-style:none;margin:0;padding:0;display:grid;gap:.3rem;max-height:50vh;overflow:auto}
+.g-irow{display:grid;grid-template-columns:auto minmax(0,1fr) minmax(8rem,auto) 6rem;gap:.6rem;align-items:center;padding:.4rem 0;border-top:1px solid var(--line)}
+.g-ititle{display:flex;flex-direction:column}
+.g-iact{font:700 .74rem/1.3 var(--sans);text-align:right}
+.g-iact-new,.g-iact-update{color:var(--accent)}
+.g-iact-same{color:var(--muted)}
+.g-import textarea{width:100%;font:.85rem/1.4 var(--mono)}
+dialog.g-import-dlg{max-width:min(46rem,94vw)}
