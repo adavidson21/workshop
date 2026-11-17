@@ -10,8 +10,9 @@
 import { S } from './state.js';
 import { h, plural, asking, itemSession, isBusy, autoIs, itemForFolder, adoOn } from './view.js';
 import { flowOf, stepIndex, isFinished, turnHtml, stepLine } from './flows.js';
-import { workItems, startingSessions, inboxData, inboxFolders, isShip, runCardHtml, asksFor } from './pages.js';
-import { pickable } from '../loom.js';
+import { workItems, startingSessions, inboxData, inboxFolders, isShip, runCardHtml, asksFor, fileInline } from './pages.js';
+import { pickable, boardFeed } from '../loom.js';
+import { reviewsHtml } from './pr-reviews.js';
 
 export const LANES = [
   { id: 'clarify', name: 'Clarify', desc: 'A first look, then any questions for you' },
@@ -29,10 +30,12 @@ export const KINDS = {
   docs: { name: 'Docs', lanes: ['plan', 'work', 'ready'] },
   epic: { name: 'Epic', lanes: ['clarify', 'plan', 'work', 'ready'] },
   handoff: { name: 'Hand off', lanes: ['clarify', 'plan', 'work', 'ready'] },
+  request: { name: 'Request', lanes: ['clarify', 'plan', 'work', 'ready'] },
+  review: { name: 'Review', lanes: ['ready'] },
   other: { name: 'Run', lanes: ['clarify', 'work', 'ready'] }
 };
 /** The kinds the drop box starts (the other flows are under Other flows). */
-export const DROP_KINDS = ['build', 'diagnose', 'ask'];
+export const DROP_KINDS = ['build', 'diagnose', 'ask', 'handoff'];
 
 /** Which kind a run is: a feature, bug or small change is Build; a log diagnosis Diagnose; an investigation Ask. */
 export function kindOf(it) {
@@ -95,9 +98,13 @@ function statusOf(it, lane) {
   if (asking(it)) return 'Tandem has a question for you';
   if (autoIs(it, 'running') || isBusy(s)) return (s && s.activity) || stepLine(it) || 'Working';
   if (lane === 'clarify') return it.kind === 'item' ? 'Setting up' : 'Up next';
+  // Core 4.6.0: a spike's first look is on the card while it keeps digging.
+  if (lane === 'work' && hasFirstLook(it)) return 'First look ready; still digging';
   const sl = stepLine(it);
   return sl || String(it.state || '');
 }
+/** A spike that wrote its first look (Core 4.6.0) and has no findings yet. */
+export const hasFirstLook = it => !!it && it.kind === 'spike' && (it.files || []).includes('first-look.md') && !(it.files || []).includes('findings.md');
 /** The action named on a card that waits on you. */
 function actionOf(it, kind, lane) {
   if (it.blocked || (itemSession(it) && itemSession(it).error && !isBusy(itemSession(it)))) return 'See why it stopped';
@@ -132,6 +139,14 @@ export function lanesData(filter = 'all') {
     cards.push({ it: null, session: o.session, folder: '', kind, lane: 'clarify', mine: perms > 0, title: s.title || o.command || 'Starting', id: null,
       status: perms ? 'Tandem has a question for you' : isBusy(s) ? 'Taking a first look' : 'Starting', action: perms ? 'Answer' : '', dots: laneDots(kind, 'clarify'), at: o.at || 0 });
   }
+  // The board's own items (Loom 5.2.0): requests, hand-offs and drafts to approve; they open the board's panel.
+  for (const b of boardFeed()) {
+    const kind = KINDS[b.kind] ? b.kind : 'request';
+    const lane = LANE_IDS.includes(b.lane) ? b.lane : 'clarify';
+    cards.push({ it: null, board: b.id, folder: '', kind, lane, mine: !!b.mine, title: b.title, id: b.adoId || null, status: b.mine && b.action ? b.action : b.status, action: b.mine ? 'Open' : '', dots: laneDots(kind, lane), at: b.at || 0 });
+  }
+  // Teammates' PRs waiting on your review: one card in Ready that opens the review list.
+  if (d.prs) cards.push({ it: null, reviews: true, folder: '', kind: 'review', lane: 'ready', mine: true, title: plural(d.prs, "teammate's PR to review", "teammates' PRs to review"), id: null, status: 'Waiting on your review', action: 'Review', dots: laneDots('review', 'ready'), at: 0 });
   const shown = cards.filter(c => filter === 'all' ? true : filter === 'mine' ? c.mine : c.kind === filter);
   const lanes = LANES.map(l => ({ ...l, cards: shown.filter(c => c.lane === l.id).sort((a, b) => (b.mine - a.mine) || (b.at - a.at)) }));
   const counts = { all: cards.length, mine: cards.filter(c => c.mine).length };
@@ -200,8 +215,10 @@ const X = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="c
 function dotsHtml(dots) {
   return `<span class="ln-dots" aria-hidden="true">${dots.map(d => `<i class="ln-${d.lane} ${d.st}" title="${h(d.title)}"></i>`).join('')}</span>`;
 }
+/** A card's key in the lanes (its folder; board:<id>, reviews or session:<id> for the rest). */
+export const keyOf = c => c.folder || (c.board ? 'board:' + c.board : c.reviews ? 'reviews' : 'session:' + c.session);
 function cardHtml(c, sel) {
-  const key = c.folder || 'session:' + c.session;
+  const key = keyOf(c);
   const on = sel && sel === key;
   const label = `${KINDS[c.kind].name}: ${c.title}. ${c.status}${c.mine ? '. Your turn: ' + c.action : ''}`;
   return `<button type="button" class="ln-card${c.mine ? ' mine' : ''}${on ? ' on' : ''}" data-lane-open="${h(key)}" aria-pressed="${!!on}" aria-label="${h(label)}">` +
@@ -217,19 +234,22 @@ function laneHtml(l, sel, done) {
       (S.ui.laneDone ? `<ul class="ln-donelist" role="list">${done.map(d => `<li><button type="button" class="lnk plain" data-open-run="${h(d.folder)}">${d.id ? '#' + h(d.id) + ' ' : ''}${h(d.title)}</button></li>`).join('')}</ul>` : '') : '') + '</section>';
 }
 function panelHtml(key, data) {
-  const c = data.cards.find(x => (x.folder || 'session:' + x.session) === key);
-  if (!c) return '';
+  const c = data.cards.find(x => keyOf(x) === key);
+  // A board item opens the board's own panel as a drawer (loom.js setBoardDrawer), not this one.
+  if (!c || c.board) return '';
   const pills = laneDots(c.kind, c.lane).map(d => `<span class="ln-pill ln-${d.lane} ${d.st}" title="${h(d.title)}">${h(LANES.find(l => l.id === d.lane).name)}</span>`).join('');
   // Tandem's questions first: a card that says Answer opens on them, answerable here (not only in the Inbox).
   const asks = asksFor(c.folder, c.session);
   let body = asks ? `<div class="ln-asks">${asks}</div>` : '';
-  if (c.it) {
+  if (c.reviews) {
+    body = `<div class="ln-reviews">${reviewsHtml()}</div>`;
+  } else if (c.it) {
+    if (hasFirstLook(c.it)) body += `<div class="ln-first"><p class="ln-fh">First look</p>${fileInline(c.it, 'first-look.md')}</div>`;
     body += `<div class="loom-run ln-run">${runCardHtml(c.folder)}</div>` +
       `<div class="ln-foot"><button type="button" class="btn ghost" data-open-run="${h(c.folder)}">Open the run</button>` +
       (c.sid ? `<button type="button" class="ibtn" data-open-chat="${h(c.sid)}" aria-label="Open the conversation in Chat" title="Open the conversation in Chat">${CHAT}</button>` : '') + '</div>';
   } else {
-    body += asks ? '' : '<p class="dim">Tandem is taking a first look. The card gets its folder in a moment; any question it has shows here and in the Inbox.</p>' +
-      `<div class="ln-foot"><button type="button" class="btn ghost" data-tab="inbox">Open the Inbox</button></div>`;
+    body += asks ? '' : '<p class="dim">Tandem is taking a first look. The card gets its folder in a moment; any question it has shows here.</p>';
   }
   return `<aside class="ln-panel" aria-label="${h(c.title)}"><div class="ln-ph"><div class="ln-pt"><span class="ln-kind k-${c.kind}">${h(KINDS[c.kind].name)}</span>` +
     `<h3>${c.id ? `<span class="num">#${h(c.id)}</span> ` : ''}${h(c.title)}</h3></div><button type="button" class="ibtn" data-lane-close="1" aria-label="Close panel" title="Close">${X}</button></div>` +
@@ -268,7 +288,7 @@ export function lanesHtml() {
   const panel = sel ? panelHtml(sel, data) : '';
   const chips = `<div class="chips ln-chips" role="group" aria-label="Show">${LANE_FILTERS.map(([k, label]) =>
     `<button type="button" class="chip${filter === k ? ' on' : ''}" data-lane-filter="${k}" aria-pressed="${filter === k}">${h(label)}<span class="n">${data.counts[k] || 0}</span></button>`).join('')}` +
-    (data.prs ? `<span class="grow"></span><button type="button" class="lnk plain" data-inbox-chip="prs">${plural(data.prs, "teammate's PR", "teammates' PRs")} to review</button>` : '') + '</div>';
+    '</div>';
   return `<div class="ln-page">${dropHtml()}${chips}<div class="ln-body${panel ? ' has-panel' : ''}"><div class="ln-lanes">${data.lanes.map(l => laneHtml(l, sel, data.doneList)).join('')}</div>${panel}</div></div>`;
 }
 /** The tab bar's count on Lanes: cards waiting on you. */

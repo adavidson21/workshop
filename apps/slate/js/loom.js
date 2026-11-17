@@ -89,7 +89,9 @@ export function setTab(t) {
   tab = t;
   document.body.dataset.loomTab = t; // not data-tab: the runs half reads [data-tab] on click
   const root = document.getElementById('board-root');
-  if (root) root.hidden = !BOARD_TABS.includes(t);
+  // Lanes shows the board half only as a drawer for an open board item (setBoardDrawer).
+  if (t !== 'lanes' && drawer) { drawer = ''; document.body.dataset.boardDrawer = ''; for (const f of drawerSubs) f(''); }
+  if (root) root.hidden = !(BOARD_TABS.includes(t) || (t === 'lanes' && drawer));
   for (const f of tabSubs) f(t);
 }
 export const currentTab = () => tab;
@@ -163,3 +165,28 @@ const pickSubs = new Set();
 export function setPickable(list) { pickList = Array.isArray(list) ? list : []; for (const f of pickSubs) f(pickList); }
 export const pickable = () => pickList;
 export function onPickable(f) { pickSubs.add(f); }
+
+/* Board items in Lanes (Loom 5.2.0): the board half publishes its own items (requests, hand-offs, drafts to approve)
+   as lane cards; a card opens the board's own item panel as a drawer over Lanes. Each feed entry:
+   {id, title, adoId, kind, lane, mine, action, status, at}. */
+let feed = [];
+const feedSubs = new Set();
+export function setBoardFeed(list) { feed = Array.isArray(list) ? list : []; for (const f of feedSubs) f(feed); }
+export const boardFeed = () => feed;
+export function onBoardFeed(f) { feedSubs.add(f); }
+let drawer = '';
+const drawerSubs = new Set();
+/** Opens a board item's panel as a drawer over Lanes (id), or closes it (''). Both halves hear it. */
+export function setBoardDrawer(id) {
+  id = id || '';
+  if (id === drawer) return;
+  drawer = id;
+  if (typeof document !== 'undefined') {
+    document.body.dataset.boardDrawer = id ? '1' : '';
+    const root = document.getElementById('board-root');
+    if (root) root.hidden = !(BOARD_TABS.includes(tab) || (tab === 'lanes' && id));
+  }
+  for (const f of drawerSubs) f(id);
+}
+export const boardDrawer = () => drawer;
+export function onBoardDrawer(f) { drawerSubs.add(f); }

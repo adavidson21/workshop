@@ -7,7 +7,7 @@ import fs from 'node:fs';
 import { S, resetUi } from '../js/dispatch/state.js';
 import { startRequest } from '../js/dispatch/view.js';
 import { LANES, KINDS, kindOf, laneOf, laneDots, lanesData, lanesHtml, guessKind, adoIdOf, dropStart, lanesCount, pickRows, kindOfAdoType } from '../js/dispatch/lanes.js';
-import { setPickable } from '../js/loom.js';
+import { setPickable, setBoardFeed } from '../js/loom.js';
 import { wantedFiles } from '../js/dispatch/pages.js';
 
 const FIXTURE = JSON.parse(fs.readFileSync(new URL('./fixtures/state.json', import.meta.url), 'utf8'));
@@ -217,4 +217,51 @@ test('Done today (5.1) opens a list of what finished today', () => {
 test('the panel has a Chat button for the run\'s conversation (Chat is off the rail since 3.0.0)', () => {
   S.ui.laneSel = '41207-fix-login-timeout';
   assert.match(lanesHtml(), /data-open-chat="[^"]+" aria-label="Open the conversation in Chat"/);
+});
+
+test('board items are lane cards (5.2): a request in Clarify, a draft in Plan, a hand-off With them in Work; they open the board\'s drawer', () => {
+  setBoardFeed([
+    { id: 'w_1', title: 'Bulk resend for failed notifications', adoId: null, kind: 'request', lane: 'clarify', mine: true, action: 'Brief ready: send it to Define', status: 'Brief', at: 2 },
+    { id: 'w_2', title: 'Page history diff view', adoId: '48251', kind: 'handoff', lane: 'plan', mine: true, action: 'Decide who builds it', status: 'Who builds it?', at: 1 },
+    { id: 'w_3', title: 'Audit export', adoId: '48300', kind: 'handoff', lane: 'work', mine: false, action: '', status: 'With Sam', at: 0 }
+  ]);
+  const d = lanesData();
+  const req = d.cards.find(c => c.board === 'w_1');
+  assert.deepEqual([req.lane, req.kind, req.mine, req.status], ['clarify', 'request', true, 'Brief ready: send it to Define']);
+  assert.equal(d.cards.find(c => c.board === 'w_3').status, 'With Sam');
+  const html = lanesHtml();
+  assert.match(html, /data-lane-open="board:w_2"/);
+  S.ui.laneSel = 'board:w_2';
+  assert.doesNotMatch(lanesHtml(), /class="ln-panel"/, 'a board item opens the board\'s own panel, not the runs panel');
+  setBoardFeed([]);
+});
+
+test('teammates\' PRs are one Review card in Ready that opens the review list (5.2)', () => {
+  S.inbox = { state: 'ok', items: [{ id: '812', title: 'Add retry', waiting: false }, { id: '813', title: 'Fix typo', waiting: false }] };
+  const card = lanesData().cards.find(c => c.reviews);
+  assert.deepEqual([card.lane, card.kind, card.mine, card.title], ['ready', 'review', true, "2 teammates' PRs to review"]);
+  S.ui.laneSel = 'reviews';
+  assert.match(lanesHtml(), /class="ln-reviews"/);
+  S.inbox = null;
+});
+
+test('Hand off is a drop box kind (5.2): the board\'s Hand to a person flow', () => {
+  const r = dropStart('Audit export for finance\nThey need the monthly export with totals.', 'handoff');
+  const q = startRequest(r.st, drafts(r.drafts));
+  assert.equal(q.board, 'handoff');
+  assert.equal(q.args.title, 'Audit export for finance');
+  assert.match(q.args.description, /monthly export/);
+});
+
+test('a spike\'s first look (Core 4.6.0) is on its card and at the top of its panel while it keeps digging', () => {
+  const it = item('spike-cache-options');
+  it.state = 'Investigating';
+  it.files = ['first-look.md'];
+  S.files = { 'spike-cache-options/first-look.md': { text: 'Quick answer: Redis fits.\nConfidence: Medium\nDigging into: cache layer' } };
+  const c = lanesData().cards.find(x => x.folder === 'spike-cache-options');
+  assert.equal(c.lane, 'work');
+  assert.equal(c.status, 'First look ready; still digging');
+  S.ui.laneSel = 'spike-cache-options';
+  assert.match(lanesHtml(), /class="ln-first"><p class="ln-fh">First look<\/p>[^]*Redis fits/);
+  assert.ok(wantedFiles().some(([f, n]) => f === 'spike-cache-options' && n === 'first-look.md'));
 });

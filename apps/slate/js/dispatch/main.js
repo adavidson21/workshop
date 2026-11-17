@@ -6,7 +6,7 @@
    - shell: routes (#/agents/<id> focuses an item), the rail badge (open prompts), toasts and
      notifications. The theme comes from shared/theme.js and the SDK, with no messages of our own.
    view.js builds the HTML; this file paints it and handles input. */
-import { getWs, setBadge, setCards, setTab as loomTab, splitRoute, routeBoard, onTabRequest, setRunRenderer, runsPainted, onOpenRunPage, onPanelRun, boardCommand, onNudges, onPickable, pickable } from '../loom.js';
+import { getWs, setBadge, setCards, setTab as loomTab, splitRoute, routeBoard, onTabRequest, setRunRenderer, runsPainted, onOpenRunPage, onPanelRun, boardCommand, onNudges, onPickable, pickable, onBoardFeed, onBoardDrawer, setBoardDrawer } from '../loom.js';
 import { mountBar } from '../../../../shared/standalone-bar.js';
 import { S } from './state.js';
 import { render, prompts, itemForFolder, itemKey, isBusy, dayKey, fileDirty, fileDraft, fileDraftKey, fileLock, guideDefaults, GUIDE_STEPS, cfgBuild, startRequest, repoUrlCheck, repoCategoryCheck, NEW_CATEGORY } from './view.js';
@@ -441,6 +441,9 @@ ws.on('route', p => wantFocus(p.path));
 onTabRequest(t => { if (ui().tab !== t || ui().run) setTab(t); });
 onNudges(() => schedule());
 onPickable(() => { if (ui().tab === 'lanes') schedule(); });
+onBoardFeed(() => { if (ui().tab === 'lanes') schedule(); });
+// The board item's drawer closed (its own Close, or it left the board): the card is no longer open.
+onBoardDrawer(id => { if (!id && String(ui().laneSel || '').startsWith('board:')) { ui().laneSel = null; schedule(); } });
 // A run inside its card on the board (loom.js): its step and buttons, and its full page from the card.
 setRunRenderer(folder => (S.D ? runCardHtml(folder) : ''));
 onPanelRun(() => { loadFiles(); schedule(); });
@@ -979,8 +982,14 @@ listen('click', ev => {
   if (tb) { setTab(tb.getAttribute('data-tab')); return; }
   // Lanes (lanes.js): open or close a card's panel, filter, start from the drop box.
   const lo = t.closest('[data-lane-open]');
-  if (lo) { const k = lo.getAttribute('data-lane-open'); ui().laneSel = ui().laneSel === k ? null : k; paint(); return; }
-  if (t.closest('[data-lane-close]')) { ui().laneSel = null; paint(); return; }
+  if (lo) {
+    const k = lo.getAttribute('data-lane-open');
+    ui().laneSel = ui().laneSel === k ? null : k;
+    // A board item opens the board's own panel as a drawer over Lanes.
+    setBoardDrawer(ui().laneSel && ui().laneSel.startsWith('board:') ? ui().laneSel.slice(6) : '');
+    paint(); return;
+  }
+  if (t.closest('[data-lane-close]')) { ui().laneSel = null; setBoardDrawer(''); paint(); return; }
   const lf = t.closest('[data-lane-filter]');
   if (lf) { ui().laneFilter = lf.getAttribute('data-lane-filter'); paint(); return; }
   if (t.closest('[data-lane-start]')) { dropGo(); return; }

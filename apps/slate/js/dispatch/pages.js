@@ -22,6 +22,8 @@ import { FLOWS, flowOf, flowTag, flowById, stepsOf, stepIndex, currentStep, here
 export { TABS } from '../loom.js';
 import { TABS, BOARD_TABS, panelRun, currentNudges } from '../loom.js';
 import { lanesHtml, lanesCount, laneRun } from './lanes.js';
+import { setLanesView } from './view.js';
+setLanesView(() => lanesHtml());
 // `work` is All runs: under Board on the tab bar (the board's toolbar opens it), every run in one list.
 export const TAB_IDS = [...TABS.map(t => t[0]), 'work'];
 /** Dispatch 2.x's tabs: Runs, Ship and Research are all Work now. */
@@ -515,6 +517,8 @@ export function wantedFiles() {
   // The run open in the lanes' panel: its gate's file, shown inline there (Loom 5.0.0).
   const lr = t === 'lanes' && !S.ui.run && laneRun();
   if (lr && lr.kind !== 'pr' && atGate(lr)) add(lr, gateFile(lr));
+  // A spike's first look (Core 4.6.0), shown at the top of its panel.
+  if (lr && lr.kind === 'spike' && (lr.files || []).includes('first-look.md') && !(lr.files || []).includes('findings.md')) add(lr, 'first-look.md');
   if (S.ui.run && (BOARD_TABS.includes(t) || t === 'work' || t === 'inbox' || t === 'lanes')) {
     const it = itemForFolder(S.ui.run);
     if (it && it.kind !== 'pr') {
