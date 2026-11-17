@@ -57,9 +57,9 @@ export function humanBytes(n) {
  * move to the data folder (docs/connector.md, ctx.content) these are old copies, kept until deleted by hand.
  */
 export const CONNECTOR_CONTENT = [
-  { id: 'opencode-chats', what: 'Chat list', rel: ['_connectors', 'opencode', 'chats.json'] },
-  { id: 'opencode-hub', what: 'Hub requests', rel: ['_connectors', 'opencode', 'hub'] },
-  { id: 'opencode-oneonones', what: '1:1 packets', rel: ['_connectors', 'opencode', 'oneonones'] },
+  { id: 'opencode-chats', what: 'Old copy of the Chat list (now in your data folder)', rel: ['_connectors', 'opencode', 'chats.json'] },
+  { id: 'opencode-hub', what: 'Old hub requests sent to opencode', rel: ['_connectors', 'opencode', 'hub'] },
+  { id: 'opencode-oneonones', what: 'Old 1:1 prep packets sent to opencode (they hold notes about people)', rel: ['_connectors', 'opencode', 'oneonones'] },
 ];
 
 /** The largest collections and files in the data folder, biggest first. Dot folders are skipped. */

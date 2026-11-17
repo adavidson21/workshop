@@ -85,6 +85,7 @@ Writers may send `X-Workshop-Client: <id>` (letters, digits, `_` and `-`, up to 
 | `DELETE /api/files/<app>/<path>` | header token | Move a file to the trash |
 | `GET /api/storage` | token | What is stored where: sizes, counts and paths, never contents (Settings, Data) |
 | `POST /api/storage/readable` | header token | Make the readable copy of the data folder |
+| `POST /api/storage/delete` | header token, own origin only | Delete one old copy the storage report lists, the trash or the backups (Settings, Data) |
 | `GET /api/connectors` | token | All known connectors |
 | `GET /api/connectors/<id>` | token | One connector |
 | `POST /api/connectors/<id>/<action>` | header token | Run an action |
@@ -254,6 +255,10 @@ What Workshop keeps, by place, for Settings' Data page and `workshop doctor`: `d
 ### `POST /api/storage/readable`
 
 Makes the readable copy ([data-format.md](data-format.md), Readable without Workshop) and answers `{dir, apps, collections, files}`. Body: `{}`. One at a time: a second call while one runs gets the same result. Writes only inside `<dataDir>/Readable copy/`.
+
+### `POST /api/storage/delete`
+
+Body `{"id": "<id>"}`: one of the `leftovers` ids from `GET /api/storage`, `"trash"` or `"backups"`. Deletes that path and answers `{deleted: <path>}`; any other id is `400 bad_request`. Own origin only, so a hosted page cannot delete anything. Settings asks before calling it. This is the only way anything in the data folder or the Workshop home is deleted, apart from `.scratch` working files.
 
 ### `GET /api/connectors` and `GET /api/connectors/<id>`
 

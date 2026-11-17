@@ -25,7 +25,8 @@
 #                         <FOLDER>_TAG such as DOCKET_TAG or NOTES_TAG, else their newest code) and builds
 #                         the copy (workshop pin).
 #                         /install-work.ps1 is this installer with work mode on. On a new install, work mode keeps
-#                         the data folder in your company OneDrive when there is one (WORKSHOP_DATA_DIR overrides).
+#                         the data folder in ~\Workshop on this computer (WORKSHOP_DATA_DIR names another;
+#                         WORKSHOP_ONEDRIVE=1 uses your company OneDrive).
 # Dispatch (opencode, git, Tandem and an AI model) is only for coding agents:
 #   WORKSHOP_DISPATCH=0   skip it: no opencode, no Tandem, no git download, no AI question
 #   WORKSHOP_DISPATCH=1   install it. The default is 1, except in work mode, where it is 0 until you ask for it.
@@ -336,9 +337,9 @@ $wsPath = $Workspace -replace '^~', $env:USERPROFILE
 $wsArgs = if ($Work) { @((Join-Path $wsDir 'workshop.mjs'), 'install', '--work-mode') } else { @((Join-Path $wsDir 'workshop.mjs'), 'install', '--allow', $Site) }
 # Start at login is opt-in: run it by hand for a while first. A setting turned on earlier is kept either way.
 if ($env:WORKSHOP_LOGIN -eq '1') { $wsArgs += '--login' }
-# The data folder, for a new install only (an existing one is never moved): WORKSHOP_DATA_DIR, else in work mode
-# the company OneDrive, which backs it up on storage the company manages.
-if ($env:WORKSHOP_DATA_DIR) { $wsArgs += @('--data-dir', $env:WORKSHOP_DATA_DIR) } elseif ($Work) { $wsArgs += '--onedrive' }
+# The data folder, for a new install only (an existing one is never moved): WORKSHOP_DATA_DIR, or the company
+# OneDrive with WORKSHOP_ONEDRIVE=1, else ~\Workshop on this computer. Nothing leaves the computer unless you choose.
+if ($env:WORKSHOP_DATA_DIR) { $wsArgs += @('--data-dir', $env:WORKSHOP_DATA_DIR) } elseif ($env:WORKSHOP_ONEDRIVE -eq '1') { $wsArgs += '--onedrive' }
 if ($ocCmd) {
   New-Item -ItemType Directory -Force -Path $wsPath | Out-Null
   $wsArgs += @('--workspace', $Workspace)

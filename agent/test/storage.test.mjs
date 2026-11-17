@@ -70,7 +70,7 @@ test('the report lists trash, backups, old copies and connector content without 
     assert.deepEqual(r.leftovers.map(l => l.id), ['old-prioritizer', 'opencode-hub']);
     const text = storageLines(r, { sizes: true }).join('\n');
     assert.match(text, /Trash: 1 file, 2 KB/);
-    assert.match(text, /Old copy: Hub requests/);
+    assert.match(text, /Old copy: Old hub requests sent to opencode/);
     assert.deepEqual(largestFiles(dd).map(f => f.path), ['notes/big.md', 'notes/small.md']);
     assert.ok(fs.existsSync(path.join(data, 'prioritizer', 'tasks.json')), 'nothing removed');
   } finally { rmHome(home); }
@@ -129,4 +129,23 @@ test('the report names app folders still under their old names', () => {
     assert.match(text, /prioritizer\/ is renamed to docket\/ the next time Workshop starts/);
     assert.match(text, /Old copy: The notes\/ folder, its old name \(Workshop uses folio\/\)/);
   } finally { rmHome(home); }
+});
+
+test('Settings can delete only what the report lists, only from this computer', async () => {
+  const { post, get: getReq } = await import('./helpers.mjs');
+  const home = tempHome();
+  const data = path.join(home, 'data');
+  fs.mkdirSync(path.join(data, '_connectors', 'opencode', 'oneonones', 'p-2026'), { recursive: true });
+  fs.writeFileSync(path.join(data, '_connectors', 'opencode', 'oneonones', 'p-2026', 'packet.md'), 'people data');
+  const agent = await start(home);
+  try {
+    const st = (await getReq(agent, '/api/storage')).json;
+    assert.deepEqual(st.leftovers.map(l => l.id), ['opencode-oneonones']);
+    assert.equal((await post(agent, '/api/storage/delete', { id: '../../etc' })).status, 400);
+    assert.equal((await post(agent, '/api/storage/delete', { id: 'opencode-oneonones' }, { origin: 'https://workshop.alexisdavidson.org' })).status >= 400, true);
+    const r = await post(agent, '/api/storage/delete', { id: 'opencode-oneonones' });
+    assert.equal(r.status, 200, r.text);
+    assert.ok(!fs.existsSync(path.join(data, '_connectors', 'opencode', 'oneonones')));
+    assert.deepEqual((await getReq(agent, '/api/storage')).json.leftovers, []);
+  } finally { await agent.stop(); rmHome(home); }
 });

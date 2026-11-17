@@ -24,7 +24,8 @@ echo "Node $(node -v): ok."
 WORK=0
 for a in "$@"; do [ "$a" = "--work-mode" ] && WORK=1; done
 EXTRA=()
-if [ -n "${WORKSHOP_DATA_DIR:-}" ]; then EXTRA+=(--data-dir "$WORKSHOP_DATA_DIR"); elif [ "$WORK" = 1 ]; then EXTRA+=(--onedrive); fi
+# The data folder stays on this computer (~/Workshop) unless you choose: WORKSHOP_DATA_DIR, or WORKSHOP_ONEDRIVE=1.
+if [ -n "${WORKSHOP_DATA_DIR:-}" ]; then EXTRA+=(--data-dir "$WORKSHOP_DATA_DIR"); elif [ "${WORKSHOP_ONEDRIVE:-}" = 1 ]; then EXTRA+=(--onedrive); fi
 node "$REPO/workshop.mjs" install "$@" ${EXTRA[@]+"${EXTRA[@]}"}
 if [ "$WORK" = 1 ]; then
   node "$REPO/workshop.mjs" pin || { echo "Building the pinned copy failed. See the messages above."; exit 1; }

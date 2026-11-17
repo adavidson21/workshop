@@ -147,3 +147,12 @@ Each one runs this computer's Node on `agent/start.mjs` quietly. Turning it off 
 ## Checking your setup
 
 `workshop doctor` checks your Node version, reads `config.json` and reports any problem with it, says whether the agent is running on its port, whether start at login agrees with the launcher, whether hosted mode has origins, whether work mode's pinned copy matches its `build.json`, and (when the opencode connector has approved providers) whether opencode can use any other AI provider. `workshop doctor ado` checks the ADO connector. Neither changes anything (and `workshop doctor ado --import --write` refuses to run while the agent is running, so it cannot clash with it).
+
+## Where data can go
+
+Nothing leaves the computer unless the person turned it on, and Settings, Data lists every way out with its state:
+
+- **The data folder** stays on this computer. If the person puts it in a folder a sync tool uploads (OneDrive, Dropbox, iCloud Drive, Google Drive), that tool uploads it; Workshop says so and never uploads it itself. Installers keep it in `~/Workshop` unless told otherwise (`WORKSHOP_DATA_DIR`, or `WORKSHOP_ONEDRIVE=1` for the company OneDrive).
+- **Connectors** (Azure DevOps, GitHub, opencode) are off until turned on, call only hosts from their config, and change outside systems only from a button with `confirm: true`.
+- **AI**: with the opencode connector on, what the person sends in Chat and Loom goes to the AI provider opencode is set up with (its approved providers are listed).
+- **Pages** can reach only their own site and `127.0.0.1` (CSP `connect-src`, checked by `shared/test/page-csp.test.mjs`), and the agent itself makes no outbound requests (`agent/test/source.test.mjs`).
