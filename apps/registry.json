@@ -271,7 +271,7 @@
         "manifestVersion": 1,
         "id": "slate",
         "name": "Loom",
-        "version": "4.11.0",
+        "version": "4.12.0",
         "description": "Your backlog and Tandem's runs in one place: each piece of work is a card from request to resolved. Start work from a flow card; one Inbox for what needs you.",
         "icon": "icon.svg",
         "entry": "index.html",
@@ -439,6 +439,9 @@
           "items",
           "handoffs",
           "summary"
+        ],
+        "privateFiles": [
+          "reports"
         ],
         "files": [
           "slate.css",

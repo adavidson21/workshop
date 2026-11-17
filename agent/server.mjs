@@ -21,7 +21,7 @@ import { Store } from './lib/store.mjs';
 import { Files } from './lib/files.mjs';
 import { Tracker, FolderWatch } from './lib/watch.mjs';
 import { rawApiSegments, decodeSegment, appId, collectionName, folderName, filePath } from './lib/datapath.mjs';
-import { defaultDataDir, dataDirProblem, prepareDataDir, removeDataTmpFiles, moveOldData, looseDataDir } from './lib/datadir.mjs';
+import { defaultDataDir, dataDirProblem, prepareDataDir, removeDataTmpFiles, moveOldData, looseDataDir, cleanScratch, SCRATCH_DAYS } from './lib/datadir.mjs';
 import { EventHub } from './lib/events.mjs';
 import { ConnectorHost } from './lib/connectors.mjs';
 import { LOCAL_PAGE, serveStatic } from './lib/static.mjs';
@@ -101,6 +101,7 @@ export async function createAgent(o) {
   const dataDir = path.resolve(dataRoot.dir);
   for (const rel of removeDataTmpFiles(dataRoot)) log.warn(`Removed a leftover temp file from an interrupted write: ${rel} in the data folder.`);
   const loose = looseDataDir(dataDir);
+  for (const rel of cleanScratch(dataDir)) log.info(`Removed working files older than ${SCRATCH_DAYS} days: .scratch/${rel} in the data folder.`);
   if (loose) log.warn(`Other users on this computer can read the data folder (permissions ${loose}). Run: chmod 700 "${dataDir}"`);
   const tracker = new Tracker();
   const dataLock = new KeyedLock(); // shared by collections and files: both live in the data folder
@@ -164,7 +165,7 @@ export async function createAgent(o) {
   const files = new Files({ root: dataRoot, schemas, log: log.for('files'), lock: dataLock, tracker });
   const watch = new FolderWatch({ root: dataRoot, tracker, events, log: log.for('watch') });
   const connectors = new ConnectorHost({
-    dir: connectorsDir, schemas, env: o.env || liveEnv(process.env), home, storageDir: path.join(paths.data, '_connectors'), log, events, config: () => config
+    dir: connectorsDir, schemas, env: o.env || liveEnv(process.env), home, storageDir: path.join(paths.data, '_connectors'), dataDir, log, events, config: () => config
   });
 
   let port = 0;
@@ -583,6 +584,11 @@ document.getElementById('allow').addEventListener('click', function () {
     } catch (e) { log.warn(`Could not check start at login: ${e.message}`); }
   }
 
+  // Working files are cleaned again every 6 hours while the agent runs (docs/connector.md, ctx.scratch).
+  const scratchTimer = setInterval(() => {
+    try { for (const rel of cleanScratch(dataDir)) log.info(`Removed working files older than ${SCRATCH_DAYS} days: .scratch/${rel} in the data folder.`); } catch { /* next time */ }
+  }, 6 * 3600 * 1000);
+  scratchTimer.unref();
   let stopping = null;
   return {
     url: `http://127.0.0.1:${port}`,
@@ -595,6 +601,7 @@ document.getElementById('allow').addEventListener('click', function () {
     pinned,
     stop() {
       stopping ??= (async () => {
+        clearInterval(scratchTimer);
         watch.stop();
         events.closeAll();
         await connectors.stopAll();

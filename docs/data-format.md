@@ -131,6 +131,7 @@ Bundles carry collections only. Files written through the files API are not in b
   <app>/<path>.png (.jpg .jpeg .gif .webp)  images written through the files API
   .trash/<app>/<path>.<stamp>.<ext>        files moved to the trash
   .backups/<yyyy-mm-dd>/<app>/...          copies kept before a version or envelope upgrade
+  .scratch/<connector>/<kind>/<run>/       connectors' working files, removed 7 days after they last changed
 ```
 
 For example:
@@ -156,10 +157,14 @@ For example:
 
 Workshop only sees paths that follow the name rules above, under an app folder. It ignores, and never changes or deletes:
 
-- any file or folder whose name starts with `.` (other than its own `.trash` and `.backups`, which only it writes to), for example `.git`, `.obsidian`, `.DS_Store`;
+- any file or folder whose name starts with `.` (other than its own `.trash`, `.backups` and `.scratch`, which only it writes to), for example `.git`, `.obsidian`, `.DS_Store`;
 - names that break the rules (`Notes.md`, `my notes.md`, `-draft.md`), top-level folders that are not app ids (`<dataDir>/2026/`), files with other extensions, and anything deeper than 4 segments;
 - files at the top of the data folder (`<dataDir>/readme.md`);
 - leftover `*.tmp` files (see Disk rules).
+
+### Working files
+
+`<dataDir>/.scratch/<connector>/<kind>/<run>/` holds files a connector hands to another program for one run, for example a hub request or a 1:1 packet for opencode ([connector.md](connector.md), `ctx.scratch`). The agent removes a run folder 7 days after anything in it last changed, on start and every 6 hours. This is the only place Workshop removes files on its own; nothing else in the data folder is ever removed by code.
 
 ### Trash
 

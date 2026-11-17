@@ -50,7 +50,7 @@ Your message shows in the thread as soon as you send it, even before opencode ha
 | `chat.remove` | no | `session` | Stops listing it. The opencode session is kept |
 | `chat.rename` | no | `session`, `title` | `{ok, title}`: renames it in Chat's list. The opencode session keeps its own title |
 
-Stop is the connector's `abort` action, and Open in the opencode terminal its `terminal` action. The list lives in `<Workshop home>/data/_connectors/opencode/chats.json` (mode 0600, newest 100). Each hub entry keeps its intent once `hub.result` reads the route (older entries: read from the request's `route.json`), so captures and go stay out of the list. The turns stay in opencode.
+Stop is the connector's `abort` action, and Open in the opencode terminal its `terminal` action. The list lives in the data folder, `<dataDir>/chat/chats.json` (mode 0600, newest 100), so it stays with your data if Workshop is removed. Connector 1.18.0 copies it there once from `<Workshop home>/data/_connectors/opencode/chats.json` and keeps the old file. Each hub entry keeps its intent once `hub.result` reads the route (older entries: read from the request's `route.json`), so captures and go stay out of the list. The turns stay in opencode.
 
 ## opencode versions
 

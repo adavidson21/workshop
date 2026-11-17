@@ -67,7 +67,7 @@ const timeout = (ms, what) => new Promise((_, reject) => {
 });
 
 export class ConnectorHost {
-  #dir; #schemas; #env; #home; #storageDir; #log; #events; #config;
+  #dir; #schemas; #env; #home; #storageDir; #dataDir; #log; #events; #config;
   #entries = new Map();
   #storageLock = new KeyedLock();
 
@@ -78,13 +78,14 @@ export class ConnectorHost {
    * @param {object} o.env         environment variables connectors may read
    * @param {string} o.home        the Workshop home folder
    * @param {string} o.storageDir  <home>/data/_connectors
+   * @param {string} [o.dataDir]    the data folder, for ctx.dataDir and ctx.scratch
    * @param {object} o.log         logger from log.mjs
    * @param {object} o.events      EventHub
    * @param {() => object} o.config returns the live config object
    */
   constructor(o) {
     this.#dir = o.dir; this.#schemas = o.schemas; this.#env = o.env; this.#home = o.home;
-    this.#storageDir = o.storageDir; this.#log = o.log; this.#events = o.events; this.#config = o.config;
+    this.#storageDir = o.storageDir; this.#dataDir = o.dataDir || null; this.#log = o.log; this.#events = o.events; this.#config = o.config;
   }
 
   async load() {
@@ -192,7 +193,9 @@ export class ConnectorHost {
       },
       statusChanged: () => this.#broadcastStatus(entry),
       signal: abort.signal,
-      home: this.#home
+      home: this.#home,
+      dataDir: this.#dataDir,
+      scratch: this.#dataDir ? path.join(this.#dataDir, '.scratch', entry.id) : null
     });
     return { ctx, abort };
   }

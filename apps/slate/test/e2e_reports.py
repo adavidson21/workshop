@@ -21,6 +21,7 @@ APP = SITE + '/apps/slate/'
 STATE = {
     'connector': 'ready',
     'calls': [],
+    'files': {},
     'data': {'settings/people': {'schema': 'settings.people', 'version': 2, 'rev': 1, 'updatedAt': '2026-11-03T12:00:00.000Z', 'deleted': {}, 'items': [
         {'id': 'p_one', 'kind': 'person', 'updatedAt': 1, 'name': 'Dev One', 'handle': 'one', 'relation': 'report', 'adoIdentity': 'dev.one@example.test'}]},
         'settings/teams': {'schema': 'settings.teams', 'version': 1, 'rev': 1, 'updatedAt': '2026-11-03T12:00:00.000Z', 'deleted': {}, 'items': [
@@ -81,10 +82,25 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             env = STATE['data'].get(m.group(1) + '/' + m.group(2))
             return self.send_json(200, env) if env else self.send_json(404, {'code': 'not_found', 'error': 'Not found'})
         if re.match(r'^/api/data/[a-z0-9-]+$', p): return self.send_json(200, {'collections': []})
+        m = re.match(r'^/api/files/([a-z0-9-]+)/(.+)$', p)
+        if m:
+            f = STATE['files'].get(m.group(1) + '/' + m.group(2))
+            if not f: return self.send_json(404, {'code': 'not_found', 'error': 'Not found'})
+            return self.send_json(200, {'app': m.group(1), 'path': m.group(2), 'mtime': f['mtime'], 'size': len(f['content']), 'content': f['content']})
         return self.send_json(404, {'code': 'not_found', 'error': 'Not found'})
 
     def do_PUT(self):
         p = self.path.split('?')[0]
+        fm = re.match(r'^/api/files/([a-z0-9-]+)/(.+)$', p)
+        if fm:
+            key, body = fm.group(1) + '/' + fm.group(2), self.body()
+            cur = STATE['files'].get(key)
+            cur_view = {'app': fm.group(1), 'path': fm.group(2), 'mtime': cur['mtime'], 'size': len(cur['content']), 'content': cur['content']} if cur else None
+            if (body.get('create') and cur) or (not body.get('create') and (not cur or cur['mtime'] != body.get('mtime'))):
+                return self.send_json(409, {'code': 'conflict', 'error': 'Changed', 'current': cur_view})
+            mt = (cur['mtime'] + 1) if cur else 1792900000000
+            STATE['files'][key] = {'content': body.get('content', ''), 'mtime': mt}
+            return self.send_json(200, {'app': fm.group(1), 'path': fm.group(2), 'mtime': mt, 'size': len(body.get('content', ''))})
         m = re.match(r'^/api/data/([a-z0-9-]+)/(.+)$', p)
         if not m: return self.send_json(404, {'code': 'not_found', 'error': 'Not found'})
         key = m.group(1) + '/' + m.group(2)
@@ -168,13 +184,19 @@ def main():
         check('the tab you picked stays picked (Board did not take the click)', pg.evaluate("document.querySelector('#reportsBox [data-tab=aging]').getAttribute('aria-selected')") == 'true')
         with pg.expect_download(timeout=15000) as dl: pg.click(f'{BOX} [data-rp="export"]')
         check('Export to Excel saves a workbook', dl.value.suggested_filename.startswith('team-reports-') and dl.value.suggested_filename.endswith('.xlsx'))
-        check('the profile is kept as slate.reports', json.loads(pg.evaluate("localStorage.getItem('slate.reports')") or '{}').get('areas') == 'Platform\\Wiki')
+        prof = json.loads(STATE['files'].get('slate/reports/profile.json', {}).get('content') or '{}')
+        check('the profile is kept in the Workshop folder as reports/profile.json', prof.get('areas') == 'Platform\\Wiki')
+        check('the last pull is kept in the folder as reports/cache.json, not in the browser',
+              'items' in json.loads(STATE['files'].get('slate/reports/cache.json', {}).get('content') or '{}')
+              and pg.evaluate("localStorage.getItem('slate.reports')") is None)
 
         pg.reload()
         pg.wait_for_selector(f'{BOX} .wl-kpis', timeout=10000)
         check('after a reload the last pull shows without asking ADO again', len([c for c in STATE['calls'] if c[0] == 'dataset']) == 1)
 
-        # Someone who used reports in Runway: the profile comes along the first time.
+        # Someone who used reports in Runway: the profile comes along the first time (a new folder, so the
+        # browser's old profile is what there is).
+        STATE['files'].clear()
         ctx2 = b.new_context(viewport={'width': 1400, 'height': 900})
         pg2 = ctx2.new_page()
         pg2.goto(APP + '#/')
@@ -182,6 +204,10 @@ def main():
         open_reports(pg2)
         pg2.wait_for_function("() => (document.querySelector('#reportsBox')?.innerText || '').includes('No report data yet')", timeout=10000)
         check("Runway's old team profile carries over (one area, 30 days)", '1 area' in pg2.inner_text(BOX) and pg2.input_value(f'{BOX} [data-rp-days]') == '30')
+        pg2.wait_for_timeout(300)
+        check('and is copied into the folder once, leaving the browser copy as it was',
+              'Platform' in (STATE['files'].get('slate/reports/profile.json', {}).get('content') or '')
+              and pg2.evaluate("localStorage.getItem('runway.reports')") is not None)
         ctx2.close()
 
         # The connector off: the section explains it needs Azure DevOps.

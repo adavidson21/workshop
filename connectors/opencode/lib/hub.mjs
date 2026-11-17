@@ -1,8 +1,9 @@
 // opencode connector: the hub on Loom's page (apps/slate, Workshop docs/hub.md). Workshop only, not in the
 // eng-agents live server.
 //
-// hub.run saves what Dispatch sends as request.md in this connector's own folder,
-// <Workshop home>/data/_connectors/opencode/hub/<id>/, never in the workspace or .work, and runs Tandem's
+// hub.run saves what Dispatch sends as request.md in this connector's working folder,
+// <dataDir>/.scratch/opencode/hub/<id>/ (ctx.scratch, removed 7 days after it last changed; before connector
+// 1.19.0, <Workshop home>/data/_connectors/opencode/hub/<id>/), never in the workspace or .work, and runs Tandem's
 // /hub <path to request.md> in a new session (eng-agents Core 2.9.0). The hub agent writes route.json and, for a
 // question, answer.md next to it. hub.result reads them back. Both run whenever the connector is on (the `hub` setting
 // is no longer read since 1.17.0).
@@ -31,8 +32,9 @@ export function hubSessions() {
   return new Set(runs.values());
 }
 
-/** The connector's own folder for hub requests. */
-export function hubRoot(home = ctx && ctx.home) {
+/** The connector's working folder for hub requests: ctx.scratch/hub, or the Workshop home on an older agent. */
+export function hubRoot(home = ctx && ctx.home, scratch = ctx && ctx.scratch) {
+  if (scratch) return path.join(scratch, "hub");
   if (!home) throw httpError(503, "The opencode connector is not ready yet.");
   return path.join(home, "data", "_connectors", "opencode", "hub");
 }

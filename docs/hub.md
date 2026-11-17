@@ -9,7 +9,7 @@ Version: `route.json` is version 1.
 ## Flow
 
 1. The person types in the hub and presses Enter. Enter counts as the click for `confirm: true`.
-2. Chat calls the opencode connector's `hub.run` (`write: true`, it starts an agent). The connector writes `request.md` in its own folder, `<Workshop home>/data/_connectors/opencode/hub/<id>/`, never in the workspace or `.work`, and runs `/hub <path to request.md>` in a new session.
+2. Chat calls the opencode connector's `hub.run` (`write: true`, it starts an agent). The connector writes `request.md` in its working folder, `<dataDir>/.scratch/opencode/hub/<id>/` (removed 7 days after it last changed; `<Workshop home>/data/_connectors/opencode/hub/<id>/` with an agent older than 1.18.0), never in the workspace or `.work`, and runs `/hub <path to request.md>` in a new session.
 3. Tandem's **hub** agent writes `route.json` next to it. For a question it goes on to answer and writes `answer.md`.
 4. Dispatch reads both through `hub.result`, checks `route.json` against [schemas/hub-route.schema.json](schemas/hub-route.schema.json), and shows the result. Anything that does not match is dropped, never acted on.
 
