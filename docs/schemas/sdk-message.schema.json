@@ -147,6 +147,44 @@
           "$ref": "#/$defs/msgId"
         },
         "method": {
+          "const": "window.open"
+        },
+        "params": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "path"
+          ],
+          "properties": {
+            "path": {
+              "type": "string",
+              "maxLength": 500
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "workshop",
+        "kind",
+        "id",
+        "method",
+        "params"
+      ],
+      "properties": {
+        "workshop": {
+          "const": 1
+        },
+        "kind": {
+          "const": "request"
+        },
+        "id": {
+          "$ref": "#/$defs/msgId"
+        },
+        "method": {
           "const": "toast"
         },
         "params": {

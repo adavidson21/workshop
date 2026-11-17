@@ -1207,6 +1207,11 @@ function makeShellChannel(ctx) {
         location.href = SHELL_URL.href + hash;
         return Promise.resolve(null);
       }
+      case 'window.open': {
+        const win = window.open(location.pathname + location.search + (params.path ? '#/' + String(params.path).split('/').map(encodeURIComponent).join('/') : ''), '_blank', 'popup');
+        if (!win) return Promise.reject(Object.assign(new Error('Your browser blocked the window. Allow pop-ups for this site and try again.'), { code: 'blocked' }));
+        return Promise.resolve(null);
+      }
       // The page's own hash is its route (docs/sdk.md, Standalone pages): #/<path>.
       case 'route.set': {
         const want = '#/' + String(params.path || '').split('/').map(encodeURIComponent).join('/');
@@ -1389,6 +1394,8 @@ export async function connect(options) {
 
     /* shell */
     open(target) { return shell.request('open', { app: target.app, path: target.path }); },
+    // This app at a route in another window (docs/sdk.md, Shell): two of its pages side by side.
+    window(path) { return shell.request('window.open', { path: String(path || '').slice(0, 500) }); },
     // Where this app is now, for the address bar, Back and Forward (docs/sdk.md, Routes).
     route: {
       set(path, opts) { return shell.request('route.set', { path: String(path || '').slice(0, 500), replace: !!(opts && opts.replace) }); }

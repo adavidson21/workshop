@@ -109,6 +109,23 @@ def main():
         pg.wait_for_timeout(800)
         check('closing the windows clears every mark', pg.locator('#rail .app-btn.popped').count() == 0)
 
+        # ws.window (docs/sdk.md): Folio's Open in new window. A second window of the app at a route, which leaves
+        # the app in the main window and on the rail unmarked.
+        pg.evaluate("location.hash = '#/notes/popout-check.md'"); pg.wait_for_timeout(1500)
+        nf = frame_of(pg, 'notes')
+        with ctx.expect_page() as info:
+            nf.evaluate("document.querySelector('[data-act=menu]').click()")
+            nf.wait_for_timeout(200)
+            nf.evaluate("document.querySelector('.menu [data-act=window]').click()")
+        also = info.value; also.wait_for_load_state(); also.wait_for_timeout(2000)
+        af = frame_of(also, 'notes')
+        check('Open in new window opens the note in a second Folio window', '?solo=notes&also=1' in also.url and af is not None
+              and 'hello from the main window' in af.evaluate("document.body.innerText"))
+        pg.wait_for_timeout(500)
+        check('the second window leaves Folio in the main window, unmarked on the rail', '#/notes' in pg.url
+              and pg.locator('#rail .app-btn.popped[data-app="notes"]').count() == 0)
+        also.close()
+
         pg.goto(HUB + '/?solo=nothing'); pg.wait_for_timeout(1200)
         check('a pop-out for an app that is not here opens the main window', '?solo' not in pg.url and pg.locator('#rail').is_visible())
 
