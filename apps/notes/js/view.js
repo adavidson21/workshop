@@ -359,7 +359,7 @@ function mentionsHtml(state) {
     <ul class="backlinks">${list.map((m, k) => {
       const lead = m.text.slice(Math.max(0, m.at - 60), m.at), tail = m.text.slice(m.at + m.len, m.at + m.len + 80);
       return `<li class="mention"><a href="#" data-open="${esc(m.from)}" data-line="${m.line}"><span class="r-title">${esc(m.title)}</span>
-        <span class="r-line">${m.at > 60 ? '…' : ''}${esc(plainText(lead))}<mark>${esc(m.match)}</mark>${esc(plainText(tail))}</span></a>
+        <span class="r-line">${m.at > 60 ? '…' : ''}${esc(lead.replace(/^\s*([-*+]|\d+[.)]|#+|>)\s+/, ''))}<mark>${esc(m.match)}</mark>${esc(tail)}</span></a>
         <button class="btn ghost small" data-act="link-mention" data-k="${k}" title="Make this a [[link]] in ${esc(m.title)}">Link</button></li>`;
     }).join('')}</ul></details></section>`;
 }
