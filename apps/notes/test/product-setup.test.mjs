@@ -21,7 +21,7 @@ test('product notes: what to make, what is only recorded, what is skipped', () =
   assert.ok(r.every(t => isProductPath(t.path)), 'every path is one Folio lists as a product note');
 });
 
-test('product notes: the starter template filled in from Settings, owners under People', () => {
+test('product notes: the starter template filled in from Settings, owners left to People', () => {
   const text = productNoteText(PORTAL, [{ name: 'Bea', hits: ['sample portal'] }], null, at);
   const fm = frontmatter(text);
   assert.equal(fm.data.title, 'Sample Portal');
@@ -30,14 +30,15 @@ test('product notes: the starter template filled in from Settings, owners under 
   assert.match(text, /^repos: \[Platform\/Sample Portal\/portal-ui\]$/m);
   assert.match(text, /^areas: \[Project\\Team\\Portal\]$/m);
   assert.match(text, /\n# Sample Portal\n/);
-  assert.match(text, /## People\n\n- Bea: owns sample portal\n\n## Decisions/);
+  assert.match(text, /## Who to ask\n\n## Decisions/);
+  assert.doesNotMatch(text, /Bea/, 'owners come from People, not the note');
   assert.doesNotMatch(text, /tandem-changed|reviewed:|\{\{/);
 });
 
-test('product notes: your own template is used, and a missing People section is added', () => {
+test('product notes: your own template is used as it is', () => {
   const mine = '---\ntemplate: Product\ntags: [product, product/{{slug}}]\n---\n# {{title}}\n\nMade {{date}}.\n\n## Summary\n';
   const text = productNoteText({ ...PORTAL, alsoCalled: [], repos: [], areas: [] }, [{ name: 'Al', hits: ['portal-ui'] }], mine, at);
-  assert.equal(text, '---\ntags: [product, product/sample-portal]\nalso-called: []\nrepos: []\n---\n# Sample Portal\n\nMade 2026-11-10.\n\n## Summary\n\n## People\n\n- Al: owns portal-ui\n');
+  assert.equal(text, '---\ntags: [product, product/sample-portal]\nalso-called: []\nrepos: []\n---\n# Sample Portal\n\nMade 2026-11-10.\n\n## Summary\n');
   const none = productNoteText({ ...PORTAL, alsoCalled: [], repos: [], areas: [] }, [], '# {{title}}\n', at);
   assert.equal(none, '---\ntitle: Sample Portal\nalso-called: []\nrepos: []\n---\n# Sample Portal\n');
 });
@@ -63,15 +64,17 @@ test('startProductSetup: makes each note once, keeps one made by hand, never bri
   const people = [{ id: 'x', kind: 'person', name: 'Bea', owns: ['SP'] }, { id: 'y', kind: 'person', name: 'Old', owns: ['SP'], archived: true }];
   const seen = [];
   const s = startProductSetup(fakeWs(cols, files, people), store(files), { onMade: d => seen.push(...d) });
-  assert.equal(await s.run(), 2);
-  assert.match(files.get('products/sample-portal.md'), /## People\n\n- Bea: owns SP\n/);
+  assert.equal(await s.run(), 3, 'two products and the handbook');
+  assert.doesNotMatch(files.get('products/sample-portal.md'), /Bea/);
+  assert.match(files.get('team/handbook.md'), /^---\ntitle: Team handbook\n[\s\S]*## Definition of done/);
   assert.equal(files.get('products/tools.md'), '# Mine\n', 'a note made by hand is left alone');
-  assert.deepEqual(seen.map(d => [d.name, d.made]), [['Sample Portal', true], ['Tools', false]]);
-  assert.deepEqual(cols.get('notes/products-made').items.map(i => [i.id, i.path]), [['p_sample-portal', 'products/sample-portal.md'], ['p_tools', 'products/tools.md']]);
+  assert.deepEqual(seen.map(d => [d.name, d.made]), [['Sample Portal', true], ['Tools', false], ['Team handbook', true]]);
+  assert.deepEqual(cols.get('notes/products-made').items.map(i => [i.id, i.path]), [['p_sample-portal', 'products/sample-portal.md'], ['p_tools', 'products/tools.md'], ['h_handbook', 'team/handbook.md']]);
   assert.equal(cols.get('notes/products-made').schema, 'notes.products-made');
   assert.equal(await s.run(), 0, 'never twice');
   files.delete('products/sample-portal.md');
-  assert.equal(await s.run(), 0, 'a trashed note does not come back');
+  files.delete('team/handbook.md');
+  assert.equal(await s.run(), 0, 'a trashed note (or handbook) does not come back');
   // A rename in Settings does not touch the note; a new product does get one.
   const { items } = Products.upsert(cols.get('settings/products').items, { name: 'Billing' });
   cols.set('settings/products', settingsEnv(Products.upsert(items, { name: 'Portal Next' }, 'p_sample-portal').items));
@@ -79,16 +82,35 @@ test('startProductSetup: makes each note once, keeps one made by hand, never bri
   assert.ok(files.has('products/billing.md') && !files.has('products/sample-portal.md'));
 });
 
-test('startProductSetup: nothing without products, while loading, or with a newer version of either collection', async () => {
+test('startProductSetup: only the handbook without products; nothing while loading, or with a newer version of either collection', async () => {
   const files = new Map(), cols = new Map();
   const s = startProductSetup(fakeWs(cols, files), store(files));
+  assert.equal(await s.run(), 1, 'the handbook, once');
+  assert.deepEqual([...files.keys()], ['team/handbook.md']);
   assert.equal(await s.run(), 0);
+  files.clear(); cols.clear();
   cols.set('settings/products', settingsEnv([PORTAL]));
   assert.equal(await startProductSetup(fakeWs(cols, files), { ...store(files), loaded: false }).run(), 0);
   cols.set('notes/products-made', { schema: 'notes.products-made', version: 2, rev: 1, items: [], deleted: {} });
   assert.equal(await s.run(), 0);
   cols.delete('notes/products-made');
   cols.set('settings/products', { ...settingsEnv([PORTAL]), version: 2 });
-  assert.equal(await s.run(), 0);
-  assert.equal(files.size, 0);
+  assert.equal(await s.run(), 1, 'products from a newer Settings are skipped; the handbook is still made');
+  assert.deepEqual([...files.keys()], ['team/handbook.md']);
+});
+
+test('freshness: stale product notes and handbook, flagged lines, never other notes', async () => {
+  const { staleWhy, isStale, HANDBOOK_PATH } = await import('../js/products.js');
+  const { facts } = await import('../js/markdown.js');
+  const now = Date.parse('2026-11-17T00:00:00Z'), day = 86400000;
+  const n = (path, review, mtime) => ({ path, review: { reviewed: '', tandemChanged: '', flags: 0, ...review }, mtime });
+  assert.equal(staleWhy(n('products/a.md', { reviewed: '2026-11-01T00:00:00Z' }, now), now), '');
+  assert.equal(staleWhy(n('products/a.md', { reviewed: '2026-07-01T00:00:00Z' }, now), now), 'last checked 139 days ago');
+  assert.equal(staleWhy(n(HANDBOOK_PATH, {}, now - 100 * day), now), 'not checked, unchanged for 100 days');
+  assert.equal(staleWhy(n('products/a.md', {}, now - 5 * day), now), '');
+  assert.equal(staleWhy(n('runbooks/a.md', { reviewed: '2020-01-01' }, 0), now), '', 'only knowledge notes go stale');
+  const f = facts('---\nreviewed: 2026-11-16\n---\n# A\n\n- Exports are capped at 10k rows. (check: code says 5k, 2026-11-17, a.cs)\n\n```\n(check: in code)\n```\n');
+  assert.equal(f.review.flags, 1, 'code blocks are not counted');
+  assert.equal(staleWhy({ path: 'products/a.md', review: f.review, mtime: now }, now), '1 line flagged by Tandem');
+  assert.ok(isStale({ path: 'products/a.md', review: f.review, mtime: now }, now));
 });

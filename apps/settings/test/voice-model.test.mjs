@@ -110,3 +110,23 @@ test('feedback from Chat: applied once each, in order; a learned rule and a repe
   const back = V.fromEnvelope(V.toEnvelope(null, v)).value;
   assert.deepEqual(back.applied, v.applied, 'applied ids survive the envelope');
 });
+
+test('voice.md for Tandem: style, shared and learned rules, audiences, banned words; no samples', async () => {
+  const V = await import('../js/voice-model.js');
+  const v = V.defaults();
+  v.style = 'Short and plain.';
+  v.samples = { leadership: [{ id: 's1', text: 'SECRET SAMPLE', from: 'you', at: 1 }] };
+  v.rules = [
+    { id: 'r1', text: 'Say the ask first.', status: 'active', audience: 'leadership', reader: '' },
+    { id: 'r2', text: 'Never rejected.', status: 'rejected', audience: '', reader: '' },
+    { id: 'r3', text: 'Use first names.', status: 'pinned', audience: '', reader: '' }
+  ];
+  const md = V.voiceMd(v);
+  assert.ok(md.startsWith(V.VOICE_MARKER));
+  assert.match(md, /## Style guide\n\nShort and plain\./);
+  assert.match(md, /## Always\n\n- No em dashes\.[\s\S]*- Use first names\./);
+  assert.match(md, /## For Leadership\n\n- At most 4 sentences\.[\s\S]*- Say the ask first\./);
+  assert.match(md, /## Words I never use\n\nleverage/);
+  assert.doesNotMatch(md, /SECRET SAMPLE|Never rejected/);
+  assert.doesNotMatch(md, /—/);
+});

@@ -147,7 +147,10 @@ const productSetup = startProductSetup(ws, notes, {
     if (ui.path && made.some(d => d.path === ui.path) && !notes.texts.has(ui.path)) openNote(ui.path);
     paintChrome();
     if (held.add(made.length)) return;
-    ws.toast(made.length === 1 ? `Made the product note for ${made[0].name}` : `Made ${made.length} product notes`, { kind: 'success', hold: true });
+    const prod = made.filter(d => !d.handbook);
+    const msg = !prod.length ? 'Made your team handbook (team/handbook.md) for you and Tandem'
+      : prod.length === 1 ? `Made the product note for ${prod[0].name}` : `Made ${prod.length} product notes`;
+    ws.toast(msg, { kind: 'success', hold: true });
   }
 });
 const toastErr = (e) => ws.toast(e && e.message ? e.message : 'Something went wrong. Try again.', { kind: 'error' });

@@ -26,7 +26,7 @@ test('review fields: times, plain dates, and junk', () => {
   const f = frontmatter(note('reviewed: 2026-11-01\ntandem-changed: "2026-11-05T10:00:00Z"')).data;
   assert.equal(f.reviewed, '2026-11-01');
   assert.equal(f.tandemChanged, '2026-11-05T10:00:00Z');
-  assert.deepEqual(facts(note('title: X')).review, { reviewed: '', tandemChanged: '' });
+  assert.deepEqual(facts(note('title: X')).review, { reviewed: '', tandemChanged: '', flags: 0 });
 });
 
 test('needs review while Tandem changed it after the last review', () => {

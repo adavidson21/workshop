@@ -272,3 +272,7 @@ node --test "connectors/opencode/test/*.test.mjs"
 - `agent.test.mjs`: the module against the connector contract, and the connector through the real agent (confirm, events, restarts on a config change, the password never in responses, events or logs).
 
 Tests that need PowerShell (the parity tests and `parser.test.mjs`) or git skip with a message when they are missing. GitHub's Windows, macOS and Linux runners have both.
+
+## Knowledge base
+
+Settings' Knowledge pages (Workshop `docs/knowledge.md`) use four actions in `lib/knowledge.mjs`. `knowledge.repos` and `knowledge.map.read` only read: each workspace repo with its guide's `Stack:` line, first purpose sentence and `## Remembered` lines, and the repo map `<workspace>/AGENTS.md` with whether Workshop wrote it. `knowledge.map.write` (confirm) writes the map Settings built; it refuses text without Workshop's marker, writes atomically, and keeps a hand-written map once as `AGENTS.md.hand-written.md` (never overwritten). `knowledge.draft` (confirm) runs Tandem's `/product-notes draft <product>` in a new session, listed with the other sessions, so Tandem proposes note lines for you to review in Folio.

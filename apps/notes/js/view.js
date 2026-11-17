@@ -6,7 +6,7 @@ import { age, baseName, dirOf, stem, wordCount } from './model.js';
 import { HIDDEN, READ_ONLY, readProps } from './props.js';
 import { QUICK, QUICK_TITLE } from './pickup.js';
 import { actionItems, forRapport, handlesIn, offerId, rapportOffers, readable, whoOf } from './offers.js';
-import { needsReview, productNotes, toReview } from './products.js';
+import { needsReview, productNotes, staleWhy, toReview } from './products.js';
 import { SECTIONS, dailyGroups, visibleSections } from './sections.js';
 import { PLACEHOLDERS, placeholdersFor, templatesIn } from './templates.js';
 import { docName, findDoc, groupItems, itemLabel, parseTandem, tandemPath } from './tandem.js';
@@ -204,7 +204,7 @@ function folderItems(dir, state, depth) {
 
 function results(state) {
   const { found, ui } = state;
-  if (!found.length) return '<p class="side-note">Nothing matches. Narrow a search with <code>tag:ops</code>, <code>path:runbooks</code>, <code>lang:sql</code>, <code>has:diagram</code>, <code>has:code</code>, <code>has:task</code> or <code>is:review</code>.</p>';
+  if (!found.length) return '<p class="side-note">Nothing matches. Narrow a search with <code>tag:ops</code>, <code>path:runbooks</code>, <code>lang:sql</code>, <code>has:diagram</code>, <code>has:code</code>, <code>has:task</code>, <code>is:review</code> or <code>is:stale</code>.</p>';
   return `<ol class="results">${found.map((r, k) => `
     <li><a href="#" class="result${k === ui.pick ? ' picked' : ''}" data-open="${esc(r.path)}" data-line="${r.line}">
       <span class="r-title">${esc(r.title)}</span>
@@ -222,6 +222,10 @@ export function header(state) {
   const n = notes.index.notes.get(ui.path);
   const review = n && needsReview(n.review) ? `<div class="bar tandem" role="status"><span class="bar-msg">${ICON.tandem} Changed by Tandem since your last review. Changed parts are highlighted in the preview; History has the earlier versions.</span>
       <span class="bar-acts"><button class="btn" data-act="mark-reviewed">Mark reviewed</button></span></div>` : '';
+  // Knowledge base freshness (docs/knowledge.md): a product note or the handbook nobody checked for a while.
+  const why = !review && n ? staleWhy(n) : '';
+  const stale = why ? `<div class="bar stale" role="status"><span class="bar-msg"><b>Stale:</b> ${esc(why)}. Tandem reads this note, so check it is still right.${n.review && n.review.flags ? ' Flagged lines end with <code>(check: ...)</code>.' : ''}</span>
+      <span class="bar-acts"><button class="btn" data-act="mark-reviewed" title="Marks the note reviewed now">Still right</button></span></div>` : '';
   const tpl = n && n.use !== undefined ? templateBar(state, n) : '';
   const items = [
     ['insert-diagram', 'Insert diagram'],
@@ -247,7 +251,7 @@ export function header(state) {
       <button class="ibtn trash-btn" data-act="trash" title="Move to the trash" aria-label="Trash">${ICON.trash}</button>
       ${menuHtml(ui, items)}${panelBtn(ui)}
     </div></div>
-    ${conflictBar(ui) || review || tpl || startBar(state.start)}`;
+    ${conflictBar(ui) || review || stale || tpl || startBar(state.start)}`;
 }
 /* Word count and reading time, beside the save status. */
 function countHtml(state) {

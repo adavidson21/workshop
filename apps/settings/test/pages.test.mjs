@@ -105,7 +105,9 @@ test('Products sits in You & your team and works with no connector', () => {
 test('Settings v3: three groups and eleven nav items, some holding pages as tabs', () => {
   assert.deepEqual(P.GROUPS.map(g => g.id), ['workshop', 'you', 'connections']);
   const items = [...new Set(P.ORDER.filter(id => !P.PAGES[id].hidden).map(P.navOf))];
-  assert.deepEqual(items, ['overview', 'apps', 'computer', 'data', 'people-teams', 'products', 'focus', 'writing', 'ado', 'agents', 'repos']);
+  assert.deepEqual(items, ['overview', 'apps', 'computer', 'data', 'people-teams', 'knowledge', 'focus', 'writing', 'ado', 'agents', 'repos']);
+  assert.deepEqual(P.tabsOf('knowledge'), ['products', 'glossary', 'repo-map', 'checks']);
+  assert.deepEqual(P.routeToPage('knowledge'), { page: 'products' });
   assert.deepEqual(P.tabsOf('people-teams'), ['people', 'team']);
   assert.deepEqual(P.tabsOf('writing'), ['writing-voice', 'writing-audiences', 'writing-rules']);
   assert.deepEqual(P.tabsOf('ado'), ['connections', 'work-items', 'pull-requests']);

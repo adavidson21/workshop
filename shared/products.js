@@ -9,6 +9,9 @@ export const VERSION = 1;
 export const MAX_NAMES = 20;
 export const MAX_REPOS = 30;
 export const MAX_AREAS = 20;
+export const MAX_KNOW = 20;
+/** The optional fields for Tandem (docs/products.md; Knowledge base V1): lists, then the docs folder. */
+export const KNOW_LISTS = ['changeOrder', 'together', 'entryPoints', 'external', 'processes'];
 export const SLUG = /^[a-z0-9][a-z0-9-]{0,39}$/;
 export const ID = /^p_[a-z0-9][a-z0-9-]{0,39}$/;
 
@@ -47,6 +50,9 @@ export function clean(it) {
     areas: strings(it.areas, MAX_AREAS, 400),
     archived: it.archived === true
   };
+  // The Tandem fields are there only when set, so readers that compare whole products are not affected.
+  for (const k of KNOW_LISTS) { const l = strings(it[k], k === 'changeOrder' ? MAX_REPOS : MAX_KNOW, k === 'changeOrder' ? 200 : 300); if (l.length) p[k] = l; }
+  if (typeof it.docsFolder === 'string' && it.docsFolder.trim()) p.docsFolder = it.docsFolder.trim().slice(0, 300);
   if (typeof it.updatedAt === 'number') p.updatedAt = it.updatedAt;
   return p;
 }
@@ -78,15 +84,27 @@ export function freeSlug(name, items) {
   }
 }
 
-/** The fields a form gives, cleaned: {name, alsoCalled, repos, areas}. */
-export function fieldsOf({ name, alsoCalled, repos, areas } = {}) {
-  return {
+/**
+ * The fields a form gives, cleaned: {name, alsoCalled, repos, areas}, plus the Tandem fields (KNOW_LISTS and
+ * docsFolder) when the input has them, so a form without them leaves the stored ones alone.
+ */
+export function fieldsOf(input = {}) {
+  const { name, alsoCalled, repos, areas } = input || {};
+  const f = {
     name: String(name || '').trim().slice(0, 120),
     alsoCalled: parseList(alsoCalled, { max: MAX_NAMES, len: 120 }),
     repos: parseList(repos, { max: MAX_REPOS, len: 200 }),
     areas: parseList(areas, { max: MAX_AREAS, len: 400, lines: true })
   };
+  for (const k of KNOW_LISTS) {
+    if (input && input[k] !== undefined) f[k] = parseList(input[k], { max: k === 'changeOrder' ? MAX_REPOS : MAX_KNOW, len: k === 'changeOrder' ? 200 : 300, lines: k !== 'changeOrder' });
+  }
+  if (input && input.docsFolder !== undefined) f.docsFolder = String(input.docsFolder || '').trim().slice(0, 300);
+  return f;
 }
+
+/** True when any Tandem field is set. */
+export const hasKnowledge = p => !!p && (KNOW_LISTS.some(k => (p[k] || []).length) || !!p.docsFolder);
 
 /**
  * Adds a product (no `id`) or changes one, in a copy of the items. The slug is set once, when the product is added,
@@ -102,6 +120,9 @@ export function upsert(items, input, id = null) {
   const slug = old ? old.slug : freeSlug(f.name, all);
   const product = { ...(old || {}), id: old ? old.id : `p_${slug}`, slug, ...f };
   if (!product.archived) delete product.archived;
+  // Empty Tandem fields are left out of the file, like the other optional fields.
+  for (const k of KNOW_LISTS) if (Array.isArray(product[k]) && !product[k].length) delete product[k];
+  if (product.docsFolder === '') delete product.docsFolder;
   return { items: old ? all.map(x => (x.id === id ? product : x)) : [...all, product], product };
 }
 

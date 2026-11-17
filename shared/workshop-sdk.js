@@ -1812,7 +1812,7 @@ const PRIVATE_FILES_FALLBACK = { receipts: true };
    collections. Everything else an app keeps is its own, so ws.data.get and ws.data.subscribe refuse it. */
 export const CONTRACT_READS = Object.freeze({
   any: Object.freeze(['summary', 'handoffs']),
-  settings: Object.freeze(['people', 'teams', 'products', 'focus', 'app-settings', 'writing'])
+  settings: Object.freeze(['people', 'teams', 'products', 'glossary', 'focus', 'app-settings', 'writing'])
 });
 // One app's collection that one other app reads, by name: Settings applies the answers Chat's Rewrite a draft
 // saves (docs/writing.md), so Settings' samples and rules learn from them. No other app reads it.

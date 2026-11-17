@@ -6,7 +6,7 @@
    (ADO connections, repo mapping, PR sources, opencode hidden folders) are listed in CUSTOM and left out of the generated forms. A new
    connector needs no change here: its fields land on its own page, `c-<id>`, in the Connections group.
 
-   A nav item can hold several pages as tabs (NAV): People & teams, Writing voice, Azure DevOps. Page ids stay
+   A nav item can hold several pages as tabs (NAV): People & teams, Knowledge, Writing voice, Azure DevOps. Page ids stay
    the same either way, so routes, `x-workshop-page` values and saved page ids never change. */
 
 export const GROUPS = [
@@ -25,7 +25,10 @@ export const PAGES = {
   data: { label: 'Data & backups', group: 'workshop' },
   people: { label: 'People & groups', group: 'you', nav: 'people-teams' },
   team: { label: 'Team area paths', group: 'you', nav: 'people-teams' },
-  products: { label: 'Products', group: 'you' },
+  products: { label: 'Products', group: 'you', nav: 'knowledge' },
+  glossary: { label: 'Glossary', group: 'you', nav: 'knowledge' },
+  'repo-map': { label: 'Repo map', group: 'you', nav: 'knowledge' },
+  checks: { label: 'Checks', group: 'you', nav: 'knowledge' },
   focus: { label: 'Focus hours', group: 'you' },
   'writing-voice': { label: 'Voice', group: 'you', nav: 'writing' },
   'writing-audiences': { label: 'Audiences', group: 'you', nav: 'writing' },
@@ -42,6 +45,7 @@ export const ORDER = Object.keys(PAGES);
 // Nav items that hold more than one page, as tabs. dot: the connector whose state shows on the nav item.
 export const NAV = {
   'people-teams': { label: 'People & teams' },
+  knowledge: { label: 'Knowledge' },
   writing: { label: 'Writing voice' },
   ado: { label: 'Azure DevOps', dot: 'ado' }
 };
@@ -168,5 +172,6 @@ export function routeToPage(path) {
   }
   if (a === 'writing' || a === 'voice') return { page: 'writing-voice' };
   if (a === 'import') return { page: 'people', focus: 'import' };
+  if (a === 'knowledge') return { page: 'products' };
   return { page: OLD[a] || a };
 }

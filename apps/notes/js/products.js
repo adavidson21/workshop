@@ -36,6 +36,31 @@ export function needsReview(review) {
   return changed !== null && (reviewed === null || changed > reviewed);
 }
 
+/* ---------- freshness (docs/knowledge.md, Freshness) ---------- */
+export const HANDBOOK_PATH = 'team/handbook.md';
+export const CHANGES_PATH = 'tandem/changes.md';
+export const STALE_DAYS = 90;
+const DAY_MS = 86400000;
+
+/** A note Tandem reads as knowledge: a product note or the team handbook. */
+export const isKnowledgePath = (p) => isProductPath(p) || p === HANDBOOK_PATH;
+
+/**
+ * Why a knowledge note is stale, or '' when it is not: lines Tandem flagged, last reviewed more than STALE_DAYS ago,
+ * or never reviewed and unchanged for that long. n: an index entry {path, review, mtime}.
+ */
+export function staleWhy(n, now = Date.now(), days = STALE_DAYS) {
+  if (!n || !isKnowledgePath(n.path)) return '';
+  const flags = (n.review && n.review.flags) || 0;
+  if (flags) return `${flags} ${flags === 1 ? 'line' : 'lines'} flagged by Tandem`;
+  const { reviewed } = reviewTimes(n.review);
+  const since = reviewed !== null ? reviewed : (typeof n.mtime === 'number' ? n.mtime : null);
+  if (since === null || now - since <= days * DAY_MS) return '';
+  const d = Math.floor((now - since) / DAY_MS);
+  return reviewed !== null ? `last checked ${d} days ago` : `not checked, unchanged for ${d} days`;
+}
+export const isStale = (n, now = Date.now()) => !!staleWhy(n, now);
+
 /** Index entries (model.js buildIndex) that need review, by path. */
 export function toReview(index) {
   return [...index.notes.values()].filter(n => needsReview(n.review)).sort((a, b) => (a.path < b.path ? -1 : 1));
@@ -118,5 +143,10 @@ export function blocksToMark(starts, changed) {
   return marked;
 }
 
-/* The starter product template (templates/product.md). Generic: real product names only ever live in your folder. */
-export const PRODUCT_TEMPLATE = '---\ntitle: {{title}}\nalso-called: []\nrepos: []\ntags: [product, product/{{slug}}]\n---\n# {{title}}\n\n## Summary\n\n## Business rules\n\n## Gotchas\n\n## People\n\n## Decisions\n\n## Links\n\n## Remembered\n';
+/* The starter product template (templates/product.md). Generic: real product names only ever live in your folder.
+   Owners are not written here: they come from Workshop's People (Owns), so the section is for anyone else to ask. */
+export const PRODUCT_TEMPLATE = '---\ntitle: {{title}}\nalso-called: []\nrepos: []\ntags: [product, product/{{slug}}]\n---\n# {{title}}\n\n## Summary\n\n## Business rules\n\n## Gotchas\n\n## Who to ask\n\n## Decisions\n\n## Links\n\n## Remembered\n';
+
+/* The team handbook Folio makes once (team/handbook.md): how the team works, not one product. Tandem reads it on
+   every pipeline command (Get-Knowledge.ps1) and adds what it confirms. Generic headings only. */
+export const HANDBOOK = '---\ntitle: Team handbook\ntags: [team, handbook]\n---\n# Team handbook\n\nHow the team works, for you and for Tandem. One short line per fact; Tandem adds what it confirms and you review it like a product note.\n\n## Sprints\n\n## Work item states\n\n## Pull requests\n\n## Releases\n\n## Definition of done\n\n## Who approves what\n\n## Remembered\n';

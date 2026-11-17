@@ -32,6 +32,10 @@ Your message shows in the thread as soon as you send it, even before opencode ha
 5. **Workspace only.** Sessions are the workspace's; `@` files must be inside the workspace (the connector checks). Long tool output is cut (start and end kept) and workspace paths are shown relative to it.
 6. **Escape everything.** Your turns render as text; opencode's as escaped Markdown (`apps/chat/js/md.js`) with code, bold, italics, lists, tables, quotes and http(s) links only.
 
+## Sources
+
+When an answer ends with a `Sources:` list (Tandem's hub and chat agents always add one), Chat shows it as chips under the answer (`js/sources.js`, [knowledge.md](knowledge.md), Citations): a Folio note has **Open** and **That's wrong** (both open it in Folio, the second with a reminder to fix the line there), a Settings file opens its page, and anything else is shown as a path. Only a list at the very end counts; the text is escaped like the rest of the answer.
+
 ## Connector actions
 
 | Action | Write | Args | Result |

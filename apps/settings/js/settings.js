@@ -27,6 +27,7 @@ import * as P from './pages.js';
 import { mountPeople } from './people.js';
 import { mountFocus } from './focus-page.js';
 import { mountProducts } from './products-page.js';
+import { mountKnowledge } from './knowledge-page.js';
 import { mountWriting } from './voice-page.js';
 import { mountGuide } from './guide.js';
 import { mountStorage } from './storage-page.js';
@@ -1572,13 +1573,16 @@ async function peoplePages() {
   } catch (e) { card('', '', 'people').insertAdjacentHTML('beforeend', `<p class="err">${esc(errText(e))}</p>`); }
 }
 
-/* ---------- Products (products-page.js, docs/products.md) ---------- */
+/* ---------- Knowledge: Products (products-page.js, docs/products.md), Glossary, Repo map, Checks (knowledge-page.js, docs/knowledge.md) ---------- */
+let knowledge = null;
 async function productsPage() {
   try {
-    products = await mountProducts({ ws, toast, el: page('products') });
+    products = await mountProducts({ ws, toast, el: page('products'), onSaved: () => (knowledge ? knowledge.afterSave() : null) });
     if (pendingProduct && products) { pendingProduct = false; products.command('add-product'); }
   }
   catch (e) { card('', '', 'products').insertAdjacentHTML('beforeend', `<p class="err">${esc(errText(e))}</p>`); }
+  try { knowledge = await mountKnowledge({ ws, toast, pageEl: id => page(id) }); }
+  catch (e) { card('', '', 'glossary').insertAdjacentHTML('beforeend', `<p class="err">${esc(errText(e))}</p>`); }
 }
 
 /* ---------- Focus hours (focus-page.js, docs/focus.md) ---------- */

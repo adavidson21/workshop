@@ -5,6 +5,7 @@
    tool calls (with output, diffs, todos and subagent sessions), files, patches and compaction. Everything from
    opencode is escaped. Tool calls and thinking fold; which ones are open is the caller's (`open`, a Set of keys). */
 import { esc, mdHtml } from './md.js';
+import { sourcesHtml, splitSources } from './sources.js';
 
 /* ---------- the composer ---------- */
 
@@ -150,6 +151,12 @@ export function toolHtml(p, key, { open, details = false } = {}) {
   return `<div class="tool st-${esc(p.status)}">${line}${body}</div>`;
 }
 
+/** An answer's text: its Markdown, and a trailing Sources list as chips (sources.js). */
+export function textHtml(text) {
+  const { body, sources } = splitSources(text);
+  return `<div class="md">${mdHtml(body)}</div>${sourcesHtml(sources)}`;
+}
+
 /** The parts of one of opencode's turns. */
 export function partsHtml(turn, { open, details = false } = {}) {
   const id = (turn && turn.id) || '';
@@ -157,7 +164,7 @@ export function partsHtml(turn, { open, details = false } = {}) {
   const out = [];
   parts.forEach((p, i) => {
     const key = `${id}:${i}`;
-    if (p.type === 'text') out.push(`<div class="md">${mdHtml(p.text)}</div>`);
+    if (p.type === 'text') out.push(textHtml(p.text));
     else if (p.type === 'reasoning') {
       const o = open && open.has(key) ? !details : details;
       out.push(`<div class="think"><button type="button" class="think-h" data-tool="${esc(key)}" aria-expanded="${o}"><span class="chev" aria-hidden="true"></span>Thinking</button>${o ? `<div class="think-b">${mdHtml(p.text)}</div>` : ''}</div>`);
@@ -200,7 +207,7 @@ export function richRows(turns, { open, details = false, busy = false, activity 
     }
     const group = [t];
     while (i + 1 < list.length && list[i + 1].role !== 'you') group.push(list[++i]);
-    const body = group.map(g => (g.parts ? partsHtml(g, { open, details }) : `<div class="md">${mdHtml(g.text)}</div>`)).join('');
+    const body = group.map(g => (g.parts ? partsHtml(g, { open, details }) : textHtml(g.text))).join('');
     const last = group[group.length - 1];
     const sum = group.reduce((a, g) => a + (Number(g.cost) || 0), 0);
     const meta = metaHtml({ ...last, cost: sum });

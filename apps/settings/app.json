@@ -2,8 +2,8 @@
   "manifestVersion": 1,
   "id": "settings",
   "name": "Settings",
-  "version": "6.6.0",
-  "description": "Status and what needs you, apps, this computer, data and backups; people and teams, products, focus hours and writing voice; Azure DevOps, opencode and repos; and a user guide.",
+  "version": "7.0.0",
+  "description": "Status, apps, this computer and data; people and teams, knowledge (products, glossary, repo map), focus hours and writing voice; Azure DevOps, opencode and repos; a user guide.",
   "icon": "icon.svg",
   "entry": "index.html",
   "order": 90,
@@ -41,6 +41,18 @@
       "path": "products"
     },
     {
+      "name": "glossary",
+      "path": "glossary"
+    },
+    {
+      "name": "repo map",
+      "path": "repo-map"
+    },
+    {
+      "name": "knowledge",
+      "path": "products"
+    },
+    {
       "name": "writing voice",
       "path": "writing"
     },
@@ -63,6 +75,7 @@
     "js/forms.js",
     "js/guide.js",
     "js/pages.js",
+    "js/knowledge-page.js",
     "js/people-forms.js",
     "js/people-sheet.js",
     "js/people.js",
@@ -77,6 +90,8 @@
   "data": [
     "teams",
     "products",
+    "glossary",
+    "repos",
     "focus",
     "writing"
   ],
@@ -104,6 +119,18 @@
     {
       "path": "products",
       "title": "Products"
+    },
+    {
+      "path": "glossary",
+      "title": "Glossary"
+    },
+    {
+      "path": "repo-map",
+      "title": "Repo map"
+    },
+    {
+      "path": "checks",
+      "title": "Knowledge checks"
     },
     {
       "path": "repos",

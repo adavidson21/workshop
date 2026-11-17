@@ -324,3 +324,11 @@ button.tool-line:hover { background: var(--hover); }
 .hub-box .hub-status { margin: 2px 0 2px; }
 .hub-anchor .hub-cards, .chat-home .hub-anchor .hub-cards { position: absolute; left: 0; right: 0; bottom: calc(100% + 8px); z-index: 2; max-height: min(52vh, 460px); overflow-y: auto; margin: 0; padding: 4px; }
 .chat-after-menu .hub-flows > .hub-meta { display: none; }
+
+/* Sources under an answer (js/sources.js, Workshop docs/knowledge.md) */
+.srcs { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 8px 0 2px; }
+.srcs-h { font: 500 11px/1.4 var(--mono); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-right: 2px; }
+.src { display: inline-flex; align-items: center; gap: 8px; max-width: 100%; padding: 2px 10px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); font: 12px/1.6 var(--mono); }
+.src-p { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 28ch; }
+.src .lnk { font: 500 12px/1.6 var(--sans, inherit); }
+.src.file { color: var(--muted); }

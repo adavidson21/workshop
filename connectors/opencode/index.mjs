@@ -15,7 +15,8 @@ import { connectOpencode, disconnectOpencode } from "./lib/opencode-connect.mjs"
 import { abort, answerPermission, answerQuestion, openTerminal, pushBranch, removeItem, reply, resetActions, runCommand, shellData, startItem } from "./lib/actions.mjs";
 import { autopilot, autopilotAction, loadAuto } from "./lib/autopilot.mjs";
 import { pageData, resetLive } from "./lib/live.mjs";
-import { MAX_LOG, TIMEBOXES, addRepo, dismissLoose, onboardRepo, resetWorkspace, startLocal, startDocs, startReview, startSpike, startTsd } from "./lib/workspace.mjs";
+import { MAX_LOG, TIMEBOXES, addRepo, dismissLoose, onboardRepo, resetWorkspace, runLoose, startLocal, startDocs, startReview, startSpike, startTsd } from "./lib/workspace.mjs";
+import { MAX_MAP, draftArgs, knowledgeRepos, readMap, writeMap } from "./lib/knowledge.mjs";
 import { loadProviders } from "./lib/opencode-connect.mjs";
 import { clearQueue, loadPrQueue, prReviews, resetPrQueue, reviewAll, saveInbox, stopQueue } from "./lib/pr-queue.mjs";
 import { COLORS, INBOX, assignRun, createProject, deleteProject, loadProjects, resetProjects, updateProject } from "./lib/projects.mjs";
@@ -936,6 +937,37 @@ const actions = {
     async run(args) {
       needReady();
       return onboardRepo(args);
+    },
+  },
+  "knowledge.repos": {
+    title: "Knowledge: each workspace repo with its guide's stack, purpose and remembered lines (read only)",
+    write: false,
+    async run() {
+      return knowledgeRepos();
+    },
+  },
+  "knowledge.map.read": {
+    title: "Knowledge: the workspace repo map (AGENTS.md) as it is now (read only)",
+    write: false,
+    async run() {
+      return readMap();
+    },
+  },
+  "knowledge.map.write": {
+    title: "Knowledge: write the workspace repo map Settings built (keeps a hand-written one beside it)",
+    write: true,
+    argsSchema: obj(["text"], { text: str("The repo map", { minLength: 1, maxLength: MAX_MAP }) }),
+    async run(args) {
+      return writeMap(args);
+    },
+  },
+  "knowledge.draft": {
+    title: "Knowledge: Tandem drafts a product note from the product's docs (/product-notes draft)",
+    write: true,
+    argsSchema: obj(["product"], { product: str("Product name", { minLength: 1, maxLength: 120 }) }),
+    async run(args) {
+      needReady();
+      return runLoose("product-notes", draftArgs(args.product), null);
     },
   },
   "session.dismiss": {
