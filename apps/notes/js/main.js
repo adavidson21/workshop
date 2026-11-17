@@ -288,6 +288,7 @@ function paintPreview(now = false, { force = false } = {}) {
   preview.innerHTML = render(text, renderOpts(from));
   paintDiagrams(preview, { key: from });
   paintCodeTools(preview);
+  paintFolds(preview, from);
   markTandemLines(from, text);
   // Tasks already sent to Docket: Docket owns whether they are done, so their boxes are shown only.
   for (const box of preview.querySelectorAll('input[data-task]')) {
@@ -422,6 +423,43 @@ function embedder(chain) {
     if (text === null) return `${head}<p class="embed-note missing">${esc(title)} has no heading "${esc(spec.anchor)}".</p>`;
     return `${head}<div class="embed-body">${embedHtml(render(text, { ...noteCtx(path), embed: embedder([...chain, path]) }))}</div>`;
   };
+}
+
+/* Folding in the preview (4.8.0): an arrow before each heading hides what follows it, up to the next heading at
+   the same or a higher level. Remembered per note for this visit, by heading id; the file never changes. */
+const folds = new Map(); // note path -> Set of heading ids folded
+const FOLD_ICON = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>';
+function paintFolds(root, path) {
+  const shut = folds.get(path) || new Set();
+  for (const h of root.querySelectorAll(':scope > :is(h1,h2,h3,h4,h5,h6)')) {
+    if (!h.id || h.querySelector('.fold-h')) continue;
+    const open = !shut.has(h.id);
+    h.insertAdjacentHTML('afterbegin', `<button type="button" class="fold-h" data-fold="${esc(h.id)}" aria-expanded="${open}" aria-label="${open ? 'Fold' : 'Unfold'} this section" title="${open ? 'Fold' : 'Unfold'} this section"></button>`);
+    h.firstElementChild.innerHTML = FOLD_ICON;
+  }
+  applyFolds(root, shut);
+}
+function applyFolds(root, shut) {
+  let hideTo = 0; // while > 0: the level of the folded heading whose section we are in
+  for (const el of root.children) {
+    const m = /^H([1-6])$/.exec(el.tagName);
+    const level = m ? Number(m[1]) : 0;
+    if (hideTo && level && level <= hideTo) hideTo = 0;
+    el.classList.toggle('folded-away', Boolean(hideTo));
+    if (!hideTo && level && shut.has(el.id)) hideTo = level;
+  }
+}
+function toggleFold(btn) {
+  const path = ui.path;
+  if (!path) return;
+  const shut = folds.get(path) || new Set();
+  const id = btn.dataset.fold;
+  if (shut.has(id)) shut.delete(id); else shut.add(id);
+  folds.set(path, shut);
+  const open = !shut.has(id);
+  btn.setAttribute('aria-expanded', String(open));
+  btn.title = btn.ariaLabel = `${open ? 'Fold' : 'Unfold'} this section`;
+  applyFolds(preview, shut);
 }
 
 /* A Copy button on each code block (not diagrams: they have their own toolbar). */
@@ -1521,6 +1559,7 @@ document.addEventListener('click', async (e) => {
     navigator.clipboard.writeText(code).then(() => { x.textContent = 'Copied'; setTimeout(() => { if (x.isConnected) x.textContent = 'Copy'; }, 1200); }, toastErr);
     return;
   }
+  if ((x = el('[data-fold]'))) { e.preventDefault(); toggleFold(x); return; }
   if ((x = el('[data-diagram-act]'))) { e.preventDefault(); const fig = x.closest('figure.diagram'); if (fig) diagramAct(x.dataset.diagramAct, fig); return; }
   if ((x = el('[data-section]'))) { showSection(x.dataset.section); ui.query = ''; ui.drawer = isPhone(); paintChrome(); if (ui.section === 'tandem') tandem.refresh(); return; }
   if ((x = el('input[data-task]'))) { e.preventDefault(); toggleTaskAt(Number(x.dataset.task)); return; }
