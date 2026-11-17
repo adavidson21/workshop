@@ -13,6 +13,7 @@
 //   workshop pat [NAME] [--remove]         Save a PAT in a user environment variable (default ADO_PAT) without showing it.
 //   workshop uninstall                     Turn off start at login. Leaves your data folder (dataDir) and ~/.workshop in place.
 //   workshop doctor [--sizes]              Check Node, config.json, the port, the data folder, start at login and hosted mode.
+//   workshop export --readable             Copy your data as spreadsheets and documents into <data folder>/Readable copy/.
 //   workshop doctor ado [options]          Check the ADO connector (wraps connectors/ado/doctor.mjs).
 //   workshop publish [--out <dir>]         Build the static site (hosted or browser mode) with apps/registry.json.
 //   workshop apps [on|off <app>]           List the apps, or turn one on or off (work mode: downloads a separate
@@ -40,6 +41,13 @@ import { resolveHome, homePaths, defaultConfig, DEFAULT_PORT } from './agent/lib
 import { writeJsonAtomic } from './agent/lib/fsutil.mjs';
 import { dataDirProblem, defaultDataDir } from './agent/lib/datadir.mjs';
 import { storageReport, storageLines } from './agent/lib/storage.mjs';
+import { makeReadableCopy, writeReadme } from './agent/lib/readable.mjs';
+import { DataRoot } from './agent/lib/datapath.mjs';
+import { Store } from './agent/lib/store.mjs';
+import { Files } from './agent/lib/files.mjs';
+import { Tracker } from './agent/lib/watch.mjs';
+import { KeyedLock } from './agent/lib/fsutil.mjs';
+import { APP_FOLDERS } from './shared/app-folders.js';
 import { enableStartAtLogin, disableStartAtLogin, startAtLoginStatus } from './agent/lib/login.mjs';
 import { main as adoDoctorMain } from './connectors/ado/doctor.mjs';
 import { checkProviders } from './connectors/opencode/lib/providers.mjs';
@@ -81,6 +89,8 @@ const USAGE = `Usage: workshop <command> [options]
                                  --remove deletes the variable.
   uninstall                      Turn off start at login. Leaves your data folder (dataDir, default ~/Workshop)
                                  and ~/.workshop in place.
+  export --readable              Copy your data as spreadsheets (.csv) and documents (.md) into
+                                 <data folder>/Readable copy/, readable without Workshop.
   doctor [--sizes]               Check Node, config.json, the port, the data folder, start at login and hosted mode.
                                  --sizes also lists the largest files in the data folder.
   doctor ado [options]           Check the ADO connector. Run "workshop doctor ado --help" for its options.
@@ -501,7 +511,41 @@ async function runUninstall(io) {
   if (menu && fs.existsSync(menu)) { fs.rmSync(menu, { recursive: true, force: true }); io.out(`Removed the Start menu shortcuts (${menu}).`); }
   const dataDir = configDataDir(inspectConfig(homePaths(home).config, schemas).config, io.defaultDataDir);
   io.out(`Uninstall left your data folder (${dataDir}) and the Workshop home folder (${home}) in place. Delete them yourself if you want them gone.`);
+  io.out(`Your data folder is yours to keep: its README.md says what each folder is. For a copy as spreadsheets and documents, run: workshop export --readable`);
+  io.out(`The Workshop home folder holds only this computer's settings, token and logs; nothing you wrote.`);
   return 0;
+}
+
+// --------------------------------------------------------------- export --readable
+
+/**
+ * `workshop export --readable`: the readable copy (docs/data-format.md, Readable without Workshop), made here
+ * without the agent. Reads the data folder, writes only "<dataDir>/Readable copy/" (and README.md when missing).
+ * Safe while the agent runs: it only reads collections.
+ */
+export async function exportReadable({ home, dataDir, repo = REPO, schemas = loadSchemas(), folders = APP_FOLDERS }) {
+  if (!fs.statSync(dataDir, { throwIfNoEntry: false })?.isDirectory()) throw new Error(`There is no data folder at ${dataDir} yet.`);
+  // An old folder name the agent has not renamed yet is read where it is (it renames on its next start).
+  const use = Object.fromEntries(Object.entries(folders).map(([id, f]) =>
+    [id, !fs.existsSync(path.join(dataDir, f)) && fs.existsSync(path.join(dataDir, id)) ? id : f]));
+  const root = new DataRoot(dataDir, use);
+  const quiet = { info() {}, warn() {}, error() {} };
+  const deps = { root, schemas, log: quiet, lock: new KeyedLock(), tracker: new Tracker() };
+  const registry = buildRegistry(path.join(repo, 'apps'), schemas);
+  const apps = registry.apps.map(a => ({ id: a.manifest.id, name: a.manifest.name, folder: root.folderOf(a.manifest.id) }));
+  await writeReadme(dataDir, apps);
+  return makeReadableCopy({ root, store: new Store(deps), files: new Files(deps), apps });
+}
+
+async function runExport(rest, io) {
+  if (!rest.includes('--readable')) { io.out('Usage: workshop export --readable'); return 1; }
+  const home = resolveHome(io.env);
+  const dataDir = configDataDir(inspectConfig(homePaths(home).config, loadSchemas()).config, io.defaultDataDir);
+  try {
+    const r = await exportReadable({ home, dataDir });
+    io.out(`Made a readable copy of ${r.collections} collection${r.collections === 1 ? '' : 's'} and ${r.files} file${r.files === 1 ? '' : 's'} in ${r.dir}.`);
+    return 0;
+  } catch (e) { io.out(e.message); return 1; }
 }
 
 // --------------------------------------------------------------- start and update (spawn)
@@ -1318,6 +1362,7 @@ export async function main(argv, io = { out: s => console.log(s), env: process.e
   if (cmd === 'stop') return runStop(io);
   if (cmd === 'restart') return runRestart(rest, io);
   if (cmd === 'pat') return runPat(rest, io);
+  if (cmd === 'export') return runExport(rest, io);
 
   if (cmd === 'doctor') {
     if (rest[0] === 'ado') {

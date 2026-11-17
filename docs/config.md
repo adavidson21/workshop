@@ -47,6 +47,7 @@ Workshop keeps two folders apart:
 | `allowedOrigins` | array of origins | The sites in `shared/site.js` (above) | Origins other than the agent's own that may call the agent. Used only when `features.hostedMode` is on. Each is `https://<host>[:<port>]`, or `http://127.0.0.1:<port>` / `http://localhost:<port>` for testing. Lowercase, no path, no trailing slash, no wildcards. |
 | `features.startAtLogin` | boolean | `false` | Start the agent when the user logs in (Startup folder shortcut on Windows, LaunchAgent on macOS). Per user, no admin. |
 | `features.hostedMode` | boolean | `true` | Allow pages from `allowedOrigins` to pair with and call the agent. See [run-modes.md](run-modes.md). |
+| `features.readableCopy` | boolean | `false` | Keep the readable copy of the data folder up to date: the agent makes it on start and once a day. See [data-format.md](data-format.md), Readable without Workshop. |
 | `features.workMode` | boolean | `false` | Serve Workshop from the pinned copy in `<home>/ui/` (built by `workshop pin`) and refuse every hosted origin and pairing, whatever `hostedMode` and `allowedOrigins` say. See [run-modes.md](run-modes.md), Work mode. |
 | `connectors.<id>.enabled` | boolean | `false` | Load and start this connector. |
 | `connectors.<id>.config` | object | the connector's `configSchema` defaults | The connector's settings. Validated against its `configSchema`. Never holds secrets, only the names of environment variables that hold them. |

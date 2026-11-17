@@ -109,6 +109,8 @@ export class DataRoot {
     this.real = realpath(dir);
     this.folders = Object.freeze({ ...folders });
     this.ids = Object.freeze(Object.fromEntries(Object.entries(this.folders).map(([id, f]) => [f, id])));
+    // An app id whose data is in a folder of another name: a folder under that id is an old leftover.
+    this.retired = new Set(Object.entries(this.folders).filter(([id, f]) => id !== f).map(([id]) => id));
   }
 
   /** The folder an app's data is in. */
@@ -131,7 +133,7 @@ export class DataRoot {
    */
   idRel(diskRel) {
     const parts = diskRel.split('/');
-    if (Object.hasOwn(this.folders, parts[0])) return null;
+    if (this.retired.has(parts[0])) return null;
     if (Object.hasOwn(this.ids, parts[0])) parts[0] = this.ids[parts[0]];
     return parts.join('/');
   }
@@ -197,7 +199,7 @@ export class DataRoot {
   apps() {
     try {
       return fs.readdirSync(this.dir, { withFileTypes: true })
-        .filter(d => NAME.test(d.name) && (d.isDirectory() || d.isSymbolicLink()) && !Object.hasOwn(this.folders, d.name))
+        .filter(d => NAME.test(d.name) && (d.isDirectory() || d.isSymbolicLink()) && !this.retired.has(d.name))
         .map(d => (Object.hasOwn(this.ids, d.name) ? this.ids[d.name] : d.name)).sort();
     } catch { return []; }
   }

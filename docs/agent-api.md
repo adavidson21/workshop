@@ -83,6 +83,8 @@ Writers may send `X-Workshop-Client: <id>` (letters, digits, `_` and `-`, up to 
 | `GET /api/files/<app>/<path>` | token | Read a file |
 | `PUT /api/files/<app>/<path>` | header token | Create or replace a file |
 | `DELETE /api/files/<app>/<path>` | header token | Move a file to the trash |
+| `GET /api/storage` | token | What is stored where: sizes, counts and paths, never contents (Settings, Data) |
+| `POST /api/storage/readable` | header token | Make the readable copy of the data folder |
 | `GET /api/connectors` | token | All known connectors |
 | `GET /api/connectors/<id>` | token | One connector |
 | `POST /api/connectors/<id>/<action>` | header token | Run an action |
@@ -244,6 +246,14 @@ Moves the file to the trash, `<dataDir>/.trash/<app>/<path without extension>.<s
 ```json
 {"app": "receipts", "path": "summaries/person-one/2026-h2.md", "trash": ".trash/receipts/summaries/person-one/2026-h2.20261025T140500123Z.md"}
 ```
+
+### `GET /api/storage`
+
+What Workshop keeps, by place, for Settings' Data page and `workshop doctor`: `dataDir`; `loose` (the data folder's permission bits as text when other users on the computer can read it, `false`, or `null` on Windows); `synced` (the sync tool whose folder holds the data folder, such as `"OneDrive"`, or `null`); `data`, `trash` and `backups` (`{bytes, files, modified}` or `null`); `leftovers` (old copies Workshop no longer uses, each `{id, what, path, size}`); `oldNames` (app folders still under their old name); `readableCopy` (`{path, modified}` or `null`). Reads sizes and dates only.
+
+### `POST /api/storage/readable`
+
+Makes the readable copy ([data-format.md](data-format.md), Readable without Workshop) and answers `{dir, apps, collections, files}`. Body: `{}`. One at a time: a second call while one runs gets the same result. Writes only inside `<dataDir>/Readable copy/`.
 
 ### `GET /api/connectors` and `GET /api/connectors/<id>`
 

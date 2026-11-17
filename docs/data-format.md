@@ -210,6 +210,14 @@ Before the data folder, the agent kept app data in `~/.workshop/data/<app>/<coll
 
 Because of `moved.json`, the copy runs once per Workshop home. Pointing `dataDir` at a new, empty folder later does not bring back the old data.
 
+## Readable without Workshop
+
+The data folder has to make sense to a person who has never seen Workshop, or who removed it.
+
+- **`README.md`** at the top of the data folder says what each folder is, what the file types are, and that Workshop uploads nothing. The agent writes it on start when it is missing or out of date. Its first line marks it as Workshop's; a `README.md` without that line is the user's and is never changed. Workshop ignores files at the top of the data folder, so it is never read as data.
+- **The readable copy**, `<dataDir>/Readable copy/<App name>/`: every collection as a `.csv` (one row per item, opens in Excel; deleted items left out) and a `.md` (one section per item, named by its title), and every plain file copied as it is. Made from Settings, Data, with `POST /api/storage/readable`, or with `workshop export --readable` (which works without the agent). With `features.readableCopy` on, the agent also makes it on start and once a day. The copy is built beside the old one and swapped in, so a failure leaves the previous copy, and each copy replaces the last. Its folder name breaks the name rules, so Workshop never reads it. It is a copy: changing it changes nothing in Workshop.
+- **On uninstall**, `workshop uninstall` leaves the data folder and says how to make the readable copy.
+
 ## Disk rules
 
 These apply to every backend that writes the data folder (the agent, and the browser's folder backend, see [run-modes.md](run-modes.md)).

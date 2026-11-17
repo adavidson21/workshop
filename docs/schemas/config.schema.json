@@ -70,6 +70,10 @@
         "workMode": {
           "type": "boolean",
           "description": "Work mode: the agent serves the pinned copy built by workshop pin, and no hosted site may pair or use the agent (docs/run-modes.md, Work mode)."
+        },
+        "readableCopy": {
+          "type": "boolean",
+          "description": "Keep the readable copy of the data folder up to date: made on start and once a day (docs/data-format.md, Readable without Workshop). Off by default."
         }
       }
     }
