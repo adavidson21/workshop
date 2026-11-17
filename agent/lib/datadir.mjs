@@ -42,7 +42,7 @@ export function dataDirProblem(dir, home) {
  * Make sure the data folder exists and can be read and written. Throws ConfigError with plain words if not;
  * the agent never falls back to another folder.
  */
-export function prepareDataDir(dir, home) {
+export function prepareDataDir(dir, home, folders = {}) {
   const problem = dataDirProblem(dir, home);
   if (problem) throw new ConfigError(`${problem} Change "dataDir" in ${path.join(home, 'config.json')}, then start Workshop again.`);
   const notAFolder = () => new ConfigError(`The data folder ${dir} is a file, not a folder. Move it or change "dataDir" in ${path.join(home, 'config.json')}.`);
@@ -69,7 +69,56 @@ export function prepareDataDir(dir, home) {
     try { fs.rmSync(probe, { force: true }); } catch { /* nothing to clean up */ }
     throw new ConfigError(`Workshop cannot read and write the data folder ${dir} (${e.code || e.message}). Check its permissions or change "dataDir" in ${path.join(home, 'config.json')}.`);
   }
-  return new DataRoot(dir);
+  return new DataRoot(dir, folders);
+}
+
+/** Does this folder hold any file, at any depth? Dot names count: they may be the user's. */
+function hasAnyFile(dir) {
+  let entries;
+  try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return false; }
+  return entries.some(e => e.isFile() || e.isSymbolicLink() || (e.isDirectory() && hasAnyFile(path.join(dir, e.name))));
+}
+
+/**
+ * Give each app folder the name people see (shared/app-folders.js): <dataDir>/prioritizer becomes
+ * <dataDir>/docket, and so on. A rename, so nothing is copied and nothing can be half done. When the new folder
+ * already holds files the old one is left as it is (doctor and Settings point at it) and the new one is used; an
+ * empty new folder is removed first. When a rename fails (another program has a file open, say) the old folder
+ * keeps being used until the next start, so no data goes missing. Each rename is logged and recorded in
+ * .backups/<yyyy-mm-dd>/renamed.json.
+ * @returns {{folders: Record<string, string>, renamed: string[], left: string[]}} the folders to use (pass to
+ *   DataRoot), "old -> new" for each rename, and the old names left in place
+ */
+export function renameAppFolders(dir, folders, log, now = new Date()) {
+  const use = {}, renamed = [], left = [];
+  for (const [id, folder] of Object.entries(folders)) {
+    use[id] = folder;
+    const from = path.join(dir, id), to = path.join(dir, folder);
+    const st = fs.lstatSync(from, { throwIfNoEntry: false });
+    if (!st || !st.isDirectory()) continue;
+    if (fs.lstatSync(to, { throwIfNoEntry: false })) {
+      if (hasAnyFile(to)) { left.push(id); log.warn(`Both ${id}/ and ${folder}/ are in the data folder. Workshop uses ${folder}/; ${id}/ is left as it is. Move anything you need from it, then delete it.`); continue; }
+      try { fs.rmSync(to, { recursive: true }); } catch (e) { use[id] = id; log.warn(`Could not rename ${id}/ to ${folder}/ (${e.code || e.message}). ${id}/ is used until the next start.`); continue; }
+    }
+    try {
+      fs.renameSync(from, to);
+      renamed.push(`${id} -> ${folder}`);
+      log.info(`Renamed the ${id}/ folder to ${folder}/ in the data folder.`);
+    } catch (e) {
+      use[id] = id;
+      log.warn(`Could not rename ${id}/ to ${folder}/ in the data folder (${e.code || e.message}). ${id}/ is used until the next start.`);
+    }
+  }
+  if (renamed.length) {
+    const rec = path.join(dir, '.backups', now.toISOString().slice(0, 10), 'renamed.json');
+    try {
+      fs.mkdirSync(path.dirname(rec), { recursive: true, mode: 0o700 });
+      let prev = [];
+      try { prev = JSON.parse(fs.readFileSync(rec, 'utf8')).renamed || []; } catch { /* first today */ }
+      fs.writeFileSync(rec, `${JSON.stringify({ renamed: [...prev, ...renamed], at: now.toISOString() }, null, 2)}\n`, { mode: 0o600 });
+    } catch { /* the log has it */ }
+  }
+  return { folders: use, renamed, left };
 }
 
 /** Working files a connector hands to another program are removed this many days after they last changed. */

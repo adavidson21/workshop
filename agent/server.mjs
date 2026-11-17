@@ -20,8 +20,9 @@ import { createLogger, stripToken } from './lib/log.mjs';
 import { Store } from './lib/store.mjs';
 import { Files } from './lib/files.mjs';
 import { Tracker, FolderWatch } from './lib/watch.mjs';
-import { rawApiSegments, decodeSegment, appId, collectionName, folderName, filePath } from './lib/datapath.mjs';
-import { defaultDataDir, dataDirProblem, prepareDataDir, removeDataTmpFiles, moveOldData, looseDataDir, cleanScratch, SCRATCH_DAYS } from './lib/datadir.mjs';
+import { rawApiSegments, decodeSegment, appId, collectionName, folderName, filePath, DataRoot } from './lib/datapath.mjs';
+import { defaultDataDir, dataDirProblem, prepareDataDir, removeDataTmpFiles, moveOldData, looseDataDir, cleanScratch, SCRATCH_DAYS, renameAppFolders } from './lib/datadir.mjs';
+import { APP_FOLDERS } from '../shared/app-folders.js';
 import { EventHub } from './lib/events.mjs';
 import { ConnectorHost } from './lib/connectors.mjs';
 import { LOCAL_PAGE, serveStatic } from './lib/static.mjs';
@@ -97,7 +98,10 @@ export async function createAgent(o) {
   // cannot be used the agent stops with a message rather than fall back to another folder.
   const dataDirOverride = o.dataDir !== undefined;
   const dataDirSetting = dataDirOverride ? o.dataDir : (config.dataDir ?? defaultDataDir());
-  const dataRoot = prepareDataDir(dataDirSetting, home);
+  // App folders use the names people see (shared/app-folders.js); old names are renamed once, here, first.
+  const checked = prepareDataDir(dataDirSetting, home);
+  const { folders } = renameAppFolders(checked.dir, o.appFolders ?? APP_FOLDERS, log.for('data'));
+  const dataRoot = new DataRoot(checked.dir, folders);
   const dataDir = path.resolve(dataRoot.dir);
   for (const rel of removeDataTmpFiles(dataRoot)) log.warn(`Removed a leftover temp file from an interrupted write: ${rel} in the data folder.`);
   const loose = looseDataDir(dataDir);

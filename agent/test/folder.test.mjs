@@ -149,7 +149,7 @@ test('dataDir from config.json is used, and a saved change applies only after a 
   const second = path.join(path.dirname(home), 'Second');
   try {
     fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ configVersion: 1, dataDir: first }));
-    let agent = await createAgent({ home, port: 0 });
+    let agent = await createAgent({ home, port: 0, appFolders: {} });
     try {
       assert.equal(agent.dataDir, first);
       await put(agent, '/api/data/notes/pages', envelope('notes', 'pages'));
@@ -158,7 +158,7 @@ test('dataDir from config.json is used, and a saved change applies only after a 
       assert.equal(r.restartRequired, true);
       assert.equal(readJson(path.join(home, 'config.json')).dataDir, second);
     } finally { await agent.stop(); }
-    agent = await createAgent({ home, port: 0 });
+    agent = await createAgent({ home, port: 0, appFolders: {} });
     try {
       assert.equal(agent.dataDir, second);
       assert.equal((await get(agent, '/api/data/notes/pages')).json, null, 'nothing is copied between data folders');

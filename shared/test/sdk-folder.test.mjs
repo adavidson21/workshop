@@ -27,7 +27,7 @@ function bus() {
   return make;
 }
 const tick = () => new Promise(r => setTimeout(r, 5));
-const store = (fs, client = 'w-a', opts = {}) => makeFolderStore({ clientId: client }, rootOf(fs), Object.assign({ timers: false, channel: null, now: () => Date.UTC(2026, 9, 25, 14, 5, 0, 123) }, opts));
+const store = (fs, client = 'w-a', opts = {}) => makeFolderStore({ clientId: client }, rootOf(fs), Object.assign({ folders: {}, timers: false, channel: null, now: () => Date.UTC(2026, 9, 25, 14, 5, 0, 123) }, opts));
 const envelope = (items, extra = {}) => Object.assign({ schema: 'notes.pages', version: 1, rev: 0, items }, extra);
 const codeOf = async (p) => p.then(() => 'ok', e => e.code);
 

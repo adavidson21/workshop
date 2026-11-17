@@ -20,6 +20,7 @@
 import * as People from './people.js';
 import * as Teams from './teams.js';
 import * as AppSettings from './app-settings.js';
+import { APP_FOLDERS } from './app-folders.js';
 
 const SDK_VERSION = 1;
 const PAIR_KEY = 'workshop.agent';
@@ -601,7 +602,33 @@ function makeFolderStore(ctx, root, opts = {}) {
 
   /* -- paths -- */
   const relKey = (segs) => segs.join('/');
-  async function dirAt(segs, create) { let d = root; for (const s of segs) d = await d.getDirectoryHandle(s, { create }); return d; }
+  /* App folders use the names people see (shared/app-folders.js, docs/data-format.md App folders). segs are in
+     app ids; the disk uses folder names. The agent renames old folders on start; a folder only the browser uses
+     keeps its old name (the app id) while that is the only one there, so nothing goes missing. */
+  const folders = opts.folders || APP_FOLDERS;
+  const folderFor = new Map();
+  async function hasDir(name) { try { await root.getDirectoryHandle(name, { create: false }); return true; } catch (e) { if (isMissing(e)) return false; throw e; } }
+  async function folderOf(app) {
+    if (!Object.prototype.hasOwnProperty.call(folders, app)) return app;
+    if (folderFor.has(app)) return folderFor.get(app);
+    const f = (!(await hasDir(folders[app])) && await hasDir(app)) ? app : folders[app];
+    folderFor.set(app, f);
+    return f;
+  }
+  async function diskSegs(segs) {
+    const at = segs[0] === '.trash' ? 1 : segs[0] === '.backups' ? 2 : 0;
+    if (segs.length <= at) return segs;
+    const out = segs.slice();
+    out[at] = await folderOf(segs[at]);
+    return out;
+  }
+  /* The app whose folder this top-level folder is, or null (a leftover under an app's old name, say). */
+  async function appOfDir(name) {
+    for (const [id, f] of Object.entries(folders)) if (f === name) return (await folderOf(id)) === name ? id : null;
+    if (Object.prototype.hasOwnProperty.call(folders, name)) return (await folderOf(name)) === name ? name : null;
+    return name;
+  }
+  async function dirAt(segs, create) { let d = root; for (const s of await diskSegs(segs)) d = await d.getDirectoryHandle(s, { create }); return d; }
   async function fileHandle(segs, create) {
     try { return await (await dirAt(segs.slice(0, -1), create)).getFileHandle(segs[segs.length - 1], { create }); }
     catch (e) { if (!create && isMissing(e) && await rootAlive()) return null; throw e; }
@@ -769,9 +796,11 @@ function makeFolderStore(ctx, root, opts = {}) {
       const out = [];
       for await (const [entry, h] of root.entries()) {
         if (h.kind !== 'directory' || !APP_RE.test(entry)) continue;
-        for (const c of (await list(entry)).collections) {
-          const env = await get(entry, c.collection);
-          if (env) out.push({ app: entry, collection: c.collection, envelope: env });
+        const app = await appOfDir(entry);
+        if (!app) continue;
+        for (const c of (await list(app)).collections) {
+          const env = await get(app, c.collection);
+          if (env) out.push({ app, collection: c.collection, envelope: env });
         }
       }
       return out.sort((a, b) => (a.app + '/' + a.collection < b.app + '/' + b.collection ? -1 : 1));
@@ -899,7 +928,9 @@ function makeFolderStore(ctx, root, opts = {}) {
         const out = [];
         for await (const [entry, h] of root.entries()) {
           if (h.kind !== 'directory' || !APP_RE.test(entry)) continue;
-          for (const f of await files.list(entry)) out.push({ app: entry, path: f.path, content: (await files.read(entry, f.path)).content });
+          const app = await appOfDir(entry);
+          if (!app) continue;
+          for (const f of await files.list(app)) out.push({ app, path: f.path, content: (await files.read(app, f.path)).content });
         }
         return out;
       });

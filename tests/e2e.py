@@ -873,7 +873,7 @@ def agent_checks(b, watch):
         p2.wait_for_timeout(800)
         check('agent backend: other pages hear writes through the event stream', rev == 1 and p2.evaluate('window.__heard') == [1])
         check(f'one event stream for every app and window of the site, not one each ({len(streams)} opened)', len(streams) == 1)
-        with open(os.path.join(tmp, 'Workshop', 'notes', 'pages.json')) as f:
+        with open(os.path.join(tmp, 'Workshop', 'folio', 'pages.json')) as f:
             check('agent backend: data is a file in the data folder', json.load(f)['items'][0]['title'] == 'A')
         # App settings (docs/app-settings.md): Docket's Use sprints, declared in its app.json, under it on Settings' Apps tab.
         stab(p1, 'apps'); p1.wait_for_timeout(300)
@@ -901,7 +901,7 @@ def agent_checks(b, watch):
         p2.wait_for_timeout(800)
         check('agent backend: ws.files writes, reads and refuses a stale mtime', wrote == {'mtime': 'number', 'conflict': 'conflict', 'read': '# Q4\n'})
         check('agent backend: other pages hear file writes through the event stream', p2.evaluate('window.__files') == [['summaries/q4.md', 'number']])
-        with open(os.path.join(tmp, 'Workshop', 'notes', 'summaries', 'q4.md')) as f:
+        with open(os.path.join(tmp, 'Workshop', 'folio', 'summaries', 'q4.md')) as f:
             check('agent backend: a file is a file in the data folder', f.read() == '# Q4\n')
         cached = ap.evaluate("""async () => { await navigator.serviceWorker.ready; await new Promise(r => setTimeout(r, 500));
           const k = (await caches.keys()).find(n => n.startsWith('workshop-')); if (!k) return null;
@@ -983,7 +983,7 @@ def storage_checks(b, watch):
     tmp = tempfile.mkdtemp()
     proc, url, token, home = start_agent(tmp, {'configVersion': 1, 'port': 4380, 'allowedOrigins': [HOSTED],
                                                'features': {'startAtLogin': False, 'hostedMode': True}, 'connectors': {}})
-    data = os.path.join(tmp, 'Workshop', 'prioritizer')
+    data = os.path.join(tmp, 'Workshop', 'docket')  # Docket's folder (shared/app-folders.js)
     try:
         # Docket on the hosted site, paired with the agent.
         actx = b.new_context(viewport={'width': 1280, 'height': 800}, accept_downloads=True)
@@ -1105,7 +1105,7 @@ def folder_checks(b, watch):
       await ws.files.write('summaries/q4.md', '# Q4 from the browser', {create: true}); }""")
     check('before a folder is chosen, browser mode saves in IndexedDB, files too', pg.evaluate(IDB_GET, ['data', 'prioritizer/tasks']) is not None
           and (pg.evaluate(IDB_GET, ['files', 'notes/summaries/q4.md']) or {}).get('content') == '# Q4 from the browser')
-    pg.evaluate(OPFS, ['Workshop/notes/summaries/q4.md', '# Q4 already in the folder'])
+    pg.evaluate(OPFS, ['Workshop/folio/summaries/q4.md', '# Q4 already in the folder'])
 
     # Settings: Choose folder. The picker is replaced by the stand-in folder; everything after it is real.
     pg.evaluate("location.hash = '#/settings'"); pg.wait_for_timeout(1200)
@@ -1120,10 +1120,10 @@ def folder_checks(b, watch):
           and sf.inner_text('[data-folder-name]') == 'Workshop' and sf.locator('[data-folder] [data-choose]').inner_text() == 'Change folder')
     check('Settings summarizes what was copied', 'Now using Workshop' in text and bool(re.search(r'[1-9] collections? copied in \([1-9] new, 0 merged', text)) and 'kept as it was' in text)
     check('a different file already in the folder is kept, the browser copy is written beside it',
-          pg.evaluate(OPFS, ['Workshop/notes/summaries/q4.md', None]) == '# Q4 already in the folder'
-          and pg.evaluate(OPFS, ['Workshop/notes/summaries/q4-from-browser.md', None]) == '# Q4 from the browser' and 'q4-from-browser.md' in text)
-    on_disk = json.loads(pg.evaluate(OPFS, ['Workshop/prioritizer/tasks.json', None]) or '{}')
-    check('the board is copied into the folder as prioritizer/tasks.json', on_disk.get('schema') == 'prioritizer.tasks' and 'Saved in the browser first' in [t['title'] for t in on_disk.get('items', [])])
+          pg.evaluate(OPFS, ['Workshop/folio/summaries/q4.md', None]) == '# Q4 already in the folder'
+          and pg.evaluate(OPFS, ['Workshop/folio/summaries/q4-from-browser.md', None]) == '# Q4 from the browser' and 'q4-from-browser.md' in text)
+    on_disk = json.loads(pg.evaluate(OPFS, ['Workshop/docket/tasks.json', None]) or '{}')
+    check('the board is copied into the folder as docket/tasks.json', on_disk.get('schema') == 'prioritizer.tasks' and 'Saved in the browser first' in [t['title'] for t in on_disk.get('items', [])])
     moved = pg.evaluate(IDB_GET, ['data', '_moved'])
     check('the IndexedDB copy is kept and marked moved', pg.evaluate(IDB_GET, ['data', 'prioritizer/tasks']) is not None and bool(moved) and moved['movedTo'] == 'Workshop')
 
@@ -1134,7 +1134,7 @@ def folder_checks(b, watch):
     check('the board loads from the folder', 'Saved in the browser first' in pf.evaluate(titles))
     pf.evaluate("""() => { const P = window.__prioritizer; P.state.tasks.push({id: 'f1', title: 'Saved in the folder', listId: P.state.lists[0].id, value: 3, effort: 'S'});
       P.state = P.sanitize(P.state); P.commit(); return P.saved(); }""")
-    on_disk = json.loads(pg.evaluate(OPFS, ['Workshop/prioritizer/tasks.json', None]))
+    on_disk = json.loads(pg.evaluate(OPFS, ['Workshop/docket/tasks.json', None]))
     check('an edit is written to the folder', 'Saved in the folder' in [t['title'] for t in on_disk['items']])
     pg.reload(); pg.wait_for_timeout(1500)
     pf = next(f for f in pg.frames if '/apps/prioritizer/' in f.url)
@@ -1149,10 +1149,10 @@ def folder_checks(b, watch):
     pf.evaluate("() => { const P = window.__prioritizer; P.state.tasks.find(t => t.id === 'f1').title = 'Edited in tab one'; P.commit(); return P.saved(); }")
     p2.wait_for_timeout(1000)
     check('folder store: another tab shows an edit without reloading', 'Edited in tab one' in p2.evaluate(titles))
-    env = json.loads(pg.evaluate(OPFS, ['Workshop/prioritizer/tasks.json', None]))
+    env = json.loads(pg.evaluate(OPFS, ['Workshop/docket/tasks.json', None]))
     env['rev'] += 1
     env['items'].append(dict(env['items'][0], id='o1', title='Added outside Workshop', updatedAt=int(time.time() * 1000)))
-    pg.evaluate(OPFS, ['Workshop/prioritizer/tasks.json', json.dumps(env, indent=2) + '\n'])
+    pg.evaluate(OPFS, ['Workshop/docket/tasks.json', json.dumps(env, indent=2) + '\n'])
     p2.wait_for_timeout(6500)
     check('folder store: a change made outside Workshop shows up within the 5-second check', 'Added outside Workshop' in p2.evaluate(titles))
     p2.close()
@@ -1162,7 +1162,7 @@ def folder_checks(b, watch):
           r['storage'] == 'folder' and r['online'] and r.get('exists') == 'conflict' and r.get('stale') == 'conflict' and r.get('current') == '# H2, edited' and r['newer'])
     check('folder store: ws.files lists and trashes into .trash/', r['list'] == ['summaries/h2.md', 'summaries/q4-from-browser.md', 'summaries/q4.md']
           and r['trash'].startswith('.trash/notes/summaries/h2.') and r['after'] == ['summaries/q4-from-browser.md', 'summaries/q4.md']
-          and pg.evaluate(OPFS, ['Workshop/' + r['trash'], None]) == '# H2, edited')
+          and pg.evaluate(OPFS, ['Workshop/' + r['trash'].replace('.trash/notes/', '.trash/folio/', 1), None]) == '# H2, edited')  # the API names app ids, the disk folders
     check('folder status names the folder', r['status'] == {'storage': 'folder', 'name': 'Workshop', 'permission': 'granted', 'moved': True, 'missing': False})
 
     # After a browser restart Chrome asks again: the shell shows one bar; apps wait, then load on Allow.
@@ -1180,10 +1180,10 @@ def folder_checks(b, watch):
     p3.keyboard.press('Control+k'); p3.wait_for_timeout(300); p3.keyboard.type('add a task'); p3.keyboard.press('Enter'); p3.wait_for_timeout(400)
     no_palette = not pf3.evaluate("document.getElementById('cmd').classList.contains('open')")
     check('while waiting, adding a task is not possible (N, the palette, New list)', no_key and no_palette and pf3.locator('#phead [data-scopemenu]').count() == 0)   # Docket 9.0.0: New list is in the list pill's menu
-    before = pg.evaluate(OPFS, ['Workshop/prioritizer/tasks.json', None])
+    before = pg.evaluate(OPFS, ['Workshop/docket/tasks.json', None])
     pf3.evaluate("() => { const P = window.__prioritizer; P.state.tasks.push({id: 'w9', title: 'Typed while waiting', listId: P.state.lists[0].id}); P.commit(); }")
     p3.wait_for_timeout(1200)
-    check('while waiting, nothing is saved over the folder', pg.evaluate(OPFS, ['Workshop/prioritizer/tasks.json', None]) == before and pf3.locator('.row').count() == 0)
+    check('while waiting, nothing is saved over the folder', pg.evaluate(OPFS, ['Workshop/docket/tasks.json', None]) == before and pf3.locator('.row').count() == 0)
     bar.locator('[data-allow]').click(); p3.wait_for_timeout(1500)
     check('Allow removes the bar', p3.locator('#folderBar').count() == 0)
     got = pf3.evaluate(titles)
@@ -1206,19 +1206,19 @@ def folder_checks(b, watch):
     seen(hf4, '.card.inbox')
     check('after Allow, the panel loads Needs you without a reload', hf4.locator('.waiting').count() == 0 and hf4.locator('.card.inbox').count() == 1)
 
-    # Notes on the folder: the notes and images are files in Workshop/notes/.
+    # Notes on the folder: the notes and images are files in Workshop/folio/ (shared/app-folders.js).
     p4.evaluate("location.hash = '#/notes'"); p4.wait_for_timeout(1500)
     nf4 = next((f for f in p4.frames if '/apps/notes/' in f.url), None)
     check('Notes (folder): notes another app already wrote in notes/ show in the tree', nf4 is not None and nf4.locator('.tree [data-open="summaries/q4.md"]').count() == 1)
     if nf4: notes_flow(p4, nf4, 'folder')
-    on_disk = pg.evaluate(OPFS, ['Workshop/notes/runbooks/deploy.md', None]) or ''
+    on_disk = pg.evaluate(OPFS, ['Workshop/folio/runbooks/deploy.md', None]) or ''
     check('Notes (folder): the note is a Markdown file in the folder', on_disk.startswith('# Deploy Runbook') and 'Steps for a release' in on_disk)
-    check('Notes (folder): links in other notes were rewritten on disk', '](runbooks/deploy.md)' in (pg.evaluate(OPFS, ['Workshop/notes/guide.md', None]) or ''))
-    img = pg.evaluate("""async () => { const root = await navigator.storage.getDirectory(); const d = await (await (await root.getDirectoryHandle('Workshop')).getDirectoryHandle('notes')).getDirectoryHandle('attachments');
+    check('Notes (folder): links in other notes were rewritten on disk', '](runbooks/deploy.md)' in (pg.evaluate(OPFS, ['Workshop/folio/guide.md', None]) or ''))
+    img = pg.evaluate("""async () => { const root = await navigator.storage.getDirectory(); const d = await (await (await root.getDirectoryHandle('Workshop')).getDirectoryHandle('folio')).getDirectoryHandle('attachments');
       for await (const [name, h] of d.entries()) { const b = new Uint8Array(await (await h.getFile()).arrayBuffer()); return [name, b.length, b[0], b[1]]; } return null; }""")
-    check('Notes (folder): the pasted image is stored as PNG bytes in notes/attachments/', bool(img) and img[0].endswith('.png') and img[1] == 67 and img[2:] == [0x89, 0x50])
-    check('Notes (folder): the old file went to the trash, nothing was deleted', pg.evaluate(OPFS, ['Workshop/notes/deploy-runbook.md', None]) is None
-          and pg.evaluate("""async () => { const root = await navigator.storage.getDirectory(); try { const d = await (await (await root.getDirectoryHandle('Workshop')).getDirectoryHandle('.trash')).getDirectoryHandle('notes');
+    check('Notes (folder): the pasted image is stored as PNG bytes in folio/attachments/', bool(img) and img[0].endswith('.png') and img[1] == 67 and img[2:] == [0x89, 0x50])
+    check('Notes (folder): the old file went to the trash, nothing was deleted', pg.evaluate(OPFS, ['Workshop/folio/deploy-runbook.md', None]) is None
+          and pg.evaluate("""async () => { const root = await navigator.storage.getDirectory(); try { const d = await (await (await root.getDirectoryHandle('Workshop')).getDirectoryHandle('.trash')).getDirectoryHandle('folio');
             for await (const [name] of d.entries()) if (name.startsWith('deploy-runbook.')) return true; } catch (e) {} return false; }"""))
     ctx.close()
 

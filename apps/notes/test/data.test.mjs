@@ -10,7 +10,7 @@ const PNG = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 
 
 // A tiny ws: ws.files over the SDK folder store, the way connect() wires it.
 function wsOver(fs, client = 'w-a') {
-  const s = _internals.makeFolderStore({ clientId: client }, fs.root, { timers: false, channel: null });
+  const s = _internals.makeFolderStore({ clientId: client }, fs.root, { folders: {}, timers: false, channel: null });
   const handlers = [];
   return {
     store: s,

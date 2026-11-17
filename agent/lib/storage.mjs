@@ -3,6 +3,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { looseDataDir } from './datadir.mjs';
+import { APP_FOLDERS } from '../../shared/app-folders.js';
 
 /** Folder names that mean a sync tool uploads the folder. Matched against path segments, case ignored. */
 const SYNCED = [
@@ -83,7 +84,7 @@ export function largestFiles(dataDir, limit = 10) {
  * Everything Workshop keeps, by place. Each entry: `id`, `what` (plain words), `path`, and `size` from sizeOf
  * (null when missing). Plus the data folder's permissions and sync tool.
  */
-export function storageReport({ home, dataDir, platform = process.platform }) {
+export function storageReport({ home, dataDir, platform = process.platform, folders = APP_FOLDERS }) {
   const data = path.join(home, 'data');
   const oldApps = [];
   try {
@@ -96,6 +97,15 @@ export function storageReport({ home, dataDir, platform = process.platform }) {
     ...(fs.existsSync(path.join(data, 'moved.json')) ? oldApps.map(a => entry(`old-${a}`, `Old copy of ${a} data, from before the data folder`, path.join(data, a))) : []),
     ...CONNECTOR_CONTENT.map(c => entry(c.id, c.what, path.join(data, ...c.rel))).filter(e => e.size && e.size.files),
   ];
+  // App folders under their old names (shared/app-folders.js): renamed on the agent's next start, or left
+  // because the new folder already had files.
+  const oldNames = [];
+  for (const [id, folder] of Object.entries(folders)) {
+    if (!fs.statSync(path.join(dataDir, id), { throwIfNoEntry: false })?.isDirectory()) continue;
+    const both = fs.existsSync(path.join(dataDir, folder));
+    oldNames.push({ id, folder, both });
+    if (both) leftovers.push({ ...entry(`folder-${id}`, `The ${id}/ folder, its old name (Workshop uses ${folder}/)`, path.join(dataDir, id)) });
+  }
   return {
     dataDir,
     loose: looseDataDir(dataDir, platform),
@@ -104,6 +114,7 @@ export function storageReport({ home, dataDir, platform = process.platform }) {
     trash: sizeOf(path.join(dataDir, '.trash')),
     backups: sizeOf(path.join(dataDir, '.backups')),
     leftovers,
+    oldNames,
   };
 }
 
@@ -115,6 +126,7 @@ export function storageLines(report, { sizes = false, largest = largestFiles } =
   const t = report.trash, b = report.backups;
   if (t && t.files) lines.push(`Trash: ${t.files} file${t.files === 1 ? '' : 's'}, ${humanBytes(t.bytes)}. Workshop never empties it; delete files in ${path.join(report.dataDir, '.trash')} or use Settings, Data.`);
   if (b && b.files) lines.push(`Backups: ${b.files} file${b.files === 1 ? '' : 's'}, ${humanBytes(b.bytes)}, kept before format changes.`);
+  for (const o of report.oldNames || []) if (!o.both) lines.push(`App folders: ${o.id}/ is renamed to ${o.folder}/ the next time Workshop starts.`);
   for (const l of report.leftovers) lines.push(`Old copy: ${l.what}, ${humanBytes(l.size.bytes)} in ${l.path}. Kept until you delete it (Settings, Data).`);
   if (sizes && report.data) {
     lines.push('Largest files in the data folder:');

@@ -97,7 +97,7 @@ def main():
                 # Docket reaches the agent like any app: its board is saved in the data folder, not the browser.
                 saved = False
                 for _ in range(50):
-                    if os.path.isdir(os.path.join(data, 'prioritizer')) and os.listdir(os.path.join(data, 'prioritizer')):
+                    if os.path.isdir(os.path.join(data, 'docket')) and os.listdir(os.path.join(data, 'docket')):
                         saved = True
                         break
                     pg.wait_for_timeout(200)
