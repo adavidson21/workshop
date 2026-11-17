@@ -36,6 +36,7 @@ const ORIGIN = /^(https:\/\/[a-z0-9.-]+(:\d{1,5})?|http:\/\/(127\.0\.0\.1|localh
 const FEATURES = {
   startAtLogin: ['Start at login', 'Start Workshop when you log in to this computer. No admin rights needed.'],
   hostedMode: ['Hosted mode', 'Let the allowed sites below pair with Workshop on this computer. Each site asks once, in a pairing window.'],
+  readableCopy: ['Keep a readable copy', 'Once a day, copy your data as spreadsheets and documents into the Readable copy folder inside your data folder, so it is readable without Workshop.'],
   workMode: ['Work mode', 'Run Workshop from the pinned copy on this computer (built with workshop pin) instead of its site. No site can pair while it is on, and the code only changes when you update it.']
 };
 const ARROW = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M6 3h7v7M13 3 4 12"/></svg>';
@@ -439,7 +440,7 @@ async function computerCard(cfg) {
   const form = document.createElement('form');
   form.className = 'cfg';
   form.dataset.track = '';
-  const feats = Object.keys(cfg.features);
+  const feats = [...new Set([...Object.keys(cfg.features), 'readableCopy'])];
   const feature = k => {
     const [label, help] = FEATURES[k] || [k, ''];
     return `<div class="cfg-row cfg-check"><input type="checkbox" id="feat-${k}" data-feature="${k}"${cfg.features[k] ? ' checked' : ''}><label for="feat-${k}">${esc(label)}</label>${help ? `<p class="cfg-help">${esc(help)}</p>` : ''}</div>`;

@@ -105,6 +105,7 @@ test('a rename that fails keeps using the old folder, so nothing goes missing', 
     fs.renameSync = real;
     assert.deepEqual(r.folders, { notes: 'notes' });
     assert.equal(new DataRoot(dd, r.folders).abs('notes/a.md'), path.join(dd, 'notes', 'a.md'));
+    assert.deepEqual(new DataRoot(dd, r.folders).apps(), ['notes'], 'and it is still listed');
   } finally { fs.renameSync = real; rmHome(home); }
 });
 

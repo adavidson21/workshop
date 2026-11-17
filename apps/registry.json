@@ -1144,7 +1144,7 @@
         "manifestVersion": 1,
         "id": "settings",
         "name": "Settings",
-        "version": "6.4.0",
+        "version": "6.5.0",
         "description": "Status and what needs you, apps, this computer, data and backups; people and teams, products, focus hours and writing voice; Azure DevOps, opencode and repos; and a user guide.",
         "icon": "icon.svg",
         "entry": "index.html",

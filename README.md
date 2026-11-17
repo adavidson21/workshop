@@ -112,6 +112,7 @@ Run these in a terminal. Start with `workshop doctor` whenever something seems o
 | `workshop up` | Start Workshop if needed and open it |
 | `workshop restart` | Restart Workshop (`--opencode` also restarts opencode) |
 | `workshop stop` | Stop Workshop |
+| `workshop export --readable` | Copy your data as spreadsheets and documents into the `Readable copy` folder of your data folder |
 | `workshop doctor` | Check everything and say what to fix (`--sizes` also lists the largest files in your data folder) |
 | `workshop pat` | Save or renew your Azure DevOps token |
 | `workshop apps` | Turn apps on or off (also in Settings, Apps) |

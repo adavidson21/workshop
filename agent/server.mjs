@@ -23,6 +23,8 @@ import { Tracker, FolderWatch } from './lib/watch.mjs';
 import { rawApiSegments, decodeSegment, appId, collectionName, folderName, filePath, DataRoot } from './lib/datapath.mjs';
 import { defaultDataDir, dataDirProblem, prepareDataDir, removeDataTmpFiles, moveOldData, looseDataDir, cleanScratch, SCRATCH_DAYS, renameAppFolders } from './lib/datadir.mjs';
 import { APP_FOLDERS } from '../shared/app-folders.js';
+import { writeReadme, makeReadableCopy } from './lib/readable.mjs';
+import { storageReport } from './lib/storage.mjs';
 import { EventHub } from './lib/events.mjs';
 import { ConnectorHost } from './lib/connectors.mjs';
 import { LOCAL_PAGE, serveStatic } from './lib/static.mjs';
@@ -209,6 +211,23 @@ export async function createAgent(o) {
     return { apps };
   }
 
+  /** The apps for the data folder's README and readable copy: id, the name people know, and its folder. */
+  const folderApps = () => listApps().apps.map(a => ({ id: a.manifest.id, name: a.manifest.name, folder: dataRoot.folderOf(a.manifest.id) }));
+  let copying = null;
+  /** Make the readable copy (docs/data-format.md, Readable without Workshop); one at a time. */
+  const readableCopy = () => (copying ??= makeReadableCopy({ root: dataRoot, store, files, apps: folderApps() })
+    .then(r => { log.for('data').info(`Made the readable copy: ${r.collections} collections and ${r.files} files from ${r.apps} apps, in ${r.dir}.`); return r; })
+    .finally(() => { copying = null; }));
+  try {
+    const w = await writeReadme(dataDir, folderApps());
+    if (w === 'written') log.for('data').info(`Wrote ${path.join(dataDir, 'README.md')}, which says what each folder is.`);
+  } catch (e) { log.warn(`Could not write README.md in the data folder (${e.code || e.message}).`); }
+  // "Keep a readable copy up to date" (features.readableCopy, off by default): on start and once a day.
+  const refreshCopy = () => { if (config.features?.readableCopy === true) readableCopy().catch(e => log.warn(`Could not make the readable copy (${e.code || e.message}).`)); };
+  const copyTimer = setInterval(refreshCopy, 24 * 3600 * 1000);
+  copyTimer.unref();
+  setTimeout(refreshCopy, 5000).unref();
+
   // ---------- request handling
   async function handle(req, res) {
     const started = Date.now();
@@ -350,6 +369,21 @@ document.getElementById('allow').addEventListener('click', function () {
     const ok = body => sendJson(res, 200, body, cors);
 
     if (parts[0] === 'apps' && parts.length === 1) { only('GET'); ok(listApps()); return; }
+
+    // What is stored where (docs/agent-api.md, Storage): sizes and paths, never contents. The data folder's path is
+    // already in GET /api/config, so hosted pages may read this too.
+    if (parts[0] === 'storage' && parts.length === 1) {
+      only('GET');
+      const r = storageReport({ home, dataDir });
+      const copy = fs.statSync(path.join(dataDir, 'Readable copy'), { throwIfNoEntry: false });
+      ok({ ...r, readableCopy: copy ? { path: path.join(dataDir, 'Readable copy'), modified: new Date(copy.mtimeMs).toISOString() } : null });
+      return;
+    }
+    if (parts[0] === 'storage' && parts[1] === 'readable' && parts.length === 2) {
+      only('POST');
+      try { ok(await readableCopy()); } catch (e) { fail('internal', `Workshop could not make the readable copy (${e.code || e.message}).`); }
+      return;
+    }
 
     // The health check for Settings: the parts of `workshop doctor` the running agent can see for itself (it runs no
     // programs, docs/security.md). Local only: it names folders on this computer.
@@ -606,6 +640,7 @@ document.getElementById('allow').addEventListener('click', function () {
     stop() {
       stopping ??= (async () => {
         clearInterval(scratchTimer);
+        clearInterval(copyTimer);
         watch.stop();
         events.closeAll();
         await connectors.stopAll();
