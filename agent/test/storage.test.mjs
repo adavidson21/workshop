@@ -81,3 +81,37 @@ test('bytes read as short text', () => {
   assert.equal(humanBytes(2048), '2 KB');
   assert.equal(humanBytes(3.5 * 1024 * 1024), '3.5 MB');
 });
+
+test('working files in .scratch are removed 7 days after they last changed, and nothing else is touched', async () => {
+  const { cleanScratch } = await import('../lib/datadir.mjs');
+  const home = tempHome();
+  const dd = dataDirOf(home);
+  try {
+    const old = path.join(dd, '.scratch', 'opencode', 'hub', 'hub_old');
+    const fresh = path.join(dd, '.scratch', 'opencode', 'oneonones', 'p_a-2026-11-15');
+    const mixed = path.join(dd, '.scratch', 'opencode', 'hub', 'hub_mixed');
+    for (const d of [old, fresh, mixed]) fs.mkdirSync(d, { recursive: true });
+    fs.mkdirSync(path.join(dd, 'notes'), { recursive: true });
+    const now = Date.now();
+    const age = (p, days) => { const t = new Date(now - days * 86400000); fs.utimesSync(p, t, t); };
+    fs.writeFileSync(path.join(old, 'request.md'), 'q'); age(path.join(old, 'request.md'), 9); age(old, 9);
+    fs.writeFileSync(path.join(fresh, 'packet.md'), 'p'); age(path.join(fresh, 'packet.md'), 2); age(fresh, 2);
+    fs.writeFileSync(path.join(mixed, 'request.md'), 'q'); age(path.join(mixed, 'request.md'), 10);
+    fs.writeFileSync(path.join(mixed, 'answer.md'), 'a'); age(path.join(mixed, 'answer.md'), 1); age(mixed, 10);
+    fs.writeFileSync(path.join(dd, 'notes', 'old.md'), 'keep'); age(path.join(dd, 'notes', 'old.md'), 400);
+    assert.deepEqual(cleanScratch(dd, now), ['opencode/hub/hub_old']);
+    assert.ok(fs.existsSync(fresh) && fs.existsSync(mixed) && fs.existsSync(path.join(dd, 'notes', 'old.md')));
+    assert.deepEqual(cleanScratch(path.join(dd, 'missing'), now), []);
+  } finally { rmHome(home); }
+});
+
+test('connectors get the data folder and their own working folder in ctx', async () => {
+  const home = tempHome();
+  const agent = await start(home);
+  try {
+    assert.ok(agent.dataDir);
+  } finally { await agent.stop(); rmHome(home); }
+  const src = fs.readFileSync(new URL('../lib/connectors.mjs', import.meta.url), 'utf8');
+  assert.match(src, /dataDir: this\.#dataDir/);
+  assert.match(src, /scratch: this\.#dataDir \? path\.join\(this\.#dataDir, '\.scratch', entry\.id\)/);
+});

@@ -72,6 +72,42 @@ export function prepareDataDir(dir, home) {
   return new DataRoot(dir);
 }
 
+/** Working files a connector hands to another program are removed this many days after they last changed. */
+export const SCRATCH_DAYS = 7;
+
+/**
+ * Remove stale working files: each `<dataDir>/.scratch/<connector>/<area>/<item>` whose newest file is older
+ * than SCRATCH_DAYS (docs/connector.md, ctx.scratch). The one place Workshop removes files in the data folder;
+ * nothing outside .scratch is touched. Returns the removed items, relative to .scratch.
+ */
+export function cleanScratch(dataDir, now = Date.now(), days = SCRATCH_DAYS) {
+  const root = path.join(dataDir, '.scratch');
+  const cutoff = now - days * 86400000;
+  const removed = [];
+  const kids = d => { try { return fs.readdirSync(d, { withFileTypes: true }).filter(e => e.isDirectory() && !e.isSymbolicLink()).map(e => e.name); } catch { return []; } };
+  const newest = p => {
+    let m = 0;
+    const walk = q => {
+      let st; try { st = fs.lstatSync(q); } catch { return; }
+      if (st.mtimeMs > m) m = st.mtimeMs;
+      if (st.isDirectory()) for (const e of fs.readdirSync(q)) walk(path.join(q, e));
+    };
+    walk(p);
+    return m;
+  };
+  for (const id of kids(root)) {
+    for (const area of kids(path.join(root, id))) {
+      let items; try { items = fs.readdirSync(path.join(root, id, area)); } catch { continue; }
+      for (const item of items) {
+        const p = path.join(root, id, area, item);
+        if (newest(p) >= cutoff) continue;
+        try { fs.rmSync(p, { recursive: true, force: true }); removed.push(`${id}/${area}/${item}`); } catch { /* next start */ }
+      }
+    }
+  }
+  return removed;
+}
+
 /**
  * Can other users on this computer open the data folder? Null on Windows (its ACL decides) and when the folder
  * is missing; otherwise the folder's permission bits as octal text when group or others have any, else false.

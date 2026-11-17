@@ -13,7 +13,7 @@ Workshop keeps two folders apart:
 | --- | --- |
 | `~/.workshop/config.json` | This file. |
 | `~/.workshop/token` | The per-install token. User-only permissions. Never shown in the UI or logs. |
-| `~/.workshop/data/_connectors/<id>/<key>.json` | A connector's private storage, see [connector.md](connector.md). |
+| `~/.workshop/data/_connectors/<id>/<key>.json` | A connector's private state (settings it saved, sync cursors), see [connector.md](connector.md). Never something you wrote: that goes in the data folder. |
 | `~/.workshop/data/<app>/...` | App data from before the data folder. Copied to `dataDir` once and kept, never deleted (see [data-format.md](data-format.md), Moving from `~/.workshop/data`). |
 | `~/.workshop/logs/` | Agent logs. Never contain tokens, PATs or data contents. |
 | `<dataDir>/<app>/...` | App data. |

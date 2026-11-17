@@ -13,8 +13,9 @@
 // A message with no agent named goes to opencode's default agent (build unless your opencode config says
 // otherwise); a hub thread's follow-ups default to Tandem's read-only `chat` agent.
 //
-// The list is kept in this connector's own folder, <Workshop home>/data/_connectors/opencode/chats.json (mode
-// 0600), so a thread can go on after a restart. The turns themselves stay in opencode. Since 1.17.0 there is no
+// The list is kept in the data folder, <dataDir>/chat/chats.json (mode 0600), so a thread can go on after a
+// restart and the list stays with your data when Workshop is removed. Before connector 1.18.0 it was in
+// <Workshop home>/data/_connectors/opencode/chats.json; the first load copies that once and keeps the old file. The turns themselves stay in opencode. Since 1.17.0 there is no
 // separate AI switch: turning the connector off in Settings is the off switch.
 
 import fs from "node:fs";
@@ -42,14 +43,30 @@ export function resetChats(file = null, hubDir = null) {
   fileOverride = file;
   hubDirOverride = hubDir;
 }
+/** Where the list was kept before connector 1.18.0, in the Workshop home. */
+export function oldChatFile(home = ctx && ctx.home) {
+  return home ? path.join(home, "data", "_connectors", "opencode", "chats.json") : null;
+}
 function chatFile() {
   if (fileOverride) return fileOverride;
   if (!ctx || !ctx.home) throw httpError(503, "The opencode connector is not ready yet.");
-  return path.join(ctx.home, "data", "_connectors", "opencode", "chats.json");
+  return ctx.dataDir ? path.join(ctx.dataDir, "chat", "chats.json") : oldChatFile();
+}
+/** Copy the list from the Workshop home into the data folder once. The old file is kept, never changed. */
+export function moveOldChats(to, from) {
+  if (!from || from === to || fs.existsSync(to) || !fs.existsSync(from)) return false;
+  fs.mkdirSync(path.dirname(to), { recursive: true, mode: 0o700 });
+  fs.copyFileSync(from, to, fs.constants.COPYFILE_EXCL);
+  try { fs.chmodSync(to, 0o600); } catch { /* Windows */ }
+  return true;
 }
 function load() {
   if (chats) return chats;
   chats = new Map();
+  if (!fileOverride) {
+    try { if (moveOldChats(chatFile(), oldChatFile())) log("chat list copied into the data folder (chat/chats.json); the old copy is kept"); }
+    catch (e) { log(`chat list not copied: ${e.message}`); }
+  }
   try {
     const d = JSON.parse(fs.readFileSync(chatFile(), "utf8"));
     for (const c of Array.isArray(d.items) ? d.items : []) {
@@ -64,7 +81,7 @@ function save() {
   const f = chatFile();
   fs.mkdirSync(path.dirname(f), { recursive: true, mode: 0o700 });
   const tmp = f + ".tmp";
-  fs.writeFileSync(tmp, JSON.stringify({ version: 1, items }, null, 1), { mode: 0o600 });
+  fs.writeFileSync(tmp, JSON.stringify({ version: 1, items }, null, 2) + "\n", { mode: 0o600 });
   fs.renameSync(tmp, f);
 }
 
@@ -72,7 +89,7 @@ function save() {
    route itself. hub.mjs records it through noteIntent once it reads the route; this covers runs from before 1.9.0. */
 function hubDir() {
   if (hubDirOverride) return hubDirOverride;
-  return ctx && ctx.home ? path.join(ctx.home, "data", "_connectors", "opencode", "hub") : null;
+  return ctx && ctx.home ? hubRoot() : null;
 }
 function routeIntent(id) {
   const dir = hubDir();

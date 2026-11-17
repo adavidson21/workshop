@@ -2,10 +2,13 @@
    (Runway 3.0.0), which had them from Docket. main.js imports this with a dynamic import() the first time Health
    shows them. It reads through Workshop's ADO connector `dataset` action only, and never writes to ADO.
 
-   The team profile (area paths, people, window) is kept in this browser (localStorage "slate.reports"). The first
-   time, it is taken from Runway's profile ("runway.reports"), or Docket's older one, when they ran in this browser.
-   A profile with no area paths gets them (and the connection) filled in from your team in Workshop's People app
-   (settings.teams). The last pull is cached in IndexedDB ("slate-cache"), since it can always be pulled again. */
+   The team profile (area paths, people, window) is kept in the Workshop folder as reports/profile.json, and the
+   last pull as reports/cache.json (it can always be pulled again), both through ws.files. Before Loom 4.12.0 they were
+   in this browser (localStorage "slate.reports", IndexedDB "slate-cache"); those are read once, copied into the
+   folder and left as they are. Without a folder (files unavailable) the browser copies are still used. The first
+   time, the profile is taken from Runway's profile ("runway.reports"), or Docket's older one, when they ran in this
+   browser. A profile with no area paths gets them (and the connection) filled in from your team in Workshop's
+   People app (settings.teams). */
 import { esc } from '../model.js';
 import { TABS, WINDOWS, buildWorkbook, compute, fmtMD, lines, teamLines, usable } from './model.js';
 import { RENDER, rpCard } from './view.js';
@@ -19,6 +22,8 @@ export function teamDefaults(env) {
 }
 
 const KEY = 'slate.reports';
+const PROFILE_FILE = 'reports/profile.json';
+const CACHE_FILE = 'reports/cache.json';
 const OLD_KEYS = ['runway.reports'];
 const XLSX_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
@@ -50,6 +55,27 @@ async function cacheGet(k) {
   const db = await idb();
   return new Promise(res => { const q = db.transaction('kv').objectStore('kv').get(k); q.onsuccess = () => res(q.result); q.onerror = () => res(undefined); });
 }
+/** A JSON file of this app through ws.files: {value, mtime}, or null when missing, unreadable or unavailable. */
+async function readJsonFile(ws, file) {
+  try {
+    const f = ws && ws.files ? await ws.files.read(file) : null;
+    if (!f || f.tooLarge) return f ? { value: null, mtime: f.mtime } : null;
+    return { value: JSON.parse(f.content), mtime: f.mtime };
+  } catch (e) { return null; }
+}
+/** Write a JSON file of this app, taking over whatever is there. Resolves the new mtime, or null on failure. */
+async function writeJsonFile(ws, file, value, mtime) {
+  if (!ws || !ws.files) return null;
+  const text = JSON.stringify(value, null, 2) + '\n';
+  try {
+    return (await ws.files.write(file, text, mtime ? { mtime } : { create: true })).mtime;
+  } catch (e) {
+    if (e && e.code === 'conflict') {
+      try { const cur = e.current; return (await ws.files.write(file, text, cur ? { mtime: cur.mtime } : { create: true })).mtime; } catch (e2) { return null; }
+    }
+    return null;
+  }
+}
 async function cacheSet(k, v) {
   const db = await idb();
   return new Promise(res => { const tx = db.transaction('kv', 'readwrite'); tx.objectStore('kv').put(v, k); tx.oncomplete = () => res(); tx.onerror = () => res(); });
@@ -71,12 +97,36 @@ function loadXlsx() {
  * @param {object} o {ws, ado: () => {ready, message}, toast, toastErr, ask (html, wire) => Promise<form|null>, saveFile, requestPaint}
  */
 export function createReports(o) {
-  const st = { profile: readProfile(), data: null, calc: null, busy: false, error: '', loaded: false };
-  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(st.profile)); } catch (e) { /* this session only */ } };
+  const st = { profile: readProfile(), data: null, calc: null, busy: false, error: '', loaded: false, inFolder: false, mtimes: {} };
   const hasProfile = () => !!(lines(st.profile.areas).length || lines(st.profile.people).length);
   const ready = () => !!o.ado().ready;
+  // In the folder once it has been read or written there; the browser copy is the fallback only.
+  const save = async () => {
+    const m = await writeJsonFile(o.ws, PROFILE_FILE, st.profile, st.mtimes.profile);
+    if (m) { st.mtimes.profile = m; st.inFolder = true; return; }
+    try { localStorage.setItem(KEY, JSON.stringify(st.profile)); } catch (e) { /* this session only */ }
+  };
+  const saveCache = async (d) => {
+    const m = await writeJsonFile(o.ws, CACHE_FILE, d, st.mtimes.cache);
+    if (m) st.mtimes.cache = m; else await cacheSet('reports', d).catch(() => {});
+  };
 
-  cacheGet('reports').then(d => { if (usable(d) && !st.data) { st.data = d; o.requestPaint(); } }).catch(() => {}).finally(() => { st.loaded = true; });
+  (async () => {
+    const prof = await readJsonFile(o.ws, PROFILE_FILE);
+    if (prof && prof.value && typeof prof.value === 'object') {
+      st.profile = { ...st.profile, ...prof.value }; st.mtimes.profile = prof.mtime; st.inFolder = true; o.requestPaint();
+    } else if (!prof && hasProfile()) {
+      await save(); // the browser's profile, copied into the folder once; the browser copy is kept
+    }
+    const cache = await readJsonFile(o.ws, CACHE_FILE);
+    if (cache) st.mtimes.cache = cache.mtime;
+    let d = cache && cache.value;
+    if (!usable(d)) {
+      d = await cacheGet('reports').catch(() => null);
+      if (usable(d) && !cache) saveCache(d);
+    }
+    if (usable(d) && !st.data) { st.data = d; o.requestPaint(); }
+  })().catch(() => {}).finally(() => { st.loaded = true; });
 
   function calc() {
     if (!st.data) return null;
@@ -125,7 +175,7 @@ export function createReports(o) {
       const d = await o.ws.connectors.call('ado', 'dataset', { days: p.days, areas: lines(p.areas), people: lines(p.people), ...(p.connection ? { connection: p.connection } : {}) });
       d.generatedAt = d.generatedAt || new Date().toISOString();
       st.data = d; st.calc = null;
-      cacheSet('reports', d).catch(() => {});
+      saveCache(d);
       o.toast(`Reports updated: ${plural(d.items.length, 'work item')}, ${plural(d.events.length, 'change')}`);
     } catch (e) {
       st.error = e && e.message ? e.message : 'Could not read from ADO.';
