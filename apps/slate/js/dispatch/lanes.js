@@ -13,6 +13,10 @@ import { flowOf, stepIndex, isFinished, turnHtml, stepLine } from './flows.js';
 import { workItems, startingSessions, inboxData, inboxFolders, isShip, runCardHtml, asksFor, fileInline } from './pages.js';
 import { pickable, boardFeed } from '../loom.js';
 import { reviewsHtml } from './pr-reviews.js';
+// Set by pages.js (it imports this module): the onboarding guide and an ask's source, for Loom 6.0.0's Lanes.
+// var, no initializer: pages.js may run this setter before this module's body (they import each other).
+var onboardTop, askLabel; // eslint-disable-line no-var
+export function setLaneHelpers(o) { onboardTop = o.onboard || null; askLabel = o.askSource || null; }
 
 export const LANES = [
   { id: 'clarify', name: 'Clarify', desc: 'A first look, then any questions for you' },
@@ -138,6 +142,17 @@ export function lanesData(filter = 'all') {
     const perms = S.L ? S.L.permissions.filter(p => p.sessionID === o.session).length + S.L.questions.filter(q => q.sessionID === o.session).length : 0;
     cards.push({ it: null, session: o.session, folder: '', kind, lane: 'clarify', mine: perms > 0, title: s.title || o.command || 'Starting', id: null,
       status: perms ? 'Tandem has a question for you' : isBusy(s) ? 'Taking a first look' : 'Starting', action: perms ? 'Answer' : '', dots: laneDots(kind, 'clarify'), at: o.at || 0 });
+  }
+  // Prompts and questions from sessions no card holds (Chat, a PR review, the terminal): a card each, in Clarify,
+  // so nothing that waits on you is only in a retired Inbox (Loom 6.0.0).
+  const held = new Set(cards.map(c => c.session).filter(Boolean));
+  const heldFolders = new Set(cards.map(c => c.folder).filter(Boolean));
+  for (const a of d.asks || []) {
+    const x = a.x || {};
+    if ((x.folder && heldFolders.has(x.folder)) || held.has(x.sessionID)) continue;
+    held.add(x.sessionID);
+    const src = askLabel ? askLabel(x) : { what: 'Agent', label: 'A session' };
+    cards.push({ it: null, session: x.sessionID, folder: '', kind: 'other', lane: 'clarify', mine: true, title: src.label || 'A session is asking', id: null, status: `${src.what || 'Tandem'} is asking you something`, action: 'Answer', dots: laneDots('other', 'clarify'), at: Date.now() });
   }
   // The board's own items (Loom 5.2.0): requests, hand-offs and drafts to approve; they open the board's panel.
   for (const b of boardFeed()) {
@@ -289,7 +304,9 @@ export function lanesHtml() {
   const chips = `<div class="chips ln-chips" role="group" aria-label="Show">${LANE_FILTERS.map(([k, label]) =>
     `<button type="button" class="chip${filter === k ? ' on' : ''}" data-lane-filter="${k}" aria-pressed="${filter === k}">${h(label)}<span class="n">${data.counts[k] || 0}</span></button>`).join('')}` +
     '</div>';
-  return `<div class="ln-page">${dropHtml()}${chips}<div class="ln-body${panel ? ' has-panel' : ''}"><div class="ln-lanes">${data.lanes.map(l => laneHtml(l, sel, data.doneList)).join('')}</div>${panel}</div></div>`;
+  // The afternoon digest and first-run onboarding sit on top (they were on the Inbox until Loom 6.0.0).
+  const top = (S.digestHtml ? S.digestHtml(h) : '') + (onboardTop ? onboardTop() : '');
+  return `<div class="ln-page">${top}${dropHtml()}${chips}<div class="ln-body${panel ? ' has-panel' : ''}"><div class="ln-lanes">${data.lanes.map(l => laneHtml(l, sel, data.doneList)).join('')}</div>${panel}</div></div>`;
 }
 /** The tab bar's count on Lanes: cards waiting on you. */
 export function lanesCount() { return lanesData('all').counts.mine; }

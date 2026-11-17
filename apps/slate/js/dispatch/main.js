@@ -360,7 +360,7 @@ function watchPrompts() {
    Loom's `held` summary card. After a focus span ends, "While you were focused" sits on top of the Inbox. */
 const DIGEST_KEY = 'workshop.dispatch.digestDismissed';
 const focusWatch = watchFocus(ws, f => { if (holder) holder.sync(f); updateBadge(); refreshDigest(); schedule(); });
-holder = createHolder(ws, { watch: focusWatch, label: n => `${n} Loom update${n === 1 ? '' : 's'} waiting`, route: 'inbox', onChange: () => publishSummary() });
+holder = createHolder(ws, { watch: focusWatch, label: n => `${n} Loom update${n === 1 ? '' : 's'} waiting`, route: 'lanes', onChange: () => publishSummary() });
 let digestApps = null;
 async function refreshDigest() {
   const f = focusWatch.current, d = new Date();
@@ -413,13 +413,20 @@ function wantFocus(path) {
   const sr = splitRoute(p);
   if (sr.half === 'board') { setTab(sr.tab); routeBoard(sr.path); return; }
   // Chat and the hub moved to the Chat app (Loom 4.8.0); Reviews is the Inbox's PRs chip.
-  if (/^(hub|chat)(\/|$)/.test(p)) { openChat(p); setTab('inbox'); return; }
-  if (/^reviews\/?$/.test(p)) { S.ui.inboxChip = 'prs'; setTab('inbox'); return; }
+  if (/^(hub|chat)(\/|$)/.test(p)) { openChat(p); setTab('lanes'); return; }
+  if (/^reviews\/?$/.test(p)) { setTab('reviews'); return; }
   // start/<flow>[/<text>]: Start work on that flow's card, filled in with the text (Chat's flow suggestions).
   const sm = /^start(?:\/([a-z]+))?(?:\/([\s\S]*))?$/.exec(p);
   if (sm) {
     const fl = sm[1] || ''; const text = sm[2] ? safeDecode(sm[2]) : '';
-    setTab('board');
+    setTab('lanes');
+    // Loom 6.0.0: a build, fix, investigation or hand-off lands in the drop box, its kind picked; Start runs it.
+    const dropKind = { feature: 'build', small: 'build', quick: 'build', bug: looksLikeLog(text) ? 'diagnose' : 'build', spike: 'ask', handoff: 'handoff' }[fl];
+    if (dropKind) {
+      if (text) ui().drafts['lanes:drop'] = text;
+      ui().dropKind = dropKind; ui().dropGuess = dropKind;
+      paint(); focusFirst('#ln-drop'); return;
+    }
     // A pasted error log goes to Fix a bug's Error log box (Chat's flow cards).
     if (fl === 'bug' && looksLikeLog(text)) { openStart('bug', { log: text }); if (ui().start) ui().start.src = 'log'; paint(); return; }
     openStart(fl, text ? prefillFor(fl, { title: text, summary: text.length > 120 ? text : '' }, '') : null);
@@ -443,7 +450,10 @@ onNudges(() => schedule());
 onPickable(() => { if (ui().tab === 'lanes') schedule(); });
 onBoardFeed(() => { if (ui().tab === 'lanes') schedule(); });
 // The board item's drawer closed (its own Close, or it left the board): the card is no longer open.
-onBoardDrawer(id => { if (!id && String(ui().laneSel || '').startsWith('board:')) { ui().laneSel = null; schedule(); } });
+onBoardDrawer(id => {
+  if (id) { ui().laneSel = 'board:' + id; schedule(); return; }
+  if (String(ui().laneSel || '').startsWith('board:')) { ui().laneSel = null; schedule(); }
+});
 // A run inside its card on the board (loom.js): its step and buttons, and its full page from the card.
 setRunRenderer(folder => (S.D ? runCardHtml(folder) : ''));
 onPanelRun(() => { loadFiles(); schedule(); });
@@ -542,13 +552,13 @@ function openStart(flow, fill) {
   focusFirst(f ? '.start-first' : '.fcard');
 }
 const STARTED = {
-  spike: () => 'Investigating. Its card is on the board; the findings come to the Inbox.',
-  'scope.start': () => 'Scoping the idea. Tandem may ask you a few questions; they show in the Inbox.',
-  'docs.start': () => 'Drafting the doc. The draft comes to the Inbox for your read.',
-  'spike.log': () => 'Diagnosing the log. The diagnosis comes to the Inbox with a fix, configuration first.',
-  'tsd.start': () => 'Drafting the technical spec. Tandem asks you to confirm the repos and pick the flows; the questions show in the Inbox.'
+  spike: () => 'Investigating. The first look shows on its card; the findings come to Ready.',
+  'scope.start': () => 'Scoping the idea. Tandem may ask you a few questions; they show on its card in Lanes.',
+  'docs.start': () => 'Drafting the doc. The draft comes to Plan in Lanes for your read.',
+  'spike.log': () => 'Diagnosing the log. The first look shows on its card; the diagnosis comes to Ready with a fix, configuration first.',
+  'tsd.start': () => 'Drafting the technical spec. Tandem asks you to confirm the repos and pick the flows; the questions show on its card in Lanes.'
 };
-const BOARD_STARTED = { request: 'Added to the board. Triage is running; pick the path when it is done.', handoff: 'Added to the board. Tandem is drafting the story for you to approve.' };
+const BOARD_STARTED = { request: 'Added to Lanes. Triage is running; pick the path when it is done.', handoff: 'Added to Lanes. Tandem is drafting the story for you to approve.' };
 // The click on Start is the approval for this write action.
 /** Starts what a Start work state and its drafts ask for (view.js startRequest): a board flow through the board half,
  *  else the connector's action, then tells the board about the run. Returns {board, msg}; throws on a bad form. */
@@ -567,8 +577,8 @@ async function startCore(st, drafts) {
   if (st.from) await closeSpike(st.from, closedLine(r, res));
   const pname = r.args.project ? ' in ' + ((projectById(r.args.project) || {}).name || 'the project') : '';
   const msg = r.action === 'spike' && r.args.log ? STARTED['spike.log']() : STARTED[r.action] ? STARTED[r.action]()
-    : r.action === 'start.local' ? `Started ${(res && res.id) || 'it'} as a ${r.args.lane === 'quick' ? 'small change' : r.args.lane}${pname}. It is on the board; the agent may ask you to confirm repos.`
-    : `Starting #${r.args.id} as a ${r.args.lane === 'quick' ? 'small change' : r.args.lane}${pname}. Its card is on the board once its folder is ready.`;
+    : r.action === 'start.local' ? `Started ${(res && res.id) || 'it'} as a ${r.args.lane === 'quick' ? 'small change' : r.args.lane}${pname}. It is in Lanes; the agent may ask you to confirm repos.`
+    : `Starting #${r.args.id} as a ${r.args.lane === 'quick' ? 'small change' : r.args.lane}${pname}. Its card is in Lanes once its folder is ready.`;
   return { board: false, msg };
 }
 async function startGo() {
@@ -774,10 +784,10 @@ async function saveSettings() {
 
 /* ---------- tabs, a run's page, projects (pages.js, projects.js, local.js) ---------- */
 function setTab(tab, keep) {
+  // Reviews is a card in Lanes' Ready since Loom 6.0.0: its address opens it.
+  if (tab === 'reviews') { ui().laneSel = 'reviews'; loadInbox(false); }
   tab = OLD_TABS[tab] || tab;
-  // Reviews is the Inbox's PRs chip since Loom 4.8.0.
-  if (tab === 'reviews') { ui().inboxChip = 'prs'; tab = 'inbox'; loadInbox(false); }
-  if (!TAB_IDS.includes(tab)) tab = 'inbox';
+  if (!TAB_IDS.includes(tab)) tab = 'lanes';
   if (!keep) ui().run = null;
   if (tab !== 'inbox') ui().walk = null;
   ui().tab = tab;
@@ -789,7 +799,7 @@ function setTab(tab, keep) {
 function openRun(folder, from) {
   const it = itemForFolder(folder);
   if (!it) return;
-  const back = from || (['inbox', 'work', 'health', 'lanes'].includes(ui().tab) ? ui().tab : 'board');
+  const back = from || (['health', 'lanes'].includes(ui().tab) ? ui().tab : 'lanes');
   ui().run = folder; ui().back = back; ui().walk = null;
   setTab(back, true);
 }
@@ -1015,7 +1025,8 @@ listen('click', ev => {
   const wk = t.closest('[data-walk]');
   if (wk) { walk(wk.getAttribute('data-walk')); return; }
   const ic = t.closest('[data-inbox-chip]');
-  if (ic) { ui().inboxChip = ic.getAttribute('data-inbox-chip'); if (ui().inboxChip === 'prs') loadInbox(false); if (ui().tab !== 'inbox') { setTab('inbox'); return; } paint(); return; }
+  // Loom 6.0.0: the Inbox is gone; its PRs chip is Lanes' Review card.
+  if (ic) { if (ic.getAttribute('data-inbox-chip') === 'prs') { loadInbox(false); ui().laneSel = 'reviews'; } setTab('lanes'); return; }
   const pk = t.closest('[data-peek]');
   if (pk) { const k = pk.getAttribute('data-peek'); ui().open[k] = !ui().open[k]; paint(); return; }
   const sbt = t.closest('[data-sb-toggle]');
@@ -1058,7 +1069,7 @@ listen('click', ev => {
   if (sclose) {
     const f = sclose.getAttribute('data-spike-close');
     const how = sclose.getAttribute('data-close-how') || 'nothing more to do';
-    act(() => closeSpike(f, closedWith(how)), () => toast(how === 'nothing more to do' ? 'Closed. It is in Done on the board.' : `Closed: ${how}. It is in Done on the board.`), f);
+    act(() => closeSpike(f, closedWith(how)), () => toast(how === 'nothing more to do' ? 'Closed.' : `Closed: ${how}.`), f);
     return;
   }
   const dfolio = t.closest('[data-docs-folio]');
@@ -1267,7 +1278,8 @@ ws.commands.register({ id: 'project', title: 'New project' });
 ws.commands.register({ id: 'pr-review', title: 'Review a pull request' });
 ws.on('command', ({ id }) => {
   if (id === 'refresh') act(() => read('refresh'));
-  if (id === 'start' && S.connector && S.connector.state === 'ready') openStart();
+  // Loom 6.0.0: Start work is the drop box.
+  if (id === 'start') { setTab('lanes'); focusFirst('#ln-drop'); }
   if (id === 'repo' && S.connector && S.connector.state === 'ready') openRepo();
   if (id === 'project' && S.D && S.D.projects) openProject(null);
   if (id === 'pr-review' && S.connector && S.connector.state === 'ready') { setTab('reviews'); openPaste(); }

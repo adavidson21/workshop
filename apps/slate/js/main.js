@@ -404,6 +404,8 @@ function ownersOf(c) {
  *  action, come from the summary's `needs` rows (the same words as Home and the Inbox). */
 function laneFeed(items, sumCards) {
   const needs = new Map(((sumCards.find(c => c.id === 'needs') || {}).rows || []).filter(x => x.flag !== 'waiting' || /Merged/.test(x.note || '')).map(x => [x.id, x.note || '']));
+  // Hand-offs with no movement (the Inbox's nudges until Loom 6.0.0): on their card, waiting on you.
+  const stalled = new Map((nudgeOn ? stalledHandoffs(store.v.items) : []).map(x => [x.id, x.days]));
   const out = [];
   for (const it of items) {
     if (it.stage === 'done' || it.stage === 'resolved') continue;
@@ -414,9 +416,9 @@ function laneFeed(items, sumCards) {
       : ['define', 'publish', 'decide'].includes(col) ? 'plan' : 'clarify';
     const kind = it.stage === 'delegated' || it.route === 'delegate' ? 'handoff' : it.level === 'epic' ? 'epic' : 'request';
     const who = it.stage === 'delegated' && it.assignee ? personName(it.assignee) : '';
-    const note = needs.get(it.id) || '';
+    const note = stalled.has(it.id) ? `No movement in ${stalled.get(it.id)} working days: check in, then mark it Followed up` : needs.get(it.id) || '';
     const status = who ? `With ${who}` : it.stage === 'dev' ? (it.merged ? 'Merged' : 'Building it yourself, not started in Tandem') : (STEP_TITLE[col] || col).replace(/^\w+: /, '');
-    out.push({ id: it.id, title: it.title, adoId: it.ado ? String(it.ado.id) : null, kind, lane, mine: needs.has(it.id), action: note, status: status.charAt(0).toUpperCase() + status.slice(1), at: Date.parse(((it.history || []).slice(-1)[0] || {}).at || it.createdAt || '') || 0 });
+    out.push({ id: it.id, title: it.title, adoId: it.ado ? String(it.ado.id) : null, kind, lane, mine: needs.has(it.id) || stalled.has(it.id), action: note, status: status.charAt(0).toUpperCase() + status.slice(1), at: Date.parse(((it.history || []).slice(-1)[0] || {}).at || it.createdAt || '') || 0 });
   }
   return out;
 }
@@ -528,7 +530,8 @@ function setHtml(el, html) {
 let lastShown = null;
 function paint() {
   // Keep Loom's tab bar on the board half's tab (opening an item from Health switches to Board).
-  if (BOARD_TABS.includes(currentTab()) && currentTab() !== ui.tab) requestTab(ui.tab);
+  // From Health, an item opened (a sprint row, a report) shows as the drawer over Lanes: the board is not a tab.
+  if (BOARD_TABS.includes(currentTab()) && currentTab() !== ui.tab) { requestTab(ui.tab === 'board' ? 'lanes' : ui.tab); if (ui.tab === 'board' && ui.open) setBoardDrawer(ui.open); }
   const focus = document.activeElement && document.activeElement.id;
   const board = ui.tab === 'board' && store.v.loaded;
   ui.noAdo = s.conn.ado !== true && s.conn.ado !== 'Checking…';
@@ -1146,7 +1149,7 @@ const ACT = {
     ws.toast('Sent to the agent.', { kind: 'success' });
     await refresh({ backlog: false });
   },
-  dispatch: (c) => { const run = c && (c.virtualRun ? c.run : runFor(c) || c.run); if (run && run.folder) openRunPage(run.folder); else requestTab('inbox'); },
+  dispatch: (c) => { const run = c && (c.virtualRun ? c.run : runFor(c) || c.run); if (run && run.folder) openRunPage(run.folder); else requestTab('lanes'); },
   ado: (c) => { if (c.ado && c.ado.url) window.open(c.ado.url, '_blank', 'noopener'); },
   async 'roadmap-add'(c) {
     const it = await ensureStored(c);
@@ -1506,7 +1509,8 @@ async function route(path) {
   // Team reports live in Health (Runway's #/reports sends people here).
   if (parts[0] === 'reports' || (parts[0] === 'health' && parts[1] === 'reports')) { ui.tab = 'health'; paint(); const el = $('reports'); if (el) el.scrollIntoView({ block: 'start' }); return; }
   if (parts[0] === 'health' || parts[0] === 'board') { ui.tab = parts[0]; paint(); return; }
-  if (parts[0] === 'item' && parts[1]) { ui.tab = 'board'; ui.open = parts[1]; paint(); return; }
+  // Loom 6.0.0: an item opens as the drawer over Lanes (the board is not a tab).
+  if (parts[0] === 'item' && parts[1]) { ui.tab = 'board'; ui.open = parts[1]; setBoardDrawer(parts[1]); paint(); return; }
   if (parts[0] === 'runway' && parts[1] && parts[2]) { await fromRunway(parts[1], parts[2]); return; }
   if (parts[0] === 'runway') { ws.open({ app: 'runway', path: parts.slice(1).join('/') }).catch(() => {}); }
 }
@@ -1538,8 +1542,7 @@ onTab((t) => { if (BOARD_TABS.includes(t) && ui.tab !== t) { ui.tab = t; ui.open
 // The runs half repainted: the run in the open card's panel follows it.
 onRunsPainted(() => { if (ui.open && !panelEl.hidden) paintPanel(); });
 ws.on('command', (p) => {
-  if (p.id === 'new') ACT.new();
-  if (p.id === 'new-idea') ACT['new-idea']();
+  // New request and New idea left the palette in Loom 6.0.0 (Other flows has Handle a request).
   if (p.id === 'refresh') ACT.refresh();
   if (p.id === 'health' || p.id === 'sprints' || p.id === 'team-reports') route(p.id === 'team-reports' ? 'reports' : p.id);
 });

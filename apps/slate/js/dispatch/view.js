@@ -13,6 +13,8 @@ import { projectChip, projectList, projectsOn, projectName, projectSheetHtml, pr
 import { pageHtml, tabsHtml } from './pages.js';
 import { BOARD_TABS } from '../loom.js';
 import { PICKER, flowById, stepsOf, shownSteps, flowCardHtml } from './flows.js';
+/** The flows Other flows offers (Loom 6.0.0); the drop box starts the rest. */
+export const OTHER_FLOWS = ['request', 'epic', 'docs'];
 
 // ---------------------------------------------------------------- helpers
 export function h(s) {
@@ -778,7 +780,6 @@ function headerHtml() {
   const tip = S.conn === 'on' && S.D ? (S.D.workspace ? S.D.workspace + '. ' : '') + 'Updated ' + timeOf(S.D.generatedMs) + '. opencode ' + (o.connected ? (o.version || '') + ' at ' + (o.url || '') : 'not connected') : '';
   return `<header class="top">${brandHtml()}${tabsHtml()}<span class="fresh">` +
     `<span class="pill ${st[0]}" title="${h(tip)}"><span class="led"></span>${h(st[1])}</span>` +
-    `<button type="button" class="btn primary top-start" data-start-open="1" title="Pick a flow: build a feature, fix a bug, investigate, plan an epic, write docs or a technical spec">Start work</button>` +
     `<button type="button" class="ibtn" data-more-menu="1" aria-label="More" title="More" aria-haspopup="menu">${ICON.more}</button></span></header>`;
 }
 function bannersHtml() {
@@ -1148,11 +1149,12 @@ function startSheetHtml() {
   const st = S.ui.start;
   const o = (L() && L().opencode) || {};
   const f = flowById(startFlowOf(st));
-  const head = `<div class="sheet-head"><h3 id="start-h">${f ? h(f.name) : 'Start work'}</h3><button type="button" class="ibtn" data-close-sheet="1" aria-label="Close">${ICON.x}</button></div>`;
+  const head = `<div class="sheet-head"><h3 id="start-h">${f ? h(f.name) : 'Other flows'}</h3><button type="button" class="ibtn" data-close-sheet="1" aria-label="Close">${ICON.x}</button></div>`;
   let body, foot;
   if (!f) {
-    body = '<p class="start-lead">Pick the path. Each card shows its steps; a ring marks the ones that stop for you, a dashed ring the ones that stop only sometimes.</p>' +
-      `<div class="fcards">${PICKER.map(flowCardHtml).join('')}</div>`;
+    // Loom 6.0.0: a build, a bug, a question or a hand-off starts from Lanes' drop box; these are the rest.
+    body = '<p class="start-lead">Less common work. A story, an error log, a question or a hand-off goes in the drop box.</p>' +
+      `<div class="fcards">${PICKER.filter(x => OTHER_FLOWS.includes(x.id)).map(flowCardHtml).join('')}</div>`;
     foot = '<span class="grow"></span><button type="button" class="btn" data-close-sheet="1">Cancel</button>';
   } else {
     const lane = f.id === 'bug' ? 'bug' : st.size === 'small' ? 'quick' : 'feature';

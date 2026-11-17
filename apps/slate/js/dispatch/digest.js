@@ -24,10 +24,10 @@ export function digestCard({ span = null, held = [], waiting = 0, reviews = [], 
     for (const { r, id } of done.slice(0, 5)) lines.push({ text: `${blocking.has(id) ? 'Blocking PR' : 'PR'} review ready: ${r.title || '#' + id}`, app: 'slate', route: 'reviews', blocking: blocking.has(id) });
     if (done.length > 5) lines.push({ text: `${plural(done.length - 5, 'more PR review')} ready`, app: 'slate', route: 'reviews' });
   }
-  if (waiting > 0) lines.push({ text: `${plural(waiting, 'run')} waiting on you`, app: 'slate', route: 'inbox' });
+  if (waiting > 0) lines.push({ text: `${plural(waiting, 'run')} waiting on you`, app: 'slate', route: 'lanes' });
   for (const p of held) if (p.app !== 'slate') lines.push({ text: `${p.name}: ${p.label}`, app: p.app, route: p.route || '' });
   const mine = held.find(p => p.app === 'slate');
-  if (mine && !waiting) lines.push({ text: mine.label, app: 'slate', route: 'inbox' });
+  if (mine && !waiting) lines.push({ text: mine.label, app: 'slate', route: 'lanes' });
   return lines.length ? { key: span.key, until: span.end, lines } : null;
 }
 

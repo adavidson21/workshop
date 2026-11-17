@@ -4,14 +4,14 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { splitRoute, mergeCards, TABS, BOARD_TABS } from '../js/loom.js';
 
-test('four tabs, Lanes first (Loom 5.0.0; Chat is its own app, Reviews the Inbox\'s PRs chip); Board and Health are the board half', () => {
-  assert.deepEqual(TABS.map(t => t[0]), ['lanes', 'inbox', 'board', 'health']);
-  assert.deepEqual(BOARD_TABS, ['board', 'health']);
+test('Loom 6.0.0: two tabs, Lanes and Health; Health is the board half\'s (the Board and the Inbox are retired)', () => {
+  assert.deepEqual(TABS.map(t => t[0]), ['lanes', 'health']);
+  assert.deepEqual(BOARD_TABS, ['health']);
 });
 
 test('routes: the board half owns items, Health, Sprints, Board and Runway links; the rest are runs', () => {
-  assert.deepEqual(splitRoute('item/w_1'), { half: 'board', tab: 'board', path: 'item/w_1' });
-  assert.deepEqual(splitRoute('board'), { half: 'board', tab: 'board', path: '' });
+  assert.deepEqual(splitRoute('item/w_1'), { half: 'board', tab: 'lanes', path: 'item/w_1' }, 'an item opens as the drawer over Lanes');
+  assert.deepEqual(splitRoute('board'), { half: 'runs', tab: '', path: 'lanes' }, 'the old Board address opens Lanes');
   assert.deepEqual(splitRoute('health'), { half: 'board', tab: 'health', path: 'health' });
   assert.deepEqual(splitRoute('sprints'), { half: 'board', tab: 'health', path: 'sprints' });
   assert.deepEqual(splitRoute('health/reports'), { half: 'board', tab: 'health', path: 'health/reports' });

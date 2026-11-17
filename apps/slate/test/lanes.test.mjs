@@ -265,3 +265,12 @@ test('a spike\'s first look (Core 4.6.0) is on its card and at the top of its pa
   assert.match(lanesHtml(), /class="ln-first"><p class="ln-fh">First look<\/p>[^]*Redis fits/);
   assert.ok(wantedFiles().some(([f, n]) => f === 'spike-cache-options' && n === 'first-look.md'));
 });
+
+test('Loom 6.0: a prompt from a session no card holds (a Chat, the terminal) is its own card in Clarify, answerable in the panel', () => {
+  S.L.permissions.push({ id: 'per_2', sessionID: 'ses_tui', permission: 'edit', title: 'README.md', folder: null });
+  const c = lanesData().cards.find(x => x.session === 'ses_tui' && !x.folder);
+  assert.ok(c, 'the terminal session\'s prompt has a card');
+  assert.deepEqual([c.lane, c.mine, c.action], ['clarify', true, 'Answer']);
+  S.ui.laneSel = 'session:ses_tui';
+  assert.match(lanesHtml(), /class="ln-asks"><div class="asks inline">[^]*data-perm="per_2"/);
+});

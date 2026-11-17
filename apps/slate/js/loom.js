@@ -8,10 +8,12 @@
    - summary: each half hands its cards here; writeSummary merges them into Loom's one `summary` (docs/summaries.md).
    Pure parts (mergeCards, splitRoute) are tested in Node. */
 
-export const BOARD_TABS = ['board', 'health'];
+// Loom 6.0.0: Lanes and Health are the only tabs. The board is not a tab: its items are lane cards, and an item
+// opens the board's own panel as a drawer over Lanes (setBoardDrawer).
+export const BOARD_TABS = ['health'];
 // Chat is its own app and Reviews is the Inbox's PRs chip since Loom 4.8.0. Lanes is the first tab since Loom 5.0.0
 // (claude/loom-lanes-v1-plan.md): one drop box and four lanes; the Inbox and the board stay while it beds in.
-export const TABS = [['lanes', 'Lanes'], ['inbox', 'Inbox'], ['board', 'Board'], ['health', 'Health']];
+export const TABS = [['lanes', 'Lanes'], ['health', 'Health']];
 
 /**
  * Which half a route belongs to: the board half for its own paths (item/<id>, health, health/reports, reports, sprints, board, runway/...,
@@ -20,10 +22,11 @@ export const TABS = [['lanes', 'Lanes'], ['inbox', 'Inbox'], ['board', 'Board'],
 export function splitRoute(path) {
   const p = String(path || '').replace(/^\/+/, '');
   const head = p.split('/')[0];
-  if (head === 'item') return { half: 'board', tab: 'board', path: p };
+  if (head === 'item') return { half: 'board', tab: 'lanes', path: p };
   // Runway's links (runway/<map>/<item>) and Slate's old roadmaps address: the board half opens Runway or the card.
-  if (['runway', 'roadmaps', 'roadmap'].includes(head)) return { half: 'board', tab: 'board', path: p };
-  if (head === 'board') return { half: 'board', tab: 'board', path: '' };
+  if (['runway', 'roadmaps', 'roadmap'].includes(head)) return { half: 'board', tab: 'lanes', path: p };
+  // The Board tab is gone (Loom 6.0.0): its address opens Lanes.
+  if (head === 'board') return { half: 'runs', tab: '', path: 'lanes' };
   if (head === 'health' || head === 'sprints') return { half: 'board', tab: 'health', path: p };
   if (head === 'reports') return { half: 'board', tab: 'health', path: 'health/reports' };
   return { half: 'runs', tab: '', path: p };
