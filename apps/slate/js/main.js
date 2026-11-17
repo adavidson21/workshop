@@ -416,9 +416,11 @@ function laneFeed(items, sumCards) {
       : ['define', 'publish', 'decide'].includes(col) ? 'plan' : 'clarify';
     const kind = it.stage === 'delegated' || it.route === 'delegate' ? 'handoff' : it.level === 'epic' ? 'epic' : 'request';
     const who = it.stage === 'delegated' && it.assignee ? personName(it.assignee) : '';
-    const note = stalled.has(it.id) ? `No movement in ${stalled.get(it.id)} working days: check in, then mark it Followed up` : needs.get(it.id) || '';
+    // A new card nothing is triaging (no Tandem, or triage not run) waits on you to pick its path.
+    const fresh = col === 'new' && !needs.has(it.id) && !(itemAgent(it) && itemAgent(it).busy);
+    const note = stalled.has(it.id) ? `No movement in ${stalled.get(it.id)} working days: check in, then mark it Followed up` : fresh ? 'New: pick its path' : needs.get(it.id) || '';
     const status = who ? `With ${who}` : it.stage === 'dev' ? (it.merged ? 'Merged' : 'Building it yourself, not started in Tandem') : (STEP_TITLE[col] || col).replace(/^\w+: /, '');
-    out.push({ id: it.id, title: it.title, adoId: it.ado ? String(it.ado.id) : null, kind, lane, mine: needs.has(it.id) || stalled.has(it.id), action: note, status: status.charAt(0).toUpperCase() + status.slice(1), at: Date.parse(((it.history || []).slice(-1)[0] || {}).at || it.createdAt || '') || 0 });
+    out.push({ id: it.id, title: it.title, adoId: it.ado ? String(it.ado.id) : null, kind, lane, mine: needs.has(it.id) || stalled.has(it.id) || fresh, action: note, status: status.charAt(0).toUpperCase() + status.slice(1), at: Date.parse(((it.history || []).slice(-1)[0] || {}).at || it.createdAt || '') || 0 });
   }
   return out;
 }
@@ -1570,7 +1572,9 @@ onBoardCommand(async (name, args) => {
   await store.change(list => list.push(it));
   ui.tab = 'board'; ui.open = it.id; paint();
   const stored = store.v.items.find(x => x.id === it.id) || it;
-  if (name === 'request') await ACT.triage(stored); else await ACT.refine(stored);
+  // Without Tandem (Loom 6.0.0: the board is not a tab, so this is how a request gets in): the card waits, and its
+  // panel offers Write it myself and the rest, as the board's New request did.
+  if (s.conn.opencode === true) { if (name === 'request') await ACT.triage(stored); else await ACT.refine(stored); }
   paint();
   return { id: it.id };
 });

@@ -271,8 +271,8 @@
         "manifestVersion": 1,
         "id": "slate",
         "name": "Loom",
-        "version": "5.2.0",
-        "description": "Your backlog and Tandem's runs in one place. Drop in a story, an error log or a question; each card moves through four lanes (Clarify, Plan, Work, Ready) and stops only when it needs you.",
+        "version": "6.0.0",
+        "description": "Your backlog and Tandem's runs as cards in four lanes (Clarify, Plan, Work, Ready), plus Health. Drop in a story, an error log, a question or a hand-off; a card stops only when it needs you.",
         "icon": "icon.svg",
         "entry": "index.html",
         "order": 15,
@@ -317,12 +317,12 @@
             "path": "health/reports"
           },
           {
-            "name": "inbox",
-            "path": "inbox"
-          },
-          {
             "name": "reviews",
             "path": "reviews"
+          },
+          {
+            "name": "lanes",
+            "path": "lanes"
           }
         ],
         "handoffs": {
@@ -360,8 +360,8 @@
             "title": "Sprints (in Health)"
           },
           {
-            "path": "inbox",
-            "title": "What needs you"
+            "path": "lanes",
+            "title": "Lanes: start work, and what waits on you"
           },
           {
             "path": "chat",
@@ -373,15 +373,15 @@
           },
           {
             "path": "reviews",
-            "title": "PR reviews (the Inbox, PRs)"
+            "title": "PR reviews (Lanes' Review card)"
           },
           {
             "path": "start/:flow",
-            "title": "Start work on a flow card"
+            "title": "Start work: the drop box, its kind picked"
           },
           {
             "path": "start/:flow/:text",
-            "title": "Start work on a flow card, filled in"
+            "title": "Start work: the drop box, filled in"
           },
           {
             "path": ":id",
@@ -390,18 +390,8 @@
         ],
         "commands": [
           {
-            "id": "new",
-            "title": "New request",
-            "route": "board"
-          },
-          {
-            "id": "new-idea",
-            "title": "New idea (shape it with an agent)",
-            "route": "board"
-          },
-          {
             "id": "start",
-            "title": "Start work"
+            "title": "Start work (the drop box)"
           },
           {
             "id": "pr-review",

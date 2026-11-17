@@ -1093,13 +1093,13 @@ function startFormHtml(f, st) {
   const toggle = (attr, cur, opts, label) => `<div class="gos start-modes" role="group" aria-label="${h(label)}">` +
     opts.map(([k, l]) => `<button type="button" ${attr}="${h(k)}" aria-pressed="${cur === k}"${cur === k ? ' class="on"' : ''}>${h(l)}</button>`).join('') + '</div>';
   if (f.id === 'request') {
-    return `<p>Adds the request to the board's Shape column and starts a triage: Tandem reads it and the code, and says what is missing. Then you pick the path. Runs <code>/triage</code>.</p>` +
+    return `<p>Adds the request as a card in Clarify and starts a triage: Tandem reads it and the code, and says what is missing. Then you pick the path. Runs <code>/triage</code>.</p>` +
       `<label class="cfg-row"><span class="cfg-t">What was asked for</span><input type="text" class="start-first" data-draft="start:title" value="${dv('title')}" placeholder="Export the audit log as CSV" maxlength="255" autocomplete="off"></label>` +
       `<label class="cfg-row"><span class="cfg-t">Asked by</span><input type="text" data-draft="start:requester" value="${dv('requester')}" placeholder="A name, a team, or a customer" maxlength="200" autocomplete="off"></label>` +
       `<label class="cfg-row"><span class="cfg-t">Their words, and anything you know</span><textarea rows="4" data-draft="start:desc" placeholder="Paste the message. The more it says, the fewer questions triage has.">${dv('desc')}</textarea></label>`;
   }
   if (f.id === 'handoff') {
-    return `<p>Adds it to the board and drafts one story for you to approve. Then you pick who builds it and assign it in ADO in one step, and the Inbox nudges you if it stalls. Runs <code>/refine</code>.</p>` +
+    return `<p>Adds it as a card in Lanes and drafts one story for you to approve. Then you pick who builds it and assign it in ADO in one step, and its card nudges you if it stalls. Runs <code>/refine</code>.</p>` +
       `<label class="cfg-row"><span class="cfg-t">Title</span><input type="text" class="start-first" data-draft="start:title" value="${dv('title')}" placeholder="Add paging to the audit log" maxlength="255" autocomplete="off"></label>` +
       `<label class="cfg-row"><span class="cfg-t">What is needed, and why</span><textarea rows="5" data-draft="start:desc" placeholder="What you know so far. The draft asks at most 2 questions.">${dv('desc')}</textarea></label>`;
   }
@@ -1167,7 +1167,7 @@ function startSheetHtml() {
       (o.connected ? '' : '<p class="gmsg bad">opencode is not connected, so nothing can start.</p>') +
       (st.error ? `<p class="gmsg bad" role="status">${md(st.error)}</p>` : '');
     foot = '<span class="grow"></span><button type="button" class="btn" data-close-sheet="1">Cancel</button>' +
-      `<button type="button" class="btn primary" data-start-go="1"${st.busy || !o.connected ? ' disabled' : ''}>${st.busy ? 'Starting' : h(f.id === 'bug' && startSrc(st) === 'log' ? 'Diagnose' : GO_LABEL[f.id] || 'Start')}</button>`;
+      `<button type="button" class="btn primary" data-start-go="1"${st.busy || (!o.connected && !f.board) ? ' disabled' : ''}>${st.busy ? 'Starting' : h(f.id === 'bug' && startSrc(st) === 'log' ? 'Diagnose' : GO_LABEL[f.id] || 'Start')}</button>`;
   }
   return `<div class="modal" data-sheet="1"><div class="backdrop" data-close-sheet="1"></div><div class="sheet${f ? '' : ' wide'}" role="dialog" aria-modal="true" aria-labelledby="start-h">${head}${body}<footer>${foot}</footer></div></div>`;
 }

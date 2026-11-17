@@ -420,7 +420,9 @@ test('3.0 start work: pick a flow card, then fill it in; each flow sends its own
   S.ui.start.flow = 'handoff';
   assert.match(render(), /<li class="you">Define<\/li><li class="you">Assign<\/li>.*data-start-go="1">Add and define</s);
   S.L.opencode.connected = false;
-  assert.match(render(), /opencode is not connected.*data-start-go="1" disabled/s, 'no start without opencode');
+  assert.match(render(), /data-start-go="1">Add and define/, 'a board flow adds its card without opencode (Loom 6.0.0: no Board tab to add it from)');
+  S.ui.start.flow = 'epic';
+  assert.match(render(), /data-start-go="1" disabled/, 'a Tandem flow does not start without opencode');
 
   const req = (st, drafts) => startRequest({ ...st }, drafts);
   assert.match(req({ flow: null }, {}).error, /Pick a flow/);

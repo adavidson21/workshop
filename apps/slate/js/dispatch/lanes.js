@@ -12,6 +12,7 @@ import { h, plural, asking, itemSession, isBusy, autoIs, itemForFolder, adoOn } 
 import { flowOf, stepIndex, isFinished, turnHtml, stepLine } from './flows.js';
 import { workItems, startingSessions, inboxData, inboxFolders, isShip, runCardHtml, asksFor, fileInline } from './pages.js';
 import { pickable, boardFeed } from '../loom.js';
+import { projectFilterHtml, inProject, projectFilter, projectChip } from './projects.js';
 import { reviewsHtml } from './pr-reviews.js';
 // Set by pages.js (it imports this module): the onboarding guide and an ask's source, for Loom 6.0.0's Lanes.
 // var, no initializer: pages.js may run this setter before this module's body (they import each other).
@@ -130,6 +131,8 @@ export function lanesData(filter = 'all') {
   const doneList = [];
   for (const it of workItems()) {
     const lane = laneOf(it);
+    // Projects (All runs' filter until Loom 6.0.0): filtered to a project, only its runs show.
+    if (!inProject(it)) continue;
     if (lane === 'done') { if (it.modifiedMs && dayOf(it.modifiedMs) === today) { done++; doneList.push({ folder: it.folder, title: it.title || it.folder, kind: kindOf(it), id: it.id || null }); } continue; }
     const kind = kindOf(it);
     const mine = yourTurn(it, folders);
@@ -154,14 +157,15 @@ export function lanesData(filter = 'all') {
     const src = askLabel ? askLabel(x) : { what: 'Agent', label: 'A session' };
     cards.push({ it: null, session: x.sessionID, folder: '', kind: 'other', lane: 'clarify', mine: true, title: src.label || 'A session is asking', id: null, status: `${src.what || 'Tandem'} is asking you something`, action: 'Answer', dots: laneDots('other', 'clarify'), at: Date.now() });
   }
+  const projOnly = projectFilter() !== 'all';
   // The board's own items (Loom 5.2.0): requests, hand-offs and drafts to approve; they open the board's panel.
-  for (const b of boardFeed()) {
+  for (const b of (projOnly ? [] : boardFeed())) {
     const kind = KINDS[b.kind] ? b.kind : 'request';
     const lane = LANE_IDS.includes(b.lane) ? b.lane : 'clarify';
     cards.push({ it: null, board: b.id, folder: '', kind, lane, mine: !!b.mine, title: b.title, id: b.adoId || null, status: b.mine && b.action ? b.action : b.status, action: b.mine ? 'Open' : '', dots: laneDots(kind, lane), at: b.at || 0 });
   }
   // Teammates' PRs waiting on your review: one card in Ready that opens the review list.
-  if (d.prs) cards.push({ it: null, reviews: true, folder: '', kind: 'review', lane: 'ready', mine: true, title: plural(d.prs, "teammate's PR to review", "teammates' PRs to review"), id: null, status: 'Waiting on your review', action: 'Review', dots: laneDots('review', 'ready'), at: 0 });
+  if (d.prs && !projOnly) cards.push({ it: null, reviews: true, folder: '', kind: 'review', lane: 'ready', mine: true, title: plural(d.prs, "teammate's PR to review", "teammates' PRs to review"), id: null, status: 'Waiting on your review', action: 'Review', dots: laneDots('review', 'ready'), at: 0 });
   const shown = cards.filter(c => filter === 'all' ? true : filter === 'mine' ? c.mine : c.kind === filter);
   const lanes = LANES.map(l => ({ ...l, cards: shown.filter(c => c.lane === l.id).sort((a, b) => (b.mine - a.mine) || (b.at - a.at)) }));
   const counts = { all: cards.length, mine: cards.filter(c => c.mine).length };
@@ -249,7 +253,8 @@ function laneHtml(l, sel, done) {
       (S.ui.laneDone ? `<ul class="ln-donelist" role="list">${done.map(d => `<li><button type="button" class="lnk plain" data-open-run="${h(d.folder)}">${d.id ? '#' + h(d.id) + ' ' : ''}${h(d.title)}</button></li>`).join('')}</ul>` : '') : '') + '</section>';
 }
 function panelHtml(key, data) {
-  const c = data.cards.find(x => keyOf(x) === key);
+  // The Review card opens even when no teammate's PR waits (the old Reviews address, Review a link).
+  const c = data.cards.find(x => keyOf(x) === key) || (key === 'reviews' ? { reviews: true, kind: 'review', lane: 'ready', title: "Teammates' PRs", id: null } : null);
   // A board item opens the board's own panel as a drawer (loom.js setBoardDrawer), not this one.
   if (!c || c.board) return '';
   const pills = laneDots(c.kind, c.lane).map(d => `<span class="ln-pill ln-${d.lane} ${d.st}" title="${h(d.title)}">${h(LANES.find(l => l.id === d.lane).name)}</span>`).join('');
@@ -261,7 +266,7 @@ function panelHtml(key, data) {
   } else if (c.it) {
     if (hasFirstLook(c.it)) body += `<div class="ln-first"><p class="ln-fh">First look</p>${fileInline(c.it, 'first-look.md')}</div>`;
     body += `<div class="loom-run ln-run">${runCardHtml(c.folder)}</div>` +
-      `<div class="ln-foot"><button type="button" class="btn ghost" data-open-run="${h(c.folder)}">Open the run</button>` +
+      `<div class="ln-foot"><button type="button" class="btn ghost" data-open-run="${h(c.folder)}">Open the run</button>${projectChip(c.it)}` +
       (c.sid ? `<button type="button" class="ibtn" data-open-chat="${h(c.sid)}" aria-label="Open the conversation in Chat" title="Open the conversation in Chat">${CHAT}</button>` : '') + '</div>';
   } else {
     body += asks ? '' : '<p class="dim">Tandem is taking a first look. The card gets its folder in a moment; any question it has shows here.</p>';
@@ -275,7 +280,8 @@ export const LANE_FILTERS = [['all', 'All'], ['mine', 'Your turn'], ['build', 'B
 export function dropHtml() {
   const text = S.ui.drafts['lanes:drop'] || '';
   const kind = S.ui.dropKind || guessKind(text);
-  const ready = S.connector && S.connector.state === 'ready';
+  // Hand off is a board flow: it needs no Tandem to add the card (Loom 6.0.0).
+  const ready = (S.connector && S.connector.state === 'ready') || kind === 'handoff';
   const pick = text.trim() ? `<select class="ln-kindpick" data-lane-kind="1" aria-label="Kind of work (guessed from what you pasted)" title="Guessed from what you pasted. Change it if it is wrong.">` +
     DROP_KINDS.map(k => `<option value="${k}"${k === kind ? ' selected' : ''}>${h(KINDS[k].name)}</option>`).join('') + '</select>' : '';
   const list = pickable();
@@ -306,7 +312,7 @@ export function lanesHtml() {
     '</div>';
   // The afternoon digest and first-run onboarding sit on top (they were on the Inbox until Loom 6.0.0).
   const top = (S.digestHtml ? S.digestHtml(h) : '') + (onboardTop ? onboardTop() : '');
-  return `<div class="ln-page">${top}${dropHtml()}${chips}<div class="ln-body${panel ? ' has-panel' : ''}"><div class="ln-lanes">${data.lanes.map(l => laneHtml(l, sel, data.doneList)).join('')}</div>${panel}</div></div>`;
+  return `<div class="ln-page">${top}${dropHtml()}${chips}${projectFilterHtml(workItems())}<div class="ln-body${panel ? ' has-panel' : ''}"><div class="ln-lanes">${data.lanes.map(l => laneHtml(l, sel, data.doneList)).join('')}</div>${panel}</div></div>`;
 }
 /** The tab bar's count on Lanes: cards waiting on you. */
 export function lanesCount() { return lanesData('all').counts.mine; }
