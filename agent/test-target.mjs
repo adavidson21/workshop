@@ -26,7 +26,8 @@ export async function start({ home, appsDir, connectorsDir, env, config }) {
     fs.mkdirSync(home, { recursive: true });
     fs.writeFileSync(path.join(home, 'config.json'), `${JSON.stringify({ ...config, ...(tempData ? { dataDir: tempData } : {}), port }, null, 2)}\n`);
     try {
-      const agent = await createAgent({ home, appsDir, connectorsDir, env });
+      // appFolders: {} keeps folders named by app id, so the contract suite (written for any backend) finds files where it names them.
+      const agent = await createAgent({ home, appsDir, connectorsDir, env, appFolders: {} });
       const stop = async () => { await agent.stop(); dropTemp(); };
       return { url: agent.url, port: agent.port, token: agent.token, stop };
     } catch (e) {
