@@ -313,9 +313,9 @@ def browser_mode_checks(ctx, pg, frame, watch):
         check('a new request lands in Inbox and opens its panel; without Dispatch it offers Write it myself', slf.locator('.col[aria-label=Shape] .card').count() == 1 and 'Export orders to CSV' in slf.input_value('#ptitle')
               and slf.locator('.panel .next [data-act=write-myself]').count() == 1)
         cols = slf.eval_on_selector_all('.col', 'cs => cs.map(c => c.getAttribute("aria-label"))')
-        check('one board of four lanes, no lane switcher, Loom\'s three tabs', cols == ['Shape', 'Decide', 'Build', 'Done']
+        check('one board of four lanes, no lane switcher, Loom\'s four tabs', cols == ['Shape', 'Decide', 'Build', 'Done']
               and slf.locator('.top [data-act=lane]').count() == 0
-              and slf.eval_on_selector_all('#app .tabs .tab', 'bs => bs.map(b => b.dataset.tab)') == ['inbox', 'board', 'health'])
+              and slf.eval_on_selector_all('#app .tabs .tab', 'bs => bs.map(b => b.dataset.tab)') == ['lanes', 'inbox', 'board', 'health'])
         shown = slf.eval_on_selector_all('.panel .next .acts button', 'bs => bs.map(b => b.dataset.act)')
         check('without Dispatch the request shows Write it myself and Who builds it?; Add to roadmap and Move to are in More', shown == ['write-myself', 'to-decide']
               and slf.locator('.panel details.more:not([open])').count() == 1)
@@ -1279,10 +1279,25 @@ def agents_checks(b, watch):
         if af: seen(af, '.pill.on'); pg.wait_for_timeout(500)
         check('Agents is a same-origin app on the SDK, no frame from another origin', af is not None and all(f.url.startswith(HOSTED) or f.url == 'about:blank' for f in pg.frames))
         check('Agents reads the opencode connector and shows Live', af is not None and af.inner_text('.pill') == 'Live')
-        check('Loom has three tabs and no sidebar', af.eval_on_selector_all('#app .tabs .tab', 'els => els.map(e => e.dataset.tab)') == ['inbox', 'board', 'health']
+        check('Loom has four tabs, Lanes first, and no sidebar', af.eval_on_selector_all('#app .tabs .tab', 'els => els.map(e => e.dataset.tab)') == ['lanes', 'inbox', 'board', 'health']
               and af.locator('#app .side, #app aside').count() == 0)
         check('#/slate/<id> opens that run on its own page, under Board', seen(af, '.run-page#item-41610') and af.get_attribute('#app .tab.on', 'data-tab') == 'board')
         check('the shell keeps the address, and the name and theme are the shell\'s', pg.url.endswith('#/slate') and af.locator('#app .brand').count() == 0 and af.locator('[data-theme-menu]').count() == 0)
+
+        # Lanes (Loom 5.0.0): the drop box, four lanes, a card per run in its lane, and the run's own card in the panel.
+        af.click('#app .tabs [data-tab=lanes]'); pg.wait_for_timeout(400)
+        check('Lanes has the drop box and four lanes in order', af.locator('#ln-drop').count() == 1
+              and af.eval_on_selector_all('.ln-lane h2', 'els => els.map(e => e.innerText)') == ['Clarify', 'Plan', 'Work', 'Ready'])
+        check('a run at Ship is a card in Ready, a root cause to approve in Plan', seen(af, '.ln-ready [data-lane-open="41610-rate-limit-headers"]', 5000)
+              and af.locator('.ln-plan [data-lane-open="41300-export-retry-fails"]').count() == 1)
+        af.click('.ln-plan [data-lane-open="41300-export-retry-fails"]'); pg.wait_for_timeout(300)
+        check('a card opens its run in the panel, with the same gate card as the Inbox and an X to close it', af.locator('.ln-panel .icard.gate').count() == 1
+              and af.locator('.ln-panel [data-lane-close][aria-label="Close panel"]').count() == 1)
+        af.click('.ln-panel [data-lane-close]'); pg.wait_for_timeout(200)
+        check('the X closes the panel', af.locator('.ln-panel').count() == 0)
+        af.fill('#ln-drop', 'Which services still call the v1 auth endpoint?'); pg.wait_for_timeout(300)
+        check('the drop box guesses Ask for a question, once there is text', af.eval_on_selector('.ln-kindpick', 'e => e.value') == 'ask')
+        af.fill('#ln-drop', ''); pg.wait_for_timeout(200)
 
         want = 'light' if pg.evaluate('document.documentElement.dataset.theme') == 'dark' else 'dark'
         pg.click('#topbar [data-theme-toggle]'); pg.wait_for_timeout(400)
@@ -1595,7 +1610,7 @@ def main():
 
             pg.click('.app-btn[data-app=slate]'); pg.wait_for_timeout(1200)
             af = next((f for f in pg.frames if '/apps/slate/' in f.url), None)
-            check('Loom opens from the rail, as an app in the shell, on the Board', af is not None and pg.url.endswith('#/slate') and af.get_attribute('#app .tab.on', 'data-tab') == 'board')
+            check('Loom opens from the rail, as an app in the shell, on Lanes', af is not None and pg.url.endswith('#/slate') and af.get_attribute('#app .tab.on', 'data-tab') == 'lanes')
             if af: af.click('#app .tabs [data-tab=inbox]'); pg.wait_for_timeout(300)
             check('Loom\'s Inbox in browser mode shows the setup guide', af is not None and 'Connect Loom to your computer' in af.inner_text('#app') and af.locator('.gstep').count() == 2)
             pg.click('.app-btn[data-app=chat]'); pg.wait_for_timeout(1500)

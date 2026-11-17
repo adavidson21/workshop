@@ -12,6 +12,7 @@ import { S } from './state.js';
 import { render, prompts, itemForFolder, itemKey, isBusy, dayKey, fileDirty, fileDraft, fileDraftKey, fileLock, guideDefaults, GUIDE_STEPS, cfgBuild, startRequest, repoUrlCheck, repoCategoryCheck, NEW_CATEGORY } from './view.js';
 import { INBOX, projectById, projectArgs, startProject } from './projects.js';
 import { TAB_IDS, OLD_TABS, inboxCount, sessionAsksHtml, wantedFiles, walkList, runCardHtml } from './pages.js';
+import { dropStart, guessKind, KINDS } from './lanes.js';
 import { FLOW_IDS, addOpenQuestion, sendBackCommand, gateFile } from './flows.js';
 import { closedLine, closedWith, looksLikeLog, prefillFor, safeDecode } from './start-prefill.js';
 import { reviewUrlCheck, reviewAllList, prArg } from './pr-reviews.js';
@@ -29,8 +30,8 @@ const OC = 'opencode';
 const app = document.getElementById('app');
 const ws = await getWs();
 S.mode = ws.mode;
-// Loom opens on the Board (it works with or without the agents); a route can open another tab.
-S.ui.tab = 'board';
+// Loom opens on Lanes (Loom 5.0.0): the drop box and the four lanes; a route can open another tab.
+S.ui.tab = 'lanes';
 S.embedded = ws.embedded;
 S.canNotify = typeof window.Notification === 'function';
 // Focus hours: set up below (see focus hours and the afternoon digest), declared here so nothing reads them early.
@@ -545,38 +546,73 @@ const STARTED = {
 };
 const BOARD_STARTED = { request: 'Added to the board. Triage is running; pick the path when it is done.', handoff: 'Added to the board. Tandem is drafting the story for you to approve.' };
 // The click on Start is the approval for this write action.
+/** Starts what a Start work state and its drafts ask for (view.js startRequest): a board flow through the board half,
+ *  else the connector's action, then tells the board about the run. Returns {board, msg}; throws on a bad form. */
+async function startCore(st, drafts) {
+  const r = startRequest(st, drafts);
+  if (r.error) throw new Error(r.error);
+  if (r.board) {
+    // Handle a request, Hand to a person: the board half adds the card and starts its first step (loom.js).
+    await boardCommand(r.board, r.args);
+    return { board: true, msg: BOARD_STARTED[r.board] };
+  }
+  const res = await write(r.action, r.args);
+  // Slate tracks every run from start to resolved: tell it about this one (Start was the person's click).
+  try { await sendWork(ws, workOffer({ action: r.action, args: r.args, res, from: st.from })); } catch (e) { /* Slate is optional */ }
+  // Started from a spike's findings: the spike is closed, with what came of it.
+  if (st.from) await closeSpike(st.from, closedLine(r, res));
+  const pname = r.args.project ? ' in ' + ((projectById(r.args.project) || {}).name || 'the project') : '';
+  const msg = r.action === 'spike' && r.args.log ? STARTED['spike.log']() : STARTED[r.action] ? STARTED[r.action]()
+    : r.action === 'start.local' ? `Started ${(res && res.id) || 'it'} as a ${r.args.lane === 'quick' ? 'small change' : r.args.lane}${pname}. It is on the board; the agent may ask you to confirm repos.`
+    : `Starting #${r.args.id} as a ${r.args.lane === 'quick' ? 'small change' : r.args.lane}${pname}. Its card is on the board once its folder is ready.`;
+  return { board: false, msg };
+}
 async function startGo() {
   const st = ui().start;
   if (!st || st.busy) return;
   const r = startRequest(st, ui().drafts);
   if (r.error) { st.error = r.error; paint(); return; }
   st.busy = true; st.error = null; paint();
+  // Started from Lanes (Other flows): stay on Lanes, where the new card shows; a board flow goes to the board.
+  const back = ui().tab === 'lanes' && !r.board ? 'lanes' : 'board';
   try {
-    if (r.board) {
-      // Handle a request, Hand to a person: the board half adds the card and starts its first step (loom.js).
-      await boardCommand(r.board, r.args);
-      for (const k of Object.keys(ui().drafts)) if (k.startsWith('start:')) delete ui().drafts[k];
-      closeOverlays();
-      toast(BOARD_STARTED[r.board]);
-      setTab('board');
-      schedule();
-      return;
-    }
-    const res = await write(r.action, r.args);
-    // Slate tracks every run from start to resolved: tell it about this one (Start was the person's click).
-    try { await sendWork(ws, workOffer({ action: r.action, args: r.args, res, from: st.from })); } catch (e) { /* Slate is optional */ }
-    // Started from a spike's findings: the spike is closed, with what came of it.
-    if (st.from) await closeSpike(st.from, closedLine(r, res));
+    const out = await startCore(st, ui().drafts);
     for (const k of Object.keys(ui().drafts)) if (k.startsWith('start:')) delete ui().drafts[k];
     closeOverlays();
-    const pname = r.args.project ? ' in ' + ((projectById(r.args.project) || {}).name || 'the project') : '';
-    toast(r.action === 'spike' && r.args.log ? STARTED['spike.log']() : STARTED[r.action] ? STARTED[r.action]()
-      : r.action === 'start.local' ? `Started ${(res && res.id) || 'it'} as a ${r.args.lane === 'quick' ? 'small change' : r.args.lane}${pname}. It is on the board; the agent may ask you to confirm repos.`
-      : `Starting #${r.args.id} as a ${r.args.lane === 'quick' ? 'small change' : r.args.lane}${pname}. Its card is on the board once its folder is ready.`);
-    setTab('board');
+    toast(out.msg);
+    setTab(back);
   } catch (e) {
     if (ui().start) { ui().start.busy = false; ui().start.error = errText(e); }
   }
+  fetchSoon();
+  schedule();
+}
+// What the drop box says once a card is started: where it is, and where the next thing shows up.
+const DROP_STARTED = {
+  build: 'Started. It is in Clarify; Tandem asks any questions there, then writes the spec for you in Plan.',
+  diagnose: 'Diagnosing the log. The root cause and a fix come to Ready, configuration first.',
+  ask: 'Looking into it. The answer comes to Ready.'
+};
+/** Lanes' drop box: start a Build, Diagnose or Ask from what was pasted (lanes.js dropStart). The click on Start (or
+ *  Enter) is the approval for this write action. */
+async function dropGo() {
+  if (ui().dropBusy) return;
+  const text = ui().drafts['lanes:drop'] || '';
+  const kind = ui().dropKind || guessKind(text);
+  const r = dropStart(text, kind, { project: startProject() });
+  if (r.error) { toast(r.error, true); focusFirst('#ln-drop'); return; }
+  const drafts = {};
+  for (const [k, v] of Object.entries(r.drafts)) drafts['start:' + k] = v;
+  ui().dropBusy = true; paint();
+  try {
+    await startCore(r.st, drafts);
+    delete ui().drafts['lanes:drop'];
+    ui().dropKind = null; ui().dropGuess = null;
+    toast(DROP_STARTED[kind] || 'Started.');
+  } catch (e) {
+    toast(`Could not start the ${((KINDS[kind] || {}).name || 'work').toLowerCase()}: ${errText(e)}`, true);
+  }
+  ui().dropBusy = false;
   fetchSoon();
   schedule();
 }
@@ -747,7 +783,7 @@ function setTab(tab, keep) {
 function openRun(folder, from) {
   const it = itemForFolder(folder);
   if (!it) return;
-  const back = from || (['inbox', 'work', 'health'].includes(ui().tab) ? ui().tab : 'board');
+  const back = from || (['inbox', 'work', 'health', 'lanes'].includes(ui().tab) ? ui().tab : 'board');
   ui().run = folder; ui().back = back; ui().walk = null;
   setTab(back, true);
 }
@@ -938,6 +974,13 @@ listen('click', ev => {
   // Tabs, the run page, Research folders, the project filter
   const tb = t.closest('[data-tab]');
   if (tb) { setTab(tb.getAttribute('data-tab')); return; }
+  // Lanes (lanes.js): open or close a card's panel, filter, start from the drop box.
+  const lo = t.closest('[data-lane-open]');
+  if (lo) { const k = lo.getAttribute('data-lane-open'); ui().laneSel = ui().laneSel === k ? null : k; paint(); return; }
+  if (t.closest('[data-lane-close]')) { ui().laneSel = null; paint(); return; }
+  const lf = t.closest('[data-lane-filter]');
+  if (lf) { ui().laneFilter = lf.getAttribute('data-lane-filter'); paint(); return; }
+  if (t.closest('[data-lane-start]')) { dropGo(); return; }
   const orun = t.closest('[data-open-run]');
   if (orun) { openRun(orun.getAttribute('data-open-run')); return; }
   const stp = t.closest('[data-step]');
@@ -1105,6 +1148,12 @@ listen('toggle', ev => {
 listen('input', ev => {
   const k = ev.target.getAttribute('data-draft');
   if (k) ui().drafts[k] = ev.target.value;
+  if (k === 'lanes:drop') {
+    // The kind picker shows once there is text, preset to the guess; repaint only when that changes.
+    if (!ev.target.value.trim()) ui().dropKind = null;
+    const g = ev.target.value.trim() ? (ui().dropKind || guessKind(ev.target.value)) : '';
+    if (g !== (ui().dropGuess || '')) { ui().dropGuess = g; schedule(); }
+  }
   if (k && k.startsWith('file:') && ui().file) {
     const dirty = fileDirty(ui().file), f = ui().file;
     const save = app.querySelector('[data-file-save]'), rev = app.querySelector('[data-file-revert]'), st = app.querySelector('[data-file-state]');
@@ -1119,6 +1168,7 @@ listen('input', ev => {
   }
 });
 listen('change', ev => {
+  if (ev.target.hasAttribute('data-lane-kind')) { ui().dropKind = ev.target.value; return; }
   if (ev.target.hasAttribute('data-start-project') && ui().start) { ui().start.project = ev.target.value; return; }
   if (ev.target.hasAttribute('data-proj-folder') && ui().project) { ui().project.folder = ev.target.value; return; }
   if (ev.target.hasAttribute('data-repo-cat')) {
@@ -1161,6 +1211,7 @@ listen('keydown', ev => {
   const dk = ev.target.getAttribute && ev.target.getAttribute('data-draft');
   if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === 's' && dk && dk.startsWith('file:')) { ev.preventDefault(); saveFile(); return; }
   if (ev.key === 'Enter' && dk && dk.startsWith('cfg:')) { ev.preventDefault(); saveSettings(); return; }
+  if (ev.key === 'Enter' && !ev.shiftKey && dk === 'lanes:drop') { ev.preventDefault(); dropGo(); return; }
   if (ev.key === 'Enter' && (dk === 'start:id' || dk === 'start:title' || dk === 'start:target')) { ev.preventDefault(); startGo(); return; }
   if (ev.key === 'Enter' && (ev.ctrlKey || ev.metaKey) && dk && dk.startsWith('sb:')) { ev.preventDefault(); sendBack(dk.slice(3)); return; }
   if (ev.key === 'Enter' && dk && dk.startsWith('dc:')) { ev.preventDefault(); const b = app.querySelector(`[data-docs-check="${CSS.escape(dk.slice(3))}"]`); if (b) b.click(); return; }

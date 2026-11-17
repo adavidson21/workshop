@@ -28,11 +28,11 @@ const count = (html, re) => (html.match(re) || []).length;
 
 beforeEach(() => load());
 
-test('Loom 4.8 the page is a header with three tabs; every folder is in one place: the Inbox, Work or Reviews', () => {
+test('Loom 5.0 the page is a header with four tabs, Lanes first; every folder is in one place: the Inbox, Work or Reviews', () => {
   const html = render();
   assert.match(html, /<nav class="tabs" aria-label="Loom">/);
-  assert.deepEqual([...html.matchAll(/class="tab[^"]*" data-tab="(\w+)"/g)].map(m => m[1]), ['inbox', 'board', 'health']);
-  assert.match(html, /class="tab on" data-tab="inbox" aria-current="page"/, 'Inbox is the default tab');
+  assert.deepEqual([...html.matchAll(/class="tab[^"]*" data-tab="(\w+)"/g)].map(m => m[1]), ['lanes', 'inbox', 'board', 'health']);
+  assert.match(html, /class="tab on" data-tab="inbox" aria-current="page"/, 'the view state starts on the Inbox (main.js opens Loom on Lanes)');
   assert.match(html, /class="pill on"[^>]*><span class="led"><\/span>Live/);
   assert.doesNotMatch(html, /class="side|<aside|Repos with work in progress|Recent activity/, 'no sidebar and no side column');
   for (const it of S.D.items) {
