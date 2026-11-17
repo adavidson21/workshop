@@ -6,13 +6,13 @@
    - shell: routes (#/agents/<id> focuses an item), the rail badge (open prompts), toasts and
      notifications. The theme comes from shared/theme.js and the SDK, with no messages of our own.
    view.js builds the HTML; this file paints it and handles input. */
-import { getWs, setBadge, setCards, setTab as loomTab, splitRoute, routeBoard, onTabRequest, setRunRenderer, runsPainted, onOpenRunPage, onPanelRun, boardCommand, onNudges } from '../loom.js';
+import { getWs, setBadge, setCards, setTab as loomTab, splitRoute, routeBoard, onTabRequest, setRunRenderer, runsPainted, onOpenRunPage, onPanelRun, boardCommand, onNudges, onPickable, pickable } from '../loom.js';
 import { mountBar } from '../../../../shared/standalone-bar.js';
 import { S } from './state.js';
 import { render, prompts, itemForFolder, itemKey, isBusy, dayKey, fileDirty, fileDraft, fileDraftKey, fileLock, guideDefaults, GUIDE_STEPS, cfgBuild, startRequest, repoUrlCheck, repoCategoryCheck, NEW_CATEGORY } from './view.js';
 import { INBOX, projectById, projectArgs, startProject } from './projects.js';
 import { TAB_IDS, OLD_TABS, inboxCount, sessionAsksHtml, wantedFiles, walkList, runCardHtml } from './pages.js';
-import { dropStart, guessKind, KINDS } from './lanes.js';
+import { dropStart, guessKind, KINDS, kindOfAdoType, adoIdOf } from './lanes.js';
 import { FLOW_IDS, addOpenQuestion, sendBackCommand, gateFile } from './flows.js';
 import { closedLine, closedWith, looksLikeLog, prefillFor, safeDecode } from './start-prefill.js';
 import { reviewUrlCheck, reviewAllList, prArg } from './pr-reviews.js';
@@ -440,6 +440,7 @@ function tryKey() {
 ws.on('route', p => wantFocus(p.path));
 onTabRequest(t => { if (ui().tab !== t || ui().run) setTab(t); });
 onNudges(() => schedule());
+onPickable(() => { if (ui().tab === 'lanes') schedule(); });
 // A run inside its card on the board (loom.js): its step and buttons, and its full page from the card.
 setRunRenderer(folder => (S.D ? runCardHtml(folder) : ''));
 onPanelRun(() => { loadFiles(); schedule(); });
@@ -590,6 +591,7 @@ async function startGo() {
 // What the drop box says once a card is started: where it is, and where the next thing shows up.
 const DROP_STARTED = {
   build: 'Started. It is in Clarify; Tandem asks any questions there, then writes the spec for you in Plan.',
+  handoff: 'Tandem is drafting what to build. Approve it, then pick who builds it.',
   diagnose: 'Diagnosing the log. The root cause and a fix come to Ready, configuration first.',
   ask: 'Looking into it. The answer comes to Ready.'
 };
@@ -599,7 +601,8 @@ async function dropGo() {
   if (ui().dropBusy) return;
   const text = ui().drafts['lanes:drop'] || '';
   const kind = ui().dropKind || guessKind(text);
-  const r = dropStart(text, kind, { project: startProject() });
+  const picked = ui().dropAdo && adoIdOf(text) === ui().dropAdo.id ? ui().dropAdo : null;
+  const r = dropStart(text, kind, { project: startProject(), ...(picked ? { ado: true, adoType: picked.type } : {}) });
   if (r.error) { toast(r.error, true); focusFirst('#ln-drop'); return; }
   const drafts = {};
   for (const [k, v] of Object.entries(r.drafts)) drafts['start:' + k] = v;
@@ -607,7 +610,7 @@ async function dropGo() {
   try {
     await startCore(r.st, drafts);
     delete ui().drafts['lanes:drop'];
-    ui().dropKind = null; ui().dropGuess = null;
+    ui().dropKind = null; ui().dropGuess = null; ui().dropAdo = null;
     toast(DROP_STARTED[kind] || 'Started.');
   } catch (e) {
     toast(`Could not start the ${((KINDS[kind] || {}).name || 'work').toLowerCase()}: ${errText(e)}`, true);
@@ -981,6 +984,21 @@ listen('click', ev => {
   const lf = t.closest('[data-lane-filter]');
   if (lf) { ui().laneFilter = lf.getAttribute('data-lane-filter'); paint(); return; }
   if (t.closest('[data-lane-start]')) { dropGo(); return; }
+  if (t.closest('[data-lane-done]')) { ui().laneDone = !ui().laneDone; paint(); return; }
+  if (t.closest('[data-ado-toggle]')) { ui().dropPick = !ui().dropPick; paint(); if (ui().dropPick) focusFirst('#ln-adoq'); return; }
+  const adoPick = t.closest('[data-ado-pick]');
+  if (adoPick) {
+    // From ADO: the item fills the drop box (number and title) and picks its kind; Start runs it.
+    const it = pickable().find(x => x.id === adoPick.getAttribute('data-ado-pick'));
+    if (it) {
+      ui().drafts['lanes:drop'] = `#${it.id} ${it.title}`;
+      ui().dropAdo = { id: it.id, type: it.type };
+      ui().dropKind = kindOfAdoType(it.type); ui().dropGuess = ui().dropKind;
+      ui().dropPick = false; delete ui().drafts['lanes:adoq'];
+      paint(); focusFirst('#ln-drop');
+    }
+    return;
+  }
   const orun = t.closest('[data-open-run]');
   if (orun) { openRun(orun.getAttribute('data-open-run')); return; }
   const stp = t.closest('[data-step]');
@@ -1148,6 +1166,7 @@ listen('toggle', ev => {
 listen('input', ev => {
   const k = ev.target.getAttribute('data-draft');
   if (k) ui().drafts[k] = ev.target.value;
+  if (k === 'lanes:adoq') schedule();
   if (k === 'lanes:drop') {
     // The kind picker shows once there is text, preset to the guess; repaint only when that changes.
     if (!ev.target.value.trim()) ui().dropKind = null;

@@ -155,3 +155,11 @@ const nudgeSubs = new Set();
 export function setNudges(list) { nudges = Array.isArray(list) ? list : []; for (const f of nudgeSubs) f(nudges); }
 export const currentNudges = () => nudges;
 export function onNudges(f) { nudgeSubs.add(f); }
+
+/* The board's ADO backlog items nobody has started yet (its virtual cards), for Lanes' From ADO picker (Loom 5.1.0).
+   Each: {id, title, type, state, assignee, iteration, changed, connection}. */
+let pickList = [];
+const pickSubs = new Set();
+export function setPickable(list) { pickList = Array.isArray(list) ? list : []; for (const f of pickSubs) f(pickList); }
+export const pickable = () => pickList;
+export function onPickable(f) { pickSubs.add(f); }

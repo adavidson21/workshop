@@ -1,5 +1,7 @@
 # Chat
 
+**Chat 3.0.0** leaves the rail (`rail: false`, Loom 5.1.0): fewer apps to pick from. It opens from a Loom card's Chat button (that run's conversation), from the palette (New chat, Rewrite a draft) and from Capture's ask. Its address, `#/chat`, still works.
+
 opencode with a better screen. **Chat 2.0.0** works like the opencode TUI, so you can use it instead of opening opencode: pick any agent (Tab cycles them) and model, `/` for commands (yours and Tandem's), `@` for workspace files, `!` for a shell command, undo and redo, compact, and every opencode session in the workspace under **All sessions**. Tool calls, diffs, thinking and to-dos show in the thread, and permission prompts are answered right there. opencode's own permission settings decide what an agent may do, as in the terminal. Since **Chat 2.2.0** there is no separate AI switch: Chat works whenever the opencode connector is on (turn the connector off in Settings to stop it). Contract: [docs/chat.md](../../docs/chat.md).
 
 The **Hub** agent (first in New chat's list) is the one box that asks Tandem or captures a task, receipt or note in plain words: a capture comes back as rows to accept, a place opens the app, and anything else becomes a chat. A hub thread's follow-ups go to Tandem's read-only `chat` agent unless you pick another.

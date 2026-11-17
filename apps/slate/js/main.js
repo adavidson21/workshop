@@ -1,7 +1,7 @@
 /* Slate: your ADO backlog as one board, from request to resolved. model.js is pure, data.js talks to Workshop,
    view.js builds HTML; Health shows the team reports (js/reports/, loaded the first time). This file owns the page: state,
    refreshing from ADO and Tandem, and what each button does. */
-import { getWs, setBadge, setCards, setSummaryWriter, onTab, onBoardRoute, currentTab, requestTab, runHtml, onRunsPainted, openRunPage, setPanelRun, BOARD_TABS, onBoardCommand, setNudges } from './loom.js';
+import { getWs, setBadge, setCards, setSummaryWriter, onTab, onBoardRoute, currentTab, requestTab, runHtml, onRunsPainted, openRunPage, setPanelRun, BOARD_TABS, onBoardCommand, setNudges, setPickable } from './loom.js';
 import { readCards } from '../../../shared/summary.js';
 import { createHolder } from '../../../shared/focus.js';
 import * as People from '../../../shared/people.js';
@@ -527,6 +527,11 @@ function paint() {
   const waitingItems = store.v.items.filter(it => { const a = itemAgent(it); return (a && a.waiting) || (it.stage === 'shaping' && shapeState(filesOf(it.work.shape), a).asking); });
   const waiting = waitingItems.length;
   setBadge('board', waiting);
+  // Lanes' From ADO picker: the backlog items nobody has started (virtual cards), newest change first.
+  setPickable(store.v.loaded ? allCards().filter(c => c.virtual && c.ado).map(c => {
+    const a = c.adoNow || c.ado;
+    return { id: String(a.id), title: c.title, type: a.type || '', state: a.state || '', assignee: a.assignee || '', iteration: a.iteration || '', changed: a.changed || '', connection: a.connection || '' };
+  }).sort((x, y) => String(y.changed).localeCompare(String(x.changed))) : []);
   noteWaiting(waitingItems);
   if (focus && $(focus) && focus !== 'draft' && focus !== 'answers') {
     const el = $(focus);

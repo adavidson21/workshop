@@ -6,7 +6,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { S, resetUi } from '../js/dispatch/state.js';
 import { startRequest } from '../js/dispatch/view.js';
-import { LANES, KINDS, kindOf, laneOf, laneDots, lanesData, lanesHtml, guessKind, adoIdOf, dropStart, lanesCount } from '../js/dispatch/lanes.js';
+import { LANES, KINDS, kindOf, laneOf, laneDots, lanesData, lanesHtml, guessKind, adoIdOf, dropStart, lanesCount, pickRows, kindOfAdoType } from '../js/dispatch/lanes.js';
+import { setPickable } from '../js/loom.js';
 import { wantedFiles } from '../js/dispatch/pages.js';
 
 const FIXTURE = JSON.parse(fs.readFileSync(new URL('./fixtures/state.json', import.meta.url), 'utf8'));
@@ -171,4 +172,49 @@ test('a card that says Answer opens on Tandem\'s question, answerable in the pan
   const html = lanesHtml();
   assert.match(html, /class="ln-asks"><div class="asks inline">/);
   assert.match(html, /Which branch\?/);
+});
+
+test('From ADO (5.1): the picker lists the board\'s unstarted backlog, searchable; a pick starts that item, a Bug as a fix', () => {
+  const list = [
+    { id: '48240', title: 'Export retries only once on timeout', type: 'Bug' },
+    { id: '48213', title: 'Resend a failed welcome email', type: 'User Story' },
+    { id: '48266', title: 'Spike: v1 auth callers', type: 'Spike' }
+  ];
+  assert.deepEqual(pickRows(list, '').map(r => r.id), ['48240', '48213', '48266']);
+  assert.deepEqual(pickRows(list, 'welcome email').map(r => r.id), ['48213']);
+  assert.deepEqual(pickRows(list, '#4824').map(r => r.id), ['48240']);
+  assert.equal(kindOfAdoType('Bug'), 'build');
+  assert.equal(kindOfAdoType('Spike'), 'ask');
+  assert.equal(adoIdOf('#48240 Export retries only once on timeout'), '48240');
+  assert.equal(adoIdOf('48240 is broken'), null, 'a bare number then words is a story, not an item');
+  S.D.tandem = { ...(S.D.tandem || {}), ado: true };
+  const r = dropStart('#48240 Export retries only once on timeout', 'build', { ado: true, adoType: 'Bug' });
+  const q = startRequest(r.st, drafts(r.drafts));
+  assert.deepEqual([q.action, q.args.id, q.args.lane], ['start', '48240', 'bug']);
+  setPickable([]);
+  assert.doesNotMatch(lanesHtml(), /data-ado-toggle/, 'no backlog, no From ADO');
+  setPickable(list);
+  assert.match(lanesHtml(), /data-ado-toggle="1" aria-expanded="false">From ADO/);
+  S.ui.dropPick = true;
+  S.ui.drafts['lanes:adoq'] = 'export';
+  const html = lanesHtml();
+  assert.match(html, /data-ado-pick="48240"/);
+  assert.doesNotMatch(html, /data-ado-pick="48213"/);
+  setPickable([]);
+});
+
+test('Done today (5.1) opens a list of what finished today', () => {
+  const it = item('spike-cache-options');
+  it.state = 'Closed: saved as a note';
+  it.modifiedMs = Date.parse('2026-10-21T10:00:00');
+  let html = lanesHtml();
+  assert.match(html, /data-lane-done="1" aria-expanded="false">1 done today/);
+  S.ui.laneDone = true;
+  html = lanesHtml();
+  assert.match(html, /class="ln-donelist"[^]*data-open-run="spike-cache-options"/);
+});
+
+test('the panel has a Chat button for the run\'s conversation (Chat is off the rail since 3.0.0)', () => {
+  S.ui.laneSel = '41207-fix-login-timeout';
+  assert.match(lanesHtml(), /data-open-chat="[^"]+" aria-label="Open the conversation in Chat"/);
 });

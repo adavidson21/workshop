@@ -44,6 +44,10 @@
       "type": "boolean",
       "description": "The home page: opened by the Workshop logo and the plain address, and not shown as a rail button. The first app with home: true wins."
     },
+    "rail": {
+      "type": "boolean",
+      "description": "false leaves the app off the rail (no rail button or Alt+<n>). Its address, palette commands and ws.open to it still work."
+    },
     "panel": {
       "type": "boolean",
       "description": "Shown as a panel over the current app, opened from a button in the top bar that carries the app's badge, instead of a page with a rail button. Ignored when home is true."

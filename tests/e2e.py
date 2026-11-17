@@ -204,7 +204,7 @@ SDK_BROWSER = """async () => {
 def browser_mode_checks(ctx, pg, frame, watch):
     """Part 1, browser mode (static site, no agent): the platform pieces WS4 added."""
     rail = pg.eval_on_selector_all('.app-btn[data-app]', 'els => els.map(e => e.dataset.app)')
-    check('rail is built from the app registry, Runway on its own button, Loom in place of Slate and Dispatch, Chat after Loom, Bench before Settings', rail == ['prioritizer', 'slate', 'chat', 'receipts', 'notes', 'runway', 'bench', 'settings'])
+    check('rail is built from the app registry, Runway on its own button, Loom in place of Slate and Dispatch, Chat off the rail (rail: false), Bench before Settings', rail == ['prioritizer', 'slate', 'receipts', 'notes', 'runway', 'bench', 'settings'])
     pg.click('#capBtn'); pg.wait_for_timeout(800)
     check('the top bar Capture button opens the capture bar', pg.locator('.capbar').is_visible())
     pg.keyboard.press('Escape'); pg.wait_for_timeout(300)
@@ -224,7 +224,7 @@ def browser_mode_checks(ctx, pg, frame, watch):
     check('a deep link opens the task', frame.evaluate("document.getElementById('app').classList.contains('drawer-open')") and pg.url in (HUB + '/', HUB + f'/#/prioritizer/task/{tid}'))
     frame.press('#drawer', 'Escape'); pg.wait_for_timeout(200)
 
-    pg.keyboard.press('Alt+4'); pg.wait_for_timeout(1200)
+    pg.keyboard.press('Alt+3'); pg.wait_for_timeout(1200)
     rf = next((f for f in pg.frames if '/apps/receipts/' in f.url), None)
     check('Rapport opens from the rail', rf is not None and pg.url.endswith('#/receipts'))
     if rf:
@@ -232,7 +232,7 @@ def browser_mode_checks(ctx, pg, frame, watch):
         check('Rapport saves a receipt in browser storage', rf.locator('.entry').count() == 1)
         check('Rapport has a 1:1s tab', rf.locator('.tabs [data-path="1on1s"]').count() == 1)
 
-    pg.keyboard.press('Alt+5'); pg.wait_for_timeout(1200)
+    pg.keyboard.press('Alt+4'); pg.wait_for_timeout(1200)
     nf = next((f for f in pg.frames if '/apps/notes/' in f.url), None)
     check('Notes opens from the rail', nf is not None and pg.url.endswith('#/notes'))
     if nf: notes_flow(pg, nf, 'browser')
@@ -253,7 +253,7 @@ def browser_mode_checks(ctx, pg, frame, watch):
         check('a running Docket task shows in the top bar, and Docket\'s own band steps aside',
               'Fix login' in pg.inner_text('#wstatus .ws-main') and pg.inner_text('#wstatus .ws-time').strip() == '0m'
               and not frame.is_visible('#nowbar') and pg.title().startswith('\u25CF 0m Fix login'))
-        pg.keyboard.press('Alt+5'); pg.wait_for_timeout(500)
+        pg.keyboard.press('Alt+4'); pg.wait_for_timeout(500)
         check('the top bar keeps it on other apps', pg.is_visible('#wstatus') and pg.url.endswith('#/notes'))
         pg.click('#wstatus [aria-label="Pause"]'); pg.wait_for_timeout(200)
         check('Pause in the top bar asks where you left off', pg.locator('.ws-prompt').is_visible() and 'Where did you leave off?' in pg.inner_text('.ws-prompt'))
@@ -385,7 +385,7 @@ def browser_mode_checks(ctx, pg, frame, watch):
               and slf.locator('#reports #reportsBox').count() == 1 and slf.locator('#app .tabs [data-tab=health][aria-current=page]').count() == 1)
         pg.evaluate("location.hash = '#/slate/roadmaps'"); pg.wait_for_timeout(2000)
         check('an old #/slate/roadmaps link opens Runway', pg.url.endswith('#/runway'))
-    pg.keyboard.press('Alt+8'); pg.wait_for_timeout(1200)  # Chat is Alt+3, Notes Alt+5, Runway Alt+6, Bench Alt+7
+    pg.keyboard.press('Alt+7'); pg.wait_for_timeout(1200)  # Notes Alt+4, Runway Alt+5, Bench Alt+6 (Chat is off the rail)
     sf = next((f for f in pg.frames if '/apps/settings/' in f.url), None)
     check('Settings opens from the rail', sf is not None and pg.url.endswith('#/settings'))
     check('Settings in browser mode offers the data folder and data, no connectors', sf is not None and 'not running' in sf.inner_text('#content') and sf.locator('[data-export]').count() == 1 and sf.locator('.conn:not(.app-row)').count() == 0)
@@ -1396,9 +1396,10 @@ def agents_checks(b, watch):
         check('and the badge goes back down', pg.inner_text('.app-btn[data-app=slate] .badge') == str(before))
 
         # Chat (its own app since Loom 4.8.0): a sidebar of chats and one chat in view. It opens on New chat, with the hub's box in it.
-        pg.click('.app-btn[data-app=chat]'); pg.wait_for_timeout(1500)
+        # Off the rail since Chat 3.0.0 (rail: false): its address still opens it (a Loom card's Chat button, the palette).
+        pg.evaluate("location.hash = '#/chat'"); pg.wait_for_timeout(1500)
         cf = next(f for f in pg.frames if '/apps/chat/' in f.url)
-        check('Chat opens from the rail on New chat, with the hub box in it', seen(cf, '.chat-newbtn.on') and cf.locator('.chat-home #hub .cap-in').is_visible())
+        check('Chat opens from its address on New chat, with the hub box in it', seen(cf, '.chat-newbtn.on') and cf.locator('.chat-home #hub .cap-in').is_visible())
         check('the sidebar has New chat and search', cf.locator('.chat-side .chat-search').is_visible() and cf.inner_text('.chat-top h2') == 'New chat')
         cf.click('.chat-side [data-chat-side]'); pg.wait_for_timeout(200)
         check('the sidebar closes, the hub box stays, and it is remembered', cf.locator('.chat-side').count() == 1 and not cf.locator('.chat-side').is_visible()
@@ -1613,9 +1614,9 @@ def main():
             check('Loom opens from the rail, as an app in the shell, on Lanes', af is not None and pg.url.endswith('#/slate') and af.get_attribute('#app .tab.on', 'data-tab') == 'lanes')
             if af: af.click('#app .tabs [data-tab=inbox]'); pg.wait_for_timeout(300)
             check('Loom\'s Inbox in browser mode shows the setup guide', af is not None and 'Connect Loom to your computer' in af.inner_text('#app') and af.locator('.gstep').count() == 2)
-            pg.click('.app-btn[data-app=chat]'); pg.wait_for_timeout(1500)
+            pg.evaluate("location.hash = '#/chat'"); pg.wait_for_timeout(1500)
             af = next((f for f in pg.frames if '/apps/chat/' in f.url), None)
-            check('Chat opens from the rail in browser mode', af is not None and pg.url.endswith('#/chat'))
+            check('Chat opens from its address in browser mode', af is not None and pg.url.endswith('#/chat'))
             if af:
                 check('the hub in browser mode has no AI switch and says under the input why it cannot ask Tandem', af.locator('#hub .hub-ai').count() == 0
                       and 'needs Workshop on this computer' in af.inner_text('#hub .hub-status'))
