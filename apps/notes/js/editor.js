@@ -2,7 +2,7 @@
    to a <textarea>: value, selectionStart / selectionEnd, setSelectionRange, setRangeText, focus, readOnly,
    scrollTop, addEventListener and dispatchEvent. If the bundle can't load, the textarea itself is the editor.
 
-   What CodeMirror adds: Markdown and code fences colored as you type, Enter continuing lists, tasks and quotes,
+   What CodeMirror adds: Markdown and code fences colored as you type, folding sections, Enter continuing lists, tasks and quotes,
    Tab / Shift+Tab to indent, Ctrl+F find and replace, Ctrl+D the next match, multiple cursors, bracket matching
    and a real undo history.
 
@@ -32,7 +32,8 @@ function mount(textarea, cm) {
     EditorState, EditorSelection, Compartment, Prec, Annotation, EditorView, keymap, drawSelection, dropCursor,
     rectangularSelection, crosshairCursor, highlightActiveLine, highlightSpecialChars, defaultKeymap, history,
     historyKeymap, indentWithTab, syntaxHighlighting, HighlightStyle, bracketMatching, indentUnit, markdown,
-    markdownLanguage, markdownKeymap, search, searchKeymap, highlightSelectionMatches, tags: t, codeLanguages
+    markdownLanguage, markdownKeymap, search, searchKeymap, highlightSelectionMatches, tags: t, codeLanguages,
+    foldGutter, codeFolding, foldKeymap
   } = cm;
 
   const api = Annotation.define(); // a change made through this object, not by the user
@@ -76,7 +77,23 @@ function mount(textarea, cm) {
     markdown({ base: markdownLanguage, codeLanguages, addKeymap: false }),
     syntaxHighlighting(style),
     search({ top: true }),
-    keymap.of([...markdownKeymap, ...searchKeymap, ...historyKeymap, indentWithTab, ...defaultKeymap]),
+    // Folding (Folio 4.8.0): a heading folds its section, a list or quote its lines. An arrow in a slim gutter
+    // (shown on hover), Ctrl+Shift+[ and ] on the cursor's section, Ctrl+Alt+[ and ] for all. For this visit only.
+    codeFolding({ placeholderDOM: (view, onclick) => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'cm-fold-more'; b.textContent = '…';
+      b.title = 'Folded. Click to unfold'; b.setAttribute('aria-label', 'Unfold');
+      b.onclick = onclick;
+      return b;
+    } }),
+    foldGutter({ markerDOM: (open) => {
+      const m = document.createElement('span');
+      m.className = `cm-fold-mark${open ? ' open' : ''}`;
+      m.title = open ? 'Fold (Ctrl+Shift+[)' : 'Unfold (Ctrl+Shift+])';
+      m.innerHTML = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>';
+      return m;
+    } }),
+    keymap.of([...markdownKeymap, ...searchKeymap, ...historyKeymap, ...foldKeymap, indentWithTab, ...defaultKeymap]),
     editable.of([]),
     EditorView.editorAttributes.of({ class: 'editor cm-folio' }),
     liveSlotExt,
