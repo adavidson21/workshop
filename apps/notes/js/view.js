@@ -342,11 +342,26 @@ export function panel(state) {
         const line = plainText((lines(b.from)[b.line] || '').trim().replace(/^([-*+]|\d+[.)]|#+|>)\s+/, ''));
         return `<li><a href="#" data-open="${esc(b.from)}" data-line="${b.line}"><span class="r-title">${esc(from ? from.title : b.from)}</span><span class="r-line">${esc(line.slice(0, 160))}</span></a></li>`;
       }).join('')}</ul>` : ''}</section>` : ''}
+    ${mentionsHtml(state)}
     ${sendHtml(state, n)}
     ${state.versions ? `<section><h2 class="section-label">History</h2>
       <button class="btn ghost small" data-act="history">${state.versions} earlier version${state.versions === 1 ? '' : 's'}</button></section>` : ''}
     ${tags.length ? `<section><h2 class="section-label">Tags</h2>
       ${tags.length ? `<ul class="all-tags">${tags.map(([t, ps]) => `<li><a href="#" class="tag${n && n.tags.includes(t) ? ' on' : ''}" data-tag="${esc(t)}"${n && n.tags.includes(t) ? ' title="On this note"' : ''}>#${esc(t)}</a> <span class="count">${ps.length}</span></li>`).join('')}</ul>` : ''}</section>` : ''}`;
+}
+
+/* Unlinked mentions (model.js): lines in other notes that say this note's title or an alias without a link,
+   folded under Backlinks, each with Link to make that text a [[link]]. */
+function mentionsHtml(state) {
+  const list = state.mentions || [];
+  if (!list.length) return '';
+  return `<section class="mentions"><details${state.ui.mentionsOpen ? ' open' : ''}><summary class="section-label">Unlinked mentions <span class="count">${list.length}${list.length >= 50 ? '+' : ''}</span></summary>
+    <ul class="backlinks">${list.map((m, k) => {
+      const lead = m.text.slice(Math.max(0, m.at - 60), m.at), tail = m.text.slice(m.at + m.len, m.at + m.len + 80);
+      return `<li class="mention"><a href="#" data-open="${esc(m.from)}" data-line="${m.line}"><span class="r-title">${esc(m.title)}</span>
+        <span class="r-line">${m.at > 60 ? '…' : ''}${esc(plainText(lead))}<mark>${esc(m.match)}</mark>${esc(plainText(tail))}</span></a>
+        <button class="btn ghost small" data-act="link-mention" data-k="${k}" title="Make this a [[link]] in ${esc(m.title)}">Link</button></li>`;
+    }).join('')}</ul></details></section>`;
 }
 
 /* Properties: the note's frontmatter as fields (props.js). A field saves when it changes (Enter or leaving it);

@@ -4,6 +4,8 @@ Your notebook, as plain `.md` files: the **sections** (places), the open section
 
 Nothing leaves your device: no accounts, no server, no analytics.
 
+**4.7.0 (Obsidian gaps, part 2).** Hover a note link for its preview, **Unlinked mentions** under Backlinks, and **Open in new window** for two notes side by side.
+
 **4.6.0 (Obsidian gaps, part 1; Workshop project doc `claude/folio-obsidian-gaps-v1-plan.md`).** `==highlights==`, a word count and reading time in the header, a **Properties** panel with `aliases:`, and bookmarks under Pinned.
 
 **4.5.0 (Workshop UX v1).** A **Product** filter under the search on Notes shows one product's notes: its product note, notes that link to it or carry its `product/<slug>` tag, and notes that say its name.
@@ -37,6 +39,9 @@ Plan: `claude/notes-standalone-plan.md` in the personal toools Project.
 - **Embeds:** a paragraph that is only `![[Note]]` or `![[Note#Heading]]` (or `![label](note.md#heading)`) shows that note, or that section of it, in place: read only, its diagrams drawn, with a link to open it. So a diagram or a procedure lives in one note and shows wherever it's needed. Embeds go two deep and never loop. Embeds count as links for backlinks.
 - **Map of links:** the `⋯` menu's **Map of links** draws the note, the notes it links to and the notes that link to it (and the links among them) as a diagram. Click a note to open it.
 - **Backlinks:** the side panel lists every note that links to this one, with the line around the link.
+- **Unlinked mentions:** folded under Backlinks, the lines in other notes that say this note's title or one of its aliases without linking to it (whole words, any case; not in code, links, tags, frontmatter or templates; titles under 3 characters and aliases under 2 are left out). **Link** makes that text a `[[link]]` in that note, saved with its history and conflict check.
+- **Hover previews:** rest the pointer on a link to a note (in Live, the preview, an embed or another preview) and the note, or the linked section, shows in a popover: read only, diagrams drawn. Move onto it to scroll or follow its links; move away or press Escape to close it.
+- **Open in new window:** `⋯`, **Open in new window** (or the palette, or Shift+click any note link or page in the sidebar) opens that note in a window of its own (Workshop's `ws.window`), so two notes sit side by side. Folio stays in the main window too. Both windows edit the same files: a note changed in one shows in the other, and edits in both get Folio's usual conflict choices.
 - **Tags:** `#tag` in the text, or `tags: [a, b]` in frontmatter. Nested tags with `/` (`#team/platform`). Click a tag to search for it.
 - **Search:** `/` or `Ctrl+Shift+F`. Words match titles, paths and text; `tag:ops`, `path:runbooks`, `lang:sql` (a code block in that language) and `has:diagram`, `has:code`, `has:task`, `has:image` or `has:link` filter (the empty results say so). Arrow keys and `Enter` open a result at its line, and the search clears so the pages come back.
 - **Images:** paste or drop an image into the editor. It is saved under `folio/attachments/` and linked with `![name](attachments/...)`. PNG, JPEG, GIF and WebP. Remote images (`https://...`) are never loaded.

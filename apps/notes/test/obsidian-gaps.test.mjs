@@ -1,8 +1,8 @@
-// Folio 4.6.0: highlights, word count, aliases, properties and bookmarks (markdown.js, model.js, props.js, bookmarks.js).
+// Folio 4.6.0 and 4.7.0: highlights, word count, aliases, properties and bookmarks (markdown.js, model.js, props.js, bookmarks.js).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { facts, inline, plainText, render } from '../js/markdown.js';
-import { buildIndex, resolveWiki, search, wordCount } from '../js/model.js';
+import { buildIndex, linkMention, resolveWiki, search, unlinkedMentions, wordCount } from '../js/model.js';
 import { readProps, removeProp, setProp, validKey } from '../js/props.js';
 import { blank, followed, paths, readable, toggled } from '../js/bookmarks.js';
 
@@ -70,4 +70,19 @@ test('bookmarks: toggle, follow moves, drop trashed notes', () => {
   assert.equal(followed(env, new Map([['x.md', 'y.md']])), null);
   assert.ok(readable(null) && !readable({ schema: 'notes.bookmarks', version: 2, items: [] }));
   assert.deepEqual(paths({ schema: 'other', version: 1, items: [{ id: 'z.md' }] }), []);
+});
+
+test('unlinked mentions: whole words in prose, not code, links, tags, frontmatter or templates', () => {
+  const files = [
+    ['deploy.md', '---\naliases: [Ship it]\n---\n# Deploy Runbook\n'],
+    ['a.md', '---\nabout: deploy runbook\n---\n# A\nRead the Deploy runbook first. [deploy runbook](deploy.md), `deploy runbook`, #deploy-runbook, deploy runbooks\nwe ship it today\n```\ndeploy runbook\n```\n'],
+    ['templates/t.md', '# T\ndeploy runbook\n']
+  ];
+  const ix = buildIndex(files.map(([path, content]) => ({ path, content })));
+  const found = unlinkedMentions(ix, new Map(files), 'deploy.md');
+  assert.deepEqual(found.map(m => [m.from, m.line, m.at, m.match]), [['a.md', 4, 9, 'Deploy runbook'], ['a.md', 5, 3, 'ship it']]);
+  const next = linkMention(files[1][1], found[0], '[[Deploy runbook]]');
+  assert.match(next, /Read the \[\[Deploy runbook\]\] first\./);
+  assert.equal(linkMention('# changed\n', found[0], '[[x]]'), null);
+  assert.deepEqual(unlinkedMentions(ix, new Map(files), 'missing.md'), []);
 });

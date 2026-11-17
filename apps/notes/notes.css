@@ -671,3 +671,15 @@ dialog{border:0;border-radius:var(--r-lg);box-shadow:0 20px 60px rgb(34 25 28/.2
 .props .prop input[readonly]{color:var(--muted)}
 .props .linkish{align-self:flex-start}
 .pinned .note{position:relative}
+
+/* ---------- Folio 4.7.0: hover previews and unlinked mentions ---------- */
+.hover-pop.md{position:fixed;z-index:30;max-height:360px;overflow-y:auto;padding:.7rem 1rem 1rem;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);box-shadow:var(--shadow-lg);font-size:.9rem;line-height:1.55}
+.hover-pop.md h1{font-size:1.35rem;margin-top:.4em}
+.hover-pop.md h2{font-size:1.15rem}
+.hover-pop.md h1:first-child,.hover-pop .embed-body>:first-child{margin-top:0}
+.hover-pop .embed-head{margin-bottom:.4rem;font:600 .8rem/1.3 var(--sans)}
+.mentions summary{cursor:pointer;list-style:revert}
+.mentions details[open] summary{margin-bottom:.45rem}
+.mentions .mention{display:flex;align-items:flex-start;gap:.4rem}
+.mentions .mention>a{flex:1;min-width:0}
+.mentions mark{background:color-mix(in srgb,#F2C94C 42%,transparent);color:inherit;border-radius:2px}

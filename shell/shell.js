@@ -36,6 +36,9 @@ const mounted = new Set();
    Same page and origin as the main window, so data, pairing and the agent are the same. Anything that opens
    another app goes to the main Workshop window (named MAIN_WINDOW), which comes to the front. */
 const SOLO = new URLSearchParams(location.search).get('solo') || null;
+// A second window of an app (ws.window, docs/sdk.md): a pop-out that does not mark the app as popped out, so the
+// main window keeps showing it and more than one can be open (Folio: two notes side by side).
+const ALSO = Boolean(SOLO && new URLSearchParams(location.search).get('also'));
 // A pop-out window takes its app's color (shared/themes.css), so windows side by side are easy to tell apart.
 if (SOLO && /^[a-z][a-z0-9-]{0,39}$/.test(SOLO)) document.documentElement.dataset.appColor = SOLO;
 const MAIN_WINDOW = 'workshop-main';
@@ -50,7 +53,7 @@ const popped = new Set();
 let soloBus = null;
 try { soloBus = new BroadcastChannel(SOLO_CHANNEL); } catch (e) { soloBus = null; }
 const soloSay = (msg) => { try { if (soloBus) soloBus.postMessage(msg); } catch (e) { /* closed */ } };
-if (soloBus && SOLO) {
+if (soloBus && SOLO && !ALSO) {
   soloBus.addEventListener('message', (e) => {
     const d = e.data || {};
     if (d.type === 'ping') soloSay({ type: 'open', id: SOLO });
@@ -58,7 +61,7 @@ if (soloBus && SOLO) {
   });
   soloSay({ type: 'open', id: SOLO });
   addEventListener('pagehide', () => soloSay({ type: 'closed', id: SOLO }));
-} else if (soloBus) {
+} else if (soloBus && !SOLO) {
   soloBus.addEventListener('message', (e) => {
     const d = e.data || {};
     if (typeof d.id !== 'string' || !/^[a-z][a-z0-9-]{0,39}$/.test(d.id)) return;
@@ -514,6 +517,19 @@ function handleRequest(app, method, p) {
       app.pendingCommands = [];
       if (queued.length) setTimeout(() => queued.forEach(c => sendTo(app, 'command', { id: c })));
       return { theme: themeNow(), route, visible: app === panelApp ? panelOpen() : current === app.id };
+    }
+    // Another window of this app at a route (docs/sdk.md, ws.window). Named by the route, so asking again brings
+    // that window forward instead of opening a third.
+    case 'window.open': {
+      const path = typeof p.path === 'string' ? p.path.slice(0, 500) : '';
+      const url = `${location.pathname}?solo=${encodeURIComponent(app.id)}&also=1#/${app.id}${path ? '/' + path.split('/').map(encodeURIComponent).join('/') : ''}`;
+      const w = Math.min(1100, screen.availWidth - 80), h = Math.min(900, screen.availHeight - 80);
+      let k = 0;
+      for (const c of app.id + '/' + path) k = (Math.imul(k, 31) + c.charCodeAt(0)) >>> 0;
+      const win = window.open(url, `workshop-also-${app.id}-${k.toString(36)}`, `popup,width=${w},height=${h}`);
+      if (!win) throw fail('blocked', 'Your browser blocked the window. Allow pop-ups for this site and try again.');
+      win.focus();
+      return null;
     }
     case 'open': {
       if (!byId[resolveApp(p.app).id]) throw fail('not_found', `There is no ${p.app} app here.`);

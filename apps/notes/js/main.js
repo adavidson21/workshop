@@ -40,7 +40,7 @@ import { paintDiagrams, pngBytes, svgFile } from './diagrams.js';
 import { KITS, blockInsert, kit, kitBlock, lineOf, mermaidFences } from './diagram-kits.js';
 import {
   APP, MAX_FOLDERS, SEG, baseName, dirOf, freePath, isImagePath, localHref, movedPath, newNoteText, relativeLink,
-  relink, resolvePath, resolveWiki, search, slugify, stem, tree, validFolder, wikiPath
+  linkMention, relink, resolvePath, resolveWiki, search, slugify, stem, tree, unlinkedMentions, validFolder, wikiPath
 } from './model.js';
 import { confirmHtml, diagramPickerHtml, empty, header, mapHtml, historyHtml, importHtml, linkUpdatesHtml, panel, pickerHtml, promptHtml, sectionsHtml, sidebar } from './view.js';
 
@@ -178,7 +178,7 @@ function state() {
   const isTpl = ui.path && !tdoc && sectionOf(ui.path) === 'templates';
   return { live: hasLive, notes, ui, found, tree: tree(productPaths(notesPaths(notes.texts.keys())), Products.picked(products, ui.product) ? [] : [...ui.extraFolders]), products, product: Products.picked(products, ui.product), where: whereSaved(), sent, canSend, dir,
     versions: ui.path && !tdoc ? notes.history(ui.path).length : 0, start: startOffer(), tandem: tandem.state, today: dayOf(new Date()),
-    text: ui.path ? editor.value : '', bookmarks: bookmarks.list, bookmarked: Boolean(ui.path && bookmarks.has(ui.path)),
+    text: ui.path ? editor.value : '', mentions: tdoc ? [] : mentionsNow(), canWindow: Boolean(ui.path) && !isPhone(), bookmarks: bookmarks.list, bookmarked: Boolean(ui.path && bookmarks.has(ui.path)),
     doc: tdoc, brief: tdoc ? briefNow() : null, outline: tdoc ? facts(editor.value).headings : null, phone: isPhone(), hintSeen: store('hint-send') === '1',
     isStarter: isTpl && Object.prototype.hasOwnProperty.call(STARTERS, ui.path), tplFields: isTpl ? templateFields(editor.value) : null };
 }
@@ -1512,6 +1512,9 @@ document.addEventListener('click', async (e) => {
   let x;
   // The ⋯ menu closes on any click outside it (its own items act below).
   if (ui.menu && !el('.menu-wrap')) { ui.menu = false; paintHead(); }
+  if (pop.el) hidePop();
+  // Shift+click a link to a note, or a page in the sidebar: that note in a window of its own.
+  if (e.shiftKey && !isPhone() && (x = el('[data-note], a[data-open]'))) { e.preventDefault(); openWindow(x.dataset.note || x.dataset.open); return; }
   if ((x = el('[data-code-act=copy]'))) {
     e.preventDefault();
     const code = x.closest('pre')?.querySelector('code')?.textContent ?? '';
@@ -1572,6 +1575,8 @@ document.addEventListener('click', async (e) => {
   else if (act === 'trash') trashNote();
   else if (act === 'trash-path') trashNote(x.dataset.path);
   else if (act === 'bookmark') toggleBookmark(ui.path);
+  else if (act === 'window') openWindow(ui.path);
+  else if (act === 'link-mention') linkMentionAt(Number(x.dataset.k));
   else if (act === 'unbookmark') toggleBookmark(x.dataset.path);
   else if (act === 'prop-add') addProp();
   else if (act === 'prop-remove') changeProps((t) => removeProp(t, x.dataset.propKey));
@@ -1607,6 +1612,94 @@ preview.addEventListener('dblclick', (e) => {
   window.getSelection()?.removeAllRanges();
   goToLine(line);
 });
+/* ---------- unlinked mentions (model.js) ---------- */
+
+let mentionMemo = { index: null, path: null, list: [] };
+function mentionsNow() {
+  if (!ui.path || !notes.loaded) return [];
+  if (mentionMemo.index !== notes.index || mentionMemo.path !== ui.path) mentionMemo = { index: notes.index, path: ui.path, list: unlinkedMentions(notes.index, notes.contents(), ui.path) };
+  return mentionMemo.list;
+}
+/* Link: that text in the other note becomes [[text]] (or [[path|text]] when the text names another note first),
+   saved with the other note's history and conflict check. */
+async function linkMentionAt(k) {
+  const m = mentionMemo.list[k];
+  if (!m || !ui.path) return;
+  const t = notes.texts.get(m.from);
+  if (!t) return;
+  const ix = notes.index;
+  const target = resolveWiki(ix.byTitle, ix.notes, m.match) === ui.path ? m.match : `${ui.path.replace(/\.md$/, '')}|${m.match}`;
+  const next = linkMention(t.content, m, `[[${target}]]`);
+  if (next === null) { ws.toast(`${m.title} changed. Look again.`, { kind: 'warn' }); paintChrome(); return; }
+  try { await notes.save(m.from, next, t.mtime); ws.toast(`Linked in ${m.title}.`, { kind: 'success' }).catch(() => {}); }
+  catch (e) { if (e.code === 'conflict') ws.toast(`${m.title} changed meanwhile. Try again.`, { kind: 'warn' }); else toastErr(e); }
+  paintChrome();
+}
+panelEl.addEventListener('toggle', (e) => { if (e.target.matches && e.target.matches('.mentions details')) ui.mentionsOpen = e.target.open; }, true);
+
+/* ---------- another window, and hover previews ---------- */
+
+/** The note in a window of its own (ws.window), so two notes sit side by side. Unsaved edits save first. */
+async function openWindow(path) {
+  if (!path) return;
+  if (path === ui.path && ui.status.kind === 'dirty') await saveNow();
+  try { await ws.window(isTandem(path) ? `tandem/${parseTandem(path).folder}/${parseTandem(path).file}` : path); }
+  catch (e) { toastErr(e); }
+}
+
+/* Hover a link to a note (in the preview, Live, an embed or another preview) for a moment: a read-only preview of
+   that note, or its section, in a popover. Moving onto the popover keeps it; leaving it or Escape closes it. */
+const pop = { timer: null, hideTimer: null, link: null, el: null };
+const POP_LINKS = '#preview [data-note], .cm-editor [data-note], .hover-pop [data-note]';
+function hidePop() {
+  clearTimeout(pop.timer); clearTimeout(pop.hideTimer);
+  pop.link = null;
+  if (pop.el) { pop.el.remove(); pop.el = null; }
+}
+function showPop(a) {
+  const path = a.dataset.note, anchor = a.dataset.anchor || '';
+  const t = notes.texts.get(path);
+  if (!t || !a.isConnected) return;
+  const text = sectionText(t.content, anchor);
+  if (text === null) return;
+  const title = (notes.index.notes.get(path) || {}).title || path;
+  const el = document.createElement('div');
+  el.className = 'hover-pop md';
+  el.setAttribute('role', 'tooltip');
+  el.innerHTML = `<div class="embed-head"><a href="#" data-note="${esc(path)}"${anchor ? ` data-anchor="${esc(anchor)}"` : ''} class="note-link">${esc(title)}${anchor ? ` › ${esc(anchor)}` : ''}</a></div>
+    <div class="embed-body">${embedHtml(render(text, { ...noteCtx(path), embed: embedder([path]) }))}</div>`;
+  if (pop.el) pop.el.remove();
+  document.body.append(el);
+  pop.el = el;
+  const r = a.getBoundingClientRect(), w = Math.min(440, window.innerWidth - 16);
+  el.style.width = `${w}px`;
+  el.style.left = `${Math.max(8, Math.min(r.left, window.innerWidth - w - 8))}px`;
+  const below = window.innerHeight - r.bottom, h = Math.min(el.offsetHeight, 360);
+  el.style.top = `${below >= h + 12 || below > r.top ? r.bottom + 6 : Math.max(8, r.top - h - 6)}px`;
+  paintDiagrams(el, { key: `hover:${path}` });
+  for (const img of el.querySelectorAll('img[data-img]')) notes.imageUrl(img.dataset.img).then(url => { if (url) img.src = url; else img.remove(); }, () => {});
+  el.addEventListener('mouseenter', () => clearTimeout(pop.hideTimer));
+  el.addEventListener('mouseleave', () => { pop.hideTimer = setTimeout(hidePop, 250); });
+}
+document.addEventListener('mouseover', (e) => {
+  const a = e.target.closest && e.target.closest(POP_LINKS);
+  if (!a) return;
+  clearTimeout(pop.hideTimer);
+  if (a === pop.link) return;
+  clearTimeout(pop.timer);
+  pop.link = a;
+  pop.timer = setTimeout(() => { if (pop.link === a) showPop(a); }, 400);
+});
+document.addEventListener('mouseout', (e) => {
+  const a = e.target.closest && e.target.closest(POP_LINKS);
+  if (!a || (e.relatedTarget && a.contains(e.relatedTarget))) return;
+  clearTimeout(pop.timer);
+  if (pop.link === a) pop.link = null;
+  if (pop.el && !(e.relatedTarget && pop.el.contains(e.relatedTarget))) pop.hideTimer = setTimeout(hidePop, 250);
+});
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && pop.el) hidePop(); }, true);
+document.addEventListener('scroll', () => { if (pop.el) hidePop(); }, true);
+
 /* ---------- bookmarks and properties ---------- */
 
 async function toggleBookmark(path) {
@@ -1740,6 +1833,7 @@ ws.commands.register({ id: 'today', title: "Open today's note" });
 ws.commands.register({ id: 'diagram', title: 'Insert diagram' });
 ws.commands.register({ id: 'toggle-pages', title: 'Show or hide the pages list' });
 ws.commands.register({ id: 'toggle-panel', title: 'Show or hide the page panel' });
+ws.commands.register({ id: 'window', title: 'Open this note in a new window' });
 ws.commands.register({ id: 'bookmark', title: 'Bookmark this note (or remove it)' });
 ws.on('command', (p) => {
   if (p.id === 'reload-new' && swReload) { swReload(); return; }
@@ -1750,6 +1844,7 @@ ws.on('command', (p) => {
   else if (p.id === 'toggle-pages') toggleSide();
   else if (p.id === 'toggle-panel') togglePanel();
   else if (p.id === 'bookmark') toggleBookmark(ui.path);
+  else if (p.id === 'window') openWindow(ui.path);
   else if (p.id === 'search') side.querySelector('[data-search]')?.focus();
 });
 function route(raw) {

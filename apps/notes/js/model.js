@@ -212,6 +212,58 @@ export function search(index, contents, query, limit = 50) {
   return out.sort((a, b) => b.score - a.score || (a.title < b.title ? -1 : 1)).slice(0, limit);
 }
 
+/* ---------- unlinked mentions ---------- */
+
+const reEsc = (t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+/* What is not prose on a line, blanked to spaces so positions stay: code spans, links, [[wikilinks]], URLs, #tags. */
+const NOT_PROSE = /`+[^`]*`+|!?\[\[[^\]\n]*\]\]|!?\[(?:[^\]\\\n]|\\.)*\]\([^)\n]*\)|<[^>\n]*>|https?:\/\/\S+|(?:^|(?<=[\s(]))#[\w/-]+/g;
+
+/**
+ * Where other notes say this note's title or one of its aliases without linking to it: whole words, any case,
+ * outside frontmatter, code, links and tags. [{from, title, line, at, len, match, text}] by note title, then line;
+ * at most `limit`. Titles shorter than 3 characters (aliases 2) are left out: too many false hits.
+ */
+export function unlinkedMentions(index, contents, path, limit = 50) {
+  const n = index.notes.get(path);
+  if (!n) return [];
+  const names = [...new Set([n.title, ...(n.aliases || [])].map(x => String(x).trim()).filter((x, k) => x.length >= (k ? 2 : 3)))];
+  if (!names.length) return [];
+  names.sort((a, b) => b.length - a.length);
+  const re = new RegExp(`(?<![\\p{L}\\p{N}_])(?:${names.map(reEsc).join('|')})(?![\\p{L}\\p{N}_])`, 'giu');
+  const out = [];
+  const others = [...index.notes.values()].filter(o => o.path !== path && !isTemplate(o.path)).sort((a, b) => (a.title < b.title ? -1 : a.title > b.title ? 1 : 0));
+  for (const o of others) {
+    const text = contents.get(o.path);
+    if (!text) continue;
+    const lines = text.split('\n');
+    let i = 0, fence = null;
+    if (/^\uFEFF?---[ \t]*$/.test(lines[0] || '')) { i = 1; while (i < lines.length && !/^---[ \t]*$/.test(lines[i])) i++; i++; }
+    for (; i < lines.length; i++) {
+      const l = lines[i];
+      const f = /^ {0,3}(`{3,}|~{3,})/.exec(l);
+      if (fence) { if (f && f[1][0] === fence[0] && f[1].length >= fence.length) fence = null; continue; }
+      if (f) { fence = f[1]; continue; }
+      const prose = l.replace(NOT_PROSE, m => ' '.repeat(m.length));
+      re.lastIndex = 0;
+      let m;
+      while ((m = re.exec(prose))) {
+        out.push({ from: o.path, title: o.title, line: i, at: m.index, len: m[0].length, match: l.slice(m.index, m.index + m[0].length), text: l });
+        if (out.length >= limit) return out;
+      }
+    }
+  }
+  return out;
+}
+
+/** Turn one mention into a link: line `line`, characters at..at+len, if they still say `match`. New text or null. */
+export function linkMention(content, { line, at, len, match }, link) {
+  const lines = String(content).split('\n');
+  const l = lines[line];
+  if (l === undefined || l.slice(at, at + len) !== match) return null;
+  lines[line] = l.slice(0, at) + link + l.slice(at + len);
+  return lines.join('\n');
+}
+
 /* ---------- the tree ---------- */
 
 /**
