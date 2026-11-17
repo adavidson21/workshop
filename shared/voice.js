@@ -335,3 +335,30 @@ export function applyPending(value, items, now = now0()) {
   }
   return Object.assign({}, v, { applied: (v.applied || []).concat(todo.map(t => t.id)).slice(-MAX_APPLIED) });
 }
+
+/* ---------- voice.md, for Tandem (docs/writing.md, voice.md) ---------- */
+export const VOICE_FILE = 'voice.md';
+export const VOICE_MARKER = '<!-- Written by Workshop -->';
+
+/**
+ * The Markdown Settings writes to its folder as voice.md on every save, for Tandem's writer: the style guide, the
+ * rules for every audience, the active and pinned learned rules, and the banned words. No samples (they are only
+ * examples for the AI steps here). '' when there is nothing to say yet.
+ */
+export function voiceMd(value) {
+  const v = value || defaults();
+  const out = [VOICE_MARKER, '# How I write', '', 'From Workshop, Settings, Writing voice. Follow this when you write anything I send as myself (PR descriptions, handoffs, briefs, messages). Edit it there, not here.', ''];
+  const style = String(v.style || '').trim();
+  if (style) out.push('## Style guide', '', style, '');
+  const shared = (v.shared || []).filter(Boolean);
+  const learnedAll = (v.rules || []).filter(r => (r.status === 'active' || r.status === 'pinned') && !r.audience && !r.reader).map(r => r.text);
+  if (shared.length || learnedAll.length) out.push('## Always', '', ...[...shared, ...learnedAll].map(r => `- ${r}`), '');
+  for (const a of v.audiences || []) {
+    const learned = (v.rules || []).filter(r => (r.status === 'active' || r.status === 'pinned') && r.audience === a.id && !r.reader).map(r => r.text);
+    const rules = [...(a.rules || []), ...learned];
+    out.push(`## For ${a.name}`, '', `- At most ${a.cap} sentences.`, ...rules.map(r => `- ${r}`), '');
+  }
+  if ((v.banned || []).length) out.push('## Words I never use', '', (v.banned || []).join(', '), '');
+  if (!style && !shared.length && !(v.audiences || []).length) return '';
+  return out.join('\n');
+}

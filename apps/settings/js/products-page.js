@@ -1,4 +1,5 @@
-/* Settings, Products: the products you work on (docs/products.md, settings.products v1). Folio makes each one's
+/* Settings, Knowledge, Products: the products you work on (docs/products.md, settings.products v1), with the
+   optional For Tandem fields Workshop writes into the repo map (docs/knowledge.md). Folio makes each one's
    note, products/<slug>.md, for you to edit there; Tandem reads and adds to it.
 
    Settings' own collection, written with ws.data (shared/products.js does the rules). Owners come from People's
@@ -12,7 +13,9 @@ const errText = e => (e && e.message) || String(e);
 const qh = (id, text) => (globalThis.WorkshopTheme?.hints ? globalThis.WorkshopTheme.hints.html(id, text) : '');
 
 /** Draw the Products page into `el`. Returns {command(id)} for the palette's Add a product. */
-export async function mountProducts({ ws, toast, el }) {
+export async function mountProducts({ ws, toast, el, onSaved = async () => {} }) {
+  let drafting = null;          // product id whose Draft from sources is being confirmed
+  let canDraft = false;         // opencode is connected (Draft from sources)
   let env = null;               // the stored envelope (null: none yet)
   let unreadable = false;
   let editing = null;           // product id, 'new', or null
@@ -49,7 +52,8 @@ export async function mountProducts({ ws, toast, el }) {
     try {
       const st = await ws.connectors.call('opencode', 'state');
       repoFolders = ((st && st.repos) || []).map(r => r && r.folder).filter(Boolean).sort((a, b) => a.localeCompare(b));
-    } catch { repoFolders = []; }
+      canDraft = ws.backend === 'agent';
+    } catch { repoFolders = []; canDraft = false; }
   }
 
   /* ---------- writing: read, change, stamp, put; again on a conflict ---------- */
@@ -88,10 +92,36 @@ export async function mountProducts({ ws, toast, el }) {
         <p class="cfg-help">One per line, as Repos lists them.</p>${checks('repo', repoFolders, p.repos || [])}</div>
       <div class="cfg-row"><label for="prAreas">Area paths</label><textarea id="prAreas" name="areas" class="cfg-input mono" rows="2" spellcheck="false" placeholder="Project\\Team\\Product">${esc((p.areas || []).join('\n'))}</textarea>
         <p class="cfg-help">One per line. Optional.</p>${checks('area', teamAreas, p.areas || [])}</div>
+      <details class="for-tandem"${P.hasKnowledge(p) ? ' open' : ''}><summary>For Tandem <span class="dim">(optional)</span></summary>
+        <p class="cfg-help">Workshop writes these into the repo map, so Tandem picks the right repos and order without asking. One per line.</p>
+        ${know('changeOrder', 'Change order', p, 'Repos in the order a change goes through them, shared ones first', 'mono')}
+        ${know('together', 'Usually change together', p, 'portal-api + portal-ui', 'mono')}
+        ${know('entryPoints', 'Entry points', p, 'Files to start reading from', 'mono')}
+        ${know('external', 'External systems', p, 'A payment gateway, a nightly job')}
+        ${know('processes', 'Business processes', p, 'Place an order, issue a refund')}
+        <div class="cfg-row"><label for="prDocs">Product docs folder</label><input id="prDocs" name="docsFolder" class="cfg-input mono" maxlength="300" value="${esc(p.docsFolder || '')}" placeholder="product-docs/portal" spellcheck="false"></div>
+      </details>
       ${isNew ? '' : `<div class="cfg-row"><p class="cfg-help"><b>Owners:</b> ${owners.length ? esc(owners.map(o => o.name).join(', ')) : 'no one yet.'} From what each person owns in <a href="#" class="lnk" data-goto-page="people">People</a>.</p></div>`}
       <div class="acts"><span class="msg" aria-live="polite"></span>
         ${isNew ? '' : `<button type="button" class="btn" data-product-archive="${esc(p.id)}">${p.archived ? 'Restore' : 'Archive'}</button>`}
         <button type="button" class="btn" data-product-cancel>Cancel</button><button class="btn primary">${isNew ? 'Add' : 'Save'}</button></div></form>`;
+  }
+
+  function know(name, label, p, ph, cls = '') {
+    const v = (p[name] || []).join('\n');
+    return `<div class="cfg-row"><label for="pr-${name}">${label}</label><textarea id="pr-${name}" name="${name}" class="cfg-input ${cls}" rows="${Math.max(2, Math.min(5, (p[name] || []).length + 1))}" spellcheck="false" placeholder="${esc(ph)}">${esc(v)}</textarea></div>`;
+  }
+  // The For Tandem line on a card: what is set, in a few words.
+  function knowLine(p) {
+    const bits = [
+      (p.changeOrder || []).length && 'change order',
+      (p.entryPoints || []).length && `${p.entryPoints.length} entry ${p.entryPoints.length === 1 ? 'point' : 'points'}`,
+      (p.external || []).length && `${p.external.length} external ${p.external.length === 1 ? 'system' : 'systems'}`,
+      (p.processes || []).length && `${p.processes.length} ${p.processes.length === 1 ? 'process' : 'processes'}`,
+      (p.together || []).length && 'what changes together',
+      p.docsFolder && 'docs folder'
+    ].filter(Boolean);
+    return bits.length ? bits.join(', ') : '';
   }
 
   function noteBit(p) {
@@ -115,10 +145,13 @@ export async function mountProducts({ ws, toast, el }) {
       <div class="pc-rows">
         ${p.repos.length ? `<div class="pc-row"><span class="pc-k">Repos</span><span class="pc-v">${chips(p.repos, 'repo')}</span></div>` : ''}
         ${p.areas.length ? `<div class="pc-row"><span class="pc-k">Area paths</span><span class="pc-v">${chips(p.areas, 'area')}</span></div>` : ''}
+        ${knowLine(p) ? `<div class="pc-row"><span class="pc-k">For Tandem</span><span class="pc-v">${esc(knowLine(p))}</span></div>` : ''}
         <div class="pc-row"><span class="pc-k">Note</span><span class="pc-v">${esc(P.notePath(p))}${hasNote ? '' : `<span class="dim">${notes ? ', made the next time Folio opens' : ''}</span>`}</span></div>
       </div>
       ${todo.length && !p.archived ? `<p class="pc-todo">To finish: ${esc(todo.join(', '))}</p>` : ''}
-      <div class="acts left">${p.archived ? '' : `<button class="btn" data-product-open="${esc(p.slug)}">${hasNote ? 'Open note' : 'Open Folio'}</button>`}<button class="btn ghost" data-product-edit="${esc(p.id)}">Edit</button></div></li>`;
+      ${drafting === p.id ? `<div class="pc-confirm" role="group" aria-label="Draft from sources"><p>Tandem reads ${esc(p.name)}'s READMEs, docs folders${p.docsFolder ? ' and product docs' : ''} and proposes lines for its note, each with its source. You review them in Folio. Nothing else changes.</p>
+        <div class="acts left"><button class="btn primary" data-product-draft-go="${esc(p.id)}">Start</button><button class="btn" data-product-draft-cancel>Cancel</button></div></div>` : ''}
+      <div class="acts left">${p.archived ? '' : `<button class="btn" data-product-open="${esc(p.slug)}">${hasNote ? 'Open note' : 'Open Folio'}</button>`}${!p.archived && canDraft && hasNote && p.repos.length ? `<button class="btn" data-product-draft="${esc(p.id)}" title="Tandem proposes note lines from this product's docs">Draft from sources</button>` : ''}<button class="btn ghost" data-product-edit="${esc(p.id)}">Edit</button></div></li>`;
   }
 
   function paint() {
@@ -141,6 +174,18 @@ export async function mountProducts({ ws, toast, el }) {
     if (t.matches('[data-product-new]')) { editing = 'new'; return paint(); }
     if (t.matches('[data-product-edit]')) { editing = t.dataset.productEdit; return paint(); }
     if (t.matches('[data-product-cancel]')) { editing = null; return paint(); }
+    if (t.matches('[data-product-draft]')) { drafting = t.dataset.productDraft; return paint(); }
+    if (t.matches('[data-product-draft-cancel]')) { drafting = null; return paint(); }
+    if (t.matches('[data-product-draft-go]')) {
+      const p = byId(t.dataset.productDraftGo);
+      if (!p) return;
+      t.disabled = true;
+      try {
+        await ws.connectors.call('opencode', 'knowledge.draft', { product: p.name }, { confirm: true });
+        toast(`Tandem is drafting ${p.name}'s note. Its lines show in Folio as Changed by Tandem when it is done.`, 'success');
+      } catch (err) { toast(errText(err), 'error'); }
+      drafting = null; return paint();
+    }
     if (t.matches('[data-product-open]')) { ws.open({ app: 'notes', path: P.notePath({ slug: t.dataset.productOpen }) }); return; }
     if (t.matches('[data-product-archive]')) {
       const p = byId(t.dataset.productArchive);
@@ -150,6 +195,7 @@ export async function mountProducts({ ws, toast, el }) {
         editing = null;
         toast(p.archived ? `${p.name} restored.` : `${p.name} archived. Its note stays in Folio.`, 'success');
         paint();
+        await onSaved();
       } catch (err) { t.closest('form').querySelector('.msg').textContent = errText(err); }
     }
   });
@@ -170,11 +216,14 @@ export async function mountProducts({ ws, toast, el }) {
     const fd = new FormData(f);
     const id = f.dataset.productForm === 'new' ? null : f.dataset.productForm;
     const input = { name: fd.get('name'), alsoCalled: fd.get('alsoCalled'), repos: String(fd.get('repos') || '').split('\n'), areas: fd.get('areas') };
+    for (const k of P.KNOW_LISTS) input[k] = fd.get(k) || '';
+    input.docsFolder = fd.get('docsFolder') || '';
     try {
       const saved = await save(items => { const r = P.upsert(items, input, id); return { items: r.items, result: r.product }; });
       editing = null;
       toast(id ? `${saved.name} saved.` : `${saved.name} added. Folio makes its note, ${P.notePath(saved)}, the next time it opens.`, 'success');
       paint();
+      await onSaved();
     } catch (err) { f.querySelector('.msg').textContent = errText(err); }
   });
 

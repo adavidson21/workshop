@@ -425,7 +425,7 @@ const CALLOUT_NAMES = { note: 'Note', tip: 'Tip', important: 'Important', warnin
 
 /**
  * What a note says about itself: {title, tags, links: [{href, line, image}], wikilinks: [{target, line}],
- * headings: [{level, text, id, line}], code: [fence languages, '' for none], tasks: open task count, review: {reviewed, tandemChanged}}. Lines are 0-based in the whole file.
+ * headings: [{level, text, id, line}], code: [fence languages, '' for none], tasks: open task count, review: {reviewed, tandemChanged, flags}}. Lines are 0-based in the whole file.
  * Code is skipped.
  */
 export function facts(md, fallbackTitle = '') {
@@ -453,7 +453,17 @@ export function facts(md, fallbackTitle = '') {
   walk(blocks(body));
   const h1 = headings.find(h => h.level === 1);
   return { title: data.title || (h1 && h1.text) || fallbackTitle, aliases: data.aliases || [], tags: [...tags].sort(), links, wikilinks, headings, code: [...code], tasks,
-    review: { reviewed: data.reviewed || '', tandemChanged: data.tandemChanged || '' } };
+    review: { reviewed: data.reviewed || '', tandemChanged: data.tandemChanged || '', flags: flagCount(body) } };
+}
+
+/** Lines Tandem flagged as contradicted by the code: they end with "(check: <why>, <date>, <source>)" (docs/knowledge.md). */
+export function flagCount(body) {
+  let n = 0, fence = false;
+  for (const l of String(body || '').split(/\r?\n/)) {
+    if (/^\s*(```|~~~)/.test(l)) { fence = !fence; continue; }
+    if (!fence && /\(check:[^)]*\)\s*$/.test(l)) n++;
+  }
+  return n;
 }
 
 function scanInline(text, line, acc) {

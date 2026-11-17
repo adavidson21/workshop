@@ -13,5 +13,23 @@
   ],
   "areas": [
     "Project\\Team\\Portal"
-  ]
+  ],
+  "changeOrder": [
+    "Platform/Sample Portal/portal-api",
+    "Platform/Sample Portal/portal-ui"
+  ],
+  "together": [
+    "portal-api + portal-ui"
+  ],
+  "entryPoints": [
+    "Platform/Sample Portal/portal-api/src/Api/OrdersController.cs"
+  ],
+  "external": [
+    "Payment gateway REST API"
+  ],
+  "processes": [
+    "Place an order",
+    "Issue a refund"
+  ],
+  "docsFolder": "product-docs/sample-portal"
 }

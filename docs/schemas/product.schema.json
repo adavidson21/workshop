@@ -53,6 +53,62 @@
         "maxLength": 400
       }
     },
+    "changeOrder": {
+      "type": "array",
+      "maxItems": 30,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200
+      },
+      "description": "Repos in the order a change goes through them (shared ones first)."
+    },
+    "together": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 300
+      },
+      "description": "Repos that usually change together, one group per string (for example \"api + ui\")."
+    },
+    "entryPoints": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 300
+      },
+      "description": "Files to start reading from, workspace-relative."
+    },
+    "external": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 300
+      },
+      "description": "Systems outside the repos this product talks to."
+    },
+    "processes": {
+      "type": "array",
+      "maxItems": 20,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 300
+      },
+      "description": "Business processes (place an order, issue a refund)."
+    },
+    "docsFolder": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 300,
+      "description": "Workspace-relative folder with the product's user-facing docs."
+    },
     "archived": {
       "type": "boolean"
     }

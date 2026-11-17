@@ -2,15 +2,21 @@
 
    Settings keeps the products (settings.products v1); Folio reads them with {app: 'settings'}. For each active
    product it has not handled, Folio writes products/<slug>.md from the product template (templates/product.md, yours
-   or the starter), filled in with the name, other names, repos, area paths and owners (People's "Owns"). A note that
+   or the starter), filled in with the name, other names, repos and area paths. Owners are not copied in: they live in
+   Workshop's People ("Owns"), and Tandem reads them from there (docs/knowledge.md). A note that
    is already there (made by hand) is left alone. Either way the product is recorded in Folio's own collection
    `products-made` (notes.products-made v1, items {id: <product id>, path}), so a note you trash is never made again,
    and later changes in Settings never touch the note: it is yours, and Tandem's, from then on.
 
+   It also makes the team handbook, team/handbook.md, once (recorded as `h_handbook` in the same collection), even with
+   no products.
+
    toMake and productNoteText are pure (test/product-setup.test.mjs); startProductSetup does the reading and writing. */
 import * as Products from '../../../shared/products.js';
 import { PRODUCT_TPL, fill } from './templates.js';
-import { PRODUCT_TEMPLATE, setField } from './products.js';
+import { HANDBOOK, HANDBOOK_PATH, PRODUCT_TEMPLATE, setField } from './products.js';
+
+export const HANDBOOK_ID = 'h_handbook';
 
 export const COLLECTION = 'products-made';
 export const SCHEMA = 'notes.products-made';
@@ -37,27 +43,10 @@ function flow(list) {
   return `[${(list || []).map(item).join(', ')}]`;
 }
 
-/* `- line` bullets right under `## <heading>` (after the blank line that follows it), or a new section at the end. */
-function addLines(text, heading, lines) {
-  if (!lines.length) return text;
-  const src = String(text);
-  const nl = src.includes('\r\n') ? '\r\n' : '\n';
-  const rows = src.split(/\r?\n/);
-  const at = rows.findIndex(l => new RegExp(`^##[ \\t]+${heading}[ \\t]*$`, 'i').test(l));
-  const bullets = lines.map(l => `- ${l}`);
-  if (at < 0) return src.replace(/\s*$/, '') + `${nl}${nl}## ${heading}${nl}${nl}${bullets.join(nl)}${nl}`;
-  let end = at + 1;
-  while (end < rows.length && !/^#{1,2}[ \t]/.test(rows[end])) end++;
-  const body = rows.slice(at + 1, end);
-  const kept = body.join('').trim() ? body.filter((l, i) => i < body.length - 1 || l.trim()) : [];
-  rows.splice(at + 1, end - at - 1, '', ...kept.filter((l, i) => i > 0 || l.trim()), ...bullets, '');
-  return rows.join(nl);
-}
-
 /**
- * A new product note's text: the template (yours, or the starter) filled with the product's name and slug, the
- * frontmatter `also-called`, `repos` and `areas` set from Settings, and its owners as bullets under `## People`.
- * owners: shared/products.js ownersOf().
+ * A new product note's text: the template (yours, or the starter) filled with the product's name and slug, and the
+ * frontmatter `also-called`, `repos` and `areas` set from Settings. `owners` is ignored since Knowledge base V1
+ * (owners come from People); the argument stays so older callers keep working.
  */
 export function productNoteText(product, owners = [], template = null, now = new Date()) {
   const tpl = typeof template === 'string' && template.trim() ? template : PRODUCT_TEMPLATE;
@@ -66,7 +55,13 @@ export function productNoteText(product, owners = [], template = null, now = new
   text = setField(text, 'also-called', flow(product.alsoCalled));
   text = setField(text, 'repos', flow(product.repos));
   if ((product.areas || []).length) text = setField(text, 'areas', flow(product.areas));
-  return addLines(text, 'People', owners.map(o => `${o.name}: owns ${o.hits.join(', ')}`));
+  return text;
+}
+
+/** True when the handbook should be made: not in Folio, and never made or trashed before. */
+export function handbookToMake(made, paths) {
+  const done = ((made && made.items) || []).some(i => i && i.id === HANDBOOK_ID) || Object.prototype.hasOwnProperty.call((made && made.deleted) || {}, HANDBOOK_ID);
+  return !done && !paths.has(HANDBOOK_PATH);
 }
 
 /**
@@ -82,26 +77,30 @@ export function startProductSetup(ws, notes, { onMade = () => {} } = {}) {
     let count = 0;
     try {
       if (!notes.loaded) return 0;
-      const src = await ws.data.get(Products.COLLECTION, { app: Products.APP });
-      if (!src || !Products.readable(src)) return 0;
-      const products = Products.list(src, { archived: false });
-      if (!products.length) return 0;
       const made = await ws.data.get(COLLECTION);
       if (!readable(made)) return 0; // a newer Folio wrote it: do nothing
       const paths = new Set(notes.files ? notes.files.keys() : []);
+      let src = null;
+      try { src = await ws.data.get(Products.COLLECTION, { app: Products.APP }); } catch { src = null; }
+      const products = src && Products.readable(src) ? Products.list(src, { archived: false }) : [];
       const todo = toMake(products, made, paths);
-      if (!todo.length) return 0;
-      let people = [];
-      try { people = ws.people ? (await ws.people.get()).people || [] : []; } catch { people = []; }
+      const handbook = handbookToMake(made, paths);
+      if (!todo.length && !handbook) return 0;
       let template = null;
       try { const t = await ws.files.read(PRODUCT_TPL); template = t ? t.content : null; } catch { template = null; }
       const done = [];
       for (const t of todo) {
         if (t.make) {
-          try { await ws.files.write(t.path, productNoteText(t.product, Products.ownersOf(t.product, people), template), { create: true }); }
+          try { await ws.files.write(t.path, productNoteText(t.product, [], template), { create: true }); }
           catch (e) { if (e.code !== 'conflict') throw e; t.make = false; } // made by hand in the meantime: keep that one
         }
         done.push({ id: t.product.id, path: t.path, name: t.product.name, made: t.make });
+      }
+      if (handbook) {
+        let wrote = true;
+        try { await ws.files.write(HANDBOOK_PATH, HANDBOOK, { create: true }); }
+        catch (e) { if (e.code !== 'conflict') throw e; wrote = false; }
+        done.push({ id: HANDBOOK_ID, path: HANDBOOK_PATH, name: 'Team handbook', made: wrote, handbook: true });
       }
       const before = made || blank(), after = structuredClone(before);
       after.items.push(...done.map(d => ({ id: d.id, path: d.path })));

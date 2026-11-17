@@ -44,11 +44,12 @@ jobs:
             run: E2E_PART=hub python tests/e2e.py
           - name: agent
             run: E2E_PART=agent python tests/e2e.py
-          - name: layout, review, work mode
+          - name: layout, review, work mode, knowledge
             run: |
               python tests/layout-e2e.py
               python tests/review-e2e.py
               python tests/workmode-e2e.py
+              python tests/knowledge-e2e.py
           - name: Runway, Folio and Loom's team reports on their own pages
             run: |
               python apps/runway/test/e2e.py

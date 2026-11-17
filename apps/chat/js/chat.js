@@ -668,6 +668,10 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
       if (p) answer({ kind: 'question', id: p.id, answers: questionAnswers(p, answers, custom) });
     }
     else if (d.qReject != null) answer({ kind: 'question', id: d.qReject, reject: true });
+    // A Sources chip (sources.js, Workshop docs/knowledge.md): open where the fact is kept.
+    else if (d.srcNote != null) ws.open({ app: 'notes', path: d.srcNote });
+    else if (d.srcWrong != null) { ws.open({ app: 'notes', path: d.srcWrong }); ws.toast('Fix the line in Folio. Tandem reads the note as you leave it.'); }
+    else if (d.srcPage != null) ws.open({ app: 'settings', path: d.srcPage });
   });
 
   if (rewrite) rewrite.setBar({ picks: picksHtml, pop: popHtml });

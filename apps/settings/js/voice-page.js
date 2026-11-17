@@ -42,6 +42,7 @@ export async function mountWriting({ ws, toast, pageEl, sleep = ms => new Promis
       try {
         const r = await ws.data.put(V.COLLECTION, next);
         env = Object.assign(next, { rev: r.rev }); val = V.fromEnvelope(env).value;
+        await exportVoice();
         if (msg) toast(msg, 'success');
         paint(); return true;
       } catch (err) {
@@ -50,6 +51,17 @@ export async function mountWriting({ ws, toast, pageEl, sleep = ms => new Promis
       }
     }
     return false;
+  }
+
+  // voice.md in Settings' folder, for Tandem's writer (docs/writing.md). Best effort: a failed write never blocks a save.
+  async function exportVoice() {
+    const text = V.voiceMd(val);
+    if (!text || !ws.files) return;
+    try {
+      const cur = await ws.files.read(V.VOICE_FILE);
+      if (cur && cur.content === text) return;
+      await ws.files.write(V.VOICE_FILE, text, cur ? { mtime: cur.mtime } : { create: true });
+    } catch { /* written on the next save */ }
   }
 
   /* ---------- AI steps ---------- */
@@ -108,7 +120,7 @@ export async function mountWriting({ ws, toast, pageEl, sleep = ms => new Promis
   function paintStyle() {
     const n = V.totalSamples(val);
     styleSec.innerHTML = `<h2>Style guide</h2>
-      <p class="sub">A one-page description of how you write, made from your samples. Every rewrite reads it. Fix anything that is wrong and save.</p>
+      <p class="sub">A one-page description of how you write, made from your samples. Every rewrite reads it, and Tandem's writer uses it when it writes as you (saved as <span class="mono">settings/voice.md</span>). Fix anything that is wrong and save.</p>
       <div class="acts left"><button type="button" class="btn${val.style ? '' : ' primary'}" data-build${!n || busy ? ' disabled' : ''}>${busy === 'style' ? 'Building...' : val.style ? 'Rebuild from samples' : 'Build my style guide'}</button>
         ${n ? '' : '<span class="cfg-help">Add samples first.</span>'}</div>
       <form class="wv-style-form">

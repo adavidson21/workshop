@@ -1,0 +1,8 @@
+{
+  "id": "g_member",
+  "updatedAt": 1793736000000,
+  "term": "Member",
+  "code": "Subscriber",
+  "productId": "p_sample-portal",
+  "where": "shared-lib/src/Domain/Subscriber.cs"
+}

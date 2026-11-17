@@ -452,3 +452,37 @@ label.btn{cursor:pointer}
 .go-dot.on { background: var(--accent); }
 .old-list li { display: flex; gap: 12px; align-items: center; justify-content: space-between; padding: 8px 0; border-top: 1px solid var(--line); }
 .old-list code { font-size: 12px; word-break: break-all; }
+
+/* Knowledge: Products' For Tandem fields, Glossary, Repo map, Checks (knowledge-page.js) */
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+.dim{color:var(--muted)}
+.grow{flex:1}
+.for-tandem{margin:.6rem 0;padding:.5rem .8rem;border:1px solid var(--line);border-radius:var(--r-md)}
+.for-tandem summary{cursor:pointer;font-size:.88rem;font-weight:500}
+.for-tandem[open] summary{margin-bottom:.3rem}
+.person-form .for-tandem .cfg-row>.cfg-input{flex:1;width:auto;min-width:12rem}
+.pc-confirm{margin:.5rem 0 0;padding:.6rem .8rem;border-left:3px solid var(--accent);background:var(--panel, transparent);font-size:.85rem}
+.pc-confirm p{margin:0 0 .4rem}
+.gl-table{width:100%;border-collapse:collapse;font-size:.88rem}
+.gl-table th{text-align:left;font:500 12px/1.4 var(--mono);letter-spacing:.05em;text-transform:uppercase;color:var(--eyebrow);padding:.2rem .4rem .4rem}
+.gl-table td{padding:.2rem .3rem;vertical-align:middle;border-top:1px solid var(--line)}
+.gl-table td:last-child{width:2.4rem;text-align:center}
+.gl-table .cfg-input{min-height:2rem}
+.gl-table .btn.icon{min-width:2rem;padding:0 .4rem;font-size:1.1rem;line-height:1}
+.ra-table td:first-child{white-space:nowrap;width:30%}
+.ra-table td:last-child{width:6rem;text-align:left;font-size:.8rem}
+label.check{display:flex;align-items:center;gap:.5rem;margin:.6rem 0;font-size:.88rem}
+label.check input{accent-color:var(--accent);width:1rem;height:1rem;margin:0}
+.rm-plan{margin:.7rem 0;padding:.6rem .8rem;border:1px dashed var(--accent);border-radius:var(--r-md);font-size:.88rem}
+.rm-plan p{margin:0 0 .4rem}
+.rm-preview{max-height:28rem;overflow:auto;margin:.7rem 0;padding:.7rem .9rem;border:1px solid var(--line);border-radius:var(--r-md);background:var(--bg);font-size:.78rem;line-height:1.5;white-space:pre-wrap}
+.rm-extra{margin-top:.8rem}
+.rm-extra summary{cursor:pointer;font-size:.88rem;font-weight:500}
+.ck-list{list-style:none;margin:.4rem 0 0;padding:0}
+.ck-list li{display:flex;gap:.7rem;align-items:center;padding:.55rem 0;border-top:1px solid var(--line);font-size:.88rem}
+.ck-mark{display:inline-grid;place-items:center;width:1.3rem;height:1.3rem;border-radius:50%;background:var(--warn);color:var(--bg);font:600 .78rem/1 var(--mono);flex:none}
+@media (max-width:720px){.gl-table thead{display:none}.gl-table tr{display:grid;grid-template-columns:1fr 1fr;gap:.2rem}.gl-table td{border-top:0}.gl-table tr{border-top:1px solid var(--line);padding:.3rem 0}}
+#repo-map-card .pc-rows{display:flex;flex-direction:column;gap:.3rem;margin-bottom:.4rem}
+#repo-map-card .pc-row{display:grid;grid-template-columns:6.2rem 1fr;gap:.5rem;align-items:baseline;font-size:.88rem}
+#repo-map-card .pc-k{color:var(--muted)}
+#repo-map-card .pc-v.mono{word-break:break-all}

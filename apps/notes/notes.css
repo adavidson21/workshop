@@ -606,6 +606,7 @@ input,textarea{border-color:color-mix(in srgb,var(--ink) 18%,var(--line));border
 .bar{border-bottom-color:var(--line);font-size:.9rem}
 .bar.template{background:color-mix(in srgb,var(--accent) 5%,var(--surface))}
 .bar.tandem{background:color-mix(in srgb,var(--sec-tandem) 9%,var(--surface))}
+.bar.stale{background:color-mix(in srgb,var(--warn) 10%,var(--surface))}
 .menu{border:0;border-radius:14px;box-shadow:0 12px 40px rgb(34 25 28/.16),0 0 0 1px var(--line)}
 .menu button{border-radius:8px}
 .menu kbd{font-family:var(--sans)}

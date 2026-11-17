@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A glossary word: one item of settings.glossary v1",
+  "description": "A word people use in work items and what the code calls it. Owned by Settings. See glossary.md.",
+  "type": "object",
+  "required": [
+    "id",
+    "updatedAt",
+    "term",
+    "code"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^g_[a-z0-9][a-z0-9-]{0,39}$"
+    },
+    "updatedAt": {
+      "$ref": "common.schema.json#/$defs/msTime"
+    },
+    "term": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120
+    },
+    "code": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "where": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 300,
+      "description": "Optional. Where it shows up in the code (a file or folder)."
+    },
+    "productId": {
+      "type": "string",
+      "pattern": "^p_[a-z0-9][a-z0-9-]{0,39}$",
+      "description": "The product it belongs to. Missing: any product."
+    }
+  }
+}

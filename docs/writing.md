@@ -28,6 +28,10 @@ Settings keeps one collection named `writing` (`settings.writing`, `<dataDir>/se
 
 Chat may write only its own data, so your answers to a rewrite are items in Chat's `writing-feedback` collection (`chat.writing-feedback`, newest 200): `{id, kind: "feedback", verdict, audience, reader, draft, final, reason, learn, updatedAt}`, where `learn` is `{kind: "new", text}`, `{kind: "same", ruleId}` or null. Settings applies items not in `applied` when it loads and whenever the collection changes (`applyPending`), and Chat applies the same pending items to what it reads, so a reason counts on your next rewrite even before Settings opens.
 
+### voice.md, for Tandem
+
+Every save of Writing also writes `<dataDir>/settings/voice.md` (a file in Settings' folder, through `ws.files`): the style guide, then the active and pinned rules for every audience, as plain Markdown with a `<!-- Written by Workshop -->` first line. Tandem's writer reads it when it writes as you (PR descriptions, handoffs, briefs) and follows it over the voice lines in `personal/AGENTS.md` ([knowledge.md](knowledge.md)). Nothing in it is sent anywhere.
+
 ## How it learns
 
 - **Sent as is:** the draft becomes a sample (`approved`).

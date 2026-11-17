@@ -5,7 +5,7 @@
    rules (docs/data-format.md, Names): lowercase letters, digits and "-", at most 3 folders deep. Links in notes
    are standard Markdown links relative to the note, so the files work in any Markdown tool. */
 import { facts } from './markdown.js';
-import { needsReview } from './products.js';
+import { isStale, needsReview } from './products.js';
 import { isTemplate, templateInfo } from './template-info.js';
 
 export const APP = 'notes';
@@ -163,10 +163,11 @@ export const HAS_FILTERS = Object.keys(HAS);
 
 /** Parse a query: free words, tag:x, path:folder, lang:sql (a code block in that language) and has:diagram|code|task|image|link. */
 export function parseQuery(q) {
-  const out = { words: [], tags: [], paths: [], langs: [], has: [], review: false };
+  const out = { words: [], tags: [], paths: [], langs: [], has: [], review: false, stale: false };
   for (const tok of String(q || '').match(/"[^"]*"|\S+/g) || []) {
     const t = tok.replace(/^"|"$/g, '');
     if (/^is:review$/i.test(t)) { out.review = true; continue; }
+    if (/^is:stale$/i.test(t)) { out.stale = true; continue; }
     const f = /^(lang|has):(.+)$/i.exec(t);
     if (f && (f[1].toLowerCase() === 'lang' || HAS[f[2].toLowerCase()])) { (f[1].toLowerCase() === 'lang' ? out.langs : out.has).push(f[2].toLowerCase()); continue; }
     const m = /^(tag|path):(.*)$/i.exec(t);
@@ -183,10 +184,11 @@ export function parseQuery(q) {
  */
 export function search(index, contents, query, limit = 50) {
   const q = parseQuery(query);
-  if (!q.words.length && !q.tags.length && !q.paths.length && !q.langs.length && !q.has.length && !q.review) return [];
+  if (!q.words.length && !q.tags.length && !q.paths.length && !q.langs.length && !q.has.length && !q.review && !q.stale) return [];
   const out = [];
   for (const n of index.notes.values()) {
     if (q.review && !needsReview(n.review)) continue;
+    if (q.stale && !isStale(n)) continue;
     if (q.tags.length && !q.tags.every(t => n.tags.some(nt => nt === t || nt.startsWith(t + '/')))) continue;
     if (q.paths.length && !q.paths.every(p => n.path === p || n.path.startsWith(p.replace(/\/$/, '') + '/'))) continue;
     if (q.langs.length && !q.langs.every(l => (n.code || []).includes(l))) continue;
