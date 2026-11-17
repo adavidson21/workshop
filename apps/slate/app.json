@@ -2,7 +2,7 @@
   "manifestVersion": 1,
   "id": "slate",
   "name": "Loom",
-  "version": "5.0.0",
+  "version": "5.0.1",
   "description": "Your backlog and Tandem's runs in one place. Drop in a story, an error log or a question; each card moves through four lanes (Clarify, Plan, Work, Ready) and stops only when it needs you.",
   "icon": "icon.svg",
   "entry": "index.html",

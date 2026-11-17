@@ -10,7 +10,7 @@
 import { S } from './state.js';
 import { h, plural, asking, itemSession, isBusy, autoIs, itemForFolder, adoOn } from './view.js';
 import { flowOf, stepIndex, isFinished, turnHtml, stepLine } from './flows.js';
-import { workItems, startingSessions, inboxData, inboxFolders, isShip, runCardHtml } from './pages.js';
+import { workItems, startingSessions, inboxData, inboxFolders, isShip, runCardHtml, asksFor } from './pages.js';
 
 export const LANES = [
   { id: 'clarify', name: 'Clarify', desc: 'A first look, then any questions for you' },
@@ -195,12 +195,14 @@ function panelHtml(key, data) {
   const c = data.cards.find(x => (x.folder || 'session:' + x.session) === key);
   if (!c) return '';
   const pills = laneDots(c.kind, c.lane).map(d => `<span class="ln-pill ln-${d.lane} ${d.st}" title="${h(d.title)}">${h(LANES.find(l => l.id === d.lane).name)}</span>`).join('');
-  let body;
+  // Tandem's questions first: a card that says Answer opens on them, answerable here (not only in the Inbox).
+  const asks = asksFor(c.folder, c.session);
+  let body = asks ? `<div class="ln-asks">${asks}</div>` : '';
   if (c.it) {
-    body = `<div class="loom-run ln-run">${runCardHtml(c.folder)}</div>` +
+    body += `<div class="loom-run ln-run">${runCardHtml(c.folder)}</div>` +
       `<div class="ln-foot"><button type="button" class="btn ghost" data-open-run="${h(c.folder)}">Open the run</button></div>`;
   } else {
-    body = '<p class="dim">Tandem is taking a first look. The card gets its folder in a moment; any question it has shows here and in the Inbox.</p>' +
+    body += asks ? '' : '<p class="dim">Tandem is taking a first look. The card gets its folder in a moment; any question it has shows here and in the Inbox.</p>' +
       `<div class="ln-foot"><button type="button" class="btn ghost" data-tab="inbox">Open the Inbox</button></div>`;
   }
   return `<aside class="ln-panel" aria-label="${h(c.title)}"><div class="ln-ph"><div class="ln-pt"><span class="ln-kind k-${c.kind}">${h(KINDS[c.kind].name)}</span>` +

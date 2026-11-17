@@ -161,3 +161,14 @@ test('the drop box becomes the Start work request the connector already takes', 
   assert.ok(r.drafts.title.length <= 200);
   assert.equal(r.drafts.desc.length, 260);
 });
+
+test('a card that says Answer opens on Tandem\'s question, answerable in the panel (5.0.1)', () => {
+  S.L.questions.push({ id: 'que_1', sessionID: 'ses_0001abc', folder: '41207-fix-login-timeout', questions: [{ header: 'Branch', question: 'Which branch?', options: [{ label: 'main' }, { label: 'dev' }] }] });
+  const c = lanesData().cards.find(x => x.folder === '41207-fix-login-timeout');
+  assert.equal(c.mine, true);
+  assert.equal(c.action, 'Answer');
+  S.ui.laneSel = '41207-fix-login-timeout';
+  const html = lanesHtml();
+  assert.match(html, /class="ln-asks"><div class="asks inline">/);
+  assert.match(html, /Which branch\?/);
+});
