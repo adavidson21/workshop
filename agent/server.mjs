@@ -21,7 +21,7 @@ import { Store } from './lib/store.mjs';
 import { Files } from './lib/files.mjs';
 import { Tracker, FolderWatch } from './lib/watch.mjs';
 import { rawApiSegments, decodeSegment, appId, collectionName, folderName, filePath } from './lib/datapath.mjs';
-import { defaultDataDir, dataDirProblem, prepareDataDir, removeDataTmpFiles, moveOldData } from './lib/datadir.mjs';
+import { defaultDataDir, dataDirProblem, prepareDataDir, removeDataTmpFiles, moveOldData, looseDataDir } from './lib/datadir.mjs';
 import { EventHub } from './lib/events.mjs';
 import { ConnectorHost } from './lib/connectors.mjs';
 import { LOCAL_PAGE, serveStatic } from './lib/static.mjs';
@@ -100,6 +100,8 @@ export async function createAgent(o) {
   const dataRoot = prepareDataDir(dataDirSetting, home);
   const dataDir = path.resolve(dataRoot.dir);
   for (const rel of removeDataTmpFiles(dataRoot)) log.warn(`Removed a leftover temp file from an interrupted write: ${rel} in the data folder.`);
+  const loose = looseDataDir(dataDir);
+  if (loose) log.warn(`Other users on this computer can read the data folder (permissions ${loose}). Run: chmod 700 "${dataDir}"`);
   const tracker = new Tracker();
   const dataLock = new KeyedLock(); // shared by collections and files: both live in the data folder
   await moveOldData({ home, root: dataRoot, tracker, log: log.for('data') });

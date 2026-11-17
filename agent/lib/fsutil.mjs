@@ -12,8 +12,8 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
  * `file`. A failed write never loses the previous file. On Windows a rename can fail for a moment while
  * another program (for example a virus scanner) has the file open, so the rename is retried briefly.
  */
-export async function writeFileAtomic(file, text, { mode } = {}) {
-  await fsp.mkdir(path.dirname(file), { recursive: true });
+export async function writeFileAtomic(file, text, { mode, dirMode } = {}) {
+  await fsp.mkdir(path.dirname(file), { recursive: true, ...(dirMode ? { mode: dirMode } : {}) });
   const tmp = `${file}.tmp`;
   const handle = await fsp.open(tmp, 'w', mode);
   try {
@@ -51,6 +51,12 @@ export async function renameWithRetry(from, to) {
     }
   }
 }
+
+/**
+ * Permissions for what Workshop writes in the data folder (docs/data-format.md, Disk rules): files only the
+ * user can read and write, folders only the user can open. Ignored on Windows, where the folder's ACL decides.
+ */
+export const DATA_MODES = Object.freeze({ mode: 0o600, dirMode: 0o700 });
 
 /** Write a JSON value pretty-printed with 2 spaces, atomically. */
 export const writeJsonAtomic = (file, value, opts) => writeFileAtomic(file, `${JSON.stringify(value, null, 2)}\n`, opts);

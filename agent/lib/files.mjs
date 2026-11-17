@@ -4,7 +4,7 @@
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
-import { writeFileAtomic, renameWithRetry } from './fsutil.mjs';
+import { writeFileAtomic, renameWithRetry, DATA_MODES } from './fsutil.mjs';
 import { fail } from './http.mjs';
 import { FILE_MAX, decodeBase64, floorMs, isCollectionText, isImagePath, lexists, looksLikeImage, trashStamp } from './datapath.mjs';
 
@@ -129,7 +129,7 @@ export class Files {
 
   /** Atomic write, then make sure the modified time differs from the one before. Returns the new mtime. */
   async #write(rel, file, text, prev) {
-    await writeFileAtomic(file, text);
+    await writeFileAtomic(file, text, DATA_MODES);
     let mt = floorMs(fs.statSync(file));
     for (const step of BUMP_MS) {
       if (prev === null || mt > prev) break;

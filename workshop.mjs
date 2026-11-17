@@ -12,7 +12,7 @@
 //   workshop stop | restart                Stop the running agent; restart it in the background.
 //   workshop pat [NAME] [--remove]         Save a PAT in a user environment variable (default ADO_PAT) without showing it.
 //   workshop uninstall                     Turn off start at login. Leaves your data folder (dataDir) and ~/.workshop in place.
-//   workshop doctor                        Check Node, config.json, the port, the data folder, start at login and hosted mode.
+//   workshop doctor [--sizes]              Check Node, config.json, the port, the data folder, start at login and hosted mode.
 //   workshop doctor ado [options]          Check the ADO connector (wraps connectors/ado/doctor.mjs).
 //   workshop publish [--out <dir>]         Build the static site (hosted or browser mode) with apps/registry.json.
 //   workshop apps [on|off <app>]           List the apps, or turn one on or off (work mode: downloads a separate
@@ -39,6 +39,7 @@ import { SchemaSet } from './agent/lib/schema.mjs';
 import { resolveHome, homePaths, defaultConfig, DEFAULT_PORT } from './agent/lib/home.mjs';
 import { writeJsonAtomic } from './agent/lib/fsutil.mjs';
 import { dataDirProblem, defaultDataDir } from './agent/lib/datadir.mjs';
+import { storageReport, storageLines } from './agent/lib/storage.mjs';
 import { enableStartAtLogin, disableStartAtLogin, startAtLoginStatus } from './agent/lib/login.mjs';
 import { main as adoDoctorMain } from './connectors/ado/doctor.mjs';
 import { checkProviders } from './connectors/opencode/lib/providers.mjs';
@@ -80,7 +81,8 @@ const USAGE = `Usage: workshop <command> [options]
                                  --remove deletes the variable.
   uninstall                      Turn off start at login. Leaves your data folder (dataDir, default ~/Workshop)
                                  and ~/.workshop in place.
-  doctor                         Check Node, config.json, the port, the data folder, start at login and hosted mode.
+  doctor [--sizes]               Check Node, config.json, the port, the data folder, start at login and hosted mode.
+                                 --sizes also lists the largest files in the data folder.
   doctor ado [options]           Check the ADO connector. Run "workshop doctor ado --help" for its options.
   publish [--out <dir>]          Build the static site for hosted or browser mode (default out: dist/).
   pin                            Build work mode's pinned copy of Workshop and its apps from this install into
@@ -202,7 +204,7 @@ export function inspectOldData(home) {
  * Build the lines `workshop doctor` prints and its exit code. `probe` checks whether the agent answers on a
  * port (defaults to the real health check); tests pass their own.
  */
-export async function doctorReport({ repo = REPO, home = resolveHome(), env = process.env, platform = process.platform, nodeVersion = process.version, probe = agentHealth, defaultDir = defaultDataDir(), uiDir = uiDirOf(home), userHome = os.homedir() } = {}) {
+export async function doctorReport({ repo = REPO, home = resolveHome(), env = process.env, platform = process.platform, nodeVersion = process.version, probe = agentHealth, defaultDir = defaultDataDir(), uiDir = uiDirOf(home), userHome = os.homedir(), sizes = false } = {}) {
   const schemas = loadSchemas();
   const paths = homePaths(home);
   const lines = [];
@@ -248,6 +250,7 @@ export async function doctorReport({ repo = REPO, home = resolveHome(), env = pr
   } else {
     lines.push(`Old data in ${old.old}: none, nothing to copy.`);
   }
+  if (dd.state === 'ok') lines.push(...storageLines(storageReport({ home, dataDir, platform }), { sizes }));
 
   const port = info.config?.port ?? DEFAULT_PORT;
   const health = await probe(port);
@@ -1331,7 +1334,7 @@ export async function main(argv, io = { out: s => console.log(s), env: process.e
       // Saved user variables, read live, so a PAT saved with "workshop pat" counts in this same terminal.
       return adoDoctorMain(adoArgs, { ...io, env: liveEnv(io.env, { platform: io.platform || process.platform }) });
     }
-    const { lines, code } = await doctorReport({ env: io.env });
+    const { lines, code } = await doctorReport({ env: io.env, sizes: rest.includes('--sizes') });
     for (const l of lines) io.out(l);
     return code;
   }
