@@ -586,19 +586,38 @@ async function appsCard() {
     if (!list || !a.on) return '';
     const vals = values.get(a.id);
     if (!vals) return `<p class="sub">${esc(a.name)}'s settings could not be read. Update Workshop to change them.</p>`;
-    return `<div class="app-settings" role="group" aria-label="${esc(a.name)} settings">${list.map(d => `<label class="app-setting">
-        <span><b>${esc(d.title)}</b>${d.description ? `<span class="conn-about">${esc(d.description)}</span>` : ''}</span>
-        <input type="checkbox" class="toggle" role="switch" data-app-setting="${esc(d.id)}" aria-label="${esc(d.title)}"${vals[d.id] ? ' checked' : ''}>
-      </label>`).join('')}</div>`;
+    // One control per type (docs/app-settings.md): a switch, a number, a date, a line of text, or lines in a box.
+    const field = d => {
+      const v = vals[d.id], id = `as-${esc(a.id)}-${esc(d.id)}`, attrs = `id="${id}" data-app-setting="${esc(d.id)}" data-type="${esc(d.type)}"`;
+      const head = `<span><b>${esc(d.title)}</b>${d.description ? `<span class="conn-about">${esc(d.description)}</span>` : ''}</span>`;
+      if (d.type === 'boolean') return `<label class="app-setting">${head}<input type="checkbox" class="toggle" role="switch" ${attrs} aria-label="${esc(d.title)}"${v ? ' checked' : ''}></label>`;
+      const input = d.type === 'number' ? `<input type="number" class="cfg-input as-num" ${attrs} value="${esc(v)}"${d.min != null ? ` min="${esc(d.min)}"` : ''}${d.max != null ? ` max="${esc(d.max)}"` : ''}>`
+        : d.type === 'date' ? `<input type="date" class="cfg-input as-date" ${attrs} value="${esc(v || '')}">`
+        : d.type === 'lines' ? `<textarea class="cfg-input as-lines" ${attrs} rows="${Math.min(10, Math.max(3, (v || []).length + 1))}">${esc((v || []).join('\n'))}</textarea>`
+        : `<input type="text" class="cfg-input as-text" ${attrs} value="${esc(v || '')}" maxlength="200">`;
+      return `<div class="app-setting as-${esc(d.type)}"><label for="${id}">${head}</label>${input}${d.type === 'lines' ? '<span class="conn-about">One per line.</span>' : ''}</div>`;
+    };
+    return `<div class="app-settings" role="group" aria-label="${esc(a.name)} settings">${list.map(field).join('')}</div>`;
   }
+  const valueOf = input => {
+    const t = input.dataset.type;
+    if (t === 'boolean') return input.checked;
+    if (t === 'number') { const n = Number(input.value); return input.value === '' || !Number.isFinite(n) ? null : n; }
+    if (t === 'lines') return input.value.split('\n').map(x => x.trim()).filter(Boolean);
+    return input.value.trim();
+  };
   async function setAppSetting(a, input) {
-    const key = input.dataset.appSetting, on = input.checked, d = decls.get(a.id).find(x => x.id === key);
+    const key = input.dataset.appSetting, d = decls.get(a.id).find(x => x.id === key), v = valueOf(input);
+    if (v === null) { input.value = values.get(a.id)?.[key] ?? ''; return; }
+    if (d && d.type === 'lines' && !v.length) { toast(`Keep at least one line in ${d.title}.`, 'warn'); input.value = (values.get(a.id)?.[key] || []).join('\n'); return; }
     input.disabled = true;
     try {
-      values.set(a.id, await ws.appSettings.set({ [key]: on }, { app: a.id }));
-      toast(`${d ? d.title : key}: ${on ? 'on' : 'off'} for ${a.name}`, 'success');
+      const saved = await ws.appSettings.set({ [key]: v }, { app: a.id });
+      values.set(a.id, saved);
+      if (d && d.type === 'number') input.value = saved[key];
+      toast(d && d.type === 'boolean' ? `${d.title}: ${v ? 'on' : 'off'} for ${a.name}` : `Saved ${d ? d.title : key} for ${a.name}`, 'success');
     } catch (err) {
-      input.checked = !on;
+      if (input.type === 'checkbox') input.checked = !v;
       toast(errText(err), 'error');
     } finally { input.disabled = false; }
   }

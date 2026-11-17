@@ -46,7 +46,7 @@ function openPersonMenu(id, anchor){
       if (b.dataset.pm === 'off') return takeOff(id);
       if (b.dataset.pm === 'rapport'){
         const ws = await ready;
-        if (ws && ws.embedded) ws.open({app: 'receipts', path: it.relation === 'manager' ? 'up' : `team/${it.id}`}).catch(() => {});
+        if (ws && ws.embedded) ws.open({app: 'receipts', path: `p/${it.id}`}).catch(() => {});
         else toast('Open Workshop to see them in Rapport.');
         return;
       }

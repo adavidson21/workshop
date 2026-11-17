@@ -109,13 +109,13 @@ Your team's Azure DevOps area paths ([teams.md](teams.md)), kept in Settings' `t
 
 ### App settings
 
-The on/off switches an app declares in its manifest (`settings`, [app-settings.md](app-settings.md)), kept in Settings' `app-settings` collection and shown under the app on Settings' Apps tab. Bundle 2.7.0.
+The settings an app declares in its manifest (`settings`, [app-settings.md](app-settings.md): switches, numbers, dates, text and lines), kept in Settings' `app-settings` collection and shown under the app on Settings' Apps tab. Bundle 2.7.0.
 
 | Method | Meaning |
 | --- | --- |
-| `ws.appSettings.get(opts?)` | This app's values as `{<id>: true or false}`: each declared default, then what is saved. `{app}` reads another app's. Without a registry (an app's own site) only saved values. Rejects with `unsupported` when another version wrote it. |
-| `ws.appSettings.declared(opts?)` | The settings the manifest declares, cleaned: `[{id, type, title, description, default}]`. `[]` without a registry. |
-| `ws.appSettings.set(values, opts?)` | Saves some of this app's values (`{sprints: false}`; anything that is not a boolean is ignored). Resolves the values as saved. Only Settings may pass `{app}` for another app; others reject with `forbidden`. |
+| `ws.appSettings.get(opts?)` | This app's values as `{<id>: value}`, each of its declared type: each declared default, then what is saved. `{app}` reads another app's. Without a registry (an app's own site) only saved values. Rejects with `unsupported` when another version wrote it. |
+| `ws.appSettings.declared(opts?)` | The settings the manifest declares, cleaned: `[{id, type, title, description, default, min?, max?}]`. `[]` without a registry. |
+| `ws.appSettings.set(values, opts?)` | Saves some of this app's values (`{sprints: false}`, `{staleDays: 30}`; objects, `null` and `NaN` are ignored). Resolves the values as saved. Only Settings may pass `{app}` for another app; others reject with `forbidden`. |
 | `ws.appSettings.subscribe(handler, opts?)` | Calls `handler(values)` after every change to this app's values (or `{app}`'s), from this page or anywhere else. Returns an unsubscribe function. |
 
 ### Files

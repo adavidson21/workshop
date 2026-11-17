@@ -37,7 +37,7 @@ export const PLACES = {
   '1:1': 'receipts', oneonones: 'receipts', 'one-on-ones': 'receipts', goals: 'receipts', okrs: 'receipts', runway: 'runway', roadmap: 'runway'
 };
 /* Places that open a part of their app: the path after #/<app>/. 1:1s are part of Rapport since 2.0.0, Goals since 2.1.0. */
-export const PLACE_PATHS = { '1:1s': '1on1s', '1:1': '1on1s', oneonones: '1on1s', 'one-on-ones': '1on1s', goals: 'goals', okrs: 'goals' };
+export const PLACE_PATHS = { '1:1s': 'people', '1:1': 'people', oneonones: 'people', 'one-on-ones': 'people', goals: 'team', okrs: 'team' };
 
 const DEFAULTS = {
   targets: { ...TARGETS }, names: { ...TARGET_NAMES }, places: { ...PLACES }, paths: { ...PLACE_PATHS }

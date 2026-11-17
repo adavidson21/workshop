@@ -85,7 +85,7 @@ Schema: [schemas/person-group.schema.json](schemas/person-group.schema.json). Ex
 | --- | --- |
 | `settings` (Settings, People & teams) | Edits everyone: people, groups and their members. Downloads a spreadsheet template (or the current list) and imports a filled-in one with `ws.people.saveMany`, after a preview. Also edits your team's area paths ([teams.md](teams.md)). |
 | `prioritizer` (Docket) | Tasks reference people and groups (`who`). `@handle` in Quick add; a new name becomes a contact. The People view and filters count group membership. Reports' team profile reads `team`. |
-| `receipts` (Rapport) | Reports are `report` people; Upward is the `manager`. Entries' `about` is `me`, `up` or a person id. 1:1s are keyed by person id. |
+| `receipts` (Rapport) | Lists `self`, reports, the `manager`, peers, and contacts it has 1:1s with. Receipts are kept about you (`me`), reports (their id) and the manager (`up`). 1:1s are keyed by person id. Adds and edits no one (Rapport 5.0.0): People are changed only in Settings. |
 | `slate` (Slate) | Delegate picks a person; owners (`owns`) of what the item touches come first. Requesters are matched to people by name. What is delegated to each person is in Slate's summary (`delegated`), for Rapport's 1:1 prep. |
 | `runway` (Runway) | Roadmap items' owners (`who`), set in the panel or with `who: @handle` in the outline; a new name becomes a contact. The owner filter counts group membership. |
 | Home, the Dispatch hub | Names for capture and routing (`find()`); Docket's `people` summary for counts. |

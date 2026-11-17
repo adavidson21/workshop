@@ -1,36 +1,40 @@
 # Rapport
 
-Receipts, 1:1s and goals for you, your reports and your manager. Write down what you and your people did as it happens, tag it with your review form's sections, prep every 1:1 from what you already know, keep the team's OKRs as a tree, and when review season comes, Rapport turns it into a draft grouped by section, with the gaps called out.
+Your private notebook about the people you work with, next to Lattice. Lattice is the shared record: goals, 1:1 agendas, reviews, feedback. Rapport is where you write things down as they happen, prep and take your 1:1s, draft goals and reviews, and then hand the finished words to Lattice with one button.
 
-**4.3.0.** Your reports are in 1:1s without adding them: each report in People gets a 1:1s person once (archive one in 1:1s to keep them out). Your manager and peers are still added by hand.
+**5.0.0 (Rapport redesign).** One way to do each thing:
 
-**4.2.0 (Rapport UX v1).** One header line: the tabs are the title. The composer comes first, with the period's counts as one quiet line under it instead of tiles; section chips fill in when picked; Ctrl+Enter is in Save's tooltip. Reports shows counts in words. A report's 1:1 prep hides empty Docket groups, uses one date format, calls its receipts New receipts, and shows Log follow-ups once there is a note. Review explains receipts with no section instead of marking every section empty. Goals hides Expand and Collapse all until there are team goals.
+- **People** is the home page: My team's goals, you, your reports, your manager, and the peers you meet with, whoever is due for a 1:1 on top. Each row says when your next 1:1 is, what is new since the last one, and when you last logged something. **Review season** swaps the middle column for how many review sections each person has receipts in.
+- **One Log box** at the top of every page adds a receipt. It is about whoever's page is open, or pick in About, or start the line with `@handle`. Sections show once you type; Enter saves.
+- **One page per person**, the same for everyone, with the tabs they have:
+  - **1:1** (reports, your manager, peers): Bring up (open follow-ups from last time, what is waiting on them in Docket and Loom, new receipts) beside today's note. **Wrap up** sends follow-ups to Docket and wins to their Log. **Copy for Lattice** puts talking points on your clipboard for Lattice's shared agenda. How often you meet is in the page header.
+  - **Log** (you, reports, your manager): their receipts, filtered by kind with counts. Click a line to edit it. Docket's offers wait on top to Keep or Dismiss.
+  - **Goals** (reports): their OKRs for a quarter, one Markdown file. Click a progress value to update that line.
+  - **Review** (you, reports, your manager): a draft per review section, editable, with Copy per section and Copy all for Lattice.
+- **My team** holds the team's goals as a tree, each report's objectives under the team objective they support, with **Import from Lattice**.
+- **Copy for Lattice** is the one way out, in four places: talking points, a receipt, a goal, a review section. **Concerns never leave Rapport**: they are left out of every copy.
+- **Settings** for Rapport (review cycle, review sections, flag a report after, Tandem in 1:1s) are in Workshop's Settings, Apps, Rapport. People are added and changed only in Settings, People. Backups are in Settings, Data & backups.
 
-Rapport was called Receipts until 2.0.0, when it took in Workshop's 1:1s app. The app id stays `receipts`, so nothing you saved moved.
+Gone in 5.0.0: the Me, Reports, 1:1s, Goals, Upward, Review and Settings tabs, the Upward switch (your manager is a person like anyone else), adding or editing reports in Rapport, People and links, Add on each report, Build review, Copy as quick-add lines, and Tidy notes as its own step (Wrap up asks Tandem when Tandem is on). Old addresses (`team/<id>`, `1on1s`, `goals`, `review`, `up`, `settings`) still open the right place.
 
-An app in Workshop (`apps/receipts/`, moved from adavidson21/receipts on Nov 11, 2026). Open it from the rail, or in its own window with **Pop out**.
+Rapport was called Receipts until 2.0.0, when it took in Workshop's 1:1s app. The app id stays `receipts`, so nothing you saved moved. An app in Workshop (`apps/receipts/`). Open it from the rail, or in its own window with **Pop out**.
 
-**Its look** (Rapport 4.0.0): Workshop's look (`shared/themes.css`) with Rapport's own leaf green. Figures and titles in Schibsted Grotesk, labels and dates in the text face, filled sentence-case chips, and the composer, receipts, stats and the review draft on raised white sheets. Plan: Workshop project `claude/workshop-redesign-v1-plan.md`.
+**Its look:** Workshop's look (`shared/themes.css`) with Rapport's own color.
 
-Successor to [TaskLedger](https://github.com/adavidson21/TaskLedger), the Android brag-book app. Rapport drops the AI and email steps so nothing ever leaves your device (the 1:1 draft step below is optional and off unless you run Workshop's opencode connector).
+Successor to [TaskLedger](https://github.com/adavidson21/TaskLedger), the Android brag-book app. Nothing leaves your device; the optional Tandem steps go only to your own opencode agents through Workshop's connector.
 
 ## What it does
 
-- **Me** (the main area): your own receipts for a self review. Wins, feedback you received, things you learned, blockers, notes. Star the ones you want at the top of your review.
-- **Reports**: one page per direct report. At the top, your 1:1 with them: since your last 1:1, what Docket and Rapport know (open and waiting tasks, nudges, receipts, last time's open follow-ups), next to today's note, a plain Markdown file. Below, their wins, feedback you gave, growth areas, and concerns. The list flags anyone you haven't noted anything about in 30 days (configurable).
-- **Focus hours** (inside Workshop, Settings, Focus hours; [Workshop docs/focus.md](https://github.com/adavidson21/workshop/blob/main/docs/focus.md)): receipts captured in Home or the Dispatch hub during focus or lunch are still added, without a toast, and counted (a number only) in Rapport's `held` summary card for Workshop's release toast.
-- **Delegated in Slate** (inside Workshop with Slate on): a report's 1:1 prep lists what Slate delegated to them and where it stands, from Slate's summary. Click one to open it in Slate.
-- **1:1s**: everyone you meet with, sorted by who is due (no note yet, or the last note is as old as their cadence): reports, your manager, peers, skip-levels. **People and links** sets each person's cadence and links. After a 1:1, **Log follow-ups** sends the open follow-ups you tick to Docket as tasks (Rapport 4.1.0): a line for the person you met is handed to them and waits on them, with a follow-up date from Docket's working days; a line for you is a plain task. Each line's owner is guessed from its text (`@me`, "I will" or your name for you; their name or `@handle` for them) and can be changed in the dialog. A line is sent once, even if you log the note again. Someone not linked to People gets tasks without a person. **Copy as quick-add lines** in the same dialog copies them to paste instead, and is what Log does where Docket does not share Rapport's data. Wins you tick become receipts about that report. **Draft talking points** and **Tidy notes** (optional, need Workshop on your computer with the opencode connector and Tandem): the first drafts from the prep without the person's name; the second sends today's note (their name left out) and proposes Follow-ups and Wins beside it, which you tick, edit and add to the note, or discard.
-- **Goals**: the team's and each report's OKRs for a quarter, as a tree: team objectives at the top, each report objective nested under the team objective it supports, and a **Not aligned** group for the rest. Each objective shows its progress (the mean of its measured key results) and the worst status among them. Click a key result's progress to update it in place (only that line of the file changes). Each doc is a plain Markdown file with Edit, Preview and Split; **Supports** can be changed from Preview, and renaming a team objective in Rapport offers to update the reports' docs that support it. Start a doc from the template or copy last quarter's (progress reset to 0%). Format in [Goals format](#goals-format).
-- **Upward** (optional, off until you turn it on): support you got from your manager, asks, and feedback to share, for upward reviews and skip-levels.
-- **Review**: pick who and a period (your review cycle, this quarter, last quarter, this year, last 12 months). Shows coverage per section, flags sections with no receipts, and builds a plain-text draft you can copy or download. CSV export too.
-- **From Docket** (inside Workshop): finished tasks you ticked in Docket's Wrap up wait at the top of Me. Edit the line or kind, then **Accept** (it becomes a receipt dated that day, evidence "From Docket") or **Dismiss**. Rapport reads Docket's offers but never changes Docket's data, and remembers what you handled in its own settings (Workshop's [handoffs contract](https://github.com/adavidson21/workshop/blob/main/docs/handoffs.md)).
-- **From Home and Dispatch** (inside Workshop): a receipt you capture in Home's quick capture (`r ...`) or the Dispatch hub is added straight away, since you already accepted it where you typed it (evidence "From Home" or "From Dispatch"). Each capture is added once; deleting the receipt does not bring it back.
-- **Moving from 1:1s** (inside Workshop): the first time Rapport 2.0.0 opens, it copies the old 1:1s app's people, settings and notes in and says so once. The old files are kept. Wins the old app offered and you never handled still wait in Me.
-- **People from Workshop**: when Workshop's people directory exists (Workshop's People app), Reports lists your direct reports from it and Upward uses your manager's name. You edit people there, once, for every Workshop app. Rapport keeps its own list and goes back to it only where there is no directory (for example on this site with browser storage). Old receipts keep pointing at the right person: the directory keeps the same person ids.
-- **Settings**: your review cycle dates, your company's review sections (one per line), backups.
+- **Receipts** for you (wins, feedback you received, things you learned, blockers), each report (wins, feedback given, growth areas, concerns) and your manager (support received, feedback to share, asks). Star the ones that should lead a review. Every receipt can carry review sections, impact, a metric, evidence and who was involved.
+- **1:1s.** Reports are in 1:1s without adding them. Anyone else in People (your manager, a peer, a contact) gets 1:1s with **Start 1:1s** on their page. Notes are plain Markdown files. **Wrap up** reads the note's open follow-ups (`- [ ]` lines) and its Wins: each ticked follow-up goes to Docket as a task, yours or handed to the person and waiting on them (owner guessed from `@me`, "I will", your name, or theirs), sent once however often you wrap up; each ticked win becomes a receipt in a report's Log. Where Docket does not share Rapport's data, the follow-ups are copied as Docket quick-add lines instead.
+- **Tandem in 1:1s** (optional; Settings, Apps, Rapport, and the opencode connector): **Draft talking points with Tandem** from the prep (no name, concerns only when ticked), and at Wrap up, **Ask Tandem** to read the note for follow-ups and wins you did not mark. Its lines are marked in the dialog and go into the note when you send them.
+- **Goals**: the team's and each report's OKRs per quarter as plain Markdown (format below), shown as a tree on My team. Renaming a team objective offers to update the reports that support it. Start a doc from the template or copy last quarter's.
+- **Import from Lattice** (My team): paste a goals export (CSV, or rows copied from a spreadsheet, with a header row such as Goal, Owner, Progress, Status, Parent goal) or pick the file. Goals are matched to your reports by name (yours and "Team" go to the team doc); a goal whose parent has the same owner becomes a key result of it, and any other parent becomes a `Supports:` line. The review step shows New, Changes or No change per objective and asks for a person when an owner is not found. Only the lines that change are written; nothing is deleted. The exact columns of a Lattice export are not confirmed yet, so the importer reads headers by name.
+- **Review**: pick a period (your review cycle, this or last quarter, this year, last 12 months). Each review section shows its receipts as a draft you can edit and copy; receipts with no section are listed under No section. CSV of the period too.
+- **From other apps** (inside Workshop): finished tasks you ticked in Docket's Wrap up wait on top of your Log to Keep or Dismiss. A receipt captured in the top bar's Capture (`r ...`) or Chat is added straight away. Rapport reads other apps' offers but never changes their data.
+- **Focus hours**: receipts picked up during focus or lunch are added without a toast and counted for Workshop's release toast.
 
-Shortcuts: `N` jumps to the box for a new receipt, `Ctrl+Enter` saves it. On the 1:1s tab `j`/`k` move and `Enter` opens; in a note or a goals doc `Ctrl+S` saves and `Ctrl+E` switches Edit and Preview. In the goals tree, arrow keys move, open and close, `Enter` opens an objective's doc, `*` opens every sibling.
+Shortcuts: `N` jumps to the Log box, Enter saves (Shift+Enter for a new line). With a note or goals doc open, `Ctrl+S` saves and `Ctrl+E` switches Edit and Preview. In the goals tree, arrow keys move, open and close, `Enter` opens, `*` opens every sibling. Palette commands: Log a receipt, Prep a 1:1, Build my review, Open team goals.
 
 ### Goals format
 
@@ -63,6 +67,7 @@ Why: deploys are the top source of after-hours pages.
 - Receipts and 1:1 notes are saved in this browser (IndexedDB) by default. In Chrome or Edge you can **Save to a folder** in Settings to keep them as JSON files on your computer instead, which you can back up however your company allows.
 - **Back up** downloads a JSON file; **Restore** merges one back in and never deletes anything.
 - Inside Workshop, Rapport uses Workshop's storage (browser, folder, or the Workshop agent on your computer).
+- **Copy for Lattice copies only what you click**, to your clipboard. Rapport never talks to Lattice.
 - **1:1 notes and goals are private to Rapport.** What Rapport tells other apps is its summary: how many receipts are logged, which 1:1s are due (names and days, for Home's Needs you) and your own wins this week (for Home's weekly status). Receipts about anyone else never leave Rapport. Its manifest sets `privateFiles: true` ([Workshop docs/app-manifest.md](https://github.com/adavidson21/workshop/blob/main/docs/app-manifest.md), Private files), so other Workshop apps (Notes included) can't list, read or watch Rapport's files. Rapport's summary cards for Home and 1:1 prep carry counts and names, never note text.
 
 Browser storage is per site: anything saved on the old receipts.alexisdavidson.org site in browser storage is not visible in Workshop unless both used the same folder. Back it up there and restore it in Workshop.
@@ -75,11 +80,11 @@ Plain HTML, CSS and JavaScript modules. No build step, no dependencies.
 app.json, index.html,   the app (a Workshop app, apps/receipts/)
   app.css, icon.svg
 js/state.js             pure logic: periods, filters, review builder, CSV, offers from other apps
-js/main.js              the page: rendering, input, data through the SDK
+js/lattice.js           pure logic: Copy for Lattice text, reading and applying a Lattice goals export
+js/main.js              the page: People, the Log box, a person's page, routes, input, data through the SDK
 js/markdown.js          the escaping Markdown renderer for 1:1 notes and goals
-js/oneonones/           the 1:1s parts: model.js and view.js (pure), data.js (SDK, no DOM),
-                        page.js (the 1:1s tab and the section on a report's page)
-js/goals/               the Goals tab: model.js and view.js (pure), page.js (the tree and a doc)
+js/oneonones/           the 1:1 tab: model.js and view.js (pure), data.js (SDK, no DOM), page.js
+js/goals/               goals: model.js and view.js (pure), page.js (the tree, a doc, Import from Lattice)
 test/                   node tests for state.js, the 1:1s and Goals modules
 GUIDE.md                data reference (collections, files, moving from 1:1s)
 ```

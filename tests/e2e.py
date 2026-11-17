@@ -228,9 +228,10 @@ def browser_mode_checks(ctx, pg, frame, watch):
     rf = next((f for f in pg.frames if '/apps/receipts/' in f.url), None)
     check('Rapport opens from the rail', rf is not None and pg.url.endswith('#/receipts'))
     if rf:
-        rf.fill('.composer textarea', 'Shipped the e2e check'); rf.press('.composer textarea', 'Control+Enter'); pg.wait_for_timeout(500)
-        check('Rapport saves a receipt in browser storage', rf.locator('.entry').count() == 1)
-        check('Rapport has a 1:1s tab', rf.locator('.tabs [data-path="1on1s"]').count() == 1)
+        check('Rapport opens on People, with one Log box', rf.locator('.v-people').count() == 1 and rf.locator('form.logbox').count() == 1)
+        rf.fill('#log-text', 'Shipped the e2e check'); rf.press('#log-text', 'Enter'); pg.wait_for_timeout(500)
+        pg.evaluate("location.hash = '#/receipts/me'"); pg.wait_for_timeout(800)
+        check('Rapport saves a receipt in browser storage, in your Log', rf.locator('.entry').count() == 1 and 'Shipped the e2e check' in rf.inner_text('.list'))
 
     pg.keyboard.press('Alt+4'); pg.wait_for_timeout(1200)
     nf = next((f for f in pg.frames if '/apps/notes/' in f.url), None)
@@ -272,17 +273,17 @@ def browser_mode_checks(ctx, pg, frame, watch):
         pg.click('#wstatus [aria-label="Pause"]'); pg.wait_for_timeout(200); pg.keyboard.press('Escape'); pg.wait_for_timeout(500)
         check('Esc skips the breadcrumb and still pauses', pg.locator('#wstatus').is_hidden() and pg.locator('.ws-prompt').count() == 0)
 
-    # 1:1s are part of Rapport (2.0.0): the tab, then the copy of the old 1:1s app's data on a fresh open.
+    # 1:1s are part of Rapport (2.0.0): the old 1:1s address opens People (5.0.0), then the copy of the old 1:1s app's data on a fresh open.
     pg.evaluate("location.hash = '#/receipts/1on1s'"); pg.wait_for_timeout(800)
     of = next((f for f in pg.frames if '/apps/receipts/' in f.url), None)
-    check('1:1s in Rapport with no people asks who you meet with', of is not None and 'Who do you meet with?' in of.inner_text('#app'))
+    check('the old 1:1s address opens People, which asks who you work with', of is not None and 'Who do you work with?' in of.inner_text('#app'))
     op = ctx.new_page(); watch(op); op.goto(HUB + '/apps/settings/'); op.wait_for_timeout(500)
     op.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'oneonones'});
       await ws.data.put('people', {schema: 'oneonones.people', version: 1, rev: 0, deleted: {}, items: [{id: 'p_old1', updatedAt: 1, name: 'Old Peer', links: {}, cadenceDays: 7, archived: false}]});
       await ws.files.write('notes/p-old1/2026-10-01.md', '# 1:1 with Old Peer\\n', {create: true}); }""")
     op.goto(HUB + '/apps/receipts/#/1on1s')
-    op.wait_for_function("() => document.querySelector('.oo-row')", timeout=10000)
-    check('Rapport copies the old 1:1s people in on first open', 'Old Peer' in op.inner_text('.oo-people'))
+    op.wait_for_function("() => document.querySelector('.plist') && document.querySelector('.plist').innerText.includes('Old Peer')", timeout=10000)
+    check('Rapport copies the old 1:1s people in on first open; People lists them as not in People', 'Not in People' in op.inner_text('.plist'))
     moved = op.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js');
       const r = await connect({app: 'receipts'}); const o = await connect({app: 'oneonones'});
       const files = await r.files.list('oneonones/notes'); const old = await o.files.list('notes');
@@ -436,32 +437,34 @@ def browser_mode_checks(ctx, pg, frame, watch):
         stab(sf, 'people')
         rp.close()
         # Receipts lists the report from the directory (by hash, so new rail apps don't shift it).
-        pg.evaluate("location.hash = '#/receipts/team'"); pg.wait_for_timeout(1500)
+        pg.evaluate("location.hash = '#/receipts/people'"); pg.wait_for_timeout(1500)
         rf2 = next((f for f in pg.frames if '/apps/receipts/' in f.url), None)
-        check('Rapport lists reports from People, as text', rf2 is not None and rf2.locator('.roster .pname b').all_inner_texts() == ['<b>Dev</b> One']
-              and rf2.locator('[data-act=people-settings]').count() >= 1 and rf2.locator('[data-act=add-person]').count() == 1)
+        check('Rapport lists reports from People, as text, and adds no one itself', rf2 is not None and '<b>Dev</b> One' in rf2.locator('.plist .pname b').all_inner_texts()
+              and rf2.locator('[data-act=people-settings]').count() >= 1 and rf2.locator('[data-act=add-person]').count() == 0)
         if rf2:
-            # A report's page: start 1:1s, write today's note, log a win twice: one receipt.
+            # A report's page: the 1:1 tab, today's note, Wrap up twice: each follow-up and win once.
             # Reports are in 1:1s without adding them (Rapport 4.3.0): the page offers today's note, not Start 1:1s.
-            rf2.click('.roster .prow'); rf2.wait_for_selector('[data-start-note], [data-start-report]', timeout=5000)
-            check('a report is in 1:1s without adding them', rf2.locator('[data-start-report]').count() == 0)
-            if rf2.locator('[data-start-report]').count(): rf2.click('[data-start-report]'); rf2.wait_for_selector('[data-start-note]', timeout=5000)
+            rf2.locator('.plist a[data-path^="p/"]', has_text='Dev').first.click(); rf2.wait_for_selector('[data-start-note], [data-start-dir]', timeout=5000)
+            check('a report is in 1:1s without adding them, on a page with 1:1, Log, Goals and Review',
+                  rf2.locator('[data-start-dir]').count() == 0 and rf2.locator('.tabs button').all_inner_texts() == ['1:1', 'Log', 'Goals', 'Review'])
+            if rf2.locator('[data-start-dir]').count(): rf2.click('[data-start-dir]'); rf2.wait_for_selector('[data-start-note]', timeout=5000)
             rf2.click('[data-start-note]'); rf2.wait_for_selector('#oo-editor', timeout=5000)
             text = rf2.input_value('#oo-editor')
             check("Rapport's report page starts a 1:1 note, the name as text", text.startswith('# 1:1 with <b>Dev</b> One, '))
             rf2.fill('#oo-editor', text.replace('## Wins\n\n- ', '## Wins\n\n- Led the e2e review')
                      .replace('## Follow-ups\n\n- [ ] ', '## Follow-ups\n\n- [ ] <b>Dev</b> to share the e2e runbook\n- [ ] Book the e2e retro @me\n- [ ] '))
             rf2.press('#oo-editor', 'Control+s'); rf2.wait_for_timeout(500)
-            rf2.click('[data-log]'); rf2.wait_for_selector('dialog.oo-dlg[open]', timeout=3000)
+            rf2.click('[data-wrap]'); rf2.wait_for_selector('dialog.oo-dlg[open]', timeout=3000)
             owners = rf2.locator('dialog.oo-dlg .frow select').evaluate_all('ss => ss.map(s => s.value)')
-            check('Log follow-ups guesses each owner: their name is theirs, @me is yours; Copy as quick-add lines is there too',
-                  owners == ['them', 'me'] and rf2.locator('dialog.oo-dlg [data-copy-lines]').count() == 1)
+            check('Wrap up guesses each owner: their name is theirs, @me is yours; Send is the one way',
+                  owners == ['them', 'me'] and rf2.locator('dialog.oo-dlg [data-copy-lines]').count() == 0)
             rf2.click('dialog.oo-dlg button[value=ok]'); rf2.wait_for_timeout(600)
-            rf2.click('[data-log]'); rf2.wait_for_selector('dialog.oo-dlg[open]', timeout=3000)
-            check('a follow-up already sent shows Sent and is unticked when the note is logged again',
+            rf2.click('[data-wrap]'); rf2.wait_for_selector('dialog.oo-dlg[open]', timeout=3000)
+            check('a follow-up already sent shows Sent and is unticked when the note is wrapped up again',
                   rf2.locator('dialog.oo-dlg .frow .sent').count() == 2 and rf2.locator('dialog.oo-dlg input[name=f]:checked').count() == 0)
             rf2.click('dialog.oo-dlg button[value=ok]'); rf2.wait_for_timeout(600)
-            check('a win logged after a 1:1 becomes one receipt about the report', rf2.inner_text('.list').count('Led the e2e review') == 1
+            rf2.click('.tabs button:has-text("Log")'); rf2.wait_for_selector('.list', timeout=3000)
+            check('a win from Wrap up becomes one receipt in the report\'s Log', rf2.inner_text('.list').count('Led the e2e review') == 1
                   and 'From a 1:1' in rf2.inner_text('.list'))
             # Follow-ups land in Docket as tasks with no second click: delegated to the report (waiting, a
             # follow-up date) or yours. Logged twice, added once (docs/handoffs.md, rule 4).
@@ -472,9 +475,8 @@ def browser_mode_checks(ctx, pg, frame, watch):
               return mine.map(t => [t.title, !!t.waiting, JSON.stringify(t.who || []) === JSON.stringify([dev.id]), /^\\d{4}-\\d{2}-\\d{2}$/.test(t.nudgeOn || '')]).sort(); }""")
             check("1:1 follow-ups land in Docket once each: theirs waiting on the report with a follow-up date, yours a plain task",
                   got == [['<b>Dev</b> to share the e2e runbook', True, True, True], ['Book the e2e retro', False, False, False]])
-            pg.evaluate("location.hash = '#/receipts/team'"); pg.wait_for_timeout(1000)
-            rf2 = next((f for f in pg.frames if '/apps/receipts/' in f.url), None)
             # Rapport Goals: start the team's goals, then the report's; the report's objective sits under the team's.
+            # The old goals address opens My team (5.0.0).
             pg.evaluate("location.hash = '#/receipts/goals'"); pg.wait_for_timeout(1200)
             gf = next((f for f in pg.frames if '/apps/receipts/' in f.url), None)
             check('Goals: an empty quarter offers Start team goals', gf is not None and 'No team goals for' in gf.inner_text('main') and gf.locator('[data-g-start=team]').count() == 1)
@@ -483,7 +485,9 @@ def browser_mode_checks(ctx, pg, frame, watch):
                 gf.click('[data-g-back]'); gf.wait_for_selector('.g-tree', timeout=5000)
                 check('Goals: the tree lists the team template', gf.locator('[data-g-node="o:0"] .g-otitle').first.inner_text() == 'First objective')
                 gf.click('.g-missing [data-g-start]'); gf.wait_for_selector('[data-g-editor]', timeout=5000)
-                gf.click('[data-g-back]'); gf.wait_for_selector('.g-tree', timeout=5000)
+                check("Goals: a report's doc opens on their page's Goals tab", gf.locator('.tabs button.on').inner_text() == 'Goals' and gf.locator('[data-g-back]').count() == 0
+                      and '<b>Dev</b> One' in gf.inner_text('.ptitle'))
+                pg.evaluate("location.hash = '#/receipts/team'"); gf.wait_for_selector('.g-tree', timeout=5000)
                 gf.click('[data-g-expand=all]'); gf.wait_for_timeout(300)
                 check("Goals: the report's first objective sits under the first team objective, the name as text",
                       gf.locator('[data-g-node="s:0:0"] .g-who').text_content() == '<b>Dev</b> One' and gf.locator('[data-g-node="s:0:0"] .g-otitle').inner_text() == 'First objective')

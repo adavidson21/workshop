@@ -16,7 +16,7 @@ test('app settings: declared switches are cleaned; bad or repeated ones dropped'
 
 test('app settings: defaults, then saved values; items match docs/app-settings.md', () => {
   assert.deepEqual(A.valuesFor(null, 'prioritizer', DECL), { sprints: true });
-  const items = A.withValues([{ id: 'notes', updatedAt: 1, values: { x: true } }], 'prioritizer', { sprints: false, junk: 'no', Bad: true });
+  const items = A.withValues([{ id: 'notes', updatedAt: 1, values: { x: true } }], 'prioritizer', { sprints: false, junk: { no: 1 }, Bad: true });
   assert.deepEqual(items.map(i => i.id), ['notes', 'prioritizer']);
   const env = { ...A.blank(), items: items.map(i => ({ ...i, updatedAt: 1 })) };
   assert.deepEqual(A.valuesFor(env, 'prioritizer', DECL), { sprints: false });
@@ -25,6 +25,24 @@ test('app settings: defaults, then saved values; items match docs/app-settings.m
   assert.deepEqual(schemas.validate('app', { manifestVersion: 1, id: 'x', name: 'X', version: '1.0.0', icon: 'i.svg', entry: 'index.html', settings: DECL }), []);
   assert.throws(() => A.withValues([], 'Not An Id', {}));
   assert.equal(A.readable({ ...env, version: 2 }), false);
+});
+
+test('app settings: numbers, dates, text and lines are typed, clamped and kept', () => {
+  const decl = A.declared([
+    { id: 'staleDays', type: 'number', title: 'Flag after', default: 30, min: 1, max: 365 },
+    { id: 'cycleStart', type: 'date', title: 'Cycle starts', default: 'soon' },
+    { id: 'label', type: 'text', title: 'Label', default: '  Hi  ' },
+    { id: 'sections', type: 'lines', title: 'Sections', default: ['A', ' B ', 'A', ''] }
+  ]);
+  assert.deepEqual(decl.map(d => d.default), [30, '', 'Hi', ['A', 'B']]);
+  assert.equal(decl[0].min, 1);
+  const items = A.withValues([], 'receipts', { staleDays: 900, cycleStart: '2026-07-01', label: 'x', sections: ['Craft', 'Craft', 'Growth'], bad: NaN, nope: null });
+  const env = { ...A.blank(), items: items.map(i => ({ ...i, updatedAt: 1 })) };
+  assert.deepEqual(A.valuesFor(env, 'receipts', decl), { staleDays: 365, cycleStart: '2026-07-01', label: 'x', sections: ['Craft', 'Growth'] });
+  for (const i of env.items) assert.deepEqual(schemas.validate('app-setting', i), []);
+  assert.deepEqual(schemas.validate('app', { manifestVersion: 1, id: 'x', name: 'X', version: '1.0.0', icon: 'i.svg', entry: 'index.html', settings: [{ id: 'n', type: 'number', title: 'N', default: 3, min: 1 }, { id: 'l', type: 'lines', title: 'L', default: ['a'] }] }), []);
+  const wrong = { ...A.blank(), items: [{ id: 'receipts', updatedAt: 1, values: { staleDays: 'ten' } }] };
+  assert.equal(A.valuesFor(wrong, 'receipts', decl).staleDays, 30, 'a saved value of the wrong type keeps the default');
 });
 
 test('ws.apps.list(): carries each manifest\'s declared settings', () => {

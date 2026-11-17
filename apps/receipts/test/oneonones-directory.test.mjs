@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import * as M from '../js/oneonones/model.js';
-import { homeHtml, personForm, settingsHtml } from '../js/oneonones/view.js';
+import { startHtml } from '../js/oneonones/view.js';
 import { createOneOnOnes } from '../js/oneonones/data.js';
 import { DIR, fakeWs } from './oneonones-fake.mjs';
 import { directory } from '../../../shared/people.js';
@@ -19,19 +19,10 @@ test('personFromDirectory: linked by id, default cadence', () => {
   assert.deepEqual(p, { id: 'p_new', personId: 'p_peer', name: 'Peer Three', cadenceDays: M.DEFAULT_CADENCE, archived: false });
 });
 
-test('views: suggestions as escaped chips; the form picks from People and names an unknown link', () => {
-  const evil = directory({ schema: 'settings.people', version: 2, rev: 1, items: [{ id: 'p_bad', kind: 'person', updatedAt: 1, name: '<img src=x onerror=alert(1)>', handle: 'bad', relation: 'report' }] });
-  const sugg = M.directorySuggestions([], evil);
-  const v = { people: [], settings: { aiDraft: true } };
-  const pick = { choices: M.directoryChoices(evil), fromDirectory: sugg, embedded: true };
-  const s = settingsHtml(v, pick, null), h = homeHtml([], { selected: -1 }, sugg);
-  for (const html of [s, h]) {
-    assert.match(html, /data-add-dir="p_bad"/);
-    assert.ok(!html.includes('<img'), 'name is escaped');
-  }
-  assert.match(personForm({}, { choices: [], fromDirectory: [], embedded: true }), /No one in People yet/);
-  assert.match(personForm({ id: 'p_1', personId: 'p_lost', name: 'Old Peer' }, pick), /Old Peer \(not in People\)/);
-  assert.match(personForm({ id: 'p_1', personId: 'p_bad' }, pick), /value="p_bad" selected/);
+test('a directory person with no 1:1s yet: one click starts them, the name escaped', () => {
+  const html = startHtml('<img src=x onerror=alert(1)>');
+  assert.match(html, /data-start-dir/);
+  assert.ok(!html.includes('<img'), 'name is escaped');
 });
 
 test('data: the directory is handed in by main.js; adding a suggestion links it', async () => {
