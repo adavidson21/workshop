@@ -10,7 +10,7 @@
 import { S } from './state.js';
 import { h, plural, asking, itemSession, isBusy, autoIs, itemForFolder, adoOn } from './view.js';
 import { flowOf, stepIndex, isFinished, turnHtml, stepLine } from './flows.js';
-import { workItems, startingSessions, inboxData, inboxFolders, isShip, runCardHtml, asksFor } from './pages.js';
+import { workItems, startingSessions, inboxData, inboxFolders, isShip, runCardHtml, asksFor, fileInline } from './pages.js';
 import { pickable, boardFeed } from '../loom.js';
 import { reviewsHtml } from './pr-reviews.js';
 
@@ -98,9 +98,13 @@ function statusOf(it, lane) {
   if (asking(it)) return 'Tandem has a question for you';
   if (autoIs(it, 'running') || isBusy(s)) return (s && s.activity) || stepLine(it) || 'Working';
   if (lane === 'clarify') return it.kind === 'item' ? 'Setting up' : 'Up next';
+  // Core 4.6.0: a spike's first look is on the card while it keeps digging.
+  if (lane === 'work' && hasFirstLook(it)) return 'First look ready; still digging';
   const sl = stepLine(it);
   return sl || String(it.state || '');
 }
+/** A spike that wrote its first look (Core 4.6.0) and has no findings yet. */
+export const hasFirstLook = it => !!it && it.kind === 'spike' && (it.files || []).includes('first-look.md') && !(it.files || []).includes('findings.md');
 /** The action named on a card that waits on you. */
 function actionOf(it, kind, lane) {
   if (it.blocked || (itemSession(it) && itemSession(it).error && !isBusy(itemSession(it)))) return 'See why it stopped';
@@ -240,6 +244,7 @@ function panelHtml(key, data) {
   if (c.reviews) {
     body = `<div class="ln-reviews">${reviewsHtml()}</div>`;
   } else if (c.it) {
+    if (hasFirstLook(c.it)) body += `<div class="ln-first"><p class="ln-fh">First look</p>${fileInline(c.it, 'first-look.md')}</div>`;
     body += `<div class="loom-run ln-run">${runCardHtml(c.folder)}</div>` +
       `<div class="ln-foot"><button type="button" class="btn ghost" data-open-run="${h(c.folder)}">Open the run</button>` +
       (c.sid ? `<button type="button" class="ibtn" data-open-chat="${h(c.sid)}" aria-label="Open the conversation in Chat" title="Open the conversation in Chat">${CHAT}</button>` : '') + '</div>';

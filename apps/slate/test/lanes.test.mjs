@@ -252,3 +252,16 @@ test('Hand off is a drop box kind (5.2): the board\'s Hand to a person flow', ()
   assert.equal(q.args.title, 'Audit export for finance');
   assert.match(q.args.description, /monthly export/);
 });
+
+test('a spike\'s first look (Core 4.6.0) is on its card and at the top of its panel while it keeps digging', () => {
+  const it = item('spike-cache-options');
+  it.state = 'Investigating';
+  it.files = ['first-look.md'];
+  S.files = { 'spike-cache-options/first-look.md': { text: 'Quick answer: Redis fits.\nConfidence: Medium\nDigging into: cache layer' } };
+  const c = lanesData().cards.find(x => x.folder === 'spike-cache-options');
+  assert.equal(c.lane, 'work');
+  assert.equal(c.status, 'First look ready; still digging');
+  S.ui.laneSel = 'spike-cache-options';
+  assert.match(lanesHtml(), /class="ln-first"><p class="ln-fh">First look<\/p>[^]*Redis fits/);
+  assert.ok(wantedFiles().some(([f, n]) => f === 'spike-cache-options' && n === 'first-look.md'));
+});
