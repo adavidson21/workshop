@@ -5,7 +5,7 @@
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
-import { writeJsonAtomic } from './fsutil.mjs';
+import { writeJsonAtomic, DATA_MODES } from './fsutil.mjs';
 import { HttpError, fail } from './http.mjs';
 import { floorMs, isCollectionText } from './datapath.mjs';
 
@@ -109,7 +109,7 @@ export class Store {
       if (body.deleted !== undefined) next.deleted = body.deleted;
       if (body.meta !== undefined) next.meta = body.meta;
       try {
-        await writeJsonAtomic(file, next);
+        await writeJsonAtomic(file, next, DATA_MODES);
         this.#tracker.own(rel, floorMs(fs.statSync(file)));
       } catch (e) {
         this.#log.error(`Could not write ${rel}: ${e.code || e.message}`);

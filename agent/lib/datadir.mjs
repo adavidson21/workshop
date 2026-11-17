@@ -50,7 +50,9 @@ export function prepareDataDir(dir, home) {
     if (fs.statSync(dir, { throwIfNoEntry: false })) throw notAFolder();
     throw new ConfigError(`The data folder ${dir} is a link to something that is not there. Fix the link or change "dataDir" in ${path.join(home, 'config.json')}.`);
   }
-  try { fs.mkdirSync(dir, { recursive: true }); } catch (e) {
+  // A new data folder is made for the user only. An existing one is the user's: its permissions are left alone
+  // (doctor says when other users on this computer can read it).
+  try { fs.mkdirSync(dir, { recursive: true, mode: 0o700 }); } catch (e) {
     throw new ConfigError(`Workshop could not create the data folder ${dir} (${e.code || e.message}). Create it yourself or change "dataDir" in ${path.join(home, 'config.json')}.`);
   }
   let st;
@@ -68,6 +70,17 @@ export function prepareDataDir(dir, home) {
     throw new ConfigError(`Workshop cannot read and write the data folder ${dir} (${e.code || e.message}). Check its permissions or change "dataDir" in ${path.join(home, 'config.json')}.`);
   }
   return new DataRoot(dir);
+}
+
+/**
+ * Can other users on this computer open the data folder? Null on Windows (its ACL decides) and when the folder
+ * is missing; otherwise the folder's permission bits as octal text when group or others have any, else false.
+ */
+export function looseDataDir(dir, platform = process.platform) {
+  if (platform === 'win32') return null;
+  const st = fs.statSync(dir, { throwIfNoEntry: false });
+  if (!st) return null;
+  return (st.mode & 0o077) ? (st.mode & 0o777).toString(8).padStart(3, '0') : false;
 }
 
 /**
