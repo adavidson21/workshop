@@ -4,8 +4,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { splitRoute, mergeCards, TABS, BOARD_TABS } from '../js/loom.js';
 
-test('three tabs (Chat is its own app, Reviews the Inbox\'s PRs chip); Board and Health are the board half', () => {
-  assert.deepEqual(TABS.map(t => t[0]), ['inbox', 'board', 'health']);
+test('four tabs, Lanes first (Loom 5.0.0; Chat is its own app, Reviews the Inbox\'s PRs chip); Board and Health are the board half', () => {
+  assert.deepEqual(TABS.map(t => t[0]), ['lanes', 'inbox', 'board', 'health']);
   assert.deepEqual(BOARD_TABS, ['board', 'health']);
 });
 

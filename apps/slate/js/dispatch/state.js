@@ -6,6 +6,9 @@ const freshUi = () => ({
   // returns to. step: the step in view on a run page, per folder (flows.js). walk: Go through them in the Inbox
   // ({i, done: {key: 1}}), or null.
   tab: 'inbox', run: null, back: null, step: {}, walk: null,
+  // Lanes (lanes.js): laneSel, the card open in the panel (a folder, or session:<id>); laneFilter: all, mine or a kind;
+  // dropKind: the kind picked in the drop box (null: guessed from the text); dropBusy: Start is running.
+  laneSel: null, laneFilter: 'all', dropKind: null, dropBusy: false,
   // flow: the Work tab's flow filter ('all' or a flow id).
   flow: 'all',
   // project: the project sheet; projects: the projects list (overflow menu); move: the move sheet.

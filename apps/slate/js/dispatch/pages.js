@@ -21,6 +21,7 @@ import { FLOWS, flowOf, flowTag, flowById, stepsOf, stepIndex, currentStep, here
 
 export { TABS } from '../loom.js';
 import { TABS, BOARD_TABS, panelRun, currentNudges } from '../loom.js';
+import { lanesHtml, lanesCount, laneRun } from './lanes.js';
 // `work` is All runs: under Board on the tab bar (the board's toolbar opens it), every run in one list.
 export const TAB_IDS = [...TABS.map(t => t[0]), 'work'];
 /** Dispatch 2.x's tabs: Runs, Ship and Research are all Work now. */
@@ -503,7 +504,10 @@ export function wantedFiles() {
   // The run in the board's open card (Loom): its gate's file, shown inline in the panel.
   const pr = panelRun() && itemForFolder(panelRun());
   if (pr && pr.kind !== 'pr' && atGate(pr)) add(pr, gateFile(pr));
-  if (S.ui.run && (BOARD_TABS.includes(t) || t === 'work' || t === 'inbox')) {
+  // The run open in the lanes' panel: its gate's file, shown inline there (Loom 5.0.0).
+  const lr = t === 'lanes' && !S.ui.run && laneRun();
+  if (lr && lr.kind !== 'pr' && atGate(lr)) add(lr, gateFile(lr));
+  if (S.ui.run && (BOARD_TABS.includes(t) || t === 'work' || t === 'inbox' || t === 'lanes')) {
     const it = itemForFolder(S.ui.run);
     if (it && it.kind !== 'pr') {
       const sel = flowOf(it) && stepIndex(it) >= 0 ? selectedStep(it) : null;
@@ -522,6 +526,7 @@ export function wantedFiles() {
 
 // ------------------------------------------------------------------ the tab bar and the page
 function tabCount(id) {
+  if (id === 'lanes') { const n = lanesCount(); return n ? `<span class="cnt gate" title="Your turn">${n}</span>` : ''; }
   if (id === 'inbox') { const n = inboxCount(); return n ? `<span class="cnt gate">${n}</span>` : ''; }
   if (id === 'work') {
     const inbox = inboxFolders();
@@ -548,5 +553,6 @@ export function pageHtml() {
   if (BOARD_TABS.includes(t)) return '';
   // All runs (Dispatch's Work tab until Loom 4.0.0): every run in one list, with the flow and project filters.
   if (t === 'work') return workHtml();
+  if (t === 'lanes') return lanesHtml();
   return inboxHtml();
 }
