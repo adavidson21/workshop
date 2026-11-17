@@ -248,6 +248,73 @@ def gaps_checks(b):
     gc.close()
 
 
+def links_checks(b):
+    """Folio 4.10.0 (Workshop project doc claude/folio-links-v1-plan.md): Links, the directory in links.md."""
+    lc = b.new_context(viewport={'width': 1400, 'height': 900})
+    pg = lc.new_page()
+    errs = []
+    pg.on('pageerror', lambda e: errs.append(str(e)))
+    pg.goto(SITE); pg.wait_for_selector('.side-head', timeout=15000)
+    pg.click('#side [data-act=new-note]'); pg.wait_for_timeout(800)
+    fill_editor(pg, '# Meeting\n\nThe [Capacity plan](https://docs.google.com/spreadsheets/d/abc/edit) and https://ado.example.com/Coll/Proj/_git/repo again.\n')
+    pg.keyboard.press('Control+s'); pg.wait_for_timeout(800)
+    pg.click('.nb-name'); pg.wait_for_timeout(300)
+
+    pg.keyboard.press('l'); pg.wait_for_timeout(300)
+    check('L opens Add a link', pg.locator('#dlg[open] .link-form').count() == 1)
+    pg.fill('#dlg input[name=value]', 'https://contoso.sharepoint.com/sites/eng/On-call_rota.aspx')
+    pg.wait_for_timeout(100)
+    check('the name is suggested from the address', pg.get_attribute('#dlg input[name=name]', 'placeholder') == 'On call rota')
+    pg.fill('#dlg input[name=group]', 'Lighthouse'); pg.fill('#dlg input[name=tags]', 'runbook, oncall')
+    pg.click('#dlg button[value=ok]'); pg.wait_for_timeout(1000)
+    pg.click('[data-section=links]'); pg.wait_for_timeout(300)
+    side = pg.inner_text('#side')
+    check('the Links place lists the link under its group', 'Lighthouse' in side and 'On call rota' in side)
+    check('a SharePoint link shows its kind', pg.locator('#side li.link .lkind.k-sharepoint').count() == 1)
+    check('the link opens in a new tab', pg.get_attribute('#side li.link a.row', 'target') == '_blank')
+
+    pg.click('#side details.found summary'); pg.wait_for_timeout(200)
+    check('Found in notes lists the links in other notes', pg.locator('#side .found-list li').count() == 2 and 'Capacity plan' in pg.inner_text('#side .found-list'))
+    pg.locator('#side .found-list li', has_text='Capacity plan').locator('[data-act=save-found]').click(); pg.wait_for_timeout(300)
+    check('Save fills in the address and name', pg.input_value('#dlg input[name=value]').startswith('https://docs.google.com/') and pg.input_value('#dlg input[name=name]') == 'Capacity plan')
+    pg.fill('#dlg input[name=group]', 'Lighthouse'); pg.click('#dlg button[value=ok]'); pg.wait_for_timeout(1000)
+    check('a saved one leaves Found in notes', pg.locator('#side .found-list li').count() == 1)
+    pg.click('#side .found-list [data-act=ignore-found]'); pg.wait_for_timeout(800)
+    check('Ignore drops it from Found in notes', pg.locator('#side details.found').count() == 0)
+
+    pg.fill('#side [data-search]', 'capacity'); pg.wait_for_timeout(300)
+    check('the filter narrows the links', pg.locator('#side li.link').count() == 1 and 'Capacity plan' in pg.inner_text('#side li.link'))
+    pg.fill('#side [data-search]', ''); pg.wait_for_timeout(200)
+
+    pg.locator('#side li.link', has_text='On call rota').hover()
+    pg.locator('#side li.link', has_text='On call rota').locator('[data-act=edit-link]').click(); pg.wait_for_timeout(300)
+    pg.fill('#dlg input[name=name]', 'On-call rota'); pg.click('#dlg button[value=ok]'); pg.wait_for_timeout(1000)
+    check('Edit renames the link', 'On-call rota' in pg.inner_text('#side'))
+
+    pg.click('#side [data-act=open-links]'); pg.wait_for_timeout(800)
+    text = pg.input_value('#editor')
+    check('links.md is a plain note with a group heading and Markdown links',
+          text.startswith('# Links') and '## Lighthouse\n- [On-call rota](https://contoso.sharepoint.com/sites/eng/On-call_rota.aspx) #runbook #oncall\n- [Capacity plan](' in text)
+    pg.click('[data-section=notes]'); pg.wait_for_timeout(300)
+    check('Links is pinned under Quick Notes', 'Links' in pg.inner_text('#side .pinned'))
+
+    pg.click('#side [data-act=new-note]'); pg.wait_for_timeout(800)
+    fill_editor(pg, '# Picker\n\n')
+    pg.focus('.cm-content'); pg.keyboard.press('Control+End'); pg.keyboard.type('[[rota'); pg.wait_for_timeout(300)
+    check('[[ offers saved links', 'Saved links' in pg.inner_text('#picker') and 'On-call rota' in pg.inner_text('#picker'))
+    pg.keyboard.press('Enter'); pg.wait_for_timeout(300)
+    check('picking one inserts a plain Markdown link', '[On-call rota](https://contoso.sharepoint.com/sites/eng/On-call_rota.aspx)' in pg.input_value('#editor'))
+
+    pg.click('[data-section=links]'); pg.wait_for_timeout(300)
+    pg.locator('#side li.link', has_text='Capacity plan').hover()
+    pg.locator('#side li.link', has_text='Capacity plan').locator('[data-act=remove-link]').click(); pg.wait_for_timeout(1000)
+    check('Remove takes the link out, and it is back in Found in notes', pg.locator('#side li.link', has_text='Capacity plan').count() == 0
+          and 'Capacity plan' in pg.inner_text('#side .found-list'))
+    check('links: no page errors', not errs)
+    if errs: print('      ' + '\n      '.join(errs[:5]))
+    lc.close()
+
+
 def main():
     srv = http.server.ThreadingHTTPServer(('127.0.0.1', PORT), functools.partial(Static, directory=ROOT))
     threading.Thread(target=srv.serve_forever, daemon=True).start()
@@ -509,6 +576,7 @@ def main():
 
             live_checks(b)
             gaps_checks(b)
+            links_checks(b)
 
             # Without the editor bundle, notes open in the plain textarea and still save.
             plain = b.new_context()

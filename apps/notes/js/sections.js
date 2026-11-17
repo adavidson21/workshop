@@ -5,18 +5,21 @@
      Daily      daily/<date>.md, newest first, by month
      Products   products/, the notes Tandem reads and adds to (products.js)
      Templates  templates/, plus the starter set before its files exist (templates.js)
+     Links      links.md: the web links you keep, by group (links.js); also pinned under Quick Notes
      Tandem     Tandem's plans, specs, reviews and briefs, live from .work (tandem.js); only with the opencode
                 connector on this computer
    The open page decides the section shown, so links and search land in the right place. */
 import { DAILY, TEMPLATES } from './templates.js';
 import { PRODUCTS } from './products.js';
 import { isTandem } from './tandem.js';
+import { LINKS } from './links.js';
 
 export const SECTIONS = [
   { id: 'notes', name: 'Notes', hint: 'Your notes and folders' },
   { id: 'daily', name: 'Daily', hint: "One note per day (T opens today's)" },
   { id: 'products', name: 'Products', hint: 'What you and Tandem know about each product' },
   { id: 'templates', name: 'Templates', hint: 'What new notes start from' },
+  { id: 'links', name: 'Links', hint: 'The web links you keep, by group (L adds one)' },
   { id: 'tandem', name: 'Tandem', hint: "Tandem's plans, specs and reviews, from .work" }
 ];
 export const SECTION_IDS = SECTIONS.map(s => s.id);
@@ -28,6 +31,7 @@ export const SECTION_FOLDERS = Object.keys(FOLDER_SECTION);
 /** The section a page belongs to. */
 export function sectionOf(path) {
   if (isTandem(path)) return 'tandem';
+  if (path === LINKS) return 'links';
   const top = String(path || '').split('/')[0];
   return (String(path || '').includes('/') && FOLDER_SECTION[top]) || 'notes';
 }
@@ -37,7 +41,7 @@ export function visibleSections({ tandem = false } = {}) {
   return SECTIONS.filter(s => s.id !== 'tandem' || tandem);
 }
 
-/** Paths for the Notes section's tree: everything outside daily/, products/ and templates/. */
+/** Paths for the Notes section's tree: everything outside daily/, products/, templates/ and links.md. */
 export function notesPaths(paths) {
   return [...paths].filter(p => sectionOf(p) === 'notes');
 }

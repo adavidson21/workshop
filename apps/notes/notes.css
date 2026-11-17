@@ -703,3 +703,30 @@ dialog{border:0;border-radius:var(--r-lg);box-shadow:0 20px 60px rgb(34 25 28/.2
 .md :is(h1,h2,h3,h4,h5,h6):hover>.fold-h,.md .fold-h:focus-visible,.md .fold-h[aria-expanded=false]{opacity:1}
 .md .fold-h[aria-expanded=false]{color:var(--accent)}
 .md .folded-away{display:none}
+
+/* ---------- Folio 4.10.0: Links ---------- */
+/* A small mark for what a link is (SharePoint, Sheets, ADO...), read from its address. Quiet: muted unless hovered. */
+.lkind{flex:none;display:inline-grid;place-items:center;min-width:1.55rem;height:1.05rem;padding:0 .2rem;border-radius:4px;background:var(--hover);color:var(--muted);font:600 .62rem/1 var(--mono);letter-spacing:.02em}
+.tree li.link>.row{padding-left:.55rem;gap:.45rem;padding-right:3.4rem}
+.tree li.link .ltags{flex:none;max-width:40%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.72rem;color:var(--muted)}
+.tree .row-acts{position:absolute;right:.25rem;top:.17rem;display:flex}
+.tree li.link:hover .ibtn.mini,.tree li.link .ibtn.mini:focus-visible{opacity:1}
+.tree li.link:hover .ltags{display:none}
+.tree .row-del:hover{color:var(--danger)}
+.tree li.link.current>.row{background:var(--hover);font-weight:500}
+.found{margin:.8rem .3rem 0;border-top:1px solid var(--line);padding-top:.4rem}
+.found summary{cursor:pointer;list-style:revert;padding:.2rem .25rem}
+.found-list{list-style:none;margin:.3rem 0 0;padding:0;display:flex;flex-direction:column;gap:.5rem}
+.found-list li{display:grid;grid-template-columns:1fr auto;gap:.1rem .4rem;padding:0 .25rem}
+.found-list .f-link{display:flex;align-items:center;gap:.45rem;min-width:0;color:var(--ink);text-decoration:none;font-size:.84rem}
+.found-list .f-link .name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.found-list .f-link:hover .name{text-decoration:underline}
+.found-list .f-where{grid-column:1;padding-left:2rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.found-list .f-acts{grid-column:2;grid-row:1 / span 2;display:flex;gap:.2rem;align-items:center}
+.plinks summary{cursor:pointer;list-style:revert}
+.plinks details[open] summary{margin-bottom:.45rem}
+.plink-list{display:flex;flex-direction:column;gap:.25rem;margin-bottom:.5rem!important}
+.plink-list a{display:flex;align-items:center;gap:.45rem;color:var(--ink);text-decoration:none;font-size:.86rem;min-width:0}
+.plink-list a .name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.plink-list a:hover .name{text-decoration:underline}
+.dlg.link-form{display:flex;flex-direction:column;gap:.7rem}

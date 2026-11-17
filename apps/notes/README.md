@@ -4,6 +4,8 @@ Your notebook, as plain `.md` files: the **sections** (places), the open section
 
 Nothing leaves your device: no accounts, no server, no analytics.
 
+**4.10.0 (Links; Workshop project doc `claude/folio-links-v1-plan.md`).** A **Links** place: one directory of the web links you keep (SharePoint, Sheets, ADO, Teams, the wiki), by group and tag, in a plain `links.md`. `L` adds one, **Find a link** in the palette filters them, saved links show in the `[[` menu, on product notes, and **Found in notes** suggests links already in your notes. Details under What it does.
+
 **4.8.0 (Obsidian gaps, part 3).** Fold sections: an arrow beside each heading in Live, Edit and the preview, and `Ctrl+Shift+[` / `]`.
 
 **4.7.0 (Obsidian gaps, part 2).** Hover a note link for its preview, **Unlinked mentions** under Backlinks, and **Open in new window** for two notes side by side.
@@ -23,6 +25,7 @@ Plan: `claude/notes-standalone-plan.md` in the personal toools Project.
   - **Daily:** `daily/` by month, newest first, with today's note at the top (`T`).
   - **Products:** `products/`, the notes Tandem reads before it works on a product, each marked when Tandem changed it, with **N to review**.
   - **Templates:** every template by name, the starter set included before its files exist. **+** makes a new one.
+  - **Links:** `links.md` at the top of the folder, one plain note (also pinned under Quick Notes). A `## heading` is a group; a link is a list item with a Markdown link or a bare address, then optional `#tags` and words. The place lists the groups and links with a small mark for what each is (SharePoint, Excel, Google Sheets, ADO, Teams, GitHub, wiki), read from the address and never stored; a link opens in a new tab. The box on top filters by name, group, tag or address; arrows and Enter open one. **Add a link** (`+`, `L` anywhere, or the palette's *Add a link*) asks for the address, a name (suggested from the address), a group (the ones there are offered) and tags; Edit and Remove are on each row. Changes go through the usual save, so history and conflicts work as for any note, and only that line changes. The pencil opens `links.md` as a note to edit by hand. **Found in notes**, folded at the bottom, lists web links in your other notes that aren't in Links yet (not in code, frontmatter, templates or history), most used first, with **Save** and **Ignore**; ignored ones are kept in Folio's own collection `links-ignored`. In a note, `[[` offers saved links too and inserts a plain Markdown link, so the note pastes cleanly into the wiki. A product note's page panel has a folded **Links** section: the links whose group or a tag is the product's name, slug, another name or `product/<slug>`, and **Add a link** with that group filled in. `#/notes/links` (or *Find a link*) opens the place with the filter ready. Rules in `js/links.js`.
   - **Tandem:** shows only inside Workshop on this computer with the opencode connector on. Every plan, spec, bug analysis, review, brief and finding Tandem writes in `.work`, grouped by run, with the runs waiting on your review at the top (a **Review** mark on the file to read) and a **Working** mark while Tandem works. Pages are read and saved straight to `.work` through the connector (below); nothing is copied into the notes folder. While Tandem or autopilot works on a run its pages are read-only. **Open in Dispatch** goes to the run; approving is still Dispatch's step. Dispatch's file sheet edits the same files and has **Open in Notebook** (to be renamed **Open in Folio** in Workshop). **Spike briefs:** a `findings.md` with a `Lenses:` line (eng-agents Core 2.21.0) gets a **Business / Engineering / Leadership** switch in its header; the preview shows the brief as that reader sees it (`### For <lens>` blocks for other readers are hidden, rules in `js/lenses.js`), opening on its `Default lens:`. **Download brief (HTML)** in `⋯` saves one self-contained page with the same switch, made of radio buttons and CSS only, so it works where scripts are blocked; printing prints the open lens.
 - **Folding the sidebars:** on a desktop, the button left of **Folio** (or `Ctrl+\`) folds the pages list away and back (the places stay as a slim rail of colored dots), and the button at the right end of the note's header (or `Ctrl+Shift+\`) does the same for the outline, backlinks and tags panel. Each is remembered in this browser. Both are also palette commands.
 - **Phone:** under 760px wide the pages list is a drawer (the button left of the tabs), the header is one row with the rest in `⋯`, and the view is Live, Edit or Preview (Preview by default), remembered apart from the desktop's. `#/today` opens straight into today's note.
@@ -100,6 +103,7 @@ Tandem (eng-agents) is the one program outside Folio that writes notes, and only
 ```
 <Workshop folder>/folio/
   guide.md
+  links.md
   runbooks/deploy.md
   daily/2026-11-05.md
   products/wiki-edge.md
@@ -139,6 +143,7 @@ Edit the files with any editor: Folio picks up changes made outside it.
 - `js/editor.js`: the editor. CodeMirror (`vendor/codemirror.js`) behind a textarea-shaped object, so the rest of the page doesn't care which it is; the plain textarea if it can't load.
 - `js/slash.js`, `js/tables.js`: the slash menu's entries and what each one inserts; lining up a pipe table. Pure.
 - `js/embeds.js`, `js/map.js`: what an embed names and which part of a note it shows; the map of links as a Mermaid flowchart. Pure.
+- `js/links.js`: Links: reading and writing `links.md`, the kind of each link, filtering, a product's links, Found in notes, and the ignored list (its reads and writes through `ws.data`). Pure, except `createIgnored`.
 - `js/props.js`, `js/bookmarks.js`: a note's frontmatter as fields and the edits to it; bookmarks and how they follow moves (and their reads and writes through `ws.data`). Pure, except `createBookmarks`.
 - `js/data.js`: loading, saving (with history), outside changes and images through `ws.files`.
 - `js/pickup.js`: captures from Home and the Dispatch hub.

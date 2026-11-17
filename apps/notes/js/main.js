@@ -34,6 +34,7 @@ import { dataUrl, inlineImages, pageHtml, wikiHtml, wikiMarkdown } from './expor
 import { EMBED_DEPTH, embedHtml, embedSpec, expandEmbeds, sectionText } from './embeds.js';
 import { noteMap, nodeAt } from './map.js';
 import { createBookmarks } from './bookmarks.js';
+import { KINDS, LINKS, addLink, allLinks, createIgnored, filterLinks, foundInNotes, groupNames, hostOf, linkLine, linksForProduct, nameFromUrl, parseLinks, removeLink, tagsFrom, updateLink } from './links.js';
 import { removeProp, setProp, validKey } from './props.js';
 import { esc, facts, inline, render, headingId } from './markdown.js';
 import { paintDiagrams, pngBytes, svgFile } from './diagrams.js';
@@ -42,7 +43,7 @@ import {
   APP, MAX_FOLDERS, SEG, baseName, dirOf, freePath, isImagePath, localHref, movedPath, newNoteText, relativeLink,
   linkMention, relink, resolvePath, resolveWiki, search, slugify, stem, tree, unlinkedMentions, validFolder, wikiPath
 } from './model.js';
-import { confirmHtml, diagramPickerHtml, empty, header, mapHtml, historyHtml, importHtml, linkUpdatesHtml, panel, pickerHtml, promptHtml, sectionsHtml, sidebar } from './view.js';
+import { confirmHtml, diagramPickerHtml, empty, header, linkFormHtml, mapHtml, historyHtml, importHtml, linkUpdatesHtml, panel, pickerHtml, promptHtml, sectionsHtml, sidebar } from './view.js';
 
 const $ = (id) => document.getElementById(id);
 const side = $('side'), head = $('head'), bodyEl = $('body'), preview = $('preview');
@@ -101,6 +102,8 @@ let pendingRoute = null;    // a route that came before the notes were read
 const notes = createNotes(ws, { onChange: () => { paintChrome(); if (notes.loaded) summary.schedule(); }, onExternal });
 // Bookmarks (bookmarks.js): notes pinned under Quick Notes, in Folio's own collection.
 const bookmarks = createBookmarks(ws, { onChange: () => paintChrome() });
+// Links (links.js): links.md's directory, and the Found in notes suggestions you said no to (Folio's own collection).
+const ignored = createIgnored(ws, { onChange: () => paintChrome() });
 // The Tandem section (tandem.js): .work documents through the opencode connector, where it runs.
 const tandem = createTandem(ws, { onChange: () => { if (ui.path && isTandem(ui.path)) doc.item = (findDoc(tandem.state.items, ui.path) || {}).item || doc.item; paintChrome(); }, onModel: () => onTandemModel() });
 let doc = null; // the open Tandem page: {item, busy}
@@ -183,7 +186,105 @@ function state() {
     versions: ui.path && !tdoc ? notes.history(ui.path).length : 0, start: startOffer(), tandem: tandem.state, today: dayOf(new Date()),
     text: ui.path ? editor.value : '', mentions: tdoc ? [] : mentionsNow(), canWindow: Boolean(ui.path) && !isPhone(), bookmarks: bookmarks.list, bookmarked: Boolean(ui.path && bookmarks.has(ui.path)),
     doc: tdoc, brief: tdoc ? briefNow() : null, outline: tdoc ? facts(editor.value).headings : null, phone: isPhone(), hintSeen: store('hint-send') === '1',
-    isStarter: isTpl && Object.prototype.hasOwnProperty.call(STARTERS, ui.path), tplFields: isTpl ? templateFields(editor.value) : null };
+    isStarter: isTpl && Object.prototype.hasOwnProperty.call(STARTERS, ui.path), tplFields: isTpl ? templateFields(editor.value) : null,
+    links: { groups: linkGroups(), found: ui.section === 'links' ? linksFound() : [] }, ...productLinksNow() };
+}
+
+/* ---------- Links (links.js) ---------- */
+
+/** links.md's text: the editor's when it is open (edits show at once), else the file's. */
+const linksText = () => (ui.path === LINKS ? editor.value : (notes.texts.get(LINKS) || {}).content || '');
+const linksMemo = { text: null, groups: [] };
+function linkGroups() {
+  const t = linksText();
+  if (t !== linksMemo.text) { linksMemo.text = t; linksMemo.groups = parseLinks(t); }
+  return linksMemo.groups;
+}
+const foundMemo = { index: null, groups: null, ignored: -1, list: [] };
+function linksFound() {
+  if (!notes.loaded) return [];
+  const groups = linkGroups(), ig = ignored.list;
+  if (foundMemo.index !== notes.index || foundMemo.groups !== groups || foundMemo.ignored !== ig.length) {
+    Object.assign(foundMemo, { index: notes.index, groups, ignored: ig.length, list: foundInNotes(notes.texts, groups, ig) });
+  }
+  return foundMemo.list;
+}
+/** The product whose note is open, and its links, for the page panel. */
+function productLinksNow() {
+  const p = ui.path && (products || []).find(x => !x.archived && Products.notePath(x) === ui.path);
+  return p ? { productLinks: linksForProduct(linkGroups(), p), linkProduct: p } : {};
+}
+/** Links whose name, group or tags have q, flat, as the sidebar shows them. */
+const shownLinks = () => allLinks(filterLinks(linkGroups(), ui.query.trim()));
+function openLinkUrl(url) { window.open(url, '_blank', 'noopener,noreferrer'); }
+
+/** Change links.md with fn(text) -> text (null: it changed under you). Through the editor when it is open, so autosave,
+    history and conflicts work as for any note; otherwise saved with the usual conflict check and history. */
+async function changeLinks(fn) {
+  if (ui.path === LINKS) {
+    if (editor.readOnly || ['conflict', 'gone'].includes(ui.status.kind)) { ws.toast('Links has unsaved edits to sort out first.', { kind: 'warn' }); return false; }
+    const next = fn(editor.value);
+    if (next === null) { ws.toast('Links changed. Look again.', { kind: 'warn' }); paintChrome(); return false; }
+    editor.value = next;
+    editor.dispatchEvent(new Event('input'));
+    await saveNow();
+    paintChrome(); paintPreview(true);
+    return true;
+  }
+  const t = notes.texts.get(LINKS);
+  const next = fn(t ? t.content : '');
+  if (next === null) { ws.toast('Links changed. Look again.', { kind: 'warn' }); paintChrome(); return false; }
+  try { if (t) await notes.save(LINKS, next, t.mtime); else await notes.create(LINKS, next); }
+  catch (e) {
+    if (e.code === 'conflict') { await notes.refresh(LINKS).catch(() => {}); ws.toast('Links changed meanwhile. Try again.', { kind: 'warn' }); }
+    else toastErr(e);
+    paintChrome();
+    return false;
+  }
+  paintChrome();
+  return true;
+}
+/** Add or edit a link in a dialog. link: an existing one (edit) or a start ({url, name}); group: the group to offer. */
+async function linkDialog({ link = null, start = {}, group = '' } = {}) {
+  if (dlg.open) return;
+  const groups = groupNames(linkGroups());
+  const editing = Boolean(link);
+  const pending = showDialog(linkFormHtml({ title: editing ? 'Edit link' : 'Add a link', ok: editing ? 'Save' : 'Add', groups,
+    link: editing ? link : { ...start, placeholder: start.url ? nameFromUrl(start.url) : '' }, group: editing ? (link.group === 'Ungrouped' ? '' : link.group) : group }),
+    (fd) => (/^https?:\/\/\S+$/i.test(String(fd.get('value')).trim()) ? '' : 'Give a web address starting with https://.'));
+  const form = dlg.querySelector('form');
+  const url = form.querySelector('[name=value]'), name = form.querySelector('[name=name]');
+  url.addEventListener('input', () => { name.placeholder = url.value.trim() ? nameFromUrl(url.value.trim()) : 'From the address'; });
+  if (editing || start.url) requestAnimationFrame(() => { name.focus(); name.select(); });
+  const fd = await pending;
+  if (!fd) return;
+  const u = String(fd.get('value')).trim();
+  const next = { url: u, name: String(fd.get('name')).trim() || nameFromUrl(u), tags: tagsFrom(String(fd.get('tags'))), note: editing ? link.note : '' };
+  const g = String(fd.get('group')).trim();
+  if (!editing && allLinks(linkGroups()).some(l => l.url === u) && !await confirmDlg('Already in Links', '<p>That address is in Links already. Add it again?</p>', 'Add again')) return;
+  const ok = await changeLinks((t) => (editing ? updateLink(t, link.line, link.raw, next, g) : addLink(t, next, g)));
+  if (ok) ws.toast(editing ? `Saved ${next.name}.` : `Added ${next.name} to ${g || 'Links'}.`, { kind: 'success' }).catch(() => {});
+}
+function confirmDlg(title, body, ok) {
+  dlg.innerHTML = confirmHtml({ title, body, ok });
+  dlg.returnValue = '';
+  return new Promise(resolve => { dlg.addEventListener('close', () => resolve(dlg.returnValue === 'ok'), { once: true }); dlg.showModal(); });
+}
+const linkAtLine = (line) => allLinks(linkGroups()).find(l => l.line === line);
+async function removeLinkAt(line) {
+  const l = linkAtLine(line);
+  if (!l) return;
+  if (await changeLinks((t) => removeLink(t, l.line, l.raw))) ws.toast(`Removed ${l.name} from Links.`).catch(() => {});
+}
+async function openLinksNote() {
+  if (!notes.texts.has(LINKS)) { try { await notes.create(LINKS, '# Links\n\n'); } catch (e) { toastErr(e); return; } }
+  showSection('links');
+  await openNote(LINKS);
+}
+/** Links for the [[ menu: the saved links matching q, inserted as plain Markdown links. */
+function linkPicks(q) {
+  if (!q) return [];
+  return allLinks(filterLinks(linkGroups(), q)).slice(0, 5).map(l => ({ title: l.name, path: `${KINDS[l.kind].label} · ${hostOf(l.url)}`, link: l }));
 }
 
 /* A spike brief's lenses (lenses.js) and the one shown, or null. The lens picked is kept per page for this visit. */
@@ -205,7 +306,7 @@ function whereSaved() {
 }
 
 function paintChrome() {
-  if (ui.query.trim()) found = search(notes.index, notes.contents(), ui.query);
+  if (ui.query.trim() && ui.section !== 'links') found = search(notes.index, notes.contents(), ui.query);
   const st = state();
   const active = document.activeElement;
   const inSearch = active && active.matches && active.matches('[data-search]');
@@ -1432,7 +1533,7 @@ function updatePicker() {
   }
   pk.items = [...notes.index.notes.values()].filter(n => n.path !== ui.path && (!q || n.title.toLowerCase().includes(q) || n.path.includes(q)))
     .sort((a, b) => (a.title.toLowerCase().startsWith(q) ? 0 : 1) - (b.title.toLowerCase().startsWith(q) ? 0 : 1) || (a.title < b.title ? -1 : 1)).slice(0, 8)
-    .concat(matchRecords(records, q));
+    .concat(linkPicks(q), matchRecords(records, q));
   pk.pick = Math.min(pk.pick, Math.max(0, pk.items.length - 1));
   pk.open = true;
   picker.innerHTML = pickerHtml(pk.items, pk.pick);
@@ -1473,7 +1574,7 @@ function choosePicker(k = pk.pick) {
     editor.dispatchEvent(new Event('input'));
     return;
   }
-  const md = n.handle ? `@${n.handle} ` : n.href ? recordLink(n)
+  const md = n.handle ? `@${n.handle} ` : n.link ? linkLine({ name: n.link.name, url: n.link.url }).slice(2) : n.href ? recordLink(n)
     : n.heading ? `[${n.heading.text.replace(/[[\]]/g, '')}](${n.heading.here ? '' : relativeLink(ui.path, n.heading.path)}#${n.heading.id})`
     : `[${n.title.replace(/[[\]]/g, '')}](${relativeLink(ui.path, n.path)})`;
   editor.setRangeText(md, pk.start, editor.selectionStart, 'end');
@@ -1620,6 +1721,12 @@ document.addEventListener('click', async (e) => {
   else if (act === 'window') openWindow(ui.path);
   else if (act === 'link-mention') linkMentionAt(Number(x.dataset.k));
   else if (act === 'unbookmark') toggleBookmark(x.dataset.path);
+  else if (act === 'add-link') linkDialog({ group: x.dataset.group || '' });
+  else if (act === 'open-links') openLinksNote();
+  else if (act === 'edit-link') { const l = linkAtLine(Number(x.dataset.linkLine)); if (l) linkDialog({ link: l }); }
+  else if (act === 'remove-link') removeLinkAt(Number(x.dataset.linkLine));
+  else if (act === 'save-found') { const f = linksFound()[Number(x.dataset.k)]; if (f) linkDialog({ start: { url: f.url, name: f.name } }); }
+  else if (act === 'ignore-found') { const f = linksFound()[Number(x.dataset.k)]; if (f) ignored.add(f.url).catch(toastErr); }
   else if (act === 'prop-add') addProp();
   else if (act === 'prop-remove') changeProps((t) => removeProp(t, x.dataset.propKey));
   else if (act === 'copy') copyMarkdown();
@@ -1677,7 +1784,11 @@ async function linkMentionAt(k) {
   catch (e) { if (e.code === 'conflict') ws.toast(`${m.title} changed meanwhile. Try again.`, { kind: 'warn' }); else toastErr(e); }
   paintChrome();
 }
-panelEl.addEventListener('toggle', (e) => { if (e.target.matches && e.target.matches('.mentions details')) ui.mentionsOpen = e.target.open; }, true);
+panelEl.addEventListener('toggle', (e) => {
+  if (e.target.matches && e.target.matches('.mentions details')) ui.mentionsOpen = e.target.open;
+  if (e.target.matches && e.target.matches('.plinks details')) ui.plinksOpen = e.target.open;
+}, true);
+side.addEventListener('toggle', (e) => { if (e.target.matches && e.target.matches('details.found')) ui.foundOpen = e.target.open; }, true);
 
 /* ---------- another window, and hover previews ---------- */
 
@@ -1813,6 +1924,13 @@ side.addEventListener('keydown', (e) => {
   // Delete on a focused note in the sidebar trashes it (with the usual confirm).
   if (e.key === 'Delete' && e.target.matches('a.row[data-open]')) { e.preventDefault(); trashNote(e.target.dataset.open); return; }
   if (!e.target.matches('[data-search]')) return;
+  if (ui.section === 'links') {
+    const list = shownLinks();
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); ui.pick = Math.max(0, Math.min(list.length - 1, ui.pick + (e.key === 'ArrowDown' ? 1 : -1))); paintChrome(); }
+    else if (e.key === 'Enter' && list[ui.pick]) { e.preventDefault(); openLinkUrl(list[ui.pick].url); }
+    else if (e.key === 'Escape') { e.preventDefault(); setQuery(''); }
+    return;
+  }
   if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); ui.pick = Math.max(0, Math.min(found.length - 1, ui.pick + (e.key === 'ArrowDown' ? 1 : -1))); paintChrome(); }
   else if (e.key === 'Enter' && found[ui.pick]) { e.preventDefault(); const r = found[ui.pick]; openNote(r.path, { line: r.line }); }
   else if (e.key === 'Escape') { e.preventDefault(); setQuery(''); editor.focus(); }
@@ -1861,6 +1979,7 @@ document.addEventListener('keydown', (e) => {
   if (e.key === '/') { e.preventDefault(); side.querySelector('[data-search]')?.focus(); }
   else if (e.key === 'n' || e.key === 'N') { e.preventDefault(); newNote(); }
   else if (e.key === 't' || e.key === 'T') { e.preventDefault(); openToday(); }
+  else if (e.key === 'l' || e.key === 'L') { e.preventDefault(); const p = productLinksNow().linkProduct; linkDialog({ group: p ? p.name : '' }); }
 });
 
 window.addEventListener('beforeunload', (e) => {
@@ -1877,6 +1996,8 @@ ws.commands.register({ id: 'toggle-pages', title: 'Show or hide the pages list' 
 ws.commands.register({ id: 'toggle-panel', title: 'Show or hide the page panel' });
 ws.commands.register({ id: 'window', title: 'Open this note in a new window' });
 ws.commands.register({ id: 'bookmark', title: 'Bookmark this note (or remove it)' });
+ws.commands.register({ id: 'links', title: 'Find a link' });
+ws.commands.register({ id: 'add-link', title: 'Add a link' });
 ws.on('command', (p) => {
   if (p.id === 'reload-new' && swReload) { swReload(); return; }
   if (p.id === 'undo-trash') { undoTrash(); return; }
@@ -1888,12 +2009,23 @@ ws.on('command', (p) => {
   else if (p.id === 'bookmark') toggleBookmark(ui.path);
   else if (p.id === 'window') openWindow(ui.path);
   else if (p.id === 'search') side.querySelector('[data-search]')?.focus();
+  else if (p.id === 'links') findLink();
+  else if (p.id === 'add-link') linkDialog();
 });
+/** The Links place with its filter box ready: type, arrows, Enter opens the link. */
+function findLink() {
+  showSection('links'); ui.query = ''; ui.pick = 0;
+  if (isPhone()) ui.drawer = true;
+  if (!isPhone() && ui.sideClosed) { ui.sideClosed = false; store('side-closed', '0'); }
+  paintChrome();
+  side.querySelector('[data-search]')?.focus();
+}
 function route(raw) {
   let path = '';
   try { path = decodeURIComponent(raw || ''); } catch { path = raw || ''; }
   if (path === 'today') { if (notes.loaded) openToday(); else pendingRoute = 'today'; return; }
   if (path === 'review') { showSection('products'); setQuery('is:review'); return; }
+  if (path === 'links') { findLink(); return; }
   // tandem/<folder>/<file>: a Tandem document (Dispatch's Open in Notebook, to be renamed Open in Folio).
   if (path.startsWith('tandem/')) { const d = parseTandem(path.slice(7)); if (d) { const t = tandemPath(d.folder, d.file); if (notes.loaded) openNote(t); else pendingRoute = t; } return; }
   // search/<words>: Notes opened on a search (Docket's "+N" opens the notes that link to a task).

@@ -35,8 +35,10 @@ test('sections: which section a page is in, daily by month, and the Notes tree p
   assert.equal(sectionOf('products/wiki-edge.md'), 'products');
   assert.equal(sectionOf('templates/meeting.md'), 'templates');
   assert.equal(sectionOf('tandem:41207-x/plan.md'), 'tandem');
-  assert.deepEqual(notesPaths(['a.md', 'daily/2026-11-06.md', 'products/x.md', 'templates/m.md', 'f/b.md']), ['a.md', 'f/b.md']);
-  assert.deepEqual(visibleSections().map(s => s.id), ['notes', 'daily', 'products', 'templates']);
+  assert.equal(sectionOf('links.md'), 'links');
+  assert.equal(sectionOf('f/links.md'), 'notes', 'only the top links.md is Links');
+  assert.deepEqual(notesPaths(['a.md', 'daily/2026-11-06.md', 'products/x.md', 'templates/m.md', 'f/b.md', 'links.md']), ['a.md', 'f/b.md']);
+  assert.deepEqual(visibleSections().map(s => s.id), ['notes', 'daily', 'products', 'templates', 'links']);
   assert.ok(visibleSections({ tandem: true }).some(s => s.id === 'tandem'));
   const g = dailyGroups(['daily/2026-10-30.md', 'daily/2026-11-06.md', 'daily/2026-11-02.md', 'daily/notes.md', 'x.md']);
   assert.deepEqual(g.map(x => x.month), ['November 2026', 'October 2026']);
