@@ -92,7 +92,7 @@ ws.data.subscribe('summary', boardLater, { app: 'prioritizer' });
 ws.people.subscribe(() => setupLater());
 const OC = 'opencode';
 const agentsLater = later(home.loadAgents, 200);
-if (ws.backend === 'agent') { ws.connectors.on(OC, '*', agentsLater); ws.connectors.onStatus(OC, agentsLater); ws.connectors.onStatus('cloudflare', agentsLater); }
+if (ws.backend === 'agent') { ws.connectors.on(OC, '*', agentsLater); ws.connectors.onStatus(OC, agentsLater); ws.approvals.on(agentsLater); }
 ws.data.subscribe('profile', () => { if (!home.waiting) home.loadProfile(); });
 // Needs you and the week follow every app's summary.
 const inboxLater = later(home.loadInbox, 300);

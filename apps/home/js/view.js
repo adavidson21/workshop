@@ -68,18 +68,12 @@ export function inboxRows(byApp) {
 }
 
 /**
- * Rows from connectors that wait on you, from their status (`details`), never from their data: the Cloudflare
- * connector's change sets waiting to be applied. Opens Settings at that connector's page. list: GET /api/connectors.
+ * One row when changes wait in Approvals (GET /api/approvals `waiting`): Tandem asked to change something outside
+ * this computer. Opens Settings, Approvals.
  */
-export function connectorRows(list) {
-  const out = [];
-  for (const c of Array.isArray(list) ? list : []) {
-    const n = c && c.status && c.status.details && c.status.details.waiting;
-    if (c && c.id === 'cloudflare' && c.enabled && Number.isInteger(n) && n > 0) {
-      out.push({ app: 'settings', appName: 'Cloudflare', id: 'cloudflare-changes', title: `${n} change set${n === 1 ? '' : 's'} to review`, note: 'Proposed by Tandem. Apply or reject.', route: 'c-cloudflare', flag: '' });
-    }
-  }
-  return out;
+export function approvalRows(waiting) {
+  const n = Number.isInteger(waiting) ? waiting : 0;
+  return n > 0 ? [{ app: 'settings', appName: 'Approvals', id: 'approvals-waiting', title: `${n} change${n === 1 ? '' : 's'} to approve`, note: 'Tandem asked to change something outside this computer.', route: 'approvals', flag: '' }] : [];
 }
 
 /** The week's work, from each app's `done-week` list card: [{app, name, rows: [{title, note, due}]}]. */

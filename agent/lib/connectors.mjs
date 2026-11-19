@@ -9,6 +9,7 @@ import { checkConnectorModule } from './connector-check.mjs';
 import { writeJsonAtomic, KeyedLock } from './fsutil.mjs';
 import { HttpError, STATUS_FOR, fail } from './http.mjs';
 import { SECRET_NAME, readIndex, secretStatus } from './secrets.mjs';
+import { digestOf } from './approvals.mjs';
 
 const STOP_MS = 5000;
 const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]{0,127}$/;
@@ -81,7 +82,7 @@ const timeout = (ms, what) => new Promise((_, reject) => {
 });
 
 export class ConnectorHost {
-  #dir; #schemas; #env; #home; #storageDir; #dataDir; #log; #events; #config; #secrets; #workMode;
+  #dir; #schemas; #env; #home; #storageDir; #dataDir; #log; #events; #config; #secrets; #workMode; #approvals; #activity;
   #entries = new Map();
   #storageLock = new KeyedLock();
 
@@ -98,12 +99,16 @@ export class ConnectorHost {
    * @param {() => object} o.config returns the live config object
    * @param {(name: string) => Promise<string|undefined>} [o.secrets] reads a secret from this computer's store (lib/secrets.mjs)
    * @param {() => boolean} [o.workMode] whether work mode is on now
+   * @param {import('./approvals.mjs').Approvals} [o.approvals] requests waiting for a person, and always-allow rules
+   * @param {import('./activity.mjs').Activity} [o.activity] the activity log
    */
   constructor(o) {
     this.#dir = o.dir; this.#schemas = o.schemas; this.#env = o.env; this.#home = o.home;
     this.#storageDir = o.storageDir; this.#dataDir = o.dataDir || null; this.#log = o.log; this.#events = o.events; this.#config = o.config;
     this.#secrets = o.secrets || (async () => undefined);
     this.#workMode = o.workMode || (() => this.#config()?.features?.workMode === true);
+    this.#approvals = o.approvals || null;
+    this.#activity = o.activity || null;
   }
 
   async load() {
@@ -198,6 +203,9 @@ export class ConnectorHost {
         return typeof v === 'string' && v ? v : undefined;
       },
       workMode: () => this.#workMode() === true,
+      // Ask a person to approve one of this connector's own actions marked agent: "ask" (docs/connector.md). Runs it
+      // at once when an always-allow rule covers it. Resolves {approval: {id, status, title}} or {rule, result}.
+      requestApproval: (action, args, opts = {}) => this.requestApproval(entry.id, action, args, opts),
       log: Object.freeze({ info: (m, d) => log.info(m, d), warn: (m, d) => log.warn(m, d), error: (m, d) => log.error(m, d) }),
       storage: Object.freeze({
         async get(key) {
@@ -301,34 +309,160 @@ export class ConnectorHost {
     if (this.#enabled(id)) { await this.#stop(entry); await this.#start(entry); }
   }
 
-  /** The read actions agents may run through /api/tools: on, ready connectors only. */
+  /**
+   * What agents may use through /api/tools and /api/mcp: on, ready connectors only. Read actions marked
+   * `agent: true` run; write actions marked `agent: "ask"` become a request a person approves (`asks: true`).
+   */
   agentTools() {
     const out = [];
     for (const entry of this.#entries.values()) {
       if (!entry.mod || !this.#enabled(entry.id) || !entry.ctx || this.#status(entry).state !== 'ready') continue;
       for (const [name, a] of Object.entries(entry.mod.actions)) {
-        if (a.agent === true && a.write !== true) out.push({ connector: entry.id, action: name, title: a.title, ...(a.argsSchema ? { argsSchema: a.argsSchema } : {}) });
+        const read = a.agent === true && a.write !== true;
+        const asks = a.agent === 'ask' && a.write === true;
+        if (read || asks) out.push({ connector: entry.id, action: name, title: a.title, ...(asks ? { asks: true } : {}), ...(a.argsSchema ? { argsSchema: a.argsSchema } : {}) });
       }
     }
     return out;
   }
 
   /**
-   * Runs a read action marked `agent: true` for /api/tools. Anything else (a write, a setup action, an action not
-   * marked for agents) is refused as if it did not exist, and there is no confirm: agents can never write.
+   * /api/tools: runs a read action marked `agent: true`, or turns a write marked `agent: "ask"` into a request for
+   * a person (or runs it, when an always-allow rule covers it). Anything else is refused as if it did not exist,
+   * and agents never confirm.
    */
   async callForAgent(id, action, body) {
     const entry = this.#entries.get(id);
     const a = entry && entry.mod && Object.hasOwn(entry.mod.actions, action) ? entry.mod.actions[action] : null;
-    if (!a || a.agent !== true || a.write === true) fail('not_found', `There is no ${action} tool for agents in ${id}.`);
+    const read = a && a.agent === true && a.write !== true;
+    const asks = a && a.agent === 'ask' && a.write === true;
+    if (!read && !asks) fail('not_found', `There is no ${action} tool for agents in ${id}.`);
     const errs = this.#schemas.validate('connector-call-request', body);
     if (errs.length) fail('bad_request', `Send {"args": {...}}: ${errs[0]}`);
     if (body.confirm !== undefined) fail('bad_request', 'Agents cannot confirm anything. Leave confirm out.');
-    return this.call(id, action, { args: body.args ?? {} }, { caller: 'agent' });
+    if (read) return this.call(id, action, { args: body.args ?? {} }, { caller: 'agent' });
+    return this.requestApproval(id, action, body.args ?? {}, { by: 'agent' });
+  }
+
+  #askable(id, action) {
+    const entry = this.#loaded(id);
+    const a = Object.hasOwn(entry.mod.actions, action) ? entry.mod.actions[action] : null;
+    if (!a || a.agent !== 'ask' || a.write !== true) fail('not_found', `The ${entry.mod.name} connector has no ${action} action that can be approved.`);
+    if (!this.#enabled(id)) fail('disabled', `The ${entry.mod.name} connector is off. Turn it on in Settings.`);
+    if (!entry.ctx || this.#status(entry).state !== 'ready') fail('unavailable', `The ${entry.mod.name} connector is not ready yet.`);
+    return { entry, a };
+  }
+
+  /** The scopes a request touches, from the action's scope hook (none without one). */
+  async #scopes(entry, a, args) {
+    if (typeof a.scope !== 'function') return [];
+    try { const s = await a.scope(args, entry.ctx); return Array.isArray(s) ? s : []; } catch { return []; }
+  }
+
+  /**
+   * Asks a person to approve a write (docs/security.md, Approvals). Checks the arguments first, so a request that
+   * could never run is refused now. An always-allow rule that covers it runs it at once (by "rule").
+   */
+  async requestApproval(id, action, args, { title, by = 'agent' } = {}) {
+    if (!this.#approvals) fail('unavailable', 'Approvals are not available.');
+    const { entry, a } = this.#askable(id, action);
+    if (a.argsSchema) {
+      const e2 = this.#schemas.validate(a.argsSchema, args ?? {});
+      if (e2.length) fail('bad_request', `Those arguments are not valid: ${e2[0]}`);
+    }
+    const scopes = await this.#scopes(entry, a, args ?? {});
+    const rule = this.#approvals.match(id, action, scopes.map(String));
+    if (rule) {
+      const result = await this.call(id, action, { args: args ?? {}, confirm: true }, { caller: by === 'agent' ? 'agent' : 'person', rule: rule.id });
+      return { rule: rule.id, result };
+    }
+    const req = this.#approvals.create({ connector: id, action, args: args ?? {}, title: title || a.title, by, scopes });
+    this.#activity?.record({ by, connector: id, action, kind: 'request', approval: req.id, summary: req.title });
+    this.#events.send('approvals', { waiting: this.#approvals.waiting() });
+    return { approval: { id: req.id, status: req.status, title: req.title } };
+  }
+
+  /** A request as a person reads it: worked out from its arguments now (describe hook), with the digest to approve. */
+  async viewApproval(req) {
+    const entry = this.#entries.get(req.connector);
+    const a = entry && entry.mod && Object.hasOwn(entry.mod.actions, req.action) ? entry.mod.actions[req.action] : null;
+    const view = { id: req.id, connector: req.connector, connectorName: entry && entry.mod ? entry.mod.name : req.connector, action: req.action,
+      actionTitle: a ? a.title : req.action, title: req.title, by: req.by, requested: req.requested, status: req.status,
+      ...(req.decided ? { decided: req.decided } : {}), ...(req.error ? { error: req.error } : {}), ...(req.note ? { note: req.note } : {}), ...(req.rule ? { rule: req.rule } : {}) };
+    if (req.status !== 'waiting') return { ...view, lines: Array.isArray(req.lines) ? req.lines : [] };
+    let lines = null, problem = null;
+    const ready = a && entry.ctx && this.#enabled(req.connector) && this.#status(entry).state === 'ready';
+    if (a && typeof a.describe === 'function' && ready) {
+      try { const l = await a.describe(req.args ?? {}, entry.ctx); lines = Array.isArray(l) ? l.map(x => String(x).slice(0, 500)).slice(0, 50) : null; }
+      catch (e) { problem = e && e.message ? e.message : 'Could not read what this changes.'; }
+    }
+    if (!ready) problem = `${view.connectorName} is off or not ready, so this cannot run now.`;
+    if (!lines) lines = Object.entries(req.args ?? {}).slice(0, 20).map(([k, v]) => `${k}: ${JSON.stringify(v).slice(0, 300)}`);
+    const scopes = a && ready ? await this.#scopes(entry, a, req.args ?? {}) : [];
+    return { ...view, lines, scopes, digest: digestOf(req.connector, req.action, req.args ?? {}), ...(problem ? { problem } : {}) };
+  }
+
+  /**
+   * A person approves (with the digest of what they read) or rejects a request. Approve runs the action as theirs,
+   * confirmed by that click; `always` also adds an always-allow rule for the same connector, action and scopes.
+   */
+  async decideApproval(reqId, { approve, digest, always = false, note = '' }) {
+    if (!this.#approvals) fail('unavailable', 'Approvals are not available.');
+    const req = this.#approvals.get(reqId);
+    if (!req) fail('not_found', `There is no approval ${reqId}.`);
+    if (req.status !== 'waiting') fail('conflict', `That request was already ${req.status}.`);
+    const entry = this.#entries.get(req.connector);
+    const a = entry && entry.mod && Object.hasOwn(entry.mod.actions, req.action) ? entry.mod.actions[req.action] : null;
+    if (!approve) {
+      if (a && typeof a.onReject === 'function' && entry.ctx) { try { await a.onReject(req.args ?? {}, entry.ctx, note); } catch { /* the request is rejected either way */ } }
+      this.#approvals.finish(reqId, 'rejected', { note: String(note || '').slice(0, 500) || undefined });
+      this.#activity?.record({ by: 'you', connector: req.connector, action: req.action, kind: 'reject', approval: reqId, summary: req.title });
+      this.#events.send('approvals', { waiting: this.#approvals.waiting() });
+      return { id: reqId, status: 'rejected' };
+    }
+    if (digest !== digestOf(req.connector, req.action, req.args ?? {})) fail('conflict', 'This request changed since you read it. Nothing was run. Read it again.');
+    const { a: act } = this.#askable(req.connector, req.action);
+    const view = await this.viewApproval(req);
+    if (view.problem) fail('conflict', view.problem);
+    let rule = null;
+    if (always) rule = await this.#approvals.addRule({ connector: req.connector, action: req.action, scopes: view.scopes || [], label: `${view.connectorName}: ${act.title}` });
+    try {
+      const result = await this.call(req.connector, req.action, { args: req.args ?? {}, confirm: true }, { caller: 'person', approval: reqId });
+      this.#approvals.finish(reqId, 'approved', { lines: view.lines, result: smallResult(result), ...(rule ? { ruleAdded: rule.id } : {}) });
+      this.#events.send('approvals', { waiting: this.#approvals.waiting() });
+      return { id: reqId, status: 'approved', result, ...(rule ? { rule: rule.id } : {}) };
+    } catch (e) {
+      this.#approvals.finish(reqId, 'failed', { lines: view.lines, error: e && e.message ? e.message : 'It failed.' });
+      this.#events.send('approvals', { waiting: this.#approvals.waiting() });
+      throw e;
+    }
   }
 
   /** Runs an action. `meta.caller` is 'agent' for /api/tools and 'person' otherwise; the connector gets it as run's third argument. */
   async call(id, action, body, meta = { caller: 'person' }) {
+    const started = Date.now();
+    let a0 = null;
+    try {
+      const entry0 = this.#entries.get(id);
+      a0 = entry0 && entry0.mod && Object.hasOwn(entry0.mod.actions, action) ? entry0.mod.actions[action] : null;
+      const result = await this.#call(id, action, body, meta);
+      this.#logCall(id, action, a0, meta, { ok: true, ms: Date.now() - started });
+      return result;
+    } catch (e) {
+      this.#logCall(id, action, a0, meta, { ok: false, error: e && e.message, ms: Date.now() - started });
+      throw e;
+    }
+  }
+
+  /** Activity: every write, and every call that came from an agent, a rule or a routine. Never arguments. */
+  #logCall(id, action, a, meta, how) {
+    if (!this.#activity || !a) return;
+    const by = meta.rule ? 'rule' : meta.caller === 'agent' ? 'agent' : meta.caller === 'routine' ? 'routine' : 'you';
+    if (a.write !== true && by === 'you') return;
+    this.#activity.record({ by, connector: id, action, write: a.write === true, approval: meta.approval, rule: meta.rule, ...how });
+  }
+
+  async #call(id, action, body, meta) {
     const entry = this.#loaded(id);
     const a = Object.hasOwn(entry.mod.actions, action) ? entry.mod.actions[action] : null;
     if (!a) fail('not_found', `The ${entry.mod.name} connector has no ${action} action.`);
@@ -344,7 +478,8 @@ export class ConnectorHost {
       if (e2.length) fail('bad_request', `Those arguments are not valid: ${e2[0]}`);
     }
     try {
-      const result = await a.run(args, entry.ctx, Object.freeze({ caller: meta.caller === 'agent' ? 'agent' : 'person' }));
+      const caller = meta.caller === 'agent' ? 'agent' : meta.caller === 'routine' ? 'routine' : 'person';
+      const result = await a.run(args, entry.ctx, Object.freeze({ caller, ...(meta.approval ? { approval: meta.approval } : {}), ...(meta.rule ? { rule: meta.rule } : {}) }));
       const text = JSON.stringify(result === undefined ? null : result);
       return JSON.parse(text);
     } catch (e) {
@@ -354,4 +489,10 @@ export class ConnectorHost {
       throw new HttpError('internal', e && e.message ? e.message : 'The connector failed.');
     }
   }
+}
+
+/** A result small enough to keep with an approval: at most 4 KB of JSON, else a note. */
+function smallResult(r) {
+  const t = JSON.stringify(r === undefined ? null : r);
+  return t.length <= 4096 ? JSON.parse(t) : { note: 'The result was too long to keep here.' };
 }

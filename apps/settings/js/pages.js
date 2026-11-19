@@ -24,6 +24,7 @@ export const PAGES = {
   computer: { label: 'This computer', group: 'workshop' },
   data: { label: 'Data & backups', group: 'workshop' },
   factory: { label: 'Factory', group: 'workshop', owner: 'opencode' },
+  routines: { label: 'Routines', group: 'workshop', owner: 'opencode' },
   people: { label: 'People & groups', group: 'you', nav: 'people-teams' },
   team: { label: 'Team area paths', group: 'you', nav: 'people-teams' },
   products: { label: 'Products', group: 'you', nav: 'knowledge' },
@@ -34,6 +35,9 @@ export const PAGES = {
   'writing-voice': { label: 'Voice', group: 'you', nav: 'writing' },
   'writing-audiences': { label: 'Audiences', group: 'you', nav: 'writing' },
   'writing-rules': { label: 'Rules', group: 'you', nav: 'writing' },
+  outside: { label: 'All connections', group: 'connections', nav: 'manager' },
+  approvals: { label: 'Approvals', group: 'connections', nav: 'manager' },
+  activity: { label: 'Activity', group: 'connections', nav: 'manager' },
   connections: { label: 'Connections', group: 'connections', owner: 'ado', nav: 'ado' },
   'work-items': { label: 'Work items', group: 'connections', owner: 'ado', nav: 'ado' },
   'pull-requests': { label: 'Pull requests', group: 'connections', owner: 'ado', nav: 'ado' },
@@ -48,6 +52,7 @@ export const NAV = {
   'people-teams': { label: 'People & teams' },
   knowledge: { label: 'Knowledge' },
   writing: { label: 'Writing voice' },
+  manager: { label: 'Manager' },
   ado: { label: 'Azure DevOps', dot: 'ado' }
 };
 // A page that is a nav item of its own and shows a connector's state.

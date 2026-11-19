@@ -98,3 +98,19 @@ test('writes need confirm: true; with it, Loom-style calls (repo as connection) 
   assert.equal(bl.status, 200);
   assert.ok(bl.json.result.items.some(i => i.id === 2 && i.title === 'Dark mode'));
 }));
+
+test('agent reads: GET on issues and pull requests only, GraphQL queries only', async () => {
+  const { checkPath, checkQuery } = await import('../lib/agent-reads.mjs');
+  assert.deepEqual(checkPath('/repos/me/app/issues/12'), { path: '/repos/me/app/issues/12', query: {} });
+  assert.deepEqual(checkPath('/repos/me/app/pulls/3/reviews?per_page=100&page=2'), { path: '/repos/me/app/pulls/3/reviews', query: { per_page: '100', page: '2' } });
+  assert.deepEqual(checkPath('/user').path, '/user');
+  for (const bad of ['/repos/me/app/issues/12/../../../orgs/x', '/repos/me/app/hooks', '/orgs/me/members', '/repos/me/app/issues/12?state=all', '/repos/me/app/pulls/3/merge', '/repos/me/app/contents/x']) {
+    assert.throws(() => checkPath(bad), /not one Workshop reads|Only page and per_page/, bad);
+  }
+  assert.equal(checkQuery('query($n:Int!){ repository(owner:"a",name:"b"){ issue(number:$n){ title } } }').length > 0, true);
+  assert.equal(checkQuery('{ viewer { login } } # a mutation in a comment is fine').length > 0, true);
+  assert.equal(checkQuery('{ search(query: "mutation") { issueCount } }').length > 0, true, 'the word in a string is fine');
+  for (const bad of ['mutation { addComment(input:{}) { clientMutationId } }', 'query a { x } mutation b { y }', 'subscription { x }', '']) {
+    assert.throws(() => checkQuery(bad), /Only queries|Send a GraphQL query/, bad);
+  }
+});

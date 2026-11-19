@@ -52,9 +52,15 @@ Workshop keeps two folders apart:
 | `features.readableCopy` | boolean | `false` | Keep the readable copy of the data folder up to date: the agent makes it on start and once a day. See [data-format.md](data-format.md), Readable without Workshop. |
 | `features.workMode` | boolean | `false` | Serve Workshop from the pinned copy in `<home>/ui/` (built by `workshop pin`) and refuse every hosted origin and pairing, whatever `hostedMode` and `allowedOrigins` say. See [run-modes.md](run-modes.md), Work mode. |
 | `connectors.<id>.enabled` | boolean | `false` | Load and start this connector. |
-| `connectors.<id>.config` | object | the connector's `configSchema` defaults | The connector's settings. Validated against its `configSchema`. Never holds secrets, only the names of environment variables that hold them. |
+| `connectors.<id>.config` | object | the connector's `configSchema` defaults | The connector's settings. Validated against its `configSchema`. Never holds secrets, only the names of environment variables or stored secrets that hold them. |
+| `approvals.rules` | array | none | Always-allow rules ([security.md](security.md), Approvals): `{id, connector, action, scopes, label, created}`. Added when you approve with "Always allow", removed in Settings, Manager, Approvals; both only from Workshop on this computer. |
+| `routines` | array | none | Routines (below): `{id, name, run, agent?, schedule: {days, time}, enabled, created}`. Changed in Settings, Routines, only from Workshop on this computer. |
 
 Everything that a company's security tooling might block (start at login, hosted mode, each connector) is off until the user turns it on. Turning one on never needs admin rights.
+
+## Routines
+
+A routine starts `run` (a slash command such as `/cloudflare why workshop`, or a prompt) in a new opencode chat, through the opencode connector, while Workshop is running on this computer. `schedule.days` is `daily`, `weekdays` or one of `mon` to `sun`; `schedule.time` is `HH:MM`, local time. A run that was due while the computer slept or Workshop was stopped runs once when Workshop is back, if it is at most 6 hours late; older ones are skipped. Each routine runs at most once per scheduled time, and **Run now** runs it at any time. The newest 200 runs (when, how, and the chat each started) are in `<data folder>/routines/runs.json`.
 
 ## Rules
 

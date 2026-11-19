@@ -10,7 +10,7 @@ How ADO concepts map to GitHub, and what is planned next: the GitHub tracker pla
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
-| `connections[]` | required | `name`, `apiUrl` (`https://api.github.com`, or `https://<server>/api/v3` for Enterprise Server), `tokenEnv` (`GITHUB_PAT`), `tokenExpires` (optional `YYYY-MM-DD`). |
+| `connections[]` | required | `name`, `apiUrl` (`https://api.github.com`, or `https://<server>/api/v3` for Enterprise Server), `tokenEnv` (`GITHUB_PAT`), `tokenSecret` (optional: a secret in this computer's store, which wins over the variable), `tokenExpires` (optional `YYYY-MM-DD`). |
 | `defaultConnection` | first one | Used when nothing else decides. |
 | `repos` | `[]` | `owner/repo` list. Only these count for your issues and reviews. Empty means every repo you can see. |
 | `types` | `Issue, Bug, Story` | Issue types to sync. A type comes from a label: `epic`, `feature`, `story` (or `user story`), `bug`, `task`. An issue with none of them is an `Issue`. |
@@ -25,7 +25,9 @@ How ADO concepts map to GitHub, and what is planned next: the GitHub tracker pla
 2. Run `workshop pat GITHUB_PAT` and paste it. It is not shown and does not land in shell history.
 3. In Settings, add the connection (or paste any GitHub link into **Paste any link from GitHub**), then try the Test field with an issue such as `owner/repo#12`.
 
-The token lives only in that environment variable. The connector reads it through `ctx.env`, sends it only in the `Authorization` header, and never logs, returns or emits it.
+**On a Mac (or anywhere you'd rather not keep it in a variable):** run `workshop secret set github --expires <its expiry date>` instead of step 2, and put `github` in the connection's **Token secret**. The token then lives in the macOS Keychain (Credential Manager on Windows), and Tandem's GitHub scripts read GitHub through Workshop (`api.get`, `graphql.query` below), so no variable needs it.
+
+With a variable, the token lives only in that environment variable. The connector reads it through `ctx.env`, sends it only in the `Authorization` header, and never logs, returns or emits it.
 
 Status says when the variable is not set (`error`), when GitHub answered 401 to it (the message stays until the variable holds a different value or a call succeeds), and when it expires within 14 days. The expiry date comes from **Token expires** or, when GitHub sends it, the `github-authentication-token-expiration` header, so most people never type it. `status().details` carries `tokensMissing`, `tokensExpiring` and `tokensRejected`, never a value.
 
@@ -34,6 +36,8 @@ Status says when the variable is not set (`error`), when GitHub answered 401 to 
 | Action | Args | Result |
 | --- | --- | --- |
 | `sync` | `known` (issue ids on the board), `knownPrs` (PR keys), `prs` (default `true`) | `{items, gone, syncedAt, prs?, prError?}`, the ADO connector's `sync` shape. An item: `{id: "owner/repo#12", number, title, type, state ("Open" or "Closed"), project (owner/repo), assignedTo, priority (1 to 4 from a `P1` or `priority: 1` label, else null), due (the milestone's due date), changed, url, labels}`. A gone item has `reason`: `closed`, `removed` (closed as not planned or duplicate), `reassigned` (with `assignedTo`), `filtered` (now another type, or outside `repos`) or `missing`. |
+| `api.get` (agent) | `path`, `connection` | A GitHub REST GET, for Tandem's scripts: `/user`, or `/repos/<owner>/<repo>/issues/<n>` (and `/comments`), `/repos/<owner>/<repo>/pulls/<n>` (and `/comments`, `/reviews`, `/files`, `/commits`), with only `page` and `per_page` added. The parsed answer. Anything else is refused. |
+| `graphql.query` (agent) | `query`, `variables`, `connection` | A GitHub GraphQL query, for Tandem's scripts. A mutation or subscription is refused. The `data`. |
 | `sync.prs` | `knownPrs` | `{items, gone, notes, notNeeded}`, the ADO connector's shape. Keys are `<web url>|owner/repo|<number>`. |
 | `areas.mine` | optional `connection` | `{connection, areas: [{path, count}]}`: the areas of your open issues, most first, up to 50. |
 | `workitem.get` | `id` (`owner/repo#12`, or a number with `repo`; with one repo in `repos`, a bare number is enough), `details`, `extras`, `comments`, `connection` | `{id, number, title, type, state, rev (updated_at), project, connection, url, reason}`. `details` adds `area`, `iteration` (milestone title), `tags` (labels), `description`, `acceptanceCriteria` and `reproSteps` (from `## Acceptance criteria` and `## Repro steps` sections of the body, or `### `), `related` (empty), `parent` (the sub-issue parent, `{id, title, url, state, type}`, or null), `children` (`{total, done}`) and `milestone`. `comments` adds `comments` (oldest first, at most 200). |

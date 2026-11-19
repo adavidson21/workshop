@@ -11,6 +11,7 @@ import { ConflictError } from './lib/client.mjs';
 import { clientFor } from './lib/client.mjs';
 import { configFromUrl } from './lib/url.mjs';
 import { authTracker, tokenStatus } from './lib/token.mjs';
+import { checkPath, checkQuery } from './lib/agent-reads.mjs';
 
 const stringList = (title, description, def) => ({ type: 'array', title, ...(description ? { description } : {}), items: { type: 'string' }, ...(def ? { default: def } : {}) });
 
@@ -27,11 +28,12 @@ export const configSchema = {
       items: {
         type: 'object',
         additionalProperties: false,
-        required: ['name', 'tokenEnv'],
+        required: ['name'],
         properties: {
           name: { type: 'string', title: 'Name', pattern: '^[A-Za-z0-9_-]{1,40}$', default: 'github', description: 'Any short name, letters, digits, - or _.' },
           apiUrl: { type: 'string', title: 'API URL', format: 'uri', default: 'https://api.github.com', description: 'https://api.github.com for github.com, or https://<your server>/api/v3 for GitHub Enterprise Server.' },
           tokenEnv: { type: 'string', title: 'Token environment variable', 'x-workshop-env': true, default: 'GITHUB_PAT', description: 'A fine-grained token with Issues and Pull requests (Read), and Members (Read) for team reviews. Save it with: workshop pat GITHUB_PAT' },
+          tokenSecret: { type: 'string', title: 'Token secret (instead of the variable)', 'x-workshop-secret': true, description: 'Recommended on a Mac. The name you saved the token under with: workshop secret set github --expires YYYY-MM-DD. When set, the variable above is not used.' },
           tokenExpires: { type: 'string', title: 'Token expires', pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}$', maxLength: 10, description: 'Optional, YYYY-MM-DD. GitHub usually tells Workshop on its own; Workshop warns 14 days before.' }
         }
       }
@@ -60,7 +62,15 @@ let running = null;
 let problem = null;
 let details = null;
 const auth = authTracker();
-const reader = ctx => name => ctx.env(name);
+// Tokens from the secret store, read before each action (and at start) so the sync code can ask for them by name.
+const stored = new Map();
+async function loadSecrets(ctx) {
+  for (const c of normalize(ctx.config).config.connections) {
+    if (!c.tokenEnv.startsWith('secret:')) continue;
+    try { stored.set(c.tokenEnv, await ctx.secret(c.tokenEnv.slice(7))); } catch { stored.delete(c.tokenEnv); }
+  }
+}
+const reader = ctx => name => (String(name).startsWith('secret:') ? stored.get(name) : ctx.env(name));
 
 function deps(ctx) {
   const { config, problems } = normalize(ctx.config);
@@ -72,6 +82,7 @@ function deps(ctx) {
 
 async function guarded(ctx, label, fn) {
   try {
+    await loadSecrets(ctx);
     return await fn();
   } catch (e) {
     if (e instanceof GhError || e instanceof SettingsError || e instanceof ConflictError) {
@@ -90,7 +101,7 @@ export default {
   api: 1,
   id: 'github',
   name: 'GitHub',
-  version: '1.2.0',
+  version: '1.3.0',
   configSchema,
   test: { action: 'workitem.get', arg: 'id', label: 'Issue (owner/repo#12)' },
   actions: {
@@ -272,6 +283,28 @@ export default {
         });
       }
     },
+    'api.get': {
+      title: 'Read an issue or pull request from the GitHub API (GET only)', write: false, agent: true,
+      argsSchema: { type: 'object', required: ['path'], properties: { path: { type: 'string', maxLength: 300 }, connection: { type: 'string', maxLength: 40 } } },
+      async run(args, ctx) {
+        return guarded(ctx, 'api.get', async () => {
+          const { path: p, query } = checkPath(args.path);
+          const d = deps(ctx);
+          return clientFor(pickConnection(d.cfg, args.connection), d.env, d.signal).rest('GET', p, { query });
+        });
+      }
+    },
+    'graphql.query': {
+      title: 'Run a GitHub GraphQL query (never a mutation)', write: false, agent: true,
+      argsSchema: { type: 'object', required: ['query'], properties: { query: { type: 'string', maxLength: 20000 }, variables: { type: 'object' }, connection: { type: 'string', maxLength: 40 } } },
+      async run(args, ctx) {
+        return guarded(ctx, 'graphql.query', async () => {
+          const q = checkQuery(args.query);
+          const d = deps(ctx);
+          return clientFor(pickConnection(d.cfg, args.connection), d.env, d.signal).graphql(q, args.variables || {});
+        });
+      }
+    },
     'connection.resolve': {
       title: 'Which connection would be used, and whether its token is set',
       write: false,
@@ -297,6 +330,9 @@ export default {
     }
   },
   async start(ctx) {
+    stored.clear();
+    // Secrets are read once now, in the background, so the status can say whether they are there.
+    loadSecrets(ctx).then(() => { if (running === ctx) ctx.statusChanged(); }).catch(() => {});
     const { config, problems } = normalize(ctx.config);
     details = { connections: config.connections.length, repos: config.repos.length };
     problem = problems[0] || null;

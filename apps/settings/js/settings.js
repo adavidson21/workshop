@@ -23,6 +23,8 @@
 import { connect } from '../../../shared/workshop-sdk.js';
 import { render as renderForm, readValue } from './forms.js';
 import { mountCloudflareChanges } from './cloudflare-page.js';
+import { mountConnections } from './connections-page.js';
+import { mountRoutines } from './routines-page.js';
 import * as R from './repos.js';
 import * as P from './pages.js';
 import { mountPeople } from './people.js';
@@ -1637,6 +1639,9 @@ async function start() {
       const list = await connectorsSetup();
       await productsPage();
       if (list.some(i => i.id === 'opencode')) await writingPages(); // Writing needs opencode for its AI steps
+      // Connections manager (approvals, activity) and Routines (connections-page.js, routines-page.js).
+      try { mountConnections({ ws, card, esc, toast, errText, local: ws.mode === 'local' }); } catch (e) { card('', '', 'outside').insertAdjacentHTML('beforeend', `<p class="err">${esc(errText(e))}</p>`); }
+      if (list.some(i => i.id === 'opencode')) { try { mountRoutines({ ws, card, esc, toast, errText, local: ws.mode === 'local' }); } catch (e) { card('', '', 'routines').insertAdjacentHTML('beforeend', `<p class="err">${esc(errText(e))}</p>`); } }
       statusCard();
       needsYouCard();
       await reposTab(list);
