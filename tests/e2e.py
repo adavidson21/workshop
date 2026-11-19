@@ -936,6 +936,51 @@ def b64(path):
     with open(path, 'rb') as f: return base64.b64encode(f.read()).decode()
 
 
+def reset_checks(b, watch):
+    """Settings, Data, Start over (apps/settings/js/reset-page.js, docs/agent-api.md Reset): pick, type, wait, zip, delete, reload."""
+    tmp = tempfile.mkdtemp()
+    apps, conns, home = (os.path.join(tmp, d) for d in ('apps', 'connectors', 'home'))
+    copy_app('settings', os.path.join(apps, 'settings'))
+    for name in ('pages', 'board'):
+        shutil.copytree(os.path.join(ROOT, 'tests', 'fixtures', 'apps', name), os.path.join(apps, name))
+    os.makedirs(conns); os.makedirs(home)
+    proc = subprocess.Popen(['node', os.path.join(ROOT, 'tests', 'e2e-agent.mjs'), '--home', home, '--apps', apps, '--connectors', conns, '--reset-wait-ms', '1500'],
+                            stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+    info = json.loads(proc.stdout.readline())
+    url, token, data = info['url'], info['token'], info['dataDir']
+    try:
+        for app, rel, text in (('board', 'tasks.json', json.dumps({'schema': 'board.tasks', 'version': 1, 'rev': 1, 'updatedAt': '2026-11-19T12:00:00.000Z', 'items': [{'id': 'a', 'updatedAt': 1}]})), ('pages', 'one.md', '# One\n')):
+            os.makedirs(os.path.join(data, app), exist_ok=True)
+            with open(os.path.join(data, app, rel), 'w') as f: f.write(text)
+        ctx = b.new_context(viewport={'width': 1280, 'height': 900})
+        pg = local_page(ctx, url, token, watch)
+        other = local_page(ctx, url, token, watch)
+        other.evaluate("window.__beforeReset = 1")
+        stab(pg, 'data')
+        check('Start over is on Data & backups, closed until you open it', pg.locator('.reset-card [data-open]').count() == 1 and pg.locator('.reset-card [data-go]').count() == 0)
+        pg.click('.reset-card [data-open]'); pg.wait_for_timeout(300)
+        pg.check('.reset-card [data-all]'); pg.wait_for_timeout(100)
+        check('Everything ticks every app and asks for "delete everything"', pg.locator('.reset-card [data-app]:checked').count() == 3 and pg.inner_text('.reset-card [data-phrase]') == 'delete everything')
+        pg.uncheck('.reset-card [data-app="pages"]'); pg.uncheck('.reset-card [data-app="settings"]'); pg.wait_for_timeout(100)
+        pg.fill('.reset-card [data-typed]', 'delete everything'); pg.wait_for_timeout(100)
+        check('the phrase follows the pick, and a wrong one keeps the button locked', pg.inner_text('.reset-card [data-phrase]') == 'delete 1 app' and pg.locator('.reset-card [data-go]').is_disabled())
+        pg.fill('.reset-card [data-typed]', 'delete 1 app')
+        pg.wait_for_function("() => !document.querySelector('.reset-card [data-go]').disabled", timeout=5000)
+        with pg.expect_navigation(timeout=15000):
+            pg.click('.reset-card [data-go]')
+        pg.wait_for_selector('#content .card', timeout=15000); pg.wait_for_timeout(800)
+        stab(pg, 'data')
+        done = pg.inner_text('.reset-card .reset-done') if pg.locator('.reset-card .reset-done').count() else ''
+        check('after the reload, it says what went and where the backup is', 'Deleted Board' in done and 'Workshop backup' in done)
+        check('only the picked app\'s data is gone, and the zip is beside the data folder', not os.path.exists(os.path.join(data, 'board')) and os.path.exists(os.path.join(data, 'pages', 'one.md'))
+              and len([f for f in os.listdir(os.path.dirname(data)) if f.startswith('Workshop backup ') and f.endswith('.zip')]) == 1)
+        check('other Workshop windows reload too', other.evaluate("window.__beforeReset === undefined"))
+        ctx.close()
+    finally:
+        proc.stdin.close(); proc.wait(timeout=10)
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def storage_checks(b, watch):
     """Part 4: Prioritizer's board saved through the SDK (WS5)."""
     with open(os.path.join(FIX, 'today-localstorage.json')) as f: legacy = json.load(f)
@@ -1696,6 +1741,7 @@ def main():
 
         if PART in ('all', 'agent'):
             agent_checks(b, watch)
+            reset_checks(b, watch)
             storage_checks(b, watch)
             folder_checks(b, watch)
             agents_checks(b, watch)

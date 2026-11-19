@@ -180,7 +180,7 @@ Workshop only sees paths that follow the name rules above, under an app folder. 
 
 ### Working files
 
-`<dataDir>/.scratch/<connector>/<kind>/<run>/` holds files a connector hands to another program for one run, for example a hub request or a 1:1 packet for opencode ([connector.md](connector.md), `ctx.scratch`). The agent removes a run folder 7 days after anything in it last changed, on start and every 6 hours. This is the only place Workshop removes files on its own; nothing else in the data folder is ever removed by code.
+`<dataDir>/.scratch/<connector>/<kind>/<run>/` holds files a connector hands to another program for one run, for example a hub request or a 1:1 packet for opencode ([connector.md](connector.md), `ctx.scratch`). The agent removes a run folder 7 days after anything in it last changed, on start and every 6 hours. This is the only place Workshop removes files on its own; nothing else in the data folder is ever removed by code, except what you delete yourself in Settings (old copies, Start over).
 
 ### Trash
 
@@ -189,6 +189,10 @@ Deleting a file through the files API moves it to `<dataDir>/.trash/<app>/<path 
 ### Backups
 
 `<dataDir>/.backups/<yyyy-mm-dd>/` holds copies the backend makes before it changes a file's format: the old version of a collection before its first write at a higher `version` (Migrations, rule 5), and the original of each file before an envelope upgrade (rule 9). Workshop never removes backups. This replaces `~/.workshop/data/_backup/` and the `<collection>.v<n>.json` copies that used to sit next to the collection.
+
+### Starting over
+
+Settings, Data has **Start over**, and the command line has `workshop reset`: pick apps (or Everything), type the phrase that names what goes, wait out ten seconds, and Workshop deletes those apps' folders, their trash, backups and readable copy. Before anything is deleted it writes everything that goes to `Workshop backup <yyyy-mm-dd hhmm>.zip` beside the data folder (`Workshop data/...` inside it, plus `Tandem work items/.work` when those go too) and reads it back. To put it back, stop Workshop and copy the folders from the zip into the data folder. Workshop never deletes the zip. See [agent-api.md](agent-api.md), `POST /api/reset`.
 
 ### Changes made outside Workshop
 

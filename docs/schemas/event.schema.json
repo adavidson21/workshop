@@ -260,6 +260,36 @@
           }
         }
       }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "event",
+        "data"
+      ],
+      "properties": {
+        "event": {
+          "const": "reset"
+        },
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "state"
+          ],
+          "description": "Start over (POST /api/reset): started (pages stop writing), then done or failed (pages reload).",
+          "properties": {
+            "state": {
+              "enum": [
+                "started",
+                "done",
+                "failed"
+              ]
+            }
+          }
+        }
+      }
     }
   ]
 }
