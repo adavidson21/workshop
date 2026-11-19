@@ -76,7 +76,7 @@ eng-agents Core 4.10.0; Workshop project doc `claude/loom-floor-v1-plan.md`. `li
 
 ## Where a build is (1.24.0)
 
-eng-agents Core 4.11.0 writes `step.md` in a work folder (`- Step: <build|test|ui|review|fix> | <ISO time>`, `Set-Step.ps1`). The model's item gets `step` (`{name, at}`) only when the file is there. Loom places the build at that station.
+eng-agents Core 4.12.0 writes `step.md` in a work folder (`- Step: <build|test|ui|review|fix> | <ISO time>`, `Set-Step.ps1`). The model's item gets `step` (`{name, at}`) only when the file is there. Loom places the build at that station.
 
 ## Approved AI providers
 
