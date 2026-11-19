@@ -492,6 +492,9 @@ for (const kind of ["v1", "v2"]) {
       await waitFor(async () => (await call("state", {}, ctx())).liveMode.live.autopilot["41720-show-item-count"].status === "running", "the queued build to start");
       await waitFor(() => titles().includes("41720: /approve 41720 quick auto"), "the auto approval to run");
       for (const fd of ["41208-copy-of-login", "41720-show-item-count"]) await call("autopilot", { folder: fd, action: "stop" }, ctx());
+      // Each build's session is linked to its folder a moment after it starts (slower on Windows): wait for all three.
+      const FDS = ["41207-fix-login-timeout", "41208-copy-of-login", "41720-show-item-count"];
+      await waitFor(async () => { const l = (await call("state", {}, ctx())).liveMode.live; return FDS.every((fd) => l.items[fd] && l.items[fd].current); }, "every build's session to be linked");
       const live = (await call("state", {}, ctx())).liveMode.live;
       for (const fd of ["41207-fix-login-timeout", "41208-copy-of-login", "41720-show-item-count"]) {
         await call("autopilot", { folder: fd, action: "dismiss" }, ctx());
