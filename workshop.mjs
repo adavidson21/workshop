@@ -16,6 +16,9 @@
 //   workshop uninstall                     Turn off start at login. Leaves your data folder (dataDir) and ~/.workshop in place.
 //   workshop doctor [--sizes]              Check Node, config.json, the port, the data folder, start at login and hosted mode.
 //   workshop export --readable             Copy your data as spreadsheets and documents into <data folder>/Readable copy/.
+//   workshop reset [--all | --apps <a,b>] [--tandem | --no-tandem]
+//                                          Start over: back up some or all apps' data to a zip, then delete it. Asks
+//                                          you to type a phrase; runs in the running agent (docs/agent-api.md, Reset).
 //   workshop doctor ado [options]          Check the ADO connector (wraps connectors/ado/doctor.mjs).
 //   workshop publish [--out <dir>]         Build the static site (hosted or browser mode) with apps/registry.json.
 //   workshop apps [on|off <app>]           List the apps, or turn one on or off (work mode: downloads a separate
@@ -59,6 +62,8 @@ import { ENV_NAME, liveEnv, readWindowsUserEnv } from './agent/lib/userenv.mjs';
 import { patProblem, readSecret, startBackground, stopAgent, writeWindowsUserEnv } from './scripts/lib/control.mjs';
 import { SECRET_NAME, daysLeft, readIndex, readSecret as readStoredSecret, storeName } from './agent/lib/secrets.mjs';
 import { removeSecret, saveSecret, secretProblem } from './scripts/lib/secrets-store.mjs';
+import { expectedPhrase } from './agent/lib/reset.mjs';
+import readline from 'node:readline';
 
 export const REPO = path.dirname(fileURLToPath(import.meta.url));
 const SERVED_DIRS = ['shell', 'shared', 'icons', 'apps'];
@@ -102,6 +107,9 @@ const USAGE = `Usage: workshop <command> [options]
                                  and ~/.workshop in place.
   export --readable              Copy your data as spreadsheets (.csv) and documents (.md) into
                                  <data folder>/Readable copy/, readable without Workshop.
+  reset                          Start over. Pick apps (or all), and whether to remove Tandem's work items too.
+        [--all | --apps <a,b>]   Their data is saved to a zip beside your data folder, read back, then deleted.
+        [--tandem|--no-tandem]   You type a phrase like "delete everything" to confirm. Workshop must be running.
   doctor [--sizes]               Check Node, config.json, the port, the data folder, start at login and hosted mode.
                                  --sizes also lists the largest files in the data folder.
   doctor ado [options]           Check the ADO connector. Run "workshop doctor ado --help" for its options.
@@ -1420,6 +1428,129 @@ async function runSecret(rest, io) {
   return 0;
 }
 
+// --------------------------------------------------------------- reset (start over)
+
+/** A JSON request to the running agent with the token header (no Origin: this computer). */
+function agentJson(port, token, method, pathname, body) {
+  return new Promise((resolve, reject) => {
+    const text = body === undefined ? null : JSON.stringify(body);
+    const req = http.request({ host: '127.0.0.1', port, method, path: pathname, timeout: 10 * 60_000,
+      headers: { Host: `127.0.0.1:${port}`, 'X-Workshop-Token': token, ...(text ? { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(text) } : {}) } }, res => {
+      const chunks = [];
+      res.on('data', c => chunks.push(c));
+      res.on('end', () => {
+        let json = null;
+        try { json = JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { /* not JSON */ }
+        if (res.statusCode >= 400) reject(new Error((json && json.error) || `Workshop answered ${res.statusCode}.`));
+        else resolve(json);
+      });
+    });
+    req.on('error', reject);
+    req.on('timeout', () => req.destroy(new Error('Workshop did not answer.')));
+    if (text) req.write(text);
+    req.end();
+  });
+}
+
+/** Ask a question on the terminal and resolve the line typed. Refuses without a terminal: a person must type. */
+function askLine(question) {
+  if (!process.stdin.isTTY) return Promise.reject(Object.assign(new Error('workshop reset needs you at a terminal to type the confirmation.'), { code: 'notty' }));
+  return new Promise(resolve => {
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    rl.question(question, a => { rl.close(); resolve(a); });
+  });
+}
+
+const kb = n => (n < 1024 * 1024 ? `${Math.max(1, Math.round(n / 1024))} KB` : `${(n / (1024 * 1024)).toFixed(1)} MB`);
+
+/** Which apps a word names: an id, a name or a folder, case ignored. */
+const findApps = (words, apps) => words.map(w => {
+  const x = w.trim().toLowerCase();
+  return apps.find(a => [a.id, a.name, a.folder].some(v => String(v).toLowerCase() === x));
+});
+
+async function runReset(rest, io) {
+  const ask = io.ask || askLine;
+  const sleep = io.sleep || (ms => new Promise(r => setTimeout(r, ms)));
+  const home = resolveHome(io.env);
+  const port = configuredPort(io);
+  if (!(await (io.probe || agentHealth)(port))) {
+    io.out('Workshop is not running. Start it with "workshop up", then run "workshop reset" again.');
+    io.out('Starting over runs inside Workshop, so open windows reload and Tandem\'s work items are removed safely.');
+    return 1;
+  }
+  let token;
+  try { token = fs.readFileSync(homePaths(home).token, 'utf8').trim(); } catch { io.out(`Could not read ${homePaths(home).token}. Run "workshop open" once, then try again.`); return 1; }
+  const call = io.agent || ((method, p, body) => agentJson(port, token, method, p, body));
+
+  const flag = n => rest.includes(n);
+  const i = rest.indexOf('--apps');
+  const unknownFlag = rest.find(a => a.startsWith('--') && !['--all', '--apps', '--tandem', '--no-tandem'].includes(a));
+  if (unknownFlag) { io.out(`Unknown option ${unknownFlag}. Use --all, --apps <a,b>, --tandem or --no-tandem.`); return 1; }
+  if (i >= 0 && (!rest[i + 1] || rest[i + 1].startsWith('--'))) { io.out('--apps needs app names, for example --apps docket,folio'); return 1; }
+  if (flag('--all') && i >= 0) { io.out('Use --all or --apps, not both.'); return 1; }
+
+  try {
+    const plan = await call('GET', '/api/reset');
+    const asked = Date.now();
+    if (plan.running) { io.out('Workshop is already starting over. Wait for it to finish.'); return 1; }
+    let picked;
+    if (flag('--all')) picked = plan.apps;
+    else if (i >= 0) {
+      const words = rest[i + 1].split(',').filter(Boolean);
+      const found = findApps(words, plan.apps);
+      const bad = words.filter((w, k) => !found[k]);
+      if (bad.length) { io.out(`There is no app named ${bad.join(', ')}. The apps are: ${plan.apps.map(a => a.name).join(', ')}.`); return 1; }
+      picked = plan.apps.filter(a => found.includes(a));
+    } else {
+      io.out('Start over: pick the apps whose data to delete. It is saved to a zip first.');
+      plan.apps.forEach((a, k) => io.out(`  ${String(k + 1).padStart(2)}. ${a.name.padEnd(10)} ${a.files ? `${a.files} file${a.files === 1 ? '' : 's'}, ${kb(a.bytes)}` : 'no data'}`));
+      const a = (await ask('Which apps? Numbers with commas, "all", or Enter for none: ')).trim().toLowerCase();
+      if (a === 'all') picked = plan.apps;
+      else {
+        const nums = a ? a.split(/[\s,]+/).filter(Boolean) : [];
+        const bad = nums.filter(n => !/^\d+$/.test(n) || Number(n) < 1 || Number(n) > plan.apps.length);
+        if (bad.length) { io.out(`Not on the list: ${bad.join(', ')}. Nothing was deleted.`); return 1; }
+        picked = plan.apps.filter((_, k) => nums.includes(String(k + 1)));
+      }
+    }
+    let tandem = false;
+    if (flag('--tandem')) {
+      if (!plan.tandem.available) { io.out(plan.tandem.why); return 1; }
+      tandem = true;
+    } else if (!flag('--no-tandem') && plan.tandem.available) {
+      const a = (await ask(`Also remove Tandem's ${plan.tandem.items} work item${plan.tandem.items === 1 ? '' : 's'} in ${path.join(plan.tandem.workspace, '.work')}? (yes/no) `)).trim().toLowerCase();
+      tandem = a === 'yes' || a === 'y';
+    }
+    const everything = picked.length === plan.apps.length && picked.length > 0;
+    const phrase = expectedPhrase({ everything, count: picked.length, tandem });
+    if (!phrase) { io.out('Nothing picked. Nothing was deleted.'); return 0; }
+
+    io.out('');
+    io.out(`Deletes: ${everything ? `every app (${picked.map(a => a.name).join(', ')}), the trash, backups and readable copy` : picked.length ? picked.map(a => a.name).join(', ') : 'no app data'}${tandem ? `, and Tandem's work items (worktrees with uncommitted changes are kept)` : ''}.`);
+    io.out(`First saves it all to a zip in ${plan.backupDir}.`);
+    io.out('Keeps: connections and tokens, the data folder location, work mode, your repos and their branches.');
+    const typed = await ask(`Type "${phrase}" to confirm, or press Enter to cancel: `);
+    if (typed.trim() !== phrase) { io.out('Cancelled. Nothing was deleted.'); return 1; }
+    let left = Math.ceil(((plan.waitMs ?? 10_000) - (Date.now() - asked)) / 1000);
+    while (left > 0) { io.out(`Starting in ${left}... (Ctrl+C to stop)`); await sleep(1000); left--; }
+
+    const r = await call('POST', '/api/reset', { apps: picked.map(a => a.id), tandem, phrase, ticket: plan.ticket });
+    io.out(`Done. Backup: ${r.backup.path} (${r.backup.files} file${r.backup.files === 1 ? '' : 's'}).`);
+    if (r.tandem) {
+      io.out(`Tandem: removed ${r.tandem.removed} work item${r.tandem.removed === 1 ? '' : 's'}${r.tandem.stopped ? `, stopped ${r.tandem.stopped} running agent${r.tandem.stopped === 1 ? '' : 's'} first` : ''}.`);
+      for (const k of r.tandem.kept) io.out(`  Kept worktree ${k}`);
+      for (const f of r.tandem.failed) io.out(`  Could not remove ${f}`);
+    }
+    for (const f of r.failed) io.out(`Could not delete ${f}. Close any program using it and delete it yourself.`);
+    io.out('Open Workshop windows reload on their own.');
+    return r.failed.length || (r.tandem && r.tandem.failed.length) ? 1 : 0;
+  } catch (e) {
+    io.out(e && e.code === 'notty' ? e.message : `Stopped: ${e.message}`);
+    return 1;
+  }
+}
+
 // --------------------------------------------------------------- command line
 
 export async function main(argv, io = { out: s => console.log(s), env: process.env }) {
@@ -1437,6 +1568,7 @@ export async function main(argv, io = { out: s => console.log(s), env: process.e
   if (cmd === 'pat') return runPat(rest, io);
   if (cmd === 'secret') return runSecret(rest, io);
   if (cmd === 'export') return runExport(rest, io);
+  if (cmd === 'reset') return runReset(rest, io);
 
   if (cmd === 'doctor') {
     if (rest[0] === 'ado') {

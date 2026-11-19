@@ -371,6 +371,19 @@ async function idbMoved() {
 
 function newChannel() { return typeof BroadcastChannel === 'function' ? new BroadcastChannel('workshop-data') : null; }
 
+/* Start over (docs/agent-api.md, Reset): once the agent says a reset started, this page writes nothing more, and
+   when it ends every page reloads, so no window puts deleted data back from what it holds in memory. */
+let resetFrozen = false;
+const RESET_MSG = 'Workshop is starting over. This window reloads in a moment.';
+function onReset(p) {
+  if (!p) return;
+  if (p.state === 'started') { resetFrozen = true; return; }
+  if (typeof location === 'undefined') return;
+  let page = window;
+  try { if (window.top && window.top.location.origin === location.origin) page = window.top; } catch (e) { /* another origin above */ }
+  try { page.location.reload(); } catch (e) { location.reload(); }
+}
+
 /* ---------- agent data backend ---------- */
 function makeAgentBackend(ctx) {
   const base = ctx.agentUrl;
@@ -391,6 +404,7 @@ function makeAgentBackend(ctx) {
   }
   async function put(app, collection, envelope) {
     const segs = checkCollection(collection);
+    if (resetFrozen) throw new WorkshopError('unavailable', RESET_MSG, 503);
     const { res, body } = await fetchJson(`${base}/api/data/${checkApp(app)}/${enc(segs)}`, Object.assign({
       method: 'PUT',
       headers: headers({ 'Content-Type': 'application/json', 'X-Workshop-Client': ctx.clientId }),
@@ -424,6 +438,7 @@ function makeAgentBackend(ctx) {
     async write(app, path, content, opts) {
       const segs = checkFile(path);
       const o = checkWriteOpts(opts);
+      if (resetFrozen) throw new WorkshopError('unavailable', RESET_MSG, 503);
       const { data } = await prepareFile(app, path, content);
       const wire = typeof data === 'string' ? { content: data } : { content: toBase64(data), encoding: 'base64' };
       const { res, body } = await fetchJson(`${base}/api/files/${checkApp(app)}/${enc(segs)}`, Object.assign({
@@ -438,6 +453,7 @@ function makeAgentBackend(ctx) {
     async trash(app, path, opts) {
       const segs = checkFile(path);
       const m = opts && typeof opts.mtime === 'number' ? `?mtime=${opts.mtime}` : '';
+      if (resetFrozen) throw new WorkshopError('unavailable', RESET_MSG, 503);
       const { res, body } = await fetchJson(`${base}/api/files/${checkApp(app)}/${enc(segs)}${m}`, Object.assign({
         method: 'DELETE', headers: headers({ 'X-Workshop-Client': ctx.clientId })
       }, common));
@@ -1106,7 +1122,7 @@ function eventHub(ctx) {
       if (ctx.mode === 'hosted' && ctx.token) u.searchParams.set('token', ctx.token);
       try { source = new EventSource(u.toString(), { withCredentials: ctx.mode === 'local' }); } catch (e) { announce(false); return later(); }
       source.addEventListener('open', () => announce(true));
-      for (const name of ['data', 'file', 'connector', 'connector-status', 'config']) {
+      for (const name of ['data', 'file', 'connector', 'connector-status', 'config', 'approvals', 'reset']) {
         source.addEventListener(name, (e) => { const p = parse(e.data); if (p) { deliver(name, p); relay({ name, payload: p }); } });
       }
       source.addEventListener('error', () => { announce(false); try { source.close(); } catch (e) { /* closed */ } later(); });
@@ -1134,6 +1150,8 @@ function eventHub(ctx) {
     } else hold();
   }
 
+  listeners.add((name, p) => { if (name === 'reset') onReset(p); });
+
   const hub = {
     get online() { return online; },
     on(fn) { listeners.add(fn); return () => listeners.delete(fn); },
@@ -1157,6 +1175,8 @@ function makeEventStream(ctx) {
     },
     onConnector(id, event, fn) { return on((name, p) => { if (name === 'connector' && p.id === id && (event === '*' || p.event === event)) fn(p); }); },
     onStatus(id, fn) { return on((name, p) => { if (name === 'connector-status' && p.id === id) fn(p.status); }); },
+    onApprovals(fn) { return on((name, p) => { if (name === 'approvals') fn(p); }); },
+    onConfig(fn) { return on((name, p) => { if (name === 'config') fn(p); }); },
     onOnline(fn) { return hub.onOnline(fn); }
   };
 }
@@ -1328,7 +1348,7 @@ export async function connect(options) {
     token: picked.token,
     clientId: randomId('w-')
   };
-  const noEvents = { get online() { return false; }, onData() { return () => {}; }, onFile() { return () => {}; }, onConnector() { return () => {}; }, onStatus() { return () => {}; }, onOnline() { return () => {}; } };
+  const noEvents = { get online() { return false; }, onData() { return () => {}; }, onFile() { return () => {}; }, onConnector() { return () => {}; }, onStatus() { return () => {}; }, onApprovals() { return () => {}; }, onConfig() { return () => {}; }, onOnline() { return () => {}; } };
   ctx.events = (picked.backend === 'agent') ? makeEventStream(ctx) : noEvents;
   const data = (picked.backend === 'agent') ? makeAgentBackend(ctx) : await openBrowserStore(ctx);
   // ws.online and online events: the agent's event stream, or the folder's access.
@@ -1548,6 +1568,37 @@ export async function connect(options) {
       getConfig(id) { return agentCall(ctx, 'GET', `/api/connectors/${id}/config`); },
       // Change them. The agent refuses this from a hosted page (code local_only).
       putConfig(id, config) { return agentCall(ctx, 'PUT', `/api/connectors/${id}/config`, { config }); }
+    },
+
+    /* Approvals (docs/sdk.md, Approvals): changes agents asked for, waiting for a person. Agent backend only. */
+    approvals: {
+      // {approvals: [...], waiting}. status: waiting, approved, failed or rejected.
+      list(opts) { const q = opts && opts.status ? `?status=${encodeURIComponent(opts.status)}` : ''; return agentCall(ctx, 'GET', `/api/approvals${q}`); },
+      get(id) { return agentCall(ctx, 'GET', `/api/approvals/${encodeURIComponent(id)}`); },
+      // Approve with the digest of what was shown ({approve: true, digest, always}) or reject ({approve: false, note}).
+      decide(id, decision) { return agentCall(ctx, 'POST', `/api/approvals/${encodeURIComponent(id)}`, decision); },
+      rules() { return agentCall(ctx, 'GET', '/api/approvals/rules'); },
+      removeRule(id) { return agentCall(ctx, 'DELETE', `/api/approvals/rules/${encodeURIComponent(id)}`); },
+      on(handler) { return ctx.events.onApprovals(handler); }
+    },
+
+    /* The activity log (docs/sdk.md, Activity). Agent backend only. */
+    activity: {
+      // {entries, lastUsed}. opts: limit, connector, by (you, agent, rule, routine).
+      recent(opts) {
+        const q = new URLSearchParams();
+        for (const k of ['limit', 'connector', 'by']) if (opts && opts[k] !== undefined && opts[k] !== null && opts[k] !== '') q.set(k, String(opts[k]));
+        const s = q.toString();
+        return agentCall(ctx, 'GET', `/api/activity${s ? `?${s}` : ''}`);
+      }
+    },
+
+    /* Routines (docs/sdk.md, Routines): Tandem runs on a schedule on this computer. Agent backend only. */
+    routines: {
+      get() { return agentCall(ctx, 'GET', '/api/routines'); },
+      put(list) { return agentCall(ctx, 'PUT', '/api/routines', { routines: list }); },
+      run(id) { return agentCall(ctx, 'POST', `/api/routines/${encodeURIComponent(id)}/run`); },
+      on(handler) { return ctx.events.onConfig(p => { if (p && Array.isArray(p.changed) && p.changed.includes('routines')) handler(p); }); }
     },
 
     /* Workshop settings (docs/config.md). Agent backend only; browser mode rejects with code unavailable. */

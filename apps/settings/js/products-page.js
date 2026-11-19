@@ -16,7 +16,7 @@ const qh = (id, text) => (globalThis.WorkshopTheme?.hints ? globalThis.WorkshopT
 export async function mountProducts({ ws, toast, el, onSaved = async () => {} }) {
   let drafting = null;          // product id whose Draft from sources is being confirmed
   let onboarding = null;        // product id whose Onboard for Tandem is being confirmed (Settings 7.2.0)
-  let covering = null;          // product id whose Add regression tests is being confirmed (Settings 7.4.0)
+  let covering = null;          // product id whose Add regression tests is being confirmed (Settings 7.6.0)
   let canDraft = false;         // opencode is connected (Draft from sources)
   let env = null;               // the stored envelope (null: none yet)
   let unreadable = false;

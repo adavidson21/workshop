@@ -1,6 +1,6 @@
 // A small GitHub REST and GraphQL client. Node standard library only (fetch). The token is read from the
 // environment variable a connection names, kept only inside the client, and sent only in the Authorization header.
-import { tokenHint } from './token.mjs';
+import { shortSource, sourceLabel, tokenHint } from './token.mjs';
 
 /** A problem talking to GitHub. `upstream` is the HTTP status GitHub answered with, if any. */
 export class GhError extends Error {
@@ -43,7 +43,7 @@ export function clientFor(conn, env, signal) {
   } catch {
     throw new SettingsError(`Connection "${conn.name}" names an environment variable Workshop cannot read. Check its token setting.`);
   }
-  if (!token) throw new GhError(`Environment variable ${conn.tokenEnv} is empty or missing. ${tokenHint(conn.tokenEnv)}`);
+  if (!token) throw new GhError(`${sourceLabel(conn.tokenEnv)} is empty or missing. ${tokenHint(conn.tokenEnv)}`);
   return new GitHub({ conn, token, onAuth: env.onAuth, signal, fetchImpl: env.fetch });
 }
 
@@ -86,14 +86,14 @@ export class GitHub {
     try { detail = JSON.parse(text).message || ''; } catch { /* not JSON */ }
     if (res.status === 401) {
       try { this.onAuth?.rejected?.(this.conn.tokenEnv, 401); } catch { /* status only */ }
-      throw new GhError(`GitHub rejected the token in ${this.conn.tokenEnv} (HTTP 401). It may have expired or been revoked. If you made a new one, ${tokenHint(this.conn.tokenEnv).replace(/^Save/, 'save').replace(/^Set/, 'set')}.`, 401);
+      throw new GhError(`GitHub rejected the token in ${shortSource(this.conn.tokenEnv)} (HTTP 401). It may have expired or been revoked. If you made a new one, ${tokenHint(this.conn.tokenEnv).replace(/^Save/, 'save').replace(/^Set/, 'set')}.`, 401);
     }
     if ((res.status === 403 || res.status === 429) && (res.headers.get('x-ratelimit-remaining') === '0' || /rate limit/i.test(detail))) {
       const reset = Number(res.headers.get('x-ratelimit-reset'));
       const when = reset > 0 ? ` Try again after ${new Date(reset * 1000).toLocaleTimeString()}.` : ' Try again in a few minutes.';
       throw new GhError(`GitHub's rate limit was reached.${when}`, res.status);
     }
-    if (res.status === 403) throw new GhError(`GitHub refused this (HTTP 403). The token in ${this.conn.tokenEnv} may be missing a permission. ${detail}`.trim(), 403);
+    if (res.status === 403) throw new GhError(`GitHub refused this (HTTP 403). The token in ${shortSource(this.conn.tokenEnv)} may be missing a permission. ${detail}`.trim(), 403);
     if (res.status === 404 || res.status === 410) throw new GhError('Not found on GitHub, or the token cannot see it (HTTP 404).', 404);
     throw new GhError(`GitHub error HTTP ${res.status}. ${detail}`.trim(), res.status);
   }

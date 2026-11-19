@@ -73,7 +73,7 @@ export default {
   api: 1,
   id: 'cloudflare',
   name: 'Cloudflare',
-  version: '1.0.0',
+  version: '1.1.0',
   configSchema: {
     type: 'object',
     additionalProperties: false,
@@ -250,8 +250,15 @@ export default {
         };
         store.save(ctx.dataDir, set);
         ctx.log.info(`Change set ${set.id} proposed by ${set.from}: ${set.title} (${set.steps.length} changes).`);
+        // Into Workshop's Approvals (or applied at once when an always-allow rule covers its zones).
+        const asked = await ctx.requestApproval('changes.apply', { id: set.id, digest: store.digest(set.changes) }, { title: `Cloudflare: ${set.title}`, by: set.from === 'Tandem' ? 'agent' : 'you' });
+        if (asked.approval) store.save(ctx.dataDir, { ...set, approval: asked.approval.id });
         changed(ctx);
-        return { id: set.id, status: set.status, steps: set.steps, next: 'Waiting for you to apply it in Workshop (Settings, Cloudflare, or Needs you). Check back with changes.get.' };
+        if (asked.rule) {
+          const done = store.load(ctx.dataDir, set.id);
+          return { id: set.id, status: done ? done.status : 'applied', steps: set.steps, rule: asked.rule, results: asked.result && asked.result.results, next: 'An always-allow rule covered it, so it was applied. Check it with changes.get.' };
+        }
+        return { id: set.id, status: set.status, steps: set.steps, approval: asked.approval.id, next: 'Waiting for you to approve it in Workshop (Approvals, or Needs you). Check back with changes.get.' };
       }
     },
     'changes.list': {
@@ -278,8 +285,32 @@ export default {
       }
     },
     'changes.apply': {
-      title: 'Apply a change set on Cloudflare', write: true,
+      title: 'Apply a change set on Cloudflare', write: true, agent: 'ask',
       argsSchema: { type: 'object', required: ['id', 'digest'], properties: { id: { type: 'string', maxLength: 40 }, digest: { type: 'string', pattern: '^[0-9a-f]{64}$' } } },
+      // What Approvals shows: the steps worked out from the set's changes now, with what each update replaces.
+      async describe(args, ctx) {
+        const s = store.load(ctx.dataDir, args.id);
+        if (!s) throw new Error(`There is no change set ${args.id}.`);
+        if (s.status !== 'waiting') throw new Error(`Change set ${s.id} was already ${s.status}.`);
+        if (store.digest(s.changes) !== args.digest) throw new Error(`Change set ${s.id} changed after it was proposed. Reject this and ask for a new one.`);
+        const checked = await withPreview(ctx, null, checkSet(s.changes, ctx.config));
+        const bad = checked.steps.filter(st => st.problem);
+        if (bad.length) throw new Error(bad.map(st => st.problem).join(' '));
+        return [...(s.why ? [`Why: ${s.why}`] : []), ...checked.steps.map((st, i) => `${i + 1}. ${st.summary}`)];
+      },
+      // What an always-allow rule can cover: the zones, Workers and Pages projects the set touches.
+      scope(args, ctx) {
+        const s = store.load(ctx.dataDir, args.id);
+        return s ? scopesOf(s.changes || []) : [];
+      },
+      async onReject(args, ctx, note) {
+        const s = store.load(ctx.dataDir, args.id);
+        if (!s || s.status !== 'waiting') return;
+        const done = { ...s, status: 'rejected', decided: new Date().toISOString(), note: String(note || '').trim() || null };
+        store.save(ctx.dataDir, done);
+        store.appendLog(ctx.dataDir, done);
+        changed(ctx);
+      },
       async run(args, ctx, meta) {
         const s = store.load(ctx.dataDir, args.id);
         if (!s) throw Object.assign(new Error(`There is no change set ${args.id}.`), { status: 404, code: 'not_found' });
@@ -298,20 +329,6 @@ export default {
         return { id: s.id, status: r.status, results: r.results };
       }
     },
-    'changes.reject': {
-      title: 'Reject a change set (nothing changes on Cloudflare)', write: false,
-      argsSchema: { type: 'object', required: ['id'], properties: { id: { type: 'string', maxLength: 40 }, note: { type: 'string', maxLength: 500 } } },
-      async run(args, ctx) {
-        const s = store.load(ctx.dataDir, args.id);
-        if (!s) throw Object.assign(new Error(`There is no change set ${args.id}.`), { status: 404, code: 'not_found' });
-        if (s.status !== 'waiting') throw Object.assign(new Error(`Change set ${s.id} was already ${s.status}.`), { status: 409, code: 'conflict' });
-        const done = { ...s, status: 'rejected', decided: new Date().toISOString(), note: (args.note || '').trim() || null };
-        store.save(ctx.dataDir, done);
-        store.appendLog(ctx.dataDir, done);
-        changed(ctx);
-        return { id: s.id, status: 'rejected' };
-      }
-    }
   },
   async start(ctx) {
     running = ctx;
@@ -346,6 +363,19 @@ export default {
     return { state: 'ready', message: msg, details };
   }
 };
+
+/** The scopes an always-allow rule can name for a set: zones, worker:<name>, pages:<project>. */
+export function scopesOf(changes) {
+  const out = new Set();
+  for (const c of changes) {
+    if (!c || typeof c !== 'object') continue;
+    if (c.zone) out.add(String(c.zone));
+    if (c.op && c.op.startsWith('workers.') && c.script) out.add(`worker:${c.script}`);
+    if (c.op && c.op.startsWith('workers.domain.') && c.service) out.add(`worker:${c.service}`);
+    if (c.op && c.op.startsWith('pages.')) out.add(`pages:${c.project || c.name}`);
+  }
+  return [...out].sort();
+}
 
 /** Adds what each update or removal replaces (reads only). A change that cannot be previewed gets a problem. */
 async function withPreview(ctx, meta, checked) {

@@ -11,7 +11,7 @@
 // .work/_onboarding/<product>.md (workparser onboardingOf) and makes a trial run, a local item with "- Trial:".
 // The trial run gets autopilot on its own; when it reaches Ready to publish the product is live.
 //
-// Regression tests (1.25.0, eng-agents Core 4.13.0). `tests.cover` runs `/cover <product> [-- <area>]`, which makes one
+// Regression tests (1.26.0, eng-agents Core 4.14.0). `tests.cover` runs `/cover <product> [-- <area>]`, which makes one
 // local Quick change per UI repo with "- Coverage: <product>". Each gets autopilot on its own, like a trial run.
 //
 // Workshop keeps only what it asked for, in .work/_dashboard/epics.json: { epics: { <scope>: { at } },

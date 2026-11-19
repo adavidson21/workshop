@@ -7,6 +7,7 @@
 // Run it:            node agent/start.mjs
 import http from 'node:http';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
@@ -24,7 +25,8 @@ import { rawApiSegments, decodeSegment, appId, collectionName, folderName, fileP
 import { defaultDataDir, dataDirProblem, prepareDataDir, removeDataTmpFiles, moveOldData, looseDataDir, cleanScratch, SCRATCH_DAYS, renameAppFolders } from './lib/datadir.mjs';
 import { APP_FOLDERS } from '../shared/app-folders.js';
 import { writeReadme, makeReadableCopy } from './lib/readable.mjs';
-import { storageReport } from './lib/storage.mjs';
+import { storageReport, sizeOf } from './lib/storage.mjs';
+import { ResetTickets, expectedPhrase, resetTargets, listFiles, writeZip, readZip, backupPath, readmeText, deleteTargets } from './lib/reset.mjs';
 import { EventHub } from './lib/events.mjs';
 import { ConnectorHost } from './lib/connectors.mjs';
 import { LOCAL_PAGE, serveStatic } from './lib/static.mjs';
@@ -33,6 +35,10 @@ import { appSwitches, readOff, writeOff, pinApps, readBuild } from './lib/apps.m
 import { applyStartAtLogin, startAtLoginStatus } from './lib/login.mjs';
 import { liveEnv } from './lib/userenv.mjs';
 import { secretReader } from './lib/secrets.mjs';
+import { Approvals } from './lib/approvals.mjs';
+import { Activity } from './lib/activity.mjs';
+import { Routines } from './lib/routines.mjs';
+import { handleMcp } from './lib/mcp-server.mjs';
 import { openUpdateTerminal, updateArgv } from './lib/terminal.mjs';
 
 export const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -172,10 +178,19 @@ export async function createAgent(o) {
   const store = new Store({ root: dataRoot, schemas, log: log.for('data'), lock: dataLock, tracker });
   const files = new Files({ root: dataRoot, schemas, log: log.for('files'), lock: dataLock, tracker });
   const watch = new FolderWatch({ root: dataRoot, tracker, events, log: log.for('watch') });
+  // Approvals and activity (docs/security.md): what agents asked to change, always-allow rules, and the log.
+  const activity = new Activity({ dataDir });
+  const approvals = new Approvals({
+    dataDir, log: log.for('approvals'),
+    rules: () => (config.approvals && Array.isArray(config.approvals.rules) ? config.approvals.rules : []),
+    saveRules: fn => commitConfig(() => { config.approvals = { ...(config.approvals || {}), rules: fn(config.approvals && Array.isArray(config.approvals.rules) ? config.approvals.rules : []) }; })
+  });
   const connectors = new ConnectorHost({
     dir: connectorsDir, schemas, env: o.env || liveEnv(process.env), home, storageDir: path.join(paths.data, '_connectors'), dataDir, log, events, config: () => config,
-    secrets: o.secrets || secretReader(), workMode
+    secrets: o.secrets || secretReader(), workMode, approvals, activity
   });
+
+  const routines = new Routines({ config: () => config, connectors, dataDir, log: log.for('routines'), events, now: o.now });
 
   let port = 0;
   const ownOrigins = () => [`http://127.0.0.1:${port}`, `http://localhost:${port}`];
@@ -225,6 +240,32 @@ export async function createAgent(o) {
     const w = await writeReadme(dataDir, folderApps());
     if (w === 'written') log.for('data').info(`Wrote ${path.join(dataDir, 'README.md')}, which says what each folder is.`);
   } catch (e) { log.warn(`Could not write README.md in the data folder (${e.code || e.message}).`); }
+  // Start over (docs/agent-api.md, Reset). One at a time; data writes wait it out (503) so no open window puts
+  // deleted data back while it runs. `lastReset` is what Settings shows after the reload the reset event causes.
+  const resetTickets = new ResetTickets({ waitMs: o.resetWaitMs }); // resetWaitMs: tests only
+  let resetting = false, lastReset = null;
+  const WORK_RESET_PHRASE = 'remove every work item'; // connectors/opencode/lib/reset.mjs
+  /** The opencode connector's workspace and how many items its .work holds, when it is on and ready. */
+  const tandemInfo = () => {
+    if (!connectors.has('opencode')) return { available: false, why: 'There is no opencode connector.' };
+    const c = connectors.info('opencode');
+    const ws = c.status?.details?.workspace;
+    if (!c.enabled || c.status?.state !== 'ready' || !ws) return { available: false, why: 'Turn on the opencode connector (Connections) to remove Tandem\'s work items too.' };
+    let items = 0;
+    try { items = fs.readdirSync(path.join(ws, '.work'), { withFileTypes: true }).filter(d => d.isDirectory() && !d.name.startsWith('_') && !d.name.startsWith('.')).length; } catch { /* no .work yet */ }
+    return { available: true, workspace: ws, items };
+  };
+  /** Where the backup zip goes: beside the data folder, else the home folder when that is not writable. */
+  const backupDir = () => {
+    const beside = path.dirname(dataDir);
+    try { fs.accessSync(beside, fs.constants.W_OK); return beside; } catch { return os.homedir(); }
+  };
+  const resetApps = () => listApps().apps.map(a => {
+    const id = a.manifest.id, folder = dataRoot.folderOf(id);
+    const size = sizeOf(path.join(dataDir, folder));
+    return { id, name: a.manifest.name, folder, bytes: size ? size.bytes : 0, files: size ? size.files : 0 };
+  });
+
   // "Keep a readable copy up to date" (features.readableCopy, off by default): on start and once a day.
   const refreshCopy = () => { if (config.features?.readableCopy === true) readableCopy().catch(e => log.warn(`Could not make the readable copy (${e.code || e.message}).`)); };
   const copyTimer = setInterval(refreshCopy, 24 * 3600 * 1000);
@@ -263,6 +304,7 @@ export async function createAgent(o) {
 
       // Tools for agents (docs/agent-api.md): programs on this computer, never pages, with the agent token only.
       if (p === '/api/tools' || p.startsWith('/api/tools/')) { await handleTools(req, res, url); return; }
+      if (p === '/api/mcp') { await handleMcpRequest(req, res); return; }
 
       if (p === '/api/health') {
         if (req.method !== 'GET') fail('method_not_allowed', 'Use GET.');
@@ -382,6 +424,14 @@ document.getElementById('allow').addEventListener('click', function () {
       sendJson(res, 200, { tools: connectors.agentTools() }, {});
       return;
     }
+    // An agent checks on a request it made: status, and the result once approved. Never the arguments.
+    if (parts[0] === 'approvals' && parts.length === 2) {
+      if (req.method !== 'GET') fail('method_not_allowed', 'Use GET.');
+      const r = approvals.get(parts[1]);
+      if (!r) fail('not_found', `There is no approval ${parts[1]}.`);
+      sendJson(res, 200, { id: r.id, status: r.status, title: r.title, ...(r.result !== undefined ? { result: r.result } : {}), ...(r.error ? { error: r.error } : {}), ...(r.note ? { note: r.note } : {}) }, {});
+      return;
+    }
     if (parts.length !== 2) fail('not_found', 'Not found.');
     if (req.method !== 'POST') fail('method_not_allowed', 'Use POST.');
     const [id, action] = parts;
@@ -391,6 +441,22 @@ document.getElementById('allow').addEventListener('click', function () {
     const result = await connectors.callForAgent(id, action, body);
     log.for('tools').info(`An agent ran ${id} ${action}.`);
     sendJson(res, 200, { result }, {});
+  }
+
+  /**
+   * /api/mcp: Workshop as an MCP server for opencode (docs/agent-api.md, MCP for agents). The same key and rules as
+   * /api/tools: the agent token (as X-Workshop-Agent-Token, or Authorization: Bearer), never from a web page.
+   */
+  async function handleMcpRequest(req, res) {
+    if (req.headers.origin !== undefined) fail('forbidden', 'MCP is for programs on this computer, not web pages.');
+    const bearer = /^Bearer\s+(\S+)$/i.exec(String(req.headers.authorization || ''));
+    if (!same(req.headers['x-workshop-agent-token'], agentToken) && !(bearer && same(bearer[1], agentToken))) fail('unauthorized', 'Send the agent token (the agent-token file in the Workshop home) as X-Workshop-Agent-Token.');
+    if (req.method !== 'POST') { res.writeHead(405, { Allow: 'POST', 'Content-Type': 'application/json' }); res.end(JSON.stringify({ code: 'method_not_allowed', error: 'Use POST. Workshop answers in JSON; it has no event stream.' })); return; }
+    let body;
+    try { body = await readJsonBody(req, MB); } catch { sendJson(res, 400, { jsonrpc: '2.0', id: null, error: { code: -32700, message: 'Not valid JSON.' } }, {}); return; }
+    const r = await handleMcp(body, { connectors, approvals, version: VERSION });
+    if (r.body === null) { res.writeHead(202); res.end(); return; }
+    sendJson(res, r.status, r.body, {});
   }
 
   async function handleApi(req, res, url, { own, cors }) {
@@ -430,6 +496,20 @@ document.getElementById('allow').addEventListener('click', function () {
       try { await fs.promises.rm(target, { recursive: true, force: true }); } catch (e) { fail('internal', `Workshop could not delete ${target} (${e.code || e.message}).`); }
       log.for('data').info(`Deleted ${target} from Settings (${size ? `${size.files} files, ${size.bytes} bytes` : 'empty'}).`);
       ok({ deleted: target });
+      return;
+    }
+    // Start over (docs/agent-api.md, Reset). Local only. GET is the plan and a ticket; POST runs it with the ticket
+    // (at least 10 seconds old) and the typed phrase. Saves a zip of everything that goes, reads it back, then deletes.
+    if (parts[0] === 'reset' && parts.length === 1) {
+      only('GET', 'POST');
+      if (!own) fail('local_only', 'Start over from Workshop on this computer, or run workshop reset.');
+      if (m === 'GET') {
+        // The phrases, so pages ask for exactly what this agent checks ({n} is the number of apps).
+        const phrases = { everything: expectedPhrase({ everything: true }), one: expectedPhrase({ count: 1 }), many: expectedPhrase({ count: 2 }).replace('2', '{n}'), workOnly: expectedPhrase({ count: 0, tandem: true }) };
+        ok({ apps: resetApps(), tandem: tandemInfo(), dataDir, backupDir: backupDir(), running: resetting, last: lastReset, phrases, ...resetTickets.issue() });
+        return;
+      }
+      ok(await runReset(await readJsonBody(req)));
       return;
     }
     if (parts[0] === 'storage' && parts[1] === 'readable' && parts.length === 2) {
@@ -542,6 +622,73 @@ document.getElementById('allow').addEventListener('click', function () {
       fail('not_found', 'Not found.');
     }
 
+    // Approvals (docs/agent-api.md, Approvals): what agents asked to change, waiting for you; your decisions; and
+    // always-allow rules. Rules are a security setting: added or removed only from Workshop on this computer.
+    if (parts[0] === 'approvals') {
+      if (parts.length === 1) {
+        only('GET');
+        const status = url.searchParams.get('status');
+        if (status && !['waiting', 'approved', 'failed', 'rejected'].includes(status)) fail('bad_request', 'status is waiting, approved, failed or rejected.');
+        const list = approvals.list({ status: status || undefined, limit: 50 });
+        ok({ approvals: await Promise.all(list.map(r => connectors.viewApproval(r))), waiting: approvals.waiting() });
+        return;
+      }
+      if (parts[1] === 'rules') {
+        if (parts.length === 2) { only('GET'); ok({ rules: approvals.rules() || [] }); return; }
+        if (parts.length === 3) {
+          only('DELETE');
+          if (!own) fail('local_only', 'Remove always-allow rules from Workshop on this computer.');
+          if (!(await approvals.removeRule(parts[2]))) fail('not_found', 'There is no such rule.');
+          ok({ rules: approvals.rules() || [] });
+          return;
+        }
+      }
+      if (parts.length === 2) {
+        const r = approvals.get(parts[1]);
+        if (!r) fail('not_found', `There is no approval ${parts[1]}.`);
+        if (m === 'GET') { ok(await connectors.viewApproval(r)); return; }
+        only('POST');
+        const body = (await readJsonBody(req, MB)) ?? {};
+        if (typeof body.approve !== 'boolean') fail('bad_request', 'Send {"approve": true, "digest": "..."} or {"approve": false}.');
+        if (body.always === true && !own) fail('local_only', 'Add always-allow rules from Workshop on this computer.');
+        ok(await connectors.decideApproval(parts[1], { approve: body.approve, digest: body.digest, always: body.always === true, note: typeof body.note === 'string' ? body.note : '' }));
+        return;
+      }
+      fail('not_found', 'Not found.');
+    }
+
+    // Activity (docs/agent-api.md, Activity): the activity log, newest first, and when each connector was last used.
+    if (parts[0] === 'activity' && parts.length === 1) {
+      only('GET');
+      const limit = Math.min(500, Math.max(1, Number(url.searchParams.get('limit')) || 100));
+      const conn = url.searchParams.get('connector') || undefined;
+      const by = url.searchParams.get('by') || undefined;
+      ok({ entries: activity.recent({ limit, connector: conn, by }), lastUsed: activity.lastUsed() });
+      return;
+    }
+
+    // Routines (docs/agent-api.md, Routines): what runs on a schedule on this computer, and recent runs.
+    if (parts[0] === 'routines') {
+      if (parts.length === 1) {
+        if (m === 'GET') { ok(routines.view()); return; }
+        only('PUT');
+        if (!own) fail('local_only', 'Change routines from Workshop on this computer.');
+        const body = (await readJsonBody(req, MB)) ?? {};
+        const list = routines.check(body.routines);
+        await commitConfig(() => { config.routines = list; });
+        events.send('config', { changed: ['routines'] });
+        ok(routines.view());
+        return;
+      }
+      if (parts.length === 3 && parts[2] === 'run') {
+        only('POST');
+        if (!own) fail('local_only', 'Run routines from Workshop on this computer.');
+        ok(await routines.runNow(parts[1]));
+        return;
+      }
+      fail('not_found', 'Not found.');
+    }
+
     if (parts[0] === 'config' && parts.length === 1) {
       if (m === 'GET') { ok(publicConfig()); return; }
       only('GET', 'PUT');
@@ -591,6 +738,73 @@ document.getElementById('allow').addEventListener('click', function () {
     fail('not_found', 'Not found.');
   }
 
+  /** POST /api/reset. Body: {apps: [id] | 'all', tandem: boolean, phrase, ticket}. */
+  async function runReset(body) {
+    if (resetting) fail('conflict', 'Workshop is already starting over.');
+    const b = body && typeof body === 'object' ? body : {};
+    const all = resetApps();
+    const ids = b.apps === 'all' ? all.map(a => a.id) : b.apps;
+    if (!Array.isArray(ids) || ids.some(id => typeof id !== 'string')) fail('bad_request', 'Send apps as a list of app ids, or "all".');
+    const unknown = ids.filter(id => !all.some(a => a.id === id));
+    if (unknown.length) fail('bad_request', `There is no ${unknown[0]} app.`);
+    const apps = all.filter(a => ids.includes(a.id));
+    const everything = apps.length === all.length && all.length > 0;
+    const tandem = b.tandem === true;
+    const want = expectedPhrase({ everything, count: apps.length, tandem });
+    if (!want) fail('bad_request', 'Pick at least one app, or Tandem\'s work items.');
+    if (typeof b.phrase !== 'string' || b.phrase.trim() !== want) fail('bad_request', `Type "${want}" to confirm.`);
+    const t = tandem ? tandemInfo() : null;
+    if (t && !t.available) fail('unavailable', t.why);
+    const why = resetTickets.take(b.ticket);
+    if (why) fail('bad_request', why);
+
+    resetting = true;
+    const at = new Date();
+    const dlog = log.for('reset');
+    events.send('reset', { state: 'started' });
+    let done = false;
+    try {
+      const targets = resetTargets({ dataDir, apps, everything });
+      const work = t ? [{ abs: path.join(t.workspace, '.work'), zip: 'Tandem work items/.work' }] : [];
+      const list = listFiles([...targets, ...work]);
+      const readme = readmeText({ dataDir, workspace: t && t.workspace, apps, everything, when: at });
+      let zip, zipPath = null;
+      try {
+        zipPath = backupPath(backupDir(), at);
+        zip = writeZip(zipPath, [{ name: 'README.txt', data: Buffer.from(readme, 'utf8'), mtime: at }, ...list]);
+        const back = readZip(zipPath);
+        if (back.length !== list.length + 1) throw new Error('The backup zip is missing files.');
+      } catch (e) {
+        if (zip && zipPath) { try { fs.rmSync(zipPath, { force: true }); } catch { /* leave it */ } } // a zip that does not read back is no backup
+        fail('internal', `Nothing was deleted: the backup could not be saved (${e.code || e.message}).`);
+      }
+      dlog.info(`Saved a backup before starting over: ${zipPath} (${list.length} files, ${zip.bytes} bytes).`);
+      let tandemResult = null;
+      if (t) {
+        try { tandemResult = await connectors.call('opencode', 'work.reset', { args: { confirm: WORK_RESET_PHRASE }, confirm: true }); }
+        catch (e) { fail(e instanceof HttpError ? e.code : 'internal', `The backup is saved (${zipPath}) and no app data was deleted, but Tandem's work items could not be removed: ${e.message}`); }
+      }
+      const failed = deleteTargets(targets);
+      try { await writeReadme(dataDir, folderApps()); } catch { /* written on the next start */ }
+      lastReset = {
+        at: at.toISOString(), everything, apps: apps.map(a => ({ id: a.id, name: a.name, folder: a.folder })),
+        backup: { path: zipPath, bytes: zip.bytes, files: list.length },
+        tandem: tandemResult ? { workspace: t.workspace, removed: tandemResult.removed.length, kept: tandemResult.kept, failed: tandemResult.failed, stopped: tandemResult.stopped } : null,
+        failed
+      };
+      dlog.info(`Started over: ${everything ? 'every app' : apps.map(a => a.name).join(', ') || 'no apps'}${tandemResult ? `, ${tandemResult.removed.length} work items` : ''}. ${failed.length ? `Could not delete ${failed.length}: ${failed.join('; ')}` : 'All deleted.'}`);
+      done = true;
+      return lastReset;
+    } catch (e) {
+      lastReset = { at: at.toISOString(), error: e.message };
+      dlog.warn(`Start over stopped: ${e.message}`);
+      throw e;
+    } finally {
+      resetting = false;
+      events.send('reset', { state: done ? 'done' : 'failed' });
+    }
+  }
+
   /** The value, or null when it is a not_found error (a collection or file that was never written). */
   const orNull = p => p.catch(e => { if (e instanceof HttpError && e.code === 'not_found') return null; throw e; });
 
@@ -605,6 +819,7 @@ document.getElementById('allow').addEventListener('click', function () {
     // does not show a failed request for every feature someone has not used.
     if (req.method === 'GET') { ok(await orNull(store.get(app, collection))); return; }
     only('GET', 'PUT');
+    if (resetting) fail('unavailable', 'Workshop is starting over. This window reloads in a moment.');
     const body = await readJsonBody(req, 10 * MB);
     const saved = await store.put(app, collection, body);
     events.send('data', { app, collection, rev: saved.rev, updatedAt: saved.updatedAt, client: clientOf(req) });
@@ -623,6 +838,7 @@ document.getElementById('allow').addEventListener('click', function () {
     }
     const fpath = filePath(rest);
     if (req.method === 'GET') { ok(await orNull(files.read(app, fpath))); return; }
+    if (resetting && (req.method === 'PUT' || req.method === 'DELETE')) fail('unavailable', 'Workshop is starting over. This window reloads in a moment.');
     if (req.method === 'PUT') {
       const body = await readJsonBody(req, 64 * MB);
       const saved = await files.put(app, fpath, body);
@@ -661,6 +877,7 @@ document.getElementById('allow').addEventListener('click', function () {
   log.info(`Workshop agent ${VERSION} listening on http://127.0.0.1:${port} (home ${home}, data folder ${dataDir}).`);
   watch.start();
   await connectors.startAll();
+  if (o.routines !== false) routines.start();
 
   // Keep the start-at-login launcher in step with the flag, in case config.json was edited by hand or the
   // repo moved since last run. Only acts when the two disagree, so a normal start writes nothing. Gated on
@@ -692,6 +909,7 @@ document.getElementById('allow').addEventListener('click', function () {
     pinned,
     stop() {
       stopping ??= (async () => {
+        routines.stop();
         clearInterval(scratchTimer);
         clearInterval(copyTimer);
         watch.stop();

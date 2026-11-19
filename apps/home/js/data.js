@@ -5,7 +5,7 @@
    data folder (a bar in the shell has the Allow button). Reads then fail with code `unavailable`. Like
    Docket, Home then shows a message instead of an empty panel, saves nothing, and loads again once
    `online` turns true. */
-import { agentCounts, blockingRows, boardFromSummary, connectorRows, dateStr, inboxRows, upcomingRows, weekRows } from './view.js';
+import { agentCounts, approvalRows, blockingRows, boardFromSummary, dateStr, inboxRows, upcomingRows, weekRows } from './view.js';
 import { readCards } from '../../../shared/summary.js';
 
 const P = { app: 'prioritizer' };
@@ -38,7 +38,7 @@ export function createHome(ws, { onChange = () => {}, now = () => new Date() } =
     if (ws.backend !== 'agent') { v.agents = { state: 'browser' }; return changed(); }
     try {
       const list = await ws.connectors.list();
-      v.connectorRows = connectorRows(list);
+      try { v.connectorRows = approvalRows((await ws.approvals.list({ status: 'waiting' })).waiting); } catch { v.connectorRows = []; }
       const c = list.find(x => x.id === OC);
       if (!c || c.status.state !== 'ready') {
         v.agents = { state: 'off', message: !c ? 'The opencode connector is not installed.' : c.status.state === 'disabled' ? 'The opencode connector is off. Turn it on in Settings.' : c.status.message || 'The opencode connector is not ready yet.' };

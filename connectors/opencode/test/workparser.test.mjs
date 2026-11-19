@@ -308,7 +308,7 @@ test("Core 4.10.0 and 4.12.0: story, trial, step and onboarding are read only wh
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
 
-test("tests/results-*.json (eng-agents Core 4.13.0): the newest run after the change becomes the item's tests", async () => {
+test("tests/results-*.json (eng-agents Core 4.14.0): the newest run after the change becomes the item's tests", async () => {
   const { testsOf } = await import("../lib/workparser.mjs");
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "tests-of-"));
   try {

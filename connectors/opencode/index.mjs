@@ -34,6 +34,8 @@ import { MAX_PROMPT as VOICE_MAX, KINDS as VOICE_KINDS, resetVoice, runVoice, vo
 import { MAX_FILES as CHAT_FILES, MAX_TEXT as CHAT_MAX, chatFiles, chatMessages, chatOptions, commandChat, compactChat, listChats, redoChat, removeChat, renameChat, resetChats, sendChat, shellChat, startChat, undoChat } from "./lib/chat.mjs";
 import { MAX_FILE, PM_FOLDER, approveFolder, startHandoff, startRefine, startScope, startShape, startSlice, startTriage, writePmFile } from "./lib/slate.mjs";
 import { listDocs, writeWorkFile } from "./lib/docs.mjs";
+import { WORK_RESET_PHRASE, resetWork } from "./lib/reset.mjs";
+import { forgetRun } from "./lib/projects.mjs";
 
 export const configSchema = {
   type: "object",
@@ -1099,6 +1101,30 @@ const actions = {
       needReady();
       const r = await removeItem(args);
       forgetPublished(args.folder);
+      return r;
+    },
+  },
+  // Settings, Data, Start over (docs/agent-api.md, Reset): the agent zips .work first, then calls this. Needs the
+  // exact phrase, so a page or a script cannot run it by accident.
+  "work.reset": {
+    title: "Remove every work item",
+    write: true,
+    argsSchema: obj(["confirm"], { confirm: str(`Type "${WORK_RESET_PHRASE}" to confirm`, { maxLength: 100 }) }),
+    async run(args) {
+      needReady();
+      if (args.confirm !== WORK_RESET_PHRASE) throw httpError(400, `Type "${WORK_RESET_PHRASE}" to confirm.`);
+      const r = await resetWork();
+      for (const f of r.removed) forgetRun(f); // projects.json is kept, its run assignments go
+      // Read the (now empty) state back, as on start.
+      loadLinks();
+      loadAuto();
+      loadObservations();
+      loadGaps();
+      loadPublished();
+      loadEpics();
+      loadPrQueue();
+      await refresh();
+      broadcastLive();
       return r;
     },
   },

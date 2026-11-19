@@ -101,7 +101,7 @@ test("ADO links: the line in workitem.md, linked and local, and setting it", asy
   assert.equal(setLine("# Work item L4: y", "unlinked"), "# Work item L4: y\n- ADO item: unlinked\n");
 });
 
-test("regression suite results: read from tests/, a failure after the change keeps a build out of Publish all ready (1.25.0)", async () => {
+test("regression suite results: read from tests/, a failure after the change keeps a build out of Publish all ready (1.26.0)", async () => {
   const { testResults, checksFailed } = await import("../lib/publish.mjs");
   const { configure, shutdown } = await import("../lib/context.mjs");
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "suite-"));

@@ -6,7 +6,7 @@
         "manifestVersion": 1,
         "id": "home",
         "name": "Needs you",
-        "version": "5.3.0",
+        "version": "5.4.0",
         "description": "What needs you across apps, what is coming up and what you finished this week. Opens from the top bar on every app.",
         "icon": "icon.svg",
         "entry": "index.html",
@@ -279,8 +279,8 @@
         "manifestVersion": 1,
         "id": "slate",
         "name": "Loom",
-        "version": "6.7.0",
-        "description": "Your backlog and Tandem's runs as cards in four lanes (Clarify, Plan, Work, Ready), plus Health. Drop in a story, an error log, a question or a hand-off; a card stops only when it needs you.",
+        "version": "6.8.0",
+        "description": "Tandem's runs on a floor: a code line and a research line of stations, or a list, plus Health. Drop in a story, an error log, a question or a hand-off; a card stops only when it needs you.",
         "icon": "icon.svg",
         "entry": "index.html",
         "order": 15,
@@ -369,7 +369,7 @@
           },
           {
             "path": "lanes",
-            "title": "Lanes: start work, and what waits on you"
+            "title": "Floor: start work, and what waits on you"
           },
           {
             "path": "chat",
@@ -381,7 +381,7 @@
           },
           {
             "path": "reviews",
-            "title": "PR reviews (Lanes' Review card)"
+            "title": "PR reviews (the floor's Review card)"
           },
           {
             "path": "start/:flow",
@@ -1238,8 +1238,8 @@
         "manifestVersion": 1,
         "id": "settings",
         "name": "Settings",
-        "version": "7.4.0",
-        "description": "Status, apps, this computer and data; people and teams, knowledge (products, glossary, repo map), focus hours and writing voice; Azure DevOps, Cloudflare, opencode and repos; a user guide.",
+        "version": "7.6.0",
+        "description": "Status, apps, this computer and data; people and teams, knowledge (products, glossary, repo map), focus hours and writing voice; connections, approvals, routines, opencode and repos; a user guide.",
         "icon": "icon.svg",
         "entry": "index.html",
         "order": 90,
@@ -1307,6 +1307,8 @@
         ],
         "files": [
           "js/cloudflare-page.js",
+          "js/connections-page.js",
+          "js/routines-page.js",
           "js/focus-model.js",
           "js/focus-page.js",
           "js/forms.js",
@@ -1318,6 +1320,7 @@
           "js/people.js",
           "js/products-page.js",
           "js/repos.js",
+          "js/reset-page.js",
           "js/storage-page.js",
           "js/settings.js",
           "js/voice-model.js",

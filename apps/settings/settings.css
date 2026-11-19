@@ -459,6 +459,18 @@ label.btn{cursor:pointer}
 .go-dot.on { background: var(--accent); }
 .old-list li { display: flex; gap: 12px; align-items: center; justify-content: space-between; padding: 8px 0; border-top: 1px solid var(--line); }
 .old-list code { font-size: 12px; word-break: break-all; }
+/* Start over (js/reset-page.js) */
+.reset-pick { border: 1px solid var(--line); border-radius: var(--r-md); margin: 8px 0; padding: 6px 12px 10px; }
+.reset-pick legend { font-size: .86rem; padding: 0 4px; }
+.reset-row { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; padding: 5px 0; }
+.reset-row .soft { font-size: .86rem; }
+.reset-all { border-bottom: 1px solid var(--line); padding-bottom: 8px; margin-bottom: 4px; }
+.reset-tandem { border-top: 1px solid var(--line); padding-top: 8px; margin-top: 4px; }
+.reset-type { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 10px 0; }
+.reset-type input { max-width: 16rem; }
+.reset-done { border-left: 3px solid var(--accent); padding: 4px 12px; margin: 4px 0 10px; }
+.reset-done.err { border-left-color: var(--danger); }
+.reset-done p { margin: 4px 0; word-break: break-word; }
 
 /* Knowledge: Products' For Tandem fields, Glossary, Repo map, Checks (knowledge-page.js) */
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
@@ -510,3 +522,28 @@ label.check input{accent-color:var(--accent);width:1rem;height:1rem;margin:0}
 .cf-done summary{cursor:pointer}
 .cf-status{font-size:.75rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
 .cf-status[data-status=failed]{color:var(--warn)}
+/* Connections manager and Routines (js/connections-page.js, js/routines-page.js) */
+.cx-list{list-style:none;margin:.4rem 0;padding:0}
+.cx-row{display:flex;gap:.75rem;align-items:flex-start;justify-content:space-between;padding:.6rem 0;border-top:1px solid var(--line)}
+.cx-row:first-child{border-top:0}
+.cx-row.off{opacity:.65}
+.cx-main{min-width:0;flex:1}
+.cx-meta{font-size:.82rem;color:var(--muted);margin-top:.15rem;overflow-wrap:anywhere}
+.cx-meta .warn,.sub.warn,.warn{color:var(--warn)}
+.cx-state{font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+.cx-state[data-state=error]{color:var(--warn)}
+.cx-h{font-size:.9rem;margin:1.1rem 0 .3rem}
+.cx-filter select{max-width:14rem}
+.cx-table{width:100%;border-collapse:collapse;font-size:.84rem}
+.cx-table th{text-align:left;font-weight:600;color:var(--muted);padding:.3rem .4rem;border-bottom:1px solid var(--line)}
+.cx-table td{padding:.35rem .4rem;border-bottom:1px solid var(--line);vertical-align:top}
+.cx-table tr.bad td{color:var(--warn)}
+.ap-set{border:1px solid var(--line);border-radius:var(--r-sm);padding:.75rem .9rem;margin:.6rem 0}
+.ap-head{display:flex;flex-wrap:wrap;gap:.25rem .6rem;align-items:baseline}
+.ap-lines{margin:.5rem 0;padding-left:1.1rem;font-size:.88rem;line-height:1.45;overflow-wrap:anywhere}
+.ap-always{display:flex;gap:.4rem;align-items:center;font-size:.85rem;margin:.3rem 0}
+.rt-form{border-top:1px solid var(--line);margin-top:.8rem;padding-top:.4rem;display:grid;gap:.5rem}
+.rt-form label{display:grid;gap:.2rem;font-size:.85rem}
+.rt-form input,.rt-form textarea,.rt-form select{font:inherit}
+.rt-when{display:flex;flex-wrap:wrap;gap:.6rem;align-items:end}
+.rt-when .rt-on{display:flex;gap:.35rem;align-items:center}

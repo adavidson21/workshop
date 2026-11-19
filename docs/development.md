@@ -34,7 +34,7 @@ apps/                   one folder per app, each with an app.json (docs/app-mani
   bench/                Bench (Tandem's eval results, through the opencode connector; docs/bench.md)
   settings/             Settings
 agent/                  the Workshop agent: serves the UI on 127.0.0.1, stores data, runs connectors
-connectors/             one folder per connector (ADO, GitHub, opencode, Cloudflare)
+connectors/             one folder per connector (ADO, GitHub, opencode, Cloudflare, MCP servers)
 docs/                   the contracts every part is written against
 sw.js                   offline cache for the whole site
 tests/                  checks (see below)

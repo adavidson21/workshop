@@ -565,12 +565,12 @@ function openStart(flow, fill) {
 }
 const STARTED = {
   spike: () => 'Investigating. The first look shows on its card; the findings come to Ready.',
-  'scope.start': () => 'Scoping the idea. Tandem may ask you a few questions; they show on its card in Lanes.',
-  'docs.start': () => 'Drafting the doc. The draft comes to Plan in Lanes for your read.',
+  'scope.start': () => 'Scoping the idea. Tandem may ask you a few questions; they show on its card on the floor.',
+  'docs.start': () => 'Drafting the doc. The draft comes to you on the research line for your read.',
   'spike.log': () => 'Diagnosing the log. The first look shows on its card; the diagnosis comes to Ready with a fix, configuration first.',
   'tsd.start': () => 'Drafting the technical spec. Tandem asks you to confirm the repos and pick the flows; the questions show on its card in Lanes.'
 };
-const BOARD_STARTED = { request: 'Added to Lanes. Triage is running; pick the path when it is done.', handoff: 'Added to Lanes. Tandem is drafting the story for you to approve.' };
+const BOARD_STARTED = { request: 'On the floor. Triage is running; pick the path when it is done.', handoff: 'On the floor. Tandem is drafting the story for you to approve.' };
 // The click on Start is the approval for this write action.
 /** Starts what a Start work state and its drafts ask for (view.js startRequest): a board flow through the board half,
  *  else the connector's action, then tells the board about the run. Returns {board, msg}; throws on a bad form. */
@@ -589,8 +589,8 @@ async function startCore(st, drafts) {
   if (st.from) await closeSpike(st.from, closedLine(r, res));
   const pname = r.args.project ? ' in ' + ((projectById(r.args.project) || {}).name || 'the project') : '';
   const msg = r.action === 'spike' && r.args.log ? STARTED['spike.log']() : STARTED[r.action] ? STARTED[r.action]()
-    : r.action === 'start.local' ? `Started ${(res && res.id) || 'it'} as a ${r.args.lane === 'quick' ? 'small change' : r.args.lane}${pname}. It is in Lanes; the agent may ask you to confirm repos.`
-    : `Starting #${r.args.id} as a ${r.args.lane === 'quick' ? 'small change' : r.args.lane}${pname}. Its card is in Lanes once its folder is ready.`;
+    : r.action === 'start.local' ? `Started ${(res && res.id) || 'it'} as a ${r.args.lane === 'quick' ? 'small change' : r.args.lane}${pname}. It is on the floor; the agent may ask you to confirm repos.`
+    : `Starting #${r.args.id} as a ${r.args.lane === 'quick' ? 'small change' : r.args.lane}${pname}. Its card is on the floor once its folder is ready.`;
   return { board: false, msg };
 }
 async function startGo() {
@@ -1026,10 +1026,10 @@ listen('click', ev => {
   if (lf) { ui().laneFilter = lf.getAttribute('data-lane-filter'); paint(); return; }
   // Floor or List (Loom 6.4.0), kept with the project filter; a station's +N more.
   const lv = t.closest('[data-lane-view]');
-  if (lv) { const v = lv.getAttribute('data-lane-view'); S.view.lanes = ['list', 'rows'].includes(v) ? v : 'floor'; saveViewNow(); paint(); return; }
+  if (lv) { S.view.lanes = lv.getAttribute('data-lane-view') === 'list' ? 'list' : 'floor'; saveViewNow(); paint(); return; }
   // Onboard a product from Loom (6.6.0): the picker lists your products from Settings; a pick runs product.onboard.
   if (t.closest('[data-onboard-toggle]')) { ui().onboardPick = !ui().onboardPick; if (ui().onboardPick) { ui().coverPick = false; readProducts(); } paint(); return; }
-  // Add regression tests (6.7.0): the same product list; a pick runs tests.cover with the optional area.
+  // Add regression tests (6.8.0): the same product list; a pick runs tests.cover with the optional area.
   if (t.closest('[data-cover-toggle]')) { ui().coverPick = !ui().coverPick; if (ui().coverPick) { ui().onboardPick = false; readProducts(); } paint(); return; }
   const cg = t.closest('[data-cover-go]');
   if (cg) {

@@ -18,12 +18,17 @@
 
    Loom 6.6.0 (eng-agents Core 4.12.0, connector 1.24.0): a build's station comes from Tandem's step.md when it has
    one (no more guessing from the session's text); cards carry their project's color; List is rows with a station
-   track (Lanes keeps the four lanes); Onboard a product starts onboarding from Loom. */
+   track (Lanes keeps the four lanes); Onboard a product starts onboarding from Loom.
+
+   Loom 6.7.0: the four lanes are gone; Floor and List are the two views. What only the Ready lane had moved here:
+   Publish all ready (beside the Loading dock, and atop Needs you in List) and the runs done today (Shipped today
+   under the code line, a Done today group in List). */
 import { S } from './state.js';
 import { h, plural, itemSession, isBusy, itemAuto, ago } from './view.js';
 import { hasProjects, projectById, projectOf, projectName, sw } from './projects.js';
 import { flowOf, stepIndex, stepsOf } from './flows.js';
 import { KINDS, keyOf } from './lanes.js';
+import { publishAllHtml } from './factory.js';
 
 export const CODE = [
   { id: 'plan', name: 'Plan desk', you: true, desc: 'Plans to approve' },
@@ -161,7 +166,7 @@ function projSw(c) {
   const p = projectById(projectOf(c.it));
   return p && !p.builtIn ? `<span class="fl-proj" title="${h(projectName(p))}">${sw(p.color)}</span>` : '';
 }
-/** The card's regression suite result (Loom 6.7.0, eng-agents Core 4.13.0): failing, flaky, or the tests it added. */
+/** The card's regression suite result (Loom 6.8.0, eng-agents Core 4.14.0): failing, flaky, or the tests it added. */
 export function testsBadge(it) {
   const t = it && it.tests;
   if (!t || t.verdict === 'skipped') return null;
@@ -201,9 +206,19 @@ function expressHtml(fd, sel) {
   const cols = CODE.map(s => `<div class="fl-xcol">${EXPRESS.has(s.id) ? fd.express.filter(c => c.station === s.id).map(c => chipHtml(c, sel)).join('') : ''}</div>`).join('');
   return `<div class="fl-express" aria-label="Express lane: quick changes Tandem builds hands-off"><span class="fl-xlabel">Express</span><div class="fl-xbelt">${cols}</div></div>`;
 }
-function lineHtml(id, title, sub, stations, sel, extra, before) {
+/** The builds at the Loading dock (Publish all ready counts the ones with nothing to answer). */
+const readyItems = fd => (fd.code.find(s => s.id === 'dock') || { cards: [] }).cards.map(c => c.it).filter(Boolean);
+/** The runs finished today, under the code line (the Ready lane's "done today" before 6.7.0). Each opens its run. */
+function shippedHtml(done) {
+  if (!done || !done.length) return '';
+  const open = !!S.ui.laneDone;
+  const list = open ? `<ul class="ln-donelist" role="list">${done.map(d => `<li><button type="button" class="lnk plain" data-open-run="${h(d.folder)}">${d.id ? '#' + h(d.id) + ' ' : ''}${h(d.title)}</button></li>`).join('')}</ul>` : '';
+  return `<div class="fl-shipped"><button type="button" class="lnk plain ln-done" data-lane-done="1" aria-expanded="${open}">Shipped today: ${done.length}</button>${list}</div>`;
+}
+function lineHtml(id, title, sub, stations, sel, extra, before, ready) {
   const n = stations.reduce((t, s) => t + s.cards.length, 0);
-  return `<section class="fl-line fl-${id}" aria-label="${h(title)}"><header class="fl-lh"><h2>${h(title)}</h2><span class="fl-ls">${h(sub)}</span><span class="fl-ln">${h(plural(n, 'item'))}</span></header>` +
+  const pubAll = ready ? publishAllHtml(ready) : '';
+  return `<section class="fl-line fl-${id}" aria-label="${h(title)}"><header class="fl-lh"><h2>${h(title)}</h2><span class="fl-ls">${h(sub)}</span><span class="fl-ln">${h(plural(n, 'item'))}</span>${pubAll}</header>` +
     (before || '') + `<div class="fl-stations" style="--n:${stations.length}">${stations.map(s => stationHtml(id, s, sel, extra)).join('')}</div><div class="fl-belt" aria-hidden="true"></div></section>`;
 }
 const STEP_WORD = { done: 'done', now: 'now', next: 'next' };
@@ -235,11 +250,11 @@ function handoffHtml(fd, sel) {
 /** The floor, with the open card's panel beside it (the lanes' own panel, passed in). */
 export function floorHtml(data, sel, panel) {
   const fd = floorData(data);
-  const code = lineHtml('code', 'Code line', 'Feature, bug and quick change. Ends in a PR.', fd.code, sel, fd.slots, expressHtml(fd, sel));
+  const code = lineHtml('code', 'Code line', 'Feature, bug and quick change. Ends in a PR.', fd.code, sel, fd.slots, expressHtml(fd, sel), readyItems(fd));
   const paper = lineHtml('paper', 'Research line', 'Investigate, error log, docs and epics. Ends in a brief or a breakdown.', fd.paper, sel, null, '');
   const stuck = fd.stuck.length ? `<section class="fl-stuck" aria-label="Pulled off the line"><h2>Pulled off the line</h2><div class="fl-row">${fd.stuck.map(c => chipHtml(c, sel)).join('')}</div></section>` : '';
   const other = fd.other.length ? `<section class="fl-other" aria-label="Also waiting"><h2>Also on the floor</h2><div class="fl-row">${fd.other.map(c => chipHtml(c, sel)).join('')}</div></section>` : '';
-  return `<div class="ln-body fl-body${panel ? ' has-panel' : ''}"><div class="fl-floor">${newLinesHtml(fd, sel)}${code}${stuck}${handoffHtml(fd, sel)}${paper}${other}</div>${panel || ''}</div>`;
+  return `<div class="ln-body fl-body${panel ? ' has-panel' : ''}"><div class="fl-floor">${newLinesHtml(fd, sel)}${code}${shippedHtml(data.doneList)}${stuck}${handoffHtml(fd, sel)}${paper}${other}</div>${panel || ''}</div>`;
 }
 
 /** In an epic's panel (Core 4.10.0): once its breakdown is approved, build its stories here, hands-off, in order. */
@@ -288,7 +303,7 @@ function rowHtml(r, sel) {
   const on = sel && sel === key;
   const track = r.track.length ? `<span class="fl-track" aria-hidden="true">${r.track.map(t => `<span class="fl-tk ${h(t.st)}" title="${h(t.name)}"></span>`).join('')}</span>` : '<span class="fl-track"></span>';
   const label = `${TYPE(c)}: ${c.title}. ${r.where || c.status}${c.mine ? '. Your turn: ' + c.action : ''}`;
-  return `<li><button type="button" class="fl-rowb${c.it && c.it.story ? ' story' : ''}${on ? ' on' : ''}" data-lane-open="${h(key)}" aria-pressed="${!!on}" aria-label="${h(label)}">` +
+  return `<li><button type="button" class="fl-rowb${c.it && c.it.story ? ' story' : ''}${c.mine ? ' mine' : ''}${on ? ' on' : ''}" data-lane-open="${h(key)}" data-lane="${h(c.lane)}" aria-pressed="${!!on}" aria-label="${h(label)}">` +
     `<span class="fl-rid">${projSw(c)}${c.id ? '#' + h(c.id) : ''}</span><span class="fl-rtitle"><span class="fl-type">${h(TYPE(c))}</span> ${h(c.title)}</span>${track}` +
     `<span class="fl-rwhere">${h(r.where || c.status)}</span><span class="fl-rtime">${r.since ? h(ago(r.since)) : ''}</span>` +
     (c.mine && c.action ? `<span class="fl-act">${h(c.action)}</span>` : '<span></span>') + '</button></li>';
@@ -296,12 +311,16 @@ function rowHtml(r, sel) {
 /** The List view, with the open card's panel beside it. */
 export function rowsHtml(data, sel, panel) {
   const groups = rowsData(data);
-  const body = groups.length ? groups.map(g => `<section class="fl-rgroup" aria-label="${h(g.name)}"><h2>${h(g.name)} <span class="fl-ln">${g.rows.length}</span></h2><ul class="fl-rows" role="list">${g.rows.map(r => rowHtml(r, sel)).join('')}</ul></section>`).join('')
+  const ready = data.cards.filter(c => c.lane === 'ready' && c.it).map(c => c.it);
+  let body = groups.length ? groups.map(g => `<section class="fl-rgroup" aria-label="${h(g.name)}"><h2>${h(g.name)} <span class="fl-ln">${g.rows.length}</span>${g.id === 'mine' ? publishAllHtml(ready) : ''}</h2><ul class="fl-rows" role="list">${g.rows.map(r => rowHtml(r, sel)).join('')}</ul></section>`).join('')
     : '<p class="ln-empty">Nothing running. Drop something in above.</p>';
+  // Done today (6.7.0): the runs finished today, each opening its run.
+  const done = data.doneList || [];
+  if (done.length) body += `<section class="fl-rgroup" aria-label="Done today"><h2>Done today <span class="fl-ln">${done.length}</span></h2><ul class="fl-rows ln-donelist" role="list">${done.map(d => `<li><button type="button" class="fl-rowb fl-done" data-open-run="${h(d.folder)}"><span class="fl-rid">${d.id ? '#' + h(d.id) : ''}</span><span class="fl-rtitle">${h(d.title)}</span></button></li>`).join('')}</ul></section>`;
   return `<div class="ln-body fl-body${panel ? ' has-panel' : ''}"><div class="fl-list">${body}</div>${panel || ''}</div>`;
 }
 
-// ------------------------------------------------------------------ Add regression tests (Loom 6.7.0)
+// ------------------------------------------------------------------ Add regression tests (Loom 6.8.0)
 /** The Add regression tests picker under the drop box: a product (from Settings, with repos) and an optional area.
     A pick runs the connector's tests.cover (Tandem's /cover): one hands-off Quick change per UI repo, cards marked Tests. */
 export function coverPickHtml() {

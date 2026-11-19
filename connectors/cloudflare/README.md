@@ -1,13 +1,13 @@
 # Cloudflare connector
 
-Your Cloudflare account in Workshop, for your own computer: zones and DNS, Workers (versions, deployments, custom domains, Workers Builds and their logs) and Pages (projects, deployments, build logs, variables). Tandem can read all of it and **propose** changes; nothing changes on Cloudflare until **you** click Apply in Workshop. Off in work mode. Node standard library only. It calls only the API address in its settings (`https://api.cloudflare.com/client/v4`).
+Your Cloudflare account in Workshop, for your own computer: zones and DNS, Workers (versions, deployments, custom domains, Workers Builds and their logs) and Pages (projects, deployments, build logs, variables). Tandem can read all of it and **propose** changes; nothing changes on Cloudflare until **you** approve them in Workshop's Approvals (or an always-allow rule you made covers them). Off in work mode. Node standard library only. It calls only the API address in its settings (`https://api.cloudflare.com/client/v4`).
 
 ## How it keeps the token safe
 
 - The token lives in this computer's own secret store: macOS Keychain, Windows Credential Manager, or the Secret Service on Linux. You save it with `workshop secret set cloudflare`, which asks for it without showing it and hands it to the store on stdin (never a command line, a file Workshop writes, an environment variable or a log). See [docs/security.md](../../docs/security.md), Secrets.
 - Only this connector, inside the Workshop agent, reads it (`ctx.secret`), and only to put it in the `Authorization` header of a call to the API address above.
 - Tandem never gets the token. Its agents call this connector's read actions through `/api/tools` with a separate agent token that can only read and propose ([docs/agent-api.md](../../docs/agent-api.md), Tools for agents).
-- Every change is a change set you review and apply. Changes are checked against **Zones Workshop may change** when they are proposed and again when you apply them. The steps you read are worked out from the changes themselves, and Apply sends back a fingerprint of them: if the file was edited after you read it, nothing is applied. There is no way to delete a zone, a Worker or a Pages project, and no change can carry a secret value.
+- Every change is a change set you review and approve. Changes are checked against **Zones Workshop may change** when they are proposed and again when you apply them. The steps you read are worked out from the changes themselves, and Approve sends back a fingerprint of them: if the file was edited after you read it, nothing is applied. There is no way to delete a zone, a Worker or a Pages project, and no change can carry a secret value.
 - What was done is in `cloudflare/log.md` in your data folder, in plain words.
 
 What this does not protect against: a program running as you that sets out to read your Keychain or Credential Manager. Keep the token narrow (below), give it an expiry date, and, if your home address does not change often, add **Client IP Address Filtering** to it.
@@ -43,7 +43,7 @@ When the token nears its date, Settings and `workshop secret list` say so; make 
 
 ## Actions
 
-Read actions marked **agent** can be run by Tandem through `/api/tools`. Apply is a write (`confirm: true` from your click); Reject is yours only.
+Read actions marked **agent** can be run by Tandem through `/api/tools` and `/api/mcp`. Apply is a write Tandem can only ask for: it runs when you approve it in Approvals.
 
 | Action | Agent | Args | Result |
 | --- | --- | --- | --- |
@@ -61,11 +61,10 @@ Read actions marked **agent** can be run by Tandem through `/api/tools`. Apply i
 | `pages.deployments` | yes | `project`, `environment` | `[{id, environment, url, branch, commit, message, stage, status, created}]` |
 | `pages.deploymentLog` | yes | `project`, `deployment`, `tail` | `{lines, truncated, total}` |
 | `changes.check` | yes | `changes` | `{ok, steps: [{summary, problem?, now?}]}`: every problem at once; changes nothing |
-| `changes.propose` | yes | `title`, `why`, `item`, `changes` | Saves a set to wait for you: `{id, status: "waiting", steps}`. Refused (with every problem) if any change fails its check. |
+| `changes.propose` | yes | `title`, `why`, `item`, `changes` | Saves a set and asks you to approve it in Approvals: `{id, status: "waiting", steps, approval}`. When an always-allow rule covers its zones, it is applied at once: `{id, status: "applied", rule, results}`. Refused (with every problem) if any change fails its check. |
 | `changes.list` | yes | `status` | `[{id, title, status, item, from, created, decided, steps}]`, newest first |
 | `changes.get` | yes | `id` | The whole set, with `results` once applied. While it waits, its steps are worked out again from its changes (never read from the file), with what each update or removal replaces read from Cloudflare now, plus `ok` and `digest`. |
-| `changes.apply` | no (write) | `id`, `digest` (from `changes.get`) | Refuses if the set changed since that read. Checks it again, then makes each change in order and stops at the first failure: `{status: applied\|failed, results}` |
-| `changes.reject` | no | `id`, `note` | Marks it rejected. Nothing changes on Cloudflare. |
+| `changes.apply` | asks (write) | `id`, `digest` (from `changes.get` or `changes.propose`) | What Approvals runs when you approve a set. Refuses if the set changed since that read. Checks it again, then makes each change in order and stops at the first failure: `{status: applied\|failed, results}`. Approvals shows the steps worked out from the set now; rejecting the request marks the set rejected. Always-allow rules cover the set's scopes: its zones, `worker:<name>` and `pages:<project>`. |
 
 ## Change sets
 
@@ -87,7 +86,7 @@ A change set is a list of up to 20 changes:
 
 Not possible, on purpose: deleting zones, Workers or Pages projects, changing account settings, tokens or members, and anything that needs a secret value.
 
-**Where you apply them.** Settings, Cloudflare lists sets waiting for you with every step in words; **Apply** and **Reject** are there. Needs you shows "N change sets to review" and opens that page.
+**Where you approve them.** Settings, Manager, **Approvals**, the one place for every change Tandem asks for: each set's steps in words, **Approve** (with "Always allow" for its zones, if you want) and **Reject**. Needs you shows "N changes to approve" and opens it. Settings, Cloudflare lists the sets and what happened to them.
 
 ## Data
 

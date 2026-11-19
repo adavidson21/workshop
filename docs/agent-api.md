@@ -94,8 +94,15 @@ Writers may send `X-Workshop-Client: <id>` (letters, digits, `_` and `-`, up to 
 | `GET /api/config` | token | Public view of `config.json` |
 | `PUT /api/config` | header token, own origin only | Change features, origins, connector on/off, port |
 | `GET /api/events` | token (cookie, header or query) | Server-sent event stream |
-| `GET /api/tools` | agent token, no `Origin` | Read actions agents may run (Tools for agents) |
-| `POST /api/tools/<id>/<action>` | agent token, no `Origin` | Run one of them |
+| `GET /api/tools` | agent token, no `Origin` | What agents may use (Tools for agents) |
+| `POST /api/tools/<id>/<action>` | agent token, no `Origin` | Run a read, or ask for a change |
+| `GET /api/tools/approvals/<id>` | agent token, no `Origin` | Where a change an agent asked for stands |
+| `POST /api/mcp` | agent token, no `Origin` | Workshop as an MCP server for opencode (MCP for agents) |
+| `GET /api/approvals` | token | Changes waiting for a person, and recent decisions (Approvals) |
+| `GET /api/approvals/<id>`, `POST /api/approvals/<id>` | token | Read one; approve (with its digest) or reject |
+| `GET /api/approvals/rules`, `DELETE /api/approvals/rules/<id>` | token (DELETE: own origin) | Always-allow rules |
+| `GET /api/activity` | token | The activity log (Activity) |
+| `GET /api/routines`, `PUT /api/routines`, `POST /api/routines/<id>/run` | token (PUT, run: own origin) | Routines |
 
 Names in paths: `<app>` and connector `<id>` match `^[a-z][a-z0-9-]{0,39}$`. Action names match `^[a-z][a-zA-Z0-9]*(\.[a-z][a-zA-Z0-9]*)*$` (for example `sync`, `workitem.get`). Anything else gets `400 bad_request`, except an unknown well-formed name, which gets `404 not_found`.
 
@@ -260,7 +267,17 @@ Makes the readable copy ([data-format.md](data-format.md), Readable without Work
 
 ### `POST /api/storage/delete`
 
-Body `{"id": "<id>"}`: one of the `leftovers` ids from `GET /api/storage`, `"trash"` or `"backups"`. Deletes that path and answers `{deleted: <path>}`; any other id is `400 bad_request`. Own origin only, so a hosted page cannot delete anything. Settings asks before calling it. This is the only way anything in the data folder or the Workshop home is deleted, apart from `.scratch` working files.
+Body `{"id": "<id>"}`: one of the `leftovers` ids from `GET /api/storage`, `"trash"` or `"backups"`. Deletes that path and answers `{deleted: <path>}`; any other id is `400 bad_request`. Own origin only, so a hosted page cannot delete anything. Settings asks before calling it. This and Start over (below) are the only ways anything in the data folder or the Workshop home is deleted, apart from `.scratch` working files.
+
+### `GET /api/reset` and `POST /api/reset` (Start over)
+
+Deletes some or all apps' data, and Tandem's work items if asked, after saving it all to a zip. Settings, Data (Start over) and `workshop reset` use it. Own origin only (`403 local_only` from a hosted page), never through `/api/tools`, and every step is there so it cannot happen by accident:
+
+- **`GET`** answers the plan and a ticket: `apps` (`[{id, name, folder, bytes, files}]`, every app with its data folder size), `tandem` (`{available, workspace, items}` when the opencode connector is on and ready, else `{available: false, why}`), `dataDir`, `backupDir` (beside the data folder, or the home folder when that is not writable), `running`, `last` (what the last reset did, or `null`), `phrases` (`everything`, `one`, `many` with `{n}`, `workOnly`), `ticket` and `waitMs` (10000). Each `GET` replaces the ticket.
+- **`POST`** body `{apps: [<id>] | "all", tandem: boolean, phrase, ticket}`. `phrase` must be exactly what the pick asks for: `"delete everything"` (every app), `"delete 1 app"`, `"delete <n> apps"`, or `"delete work items"` (only Tandem). The ticket must be at least `waitMs` old, under 15 minutes old and unused. Anything else is `400 bad_request` and deletes nothing; `tandem: true` without the connector is `503 unavailable`; a second reset while one runs is `409 conflict`.
+- **What goes.** For each picked app: its folder (and its folder under an old name), its trash, its backups and its readable copy folder. For every app: those whole, plus `.scratch`. Never the data folder's README, top-level files, or folders that are not apps. With `tandem`: the connector's `work.reset` action (`connectors/opencode/README.md`).
+- **Order.** Sends `reset` `{state: "started"}` (pages stop writing; data and file writes get `503 unavailable` until it ends). Writes `Workshop backup <yyyy-mm-dd hhmm>.zip` (600, with a `README.txt` saying how to put it back) in `backupDir`, reads every entry back and checks its CRC, and stops with nothing deleted if that fails. Then Tandem's items, then the app data. Sends `reset` `{state: "done"}` or `{state: "failed"}`; every page reloads.
+- **Answer** (also `last` afterwards): `{at, everything, apps: [{id, name, folder}], backup: {path, bytes, files}, tandem: {workspace, removed, kept, failed, stopped} | null, failed: [<path: why>]}`.
 
 ### `GET /api/connectors` and `GET /api/connectors/<id>`
 
@@ -356,6 +373,7 @@ Server-sent events (`Content-Type: text/event-stream`, `Cache-Control: no-store`
 | `connector` | `{"id", "event", "payload"}` | A connector called `ctx.emit(event, payload)` |
 | `connector-status` | `{"id", "status"}` | A connector's status changed (enabled, disabled, started, stopped, error, `ctx.statusChanged()`) |
 | `config` | `{"changed": ["features", "allowedOrigins", "connectors", "port", "dataDir"]}` | After `PUT /api/config` or a connector config change (`"connector:<id>"`) |
+| `reset` | `{"state": "started" \| "done" \| "failed"}` | Start over (`POST /api/reset`). On `started` the SDK stops this page's writes; on `done` or `failed` every page reloads. |
 
 Wire format:
 
@@ -400,6 +418,33 @@ Programs on this computer (Tandem's scripts) reach outside systems through Works
 ### `POST /api/tools/<id>/<action>`
 
 Body `{"args": {...}}`, as for `POST /api/connectors/<id>/<action>`. Response `{"result": ...}`. Errors as for connector actions.
+
+## Approvals
+
+A write a connector marks `agent: "ask"`, asked for by an agent through `/api/tools` or `/api/mcp`, becomes a request ([security.md](security.md), Approvals). Asking returns `{"result": {"approval": {"id", "status": "waiting", "title"}}}`, or, when an always-allow rule covers it, `{"result": {"rule": "<id>", "result": ...}}` with the action already run.
+
+- `GET /api/approvals[?status=waiting|approved|failed|rejected]`: `{approvals: [...], waiting}`, newest first, at most 50. A waiting one is worked out from its arguments now: `{id, connector, connectorName, action, actionTitle, title, by ("agent" or "you"), requested, status, lines (the connector's describe hook, in words), scopes, digest, problem?}`. A decided one has `decided`, the `lines` it was approved with, and `error` or `note`.
+- `POST /api/approvals/<id>` with `{"approve": true, "digest": "<from the view>", "always": false}` runs the action as the person (confirmed) and answers `{id, status: "approved", result, rule?}`; a digest that does not match what is stored now answers `409 conflict` and runs nothing. `always: true` (own origin only, else `403 local_only`) also adds a rule for the same connector, action and scopes. `{"approve": false, "note": "..."}` rejects. Deciding twice answers `409 conflict`.
+- Events: `approvals` with `{waiting}` whenever a request is made or decided.
+- `GET /api/tools/approvals/<id>` (agent token): `{id, status, title, result?, error?, note?}`. Never the arguments.
+
+## Activity
+
+`GET /api/activity[?limit=100&connector=<id>&by=you|agent|rule|routine]`: `{entries, lastUsed}`. Each entry is `{at, by, connector, action, kind (read, write, request, reject), ok, error?, ms?, approval?, rule?, summary?}`, newest first (at most 500). `lastUsed` is `{<connector>: <time>}`. Reads made by pages (yours) are not logged; writes always are, and so is every call from an agent, a rule or a routine.
+
+## Routines
+
+`GET /api/routines`: `{routines: [{...routine, lastRun, next}], runs, catchUpHours}`. `PUT /api/routines` with `{"routines": [...]}` replaces the list (checked and saved in `config.json`, ids and dates filled in); `POST /api/routines/<id>/run` starts one now and answers the run `{routine, name, at, how, ok, session?, error?}`. Both own origin only. See [config.md](config.md), Routines.
+
+## MCP for agents
+
+`POST /api/mcp` is Workshop as one MCP server, over Streamable HTTP with JSON answers (no event stream, no sessions; `GET` answers 405). Key: the agent token as `X-Workshop-Agent-Token` or `Authorization: Bearer`. Methods: `initialize` (protocol versions 2025-06-18, 2025-03-26, 2024-11-05), `ping`, `tools/list`, `tools/call`; notifications are accepted with 202. Tools:
+
+- `<connector>__<action>`: every connector action agents may use. Reads run (`readOnlyHint: true`); writes marked `agent: "ask"` answer with an approval id.
+- `<server>__<tool>`: every tool on the MCP servers you added. Read-only ones run; the rest answer with an approval id.
+- `workshop__approval_status` (`{id}`): where a request stands, and its result once approved.
+
+A failure is a tool result with `isError: true` and the reason in words.
 
 ## Static files
 

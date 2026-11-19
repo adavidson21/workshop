@@ -55,7 +55,7 @@ const AUTO_STEPS = new Set(["quick", "approve", "tasks", "do-task", "review", "p
 // which holds it for you only when it drifts from the breakdown.
 const HANDS_OFF_STEPS = new Set(["start", "spec"]);
 const isStory = (it) => !!(it && it.story && it.story.breakdown);
-// A trial run, or a product's backfilled regression tests (/cover, Core 4.13.0): a quick change built hands-off.
+// A trial run, or a product's backfilled regression tests (/cover, Core 4.14.0): a quick change built hands-off.
 const isQuickRun = (it) => !!(it && (it.trial || it.coverage));
 const isHandsOff = (it) => isStory(it) || isQuickRun(it);
 // Review rounds before a not-READY review waits for you: the factory's reviewRounds (default 2).

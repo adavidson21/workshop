@@ -84,7 +84,7 @@ test('Overlap: at approval, Approve and build after the other run', () => {
   assert.equal(overlapHtml(other), '', 'only at an approval');
 });
 
-test('Publish: the regression suite shows passed, new tests and the criteria they cover; a failure keeps it out of Publish all ready (Loom 6.7.0)', () => {
+test('Publish: the regression suite shows passed, new tests and the criteria they cover; a failure keeps it out of Publish all ready (Loom 6.8.0)', () => {
   const p = S.D.publish[READY];
   const run = (over) => ({ name: 'after', verdict: 'pass', reason: null, passed: 48, failed: 0, flaky: 1, skipped: 0, failures: [], preExisting: [], flakyTests: [{ file: 'orders.spec.ts', title: 'Orders > lists' }], newTests: [{ file: 'refund.spec.ts', title: 'saves [AC-1]' }, { file: 'refund.spec.ts', title: 'shows [AC-2]' }], acceptance: ['AC-1', 'AC-2'], ...over });
   p.tests = [run({ name: 'before', verdict: 'fail' }), run()];

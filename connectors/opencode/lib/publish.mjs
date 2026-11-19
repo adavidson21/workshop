@@ -64,7 +64,7 @@ export function uiResults(folder) {
   return out.sort((a, b) => (a.name === "before" ? -1 : b.name === "before" ? 1 : a.name.localeCompare(b.name)));
 }
 
-/** Regression suite results for an item (eng-agents Core 4.13.0): [{name, verdict, reason, passed, failed, flaky,
+/** Regression suite results for an item (eng-agents Core 4.14.0): [{name, verdict, reason, passed, failed, flaky,
  * skipped, failures, preExisting, flakyTests, newTests, acceptance}] from tests/results-*.json, "before" first. */
 export function testResults(folder) {
   const dir = path.join(workRoot, folder, "tests");

@@ -75,7 +75,7 @@ function uiHtml(it, p) {
     return `<div class="pub-ui"><p><span class="flag ${cls}">${h(word)}</span>${u.reason ? ' ' + h(u.reason) : ''}</p>${probs}${shots ? `<ul class="pub-shots" role="list">${shots}</ul>` : ''}</div>`;
   }).join('');
 }
-/** The regression suite on the Publish block (eng-agents Core 4.13.0): counts, the new tests and the criteria they
+/** The regression suite on the Publish block (eng-agents Core 4.14.0): counts, the new tests and the criteria they
     cover, and any failures. The latest run after the change wins (after, or pr). */
 export function testsHtml(p) {
   const runs = (p && p.tests || []).filter(t => t.name !== 'before');

@@ -4,6 +4,7 @@
 // runs until its stdin closes or it gets SIGTERM.
 //
 //   node tests/e2e-agent.mjs --home <dir> --apps <dir> --connectors <dir> [--data-dir <dir>] [--env NAME=value ...]
+//                            [--reset-wait-ms <n>] (Start over's wait, shorter for tests)
 import path from 'node:path';
 import { createAgent } from '../agent/server.mjs';
 
@@ -16,9 +17,10 @@ for (let i = 0; i < args.length; i++) {
   else if (args[i] === '--connectors') opt.connectorsDir = v();
   else if (args[i] === '--data-dir') opt.dataDir = v();
   else if (args[i] === '--env') { const [k, ...rest] = v().split('='); opt.env[k] = rest.join('='); }
+  else if (args[i] === '--reset-wait-ms') opt.resetWaitMs = Number(v());
 }
 const dataDir = path.resolve(opt.dataDir || path.join(path.dirname(path.resolve(opt.home)), 'Workshop'));
-const agent = await createAgent({ home: opt.home, dataDir, appsDir: opt.appsDir, connectorsDir: opt.connectorsDir, env: opt.env, port: 0, echoLog: false });
+const agent = await createAgent({ home: opt.home, dataDir, appsDir: opt.appsDir, connectorsDir: opt.connectorsDir, env: opt.env, port: 0, echoLog: false, resetWaitMs: opt.resetWaitMs });
 console.log(JSON.stringify({ url: agent.url, token: agent.token, dataDir: agent.dataDir }));
 const quit = async () => { await agent.stop(); process.exit(0); };
 process.on('SIGTERM', quit);

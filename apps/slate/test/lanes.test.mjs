@@ -23,7 +23,7 @@ function load() {
   S.copyStore = []; S.files = {}; S.slate = new Map();
   resetUi();
   S.ui.tab = 'lanes';
-  S.view = { project: 'all', lanes: 'list' }; // these tests read the List view; floor.test.mjs reads the Floor
+  S.view = { project: 'all', lanes: 'list' }; // these tests read the List view (rows since 6.7.0); floor.test.mjs reads the Floor
 }
 const item = folder => S.D.items.find(i => i.folder === folder);
 const drafts = d => Object.fromEntries(Object.entries(d).map(([k, v]) => ['start:' + k, v]));
@@ -97,11 +97,12 @@ test('filters: Your turn and each kind', () => {
   assert.equal(lanesData('diagnose').lanes.reduce((n, l) => n + l.cards.length, 0), 0);
 });
 
-test('the page: the drop box, chips, four lanes; a card opens the run\'s own card in the panel, with an X to close', () => {
+test('the page: the drop box, chips, the List of rows; a card opens the run\'s own card in the panel, with an X to close', () => {
   let html = lanesHtml();
   assert.match(html, /data-draft="lanes:drop"/);
   assert.match(html, /data-lane-start="1"/);
-  assert.equal([...html.matchAll(/<section class="ln-lane ln-(\w+)"/g)].map(m => m[1]).join(','), 'clarify,plan,work,ready');
+  assert.deepEqual([...html.matchAll(/<section class="fl-rgroup" aria-label="([^"]+)"/g)].map(m => m[1]), ['Needs you', 'Running'], 'List (6.7.0): rows grouped, no lanes');
+  assert.doesNotMatch(html, /class="ln-lanes"|data-lane-view="rows"/);
   assert.doesNotMatch(html, /ln-kindpick/, 'the kind picker shows once there is text');
   assert.doesNotMatch(html, /class="ln-panel"/);
   S.ui.drafts['lanes:drop'] = 'Why does the export retry only once?';
@@ -209,10 +210,13 @@ test('Done today (5.1) opens a list of what finished today', () => {
   it.state = 'Closed: saved as a note';
   it.modifiedMs = Date.parse('2026-10-21T10:00:00');
   let html = lanesHtml();
-  assert.match(html, /data-lane-done="1" aria-expanded="false">1 done today/);
+  assert.match(html, /<section class="fl-rgroup" aria-label="Done today"><h2>Done today <span class="fl-ln">1<\/span><\/h2><ul class="fl-rows ln-donelist" role="list"><li><button type="button" class="fl-rowb fl-done" data-open-run="spike-cache-options">/, 'List: a Done today group (6.7.0)');
+  S.view.lanes = 'floor';
+  html = lanesHtml();
+  assert.match(html, /data-lane-done="1" aria-expanded="false">Shipped today: 1</, 'Floor: Shipped today under the code line');
   S.ui.laneDone = true;
   html = lanesHtml();
-  assert.match(html, /class="ln-donelist"[^]*data-open-run="spike-cache-options"/);
+  assert.match(html, /class="fl-shipped">.*?class="ln-donelist"[^]*data-open-run="spike-cache-options"/);
 });
 
 test('the panel has a Chat button for the run\'s conversation (Chat is off the rail since 3.0.0)', () => {

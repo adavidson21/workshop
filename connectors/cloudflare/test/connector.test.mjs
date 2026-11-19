@@ -15,11 +15,18 @@ const base = { accountId: ACCOUNT, tokenSecret: 'cloudflare', zones: ['example.o
 
 function makeCtx({ config = {}, workMode = false, token = TOKEN } = {}) {
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cf-test-'));
-  const events = [], logs = [];
+  const events = [], logs = [], asked = [];
   let statusCalls = 0;
   const cfg = Object.freeze({ ...base, ...config });
   const ctx = {
-    config: cfg, dataDir, events, logs,
+    config: cfg, dataDir, events, logs, asked,
+    // Workshop's Approvals, faked: records what was asked; `ruleCovers` makes it apply at once instead.
+    ruleCovers: false,
+    async requestApproval(action, args, opts) {
+      asked.push({ action, args, ...opts });
+      if (ctx.ruleCovers) return { rule: 'r-00000000', result: await A[action].run(args, ctx, { caller: 'agent', rule: 'r-00000000' }) };
+      return { approval: { id: `ap-20261119-${String(asked.length).padStart(8, '0')}`, status: 'waiting', title: opts.title } };
+    },
     secret: async n => (n === cfg.tokenSecret ? token : undefined),
     workMode: () => workMode,
     log: { info: m => logs.push(m), warn: m => logs.push(m), error: m => logs.push(m) },
@@ -123,9 +130,9 @@ test('Tandem proposes, the set waits, and only a person applying it changes Clou
     const list = await A['changes.list'].run({ status: 'waiting' }, ctx, AGENT);
     assert.deepEqual(list.map(s => [s.id, s.from, s.steps]), [[p.id, 'Tandem', 4]]);
     assert.deepEqual(ctx.events.at(-1), ['changes', { waiting: 1 }]);
-    // Apply is a write: the agent API never reaches it (agent/test/tools.test.mjs); here a person applies.
+    // Apply is a write agents may only ask for (agent: "ask"): Approvals runs it after a person approves. Here a person applies.
     assert.equal(A['changes.apply'].write, true);
-    assert.equal(A['changes.apply'].agent, undefined);
+    assert.equal(A['changes.apply'].agent, 'ask');
     const r = await applyIt(p.id, ctx);
     assert.equal(r.status, 'applied');
     assert.deepEqual(fake.writes().map(c => `${c.method} ${c.path.replace(`/accounts/${ACCOUNT}`, '')}`), [
@@ -179,8 +186,8 @@ test('applying checks the set again: a zone taken off the list since it was prop
     const later = { ...ctx, config: Object.freeze({ ...ctx.config, zones: [] }) };
     await assert.rejects(applyIt(p.id, later), /not one of the zones/);
     assert.deepEqual(fake.writes(), []);
-    const rej = await A['changes.reject'].run({ id: p.id, note: 'Not now' }, ctx, PERSON);
-    assert.equal(rej.status, 'rejected');
+    await A['changes.apply'].onReject({ id: p.id }, ctx, 'Not now');
+    assert.equal((await A['changes.get'].run({ id: p.id }, ctx, PERSON)).status, 'rejected');
     assert.match(fs.readFileSync(path.join(ctx.dataDir, 'cloudflare', 'log.md'), 'utf8'), /Rejected: Not now\. Nothing was changed\./);
   } finally { ctx.done(); }
 });
@@ -263,5 +270,31 @@ test('what you apply is what you read: an edit to the file after review is refus
     assert.equal(bad.ok, false);
     await assert.rejects(A['changes.apply'].run({ id: p.id, digest: bad.digest }, ctx, PERSON), /not one of the zones/);
     assert.deepEqual(fake.writes(), []);
+  } finally { ctx.done(); }
+});
+
+test('a proposal waits in Approvals; what Approvals shows is worked out from the set, and a rule over its zones applies it at once', async () => {
+  const ctx = makeCtx();
+  try {
+    const changes = [{ op: 'dns.create', zone: 'example.org', type: 'CNAME', name: 'app', content: 'app.pages.dev' }, { op: 'workers.rollback', script: 'rally', versionId: VERSION }];
+    const p = await A['changes.propose'].run({ title: 'App', why: 'New app', changes }, ctx, AGENT);
+    assert.match(p.approval, /^ap-/);
+    assert.equal(ctx.asked.length, 1);
+    assert.equal(ctx.asked[0].action, 'changes.apply');
+    assert.equal(ctx.asked[0].by, 'agent');
+    assert.equal(ctx.asked[0].title, 'Cloudflare: App');
+    assert.equal((await A['changes.get'].run({ id: p.id }, ctx, AGENT)).approval, p.approval);
+    const lines = await A['changes.apply'].describe(ctx.asked[0].args, ctx);
+    assert.deepEqual(lines, ['Why: New app', '1. Add DNS CNAME record app.example.org pointing to app.pages.dev', '2. Roll Worker rally back to version 99999999 (all traffic)']);
+    assert.deepEqual(A['changes.apply'].scope(ctx.asked[0].args, ctx), ['example.org', 'worker:rally']);
+    assert.equal(A['changes.apply'].agent, 'ask');
+    // An edited set cannot be shown as approvable.
+    await assert.rejects(A['changes.apply'].describe({ id: p.id, digest: 'f'.repeat(64) }, ctx), /changed after it was proposed/);
+    assert.deepEqual(fake.writes(), []);
+    ctx.ruleCovers = true;
+    const q = await A['changes.propose'].run({ title: 'Covered', changes: [{ op: 'dns.create', zone: 'example.org', type: 'A', name: 'c', content: '192.0.2.4' }] }, ctx, AGENT);
+    assert.equal(q.status, 'applied');
+    assert.equal(q.rule, 'r-00000000');
+    assert.equal(fake.writes().length, 1);
   } finally { ctx.done(); }
 });
