@@ -15,7 +15,7 @@ import { pickable, boardFeed } from '../loom.js';
 import { projectFilterHtml, inProject, projectFilter, projectChip } from './projects.js';
 import { reviewsHtml } from './pr-reviews.js';
 import { noticedHtml, noticedCount } from './noticed.js';
-import { floorHtml } from './floor.js';
+import { floorHtml, epicPanelHtml } from './floor.js';
 import { teachHtml, teachCount, teachBlocking, publishAllHtml, publishOf, adoLinkOf, adoLinkHtml, adoNoticeHtml } from './factory.js';
 // Set by pages.js (it imports this module): the onboarding guide and an ask's source, for Loom 6.0.0's Lanes.
 // var, no initializer: pages.js may run this setter before this module's body (they import each other).
@@ -272,7 +272,7 @@ function panelHtml(key, data) {
     body = `<div class="ln-reviews">${reviewsHtml()}</div>`;
   } else if (c.it) {
     if (hasFirstLook(c.it)) body += `<div class="ln-first"><p class="ln-fh">First look</p>${fileInline(c.it, 'first-look.md')}</div>`;
-    body += `<div class="loom-run ln-run">${runCardHtml(c.folder)}</div>` +
+    body += `<div class="loom-run ln-run">${runCardHtml(c.folder)}</div>` + epicPanelHtml(c.it) +
       adoLinkHtml(c.it, adoOn()) +
       `<div class="ln-foot"><button type="button" class="btn ghost" data-open-run="${h(c.folder)}">Open the run</button>${projectChip(c.it)}` +
       (c.sid ? `<button type="button" class="ibtn" data-open-chat="${h(c.sid)}" aria-label="Open the conversation in Chat" title="Open the conversation in Chat">${CHAT}</button>` : '') + '</div>';

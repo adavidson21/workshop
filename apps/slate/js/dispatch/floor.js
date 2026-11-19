@@ -8,7 +8,12 @@
    Stopped cards leave the line for the "Pulled off the line" bin. Everything else (requests, hand-offs, teammates'
    PRs, other sessions) is a chip under the lines. A card's station follows from its lane, stage, autopilot step and
    what its session says it is doing; nothing is stored. Clicking a card opens the same panel as the lanes
-   (data-lane-open), so every button is the one the lanes already use. No DOM: main.js paints what this returns. */
+   (data-lane-open), so every button is the one the lanes already use. No DOM: main.js paints what this returns.
+
+   Loom 6.5.0 (eng-agents Core 4.10.0, opencode connector 1.23.0): stories from an approved breakdown wear the brand
+   color and ride the hand-off belt until they start; each epic building hands-off has a tracker card (its stories
+   and where each one is). Products being onboarded show as new lines at the top, their five steps lit (Add, Scan,
+   Fill the gaps, Trial run, Live). */
 import { S } from './state.js';
 import { h, plural, itemSession, isBusy, itemAuto } from './view.js';
 import { flowOf, stepIndex, stepsOf } from './flows.js';
@@ -34,6 +39,11 @@ export const PAPER = [
 export const STACK_MAX = 6;
 /** The express lane's stations: a hands-off quick change rides it from Build to Fix. */
 const EXPRESS = new Set(['build', 'test', 'ui', 'review', 'fix']);
+
+/** A story from an approved breakdown (Core 4.10.0): the item's `story` from workitem.md. */
+export const isStoryCard = c => !!(c && c.it && c.it.story);
+/** A story that has not started yet: it rides the hand-off belt to the code line. */
+export const onBelt = c => isStoryCard(c) && c.it.stage === 'start' && !(itemAuto(c.it) && itemAuto(c.it).status === 'running');
 
 /** Which line a card is on: code (builds), paper (asks, diagnoses, docs, epics) or other (everything else). */
 export function lineOf(c) {
@@ -102,12 +112,16 @@ export function floorData(data) {
   const express = [];
   const stuck = [];
   const other = [];
+  const belt = [];
+  const where = {};
   for (const c of data.cards) {
     const line = lineOf(c);
     const st = stationOf(c);
-    const card = { ...c, station: st, line, quick: !!(c.it && c.it.lane === 'quick') };
+    const card = { ...c, station: st, line, quick: !!(c.it && c.it.lane === 'quick'), story: isStoryCard(c) };
+    if (c.folder) where[c.folder] = st === 'stuck' ? 'stuck' : onBelt(c) ? 'belt' : st;
     if (st === 'stuck') { stuck.push(card); continue; }
     if (line === 'other') { other.push(card); continue; }
+    if (line === 'code' && onBelt(c)) { belt.push(card); continue; }
     if (line === 'code' && onExpress(c, st)) { express.push(card); continue; }
     const list = line === 'code' ? code : paper;
     (list.find(s => s.id === st) || list[0]).cards.push(card);
@@ -116,16 +130,21 @@ export function floorData(data) {
   for (const s of code.concat(paper)) s.cards.sort(order);
   const auto = (S.L && S.L.autopilot) || {};
   const slots = { running: Object.values(auto).filter(a => a && a.status === 'running').length, queued: Object.values(auto).filter(a => a && a.status === 'queued').length };
-  return { code, paper, express: express.sort(order), stuck: stuck.sort(order), other: other.sort(order), slots, mine: data.counts.mine || 0 };
+  const name = st => (CODE.find(x => x.id === st) || PAPER.find(x => x.id === st) || { name: st === 'belt' ? 'On the belt' : st === 'stuck' ? 'Pulled off' : 'Done' }).name;
+  // Epics building hands-off (connector 1.23.0 `epics`), each story with where it is on the floor.
+  const epics = ((S.D && S.D.epics) || []).filter(e => e && e.total).map(e => ({ ...e,
+    stories: (e.stories || []).map(x => { const at = where[x.folder] || (x.stage === 'ship' ? 'dock' : 'done'); return { ...x, at, atName: name(at) }; }) }));
+  const onboarding = ((S.D && S.D.onboarding) || []).filter(Boolean);
+  return { code, paper, express: express.sort(order), stuck: stuck.sort(order), other: other.sort(order), belt: belt.sort((a, b) => String(a.it.story.story).localeCompare(String(b.it.story.story))), epics, onboarding, slots, mine: data.counts.mine || 0 };
 }
 
 // ------------------------------------------------------------------ drawing
-const TYPE = c => c.quick ? 'Quick' : c.kind === 'build' ? (c.it && c.it.lane === 'bug' ? 'Bug' : 'Feature') : KINDS[c.kind] ? KINDS[c.kind].name : 'Run';
+const TYPE = c => (c.it && c.it.story) ? 'Story ' + (c.it.story.story || '') : (c.it && c.it.trial) ? 'Trial' : c.quick ? 'Quick' : c.kind === 'build' ? (c.it && c.it.lane === 'bug' ? 'Bug' : 'Feature') : KINDS[c.kind] ? KINDS[c.kind].name : 'Run';
 function chipHtml(c, sel) {
   const key = keyOf(c);
   const on = sel && sel === key;
   const label = `${TYPE(c)}: ${c.title}. ${c.status}${c.mine ? '. Your turn: ' + c.action : ''}`;
-  return `<button type="button" class="fl-card k-${h(c.kind)}${c.mine ? ' mine' : ''}${on ? ' on' : ''}" data-lane-open="${h(key)}" aria-pressed="${!!on}" aria-label="${h(label)}" title="${h(c.title + ' · ' + c.status)}">` +
+  return `<button type="button" class="fl-card k-${h(c.kind)}${c.it && c.it.story ? ' story' : ''}${c.mine ? ' mine' : ''}${on ? ' on' : ''}" data-lane-open="${h(key)}" aria-pressed="${!!on}" aria-label="${h(label)}" title="${h(c.title + ' · ' + c.status)}">` +
     `<span class="fl-ctop"><span class="fl-id">${c.id ? '#' + h(c.id) : h(TYPE(c))}</span>${c.id ? `<span class="fl-type">${h(TYPE(c))}</span>` : ''}</span>` +
     `<span class="fl-title">${h(c.title)}</span>${c.mine && c.action ? `<span class="fl-act">${h(c.action)}</span>` : ''}</button>`;
 }
@@ -156,6 +175,32 @@ function lineHtml(id, title, sub, stations, sel, extra, before) {
   return `<section class="fl-line fl-${id}" aria-label="${h(title)}"><header class="fl-lh"><h2>${h(title)}</h2><span class="fl-ls">${h(sub)}</span><span class="fl-ln">${h(plural(n, 'item'))}</span></header>` +
     (before || '') + `<div class="fl-stations" style="--n:${stations.length}">${stations.map(s => stationHtml(id, s, sel, extra)).join('')}</div><div class="fl-belt" aria-hidden="true"></div></section>`;
 }
+const STEP_WORD = { done: 'done', now: 'now', next: 'next' };
+/** New lines: products being onboarded, their five steps lit (Core 4.10.0 /onboard-product). */
+function newLinesHtml(fd, sel) {
+  if (!fd.onboarding.length) return '';
+  const row = o => {
+    const steps = o.steps.map(x => `<li class="fl-step ${h(x.st)}" aria-label="${h(x.name + ': ' + STEP_WORD[x.st])}"><span class="fl-dot" aria-hidden="true"></span>${h(x.name)}</li>`).join('');
+    const gaps = o.gaps ? `<button type="button" class="lnk plain" data-lane-filter="teach">${h(plural(o.gaps, 'gap'))} to answer</button>` : '';
+    const trial = o.trial ? (o.trial.folder ? `<button type="button" class="lnk plain${sel === o.trial.folder ? ' on' : ''}" data-lane-open="${h(o.trial.folder)}">Trial run ${h(o.trial.id)}</button>` : `<span class="dim">Trial run ${h(o.trial.id)}</span>`) : '';
+    const done = o.live ? `<span class="fl-live">Live</span><button type="button" class="lnk plain" data-onboard-dismiss="${h(o.product)}">Hide</button>` : '';
+    return `<li class="fl-nl"><span class="fl-nlname">${h(o.product)}</span><ol class="fl-steps" role="list">${steps}</ol><span class="fl-nlx">${gaps}${trial}${done}</span></li>`;
+  };
+  return `<section class="fl-new" aria-label="New lines: products being onboarded"><h2>New lines</h2><ul class="fl-nls" role="list">${fd.onboarding.map(row).join('')}</ul></section>`;
+}
+/** The hand-off belt (stories waiting to start) and a tracker card per epic building hands-off. */
+function handoffHtml(fd, sel) {
+  if (!fd.belt.length && !fd.epics.length) return '';
+  const belt = fd.belt.length ? `<div class="fl-handbelt" aria-label="Hand-off belt: stories from approved breakdowns, waiting to start"><span class="fl-hlabel">Hand-off belt</span><div class="fl-row">${fd.belt.map(c => chipHtml(c, sel)).join('')}</div></div>` : '';
+  const epic = e => {
+    const segs = e.stories.map(x => `<i class="fl-seg at-${h(x.at)}" title="${h((x.story ? x.story + ' ' : '') + x.title + ': ' + x.atName)}"></i>`).join('');
+    const rows = e.stories.map(x => `<li><button type="button" class="fl-srow${sel === x.folder ? ' on' : ''}" data-lane-open="${h(x.folder)}"><span class="fl-sid">${h(x.story || x.id)}</span><span class="fl-stitle">${h(x.title)}</span><span class="fl-sat at-${h(x.at)}">${h(x.atName)}</span></button></li>`).join('');
+    return `<article class="fl-epic" aria-label="${h('Epic ' + e.title)}"><header><span class="fl-ekind">Epic</span><h3>${h(e.title)}</h3><span class="fl-eready">${h(e.ready + ' of ' + e.total)} ready</span></header>` +
+      `<div class="fl-segs" aria-hidden="true">${segs}</div><ul class="fl-srows" role="list">${rows}</ul></article>`;
+  };
+  return `<section class="fl-handoff" aria-label="Epics handing off to builds">${belt}${fd.epics.length ? `<div class="fl-epics">${fd.epics.map(epic).join('')}</div>` : ''}</section>`;
+}
+
 /** The floor, with the open card's panel beside it (the lanes' own panel, passed in). */
 export function floorHtml(data, sel, panel) {
   const fd = floorData(data);
@@ -165,5 +210,20 @@ export function floorHtml(data, sel, panel) {
     : `<p class="fl-fold">Paper line: nothing running. <button type="button" class="lnk plain" data-floor-paper="1">Show it</button></p>`;
   const stuck = fd.stuck.length ? `<section class="fl-stuck" aria-label="Pulled off the line"><h2>Pulled off the line</h2><div class="fl-row">${fd.stuck.map(c => chipHtml(c, sel)).join('')}</div></section>` : '';
   const other = fd.other.length ? `<section class="fl-other" aria-label="Also waiting"><h2>Also on the floor</h2><div class="fl-row">${fd.other.map(c => chipHtml(c, sel)).join('')}</div></section>` : '';
-  return `<div class="ln-body fl-body${panel ? ' has-panel' : ''}"><div class="fl-floor">${code}${stuck}${paper}${other}</div>${panel || ''}</div>`;
+  return `<div class="ln-body fl-body${panel ? ' has-panel' : ''}"><div class="fl-floor">${newLinesHtml(fd, sel)}${code}${stuck}${handoffHtml(fd, sel)}${paper}${other}</div>${panel || ''}</div>`;
+}
+
+/** In an epic's panel (Core 4.10.0): once its breakdown is approved, build its stories here, hands-off, in order. */
+export function epicPanelHtml(it) {
+  const f = it && flowOf(it);
+  if (!f || f.id !== 'epic') return '';
+  const e = ((S.D && S.D.epics) || []).find(x => x && x.folder === it.folder);
+  const busy = S.ui.busy && S.ui.busy['epic:' + it.folder];
+  if (e && e.asked) {
+    const line = e.total ? `${e.ready} of ${e.total} stories ready to publish. Each one builds on its own, after the story it depends on.` : 'Tandem is making a local item for each story. They start building as soon as they exist.';
+    return `<div class="ln-epic"><p class="sub-h">Building the stories here</p><p>${h(line)}</p><p class="dim">A story's plan waits for you only if it drifts from the breakdown. Every PR waits for you at Publish.</p></div>`;
+  }
+  if (stepIndex(it) < 4) return '';
+  return `<div class="ln-epic"><p class="sub-h">Approving the breakdown is enough</p><p>Tandem makes a local item for each story and builds them in order, hands-off. A story's plan waits for you only if it drifts from the breakdown (more files, a new dependency, a migration, auth code, or areas it did not name). Every PR still waits for you at Publish.</p>` +
+    `<div class="row"><button type="button" class="btn primary" data-epic-build="${h(it.folder)}"${busy ? ' disabled' : ''}>${busy ? 'Starting…' : 'Build the stories here'}</button></div></div>`;
 }
