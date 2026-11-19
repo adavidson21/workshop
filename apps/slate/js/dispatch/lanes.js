@@ -15,7 +15,7 @@ import { pickable, boardFeed } from '../loom.js';
 import { projectFilterHtml, inProject, projectFilter, projectChip } from './projects.js';
 import { reviewsHtml } from './pr-reviews.js';
 import { noticedHtml, noticedCount } from './noticed.js';
-import { teachHtml, teachCount, teachBlocking, publishAllHtml, publishOf } from './factory.js';
+import { teachHtml, teachCount, teachBlocking, publishAllHtml, publishOf, adoLinkOf, adoLinkHtml, adoNoticeHtml } from './factory.js';
 // Set by pages.js (it imports this module): the onboarding guide and an ask's source, for Loom 6.0.0's Lanes.
 // var, no initializer: pages.js may run this setter before this module's body (they import each other).
 var onboardTop, askLabel; // eslint-disable-line no-var
@@ -140,7 +140,8 @@ export function lanesData(filter = 'all') {
     const kind = kindOf(it);
     const mine = yourTurn(it, folders);
     const ses = itemSession(it);
-    cards.push({ it, sid: ses && ses.id ? ses.id : null, folder: it.folder, kind, lane, mine, title: it.title || it.folder, id: it.id || null, status: statusOf(it, lane), action: mine ? actionOf(it, kind, lane) : '', dots: laneDots(kind, lane), at: it.modifiedMs || 0 });
+    const link = adoLinkOf(it);
+    cards.push({ it, ado: !!(link && link.linked), sid: ses && ses.id ? ses.id : null, folder: it.folder, kind, lane, mine, title: it.title || it.folder, id: it.id || null, status: statusOf(it, lane), action: mine ? actionOf(it, kind, lane) : '', dots: laneDots(kind, lane), at: it.modifiedMs || 0 });
   }
   for (const o of startingSessions()) {
     const s = o.s || {};
@@ -244,7 +245,7 @@ function cardHtml(c, sel) {
   const on = sel && sel === key;
   const label = `${KINDS[c.kind].name}: ${c.title}. ${c.status}${c.mine ? '. Your turn: ' + c.action : ''}`;
   return `<button type="button" class="ln-card${c.mine ? ' mine' : ''}${on ? ' on' : ''}" data-lane-open="${h(key)}" aria-pressed="${!!on}" aria-label="${h(label)}">` +
-    `<span class="ln-top"><span class="ln-kind k-${c.kind}">${h(KINDS[c.kind].name)}</span>${c.id ? `<span class="ln-id">#${h(c.id)}</span>` : ''}<span class="grow"></span>${dotsHtml(c.dots)}</span>` +
+    `<span class="ln-top"><span class="ln-kind k-${c.kind}">${h(KINDS[c.kind].name)}</span>${c.id ? `<span class="ln-id">#${h(c.id)}</span>` : ''}${c.ado ? '<span class="ln-ado" title="Linked to ADO">ADO</span>' : ''}<span class="grow"></span>${dotsHtml(c.dots)}</span>` +
     `<span class="ln-title">${h(c.title)}</span><span class="ln-status">${h(c.status)}</span>` +
     (c.mine ? `<span class="ln-act">${h(c.action)}</span>` : '') + '</button>';
 }
@@ -271,6 +272,7 @@ function panelHtml(key, data) {
   } else if (c.it) {
     if (hasFirstLook(c.it)) body += `<div class="ln-first"><p class="ln-fh">First look</p>${fileInline(c.it, 'first-look.md')}</div>`;
     body += `<div class="loom-run ln-run">${runCardHtml(c.folder)}</div>` +
+      adoLinkHtml(c.it, adoOn()) +
       `<div class="ln-foot"><button type="button" class="btn ghost" data-open-run="${h(c.folder)}">Open the run</button>${projectChip(c.it)}` +
       (c.sid ? `<button type="button" class="ibtn" data-open-chat="${h(c.sid)}" aria-label="Open the conversation in Chat" title="Open the conversation in Chat">${CHAT}</button>` : '') + '</div>';
   } else {
@@ -295,6 +297,7 @@ export function dropHtml() {
     `<textarea id="ln-drop" rows="3" data-draft="lanes:drop" placeholder="Paste a story, a stack trace or a question. Enter starts it; Shift+Enter for a new line.">${h(text)}</textarea>` +
     `<div class="ln-drow">${ado}<button type="button" class="lnk plain" data-start-open="1" title="Plan an epic, write docs, handle a request">Other flows</button><span class="grow"></span>${pick}` +
     `<button type="button" class="btn primary" data-lane-start="1"${ready ? '' : ' disabled title="Connect opencode to start work"'}${S.ui.dropBusy ? ' disabled' : ''}>${S.ui.dropBusy ? 'Starting…' : 'Start'}</button></div>` +
+    (S.ui.dropAdo && text.trim() ? `<label class="ln-keep"><input type="checkbox" data-drop-keep="1"${S.ui.dropKeep ? ' checked' : ''}> Keep it linked to ADO #${h(S.ui.dropAdo.id)} (otherwise it starts as a local item)</label>` : '') +
     (S.ui.dropPick && list.length ? pickerHtml(list) : '') + '</section>';
 }
 /** The From ADO picker: your team's backlog items nobody has started, newest change first, with a search. */
@@ -321,7 +324,7 @@ export function lanesHtml() {
     `<button type="button" class="chip${filter === k ? ' on' : ''}" data-lane-filter="${k}" aria-pressed="${filter === k}">${h(label)}<span class="n">${data.counts[k] || 0}</span></button>`).join('')}` +
     '</div>';
   // The afternoon digest and first-run onboarding sit on top (they were on the Inbox until Loom 6.0.0).
-  const top = (S.digestHtml ? S.digestHtml(h) : '') + (onboardTop ? onboardTop() : '');
+  const top = (S.digestHtml ? S.digestHtml(h) : '') + (onboardTop ? onboardTop() : '') + adoNoticeHtml();
   if (noticed) return `<div class="ln-page">${top}${dropHtml()}${chips}${noticedHtml()}</div>`;
   if (teach) return `<div class="ln-page">${top}${dropHtml()}${chips}${teachHtml()}</div>`;
   return `<div class="ln-page">${top}${dropHtml()}${chips}${projectFilterHtml(workItems())}<div class="ln-body${panel ? ' has-panel' : ''}"><div class="ln-lanes">${data.lanes.map(l => laneHtml(l, sel, data.doneList)).join('')}</div>${panel}</div></div>`;

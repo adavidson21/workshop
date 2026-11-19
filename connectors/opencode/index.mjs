@@ -17,6 +17,7 @@ import { autopilot, autopilotAction, loadAuto, resumeAfterGap, resumeQueued } fr
 import { decideObservation, findObservation, loadObservations, resetObservations, startArgs } from "./lib/observations.mjs";
 import { answerGap, loadGaps, MAX_ANSWER, onGapClosed, resetGaps } from "./lib/gaps.mjs";
 import { forgetPublished, loadPublished, publishItem, readyToPublish, resetPublished } from "./lib/publish.mjs";
+import { adoNoticeSeen, linkItem, loadAdoLinks, resetAdoLinks, unlinkAllOnce, unlinkItem } from "./lib/ado-link.mjs";
 import { pageData, resetLive } from "./lib/live.mjs";
 import { MAX_LOG, TIMEBOXES, addRepo, dismissLoose, onboardRepo, resetWorkspace, runLoose, startLocal, startDocs, startReview, startSpike, startTsd } from "./lib/workspace.mjs";
 import { MAX_MAP, draftArgs, knowledgeRepos, readMap, writeMap } from "./lib/knowledge.mjs";
@@ -231,11 +232,15 @@ function resetAll() {
   resetObservations();
   resetGaps();
   resetPublished();
+  resetAdoLinks();
 }
 
 async function init() {
   const alive = current(() => true);
   await refresh();
+  if (!alive()) return;
+  // 1.22.0: Tandem's items are the source; every numbered item becomes local once (claude/work-items-source-v1-plan.md).
+  if (model && unlinkAllOnce(model.items)) await refresh();
   if (!alive()) return;
   watchWork();
   setPhase("ready");
@@ -1181,6 +1186,39 @@ const actions = {
       return { ok: !failed.length, published: done, failed };
     },
   },
+  "item.link": {
+    title: "Link a work item to an ADO work item",
+    write: true,
+    argsSchema: obj(["folder", "ado"], { folder, ado: str("ADO work item number", { pattern: "^(#|AB#)?[0-9]{1,10}$" }) }),
+    async run(args) {
+      needReady();
+      const r = linkItem(findItem(args.folder), args.ado);
+      broadcastLive();
+      return r;
+    },
+  },
+  "item.unlink": {
+    title: "Unlink a work item from ADO (it stays local)",
+    write: true,
+    argsSchema: obj(["folder"], { folder }),
+    async run(args) {
+      needReady();
+      const r = unlinkItem(findItem(args.folder));
+      broadcastLive();
+      return r;
+    },
+  },
+  "ado.notice.seen": {
+    title: "Hide the one-time notice that items were unlinked from ADO",
+    write: false,
+    argsSchema: obj([], {}),
+    async run() {
+      needReady();
+      const r = adoNoticeSeen();
+      broadcastLive();
+      return r;
+    },
+  },
   "ui.image": {
     title: "Read a UI check screenshot of a work item",
     write: false,
@@ -1319,6 +1357,7 @@ export default {
     loadObservations();
     loadGaps();
     loadPublished();
+    loadAdoLinks();
     onGapClosed((id) => resumeAfterGap(id));
     onConnected(() => resumeQueued());
     loadProjects();

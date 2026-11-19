@@ -129,3 +129,33 @@ export function overlapHtml(it) {
       ` <button type="button" class="btn small" data-auto-after="${h(it.folder)}" data-after="${h(o.with)}" title="Approves the plan now and builds it once ${h(name)} has its PR text, so the two do not conflict">Approve, build after it</button></li>`;
   }).join('')}</ul><p class="dim">Or approve as usual to build now; the PR catches up with main before it is written.</p></div>`;
 }
+
+// ------------------------------------------------------------------ ADO links (Loom 6.3.0)
+// Tandem's items are the source; ADO is an optional link per item (claude/work-items-source-v1-plan.md). The link
+// is one line in workitem.md, written by the connector (item.link, item.unlink).
+/** A run's link: { linked, ado, was } from state.adoLinks, or null for runs that are not work items. */
+export const adoLinkOf = it => (it && S.D && S.D.adoLinks && S.D.adoLinks[it.folder]) || null;
+
+/** The link row in a run's panel: linked (with Unlink) or local (with Link to ADO and Create in ADO). */
+export function adoLinkHtml(it, adoReady) {
+  const l = adoLinkOf(it);
+  if (!l) return '';
+  const busy = S.ui.busy && S.ui.busy['link:' + it.folder] ? ' disabled' : '';
+  if (l.linked) {
+    return `<div class="ln-link"><span class="ln-ado" title="Commits and PRs get AB#${h(l.ado)}; Done offers Resolve in ADO">ADO #${h(l.ado)}</span>` +
+      `<button type="button" class="lnk plain" data-ado-unlink="${h(it.folder)}"${busy} title="Keep it local: nothing goes to ADO for it">Unlink</button></div>`;
+  }
+  const open = !!S.ui.open['adolink:' + it.folder];
+  const form = open ? `<span class="ln-linkform"><input type="text" inputmode="numeric" data-draft="adolink:${h(it.folder)}" value="${h(S.ui.drafts['adolink:' + it.folder] || l.was || '')}" placeholder="ADO number" aria-label="ADO work item number">` +
+    `<button type="button" class="btn small" data-ado-link="${h(it.folder)}" data-was="${h(l.was || '')}"${busy}>Link</button>` +
+    (adoReady ? `<button type="button" class="btn small ghost" data-ado-create="${h(it.folder)}"${busy} title="Creates one work item in ADO with this title, then links it">Create in ADO ${outsideMark('ado')}</button>` : '') + '</span>' : '';
+  return `<div class="ln-link"><span class="dim" title="Nothing goes to ADO for this build">Local${l.was ? ` (was ADO #${h(l.was)})` : ''}</span>` +
+    `<button type="button" class="lnk plain" data-ado-link-toggle="${h(it.folder)}" aria-expanded="${open}">Link to ADO</button>${form}</div>`;
+}
+
+/** The one-time notice after every numbered item was made local (connector 1.22.0). */
+export function adoNoticeHtml() {
+  const n = S.D && S.D.adoNotice;
+  if (!n || !n.count) return '';
+  return `<div class="banner ln-notice"><p>${h(String(n.count))} build${n.count === 1 ? ' is' : 's are'} now local: Workshop no longer updates ADO for ${n.count === 1 ? 'it' : 'them'}. Relink any that matter from its panel (Link to ADO).</p><button type="button" class="btn small" data-ado-notice="1">Got it</button></div>`;
+}

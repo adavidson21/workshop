@@ -37,3 +37,30 @@ test('slateLinks reads the runs card by ADO id and run folder, with merged', () 
   assert.equal(m.get('41300').merged, true);
   assert.equal(m.get('41207').merged, false);
 });
+
+test('Loom 6.2.0: the agents card is the factory queue for Docket (answer, teach, approve, publish)', async () => {
+  const { agentQueue } = await import('../js/dispatch/summary.js');
+  const items = [
+    { kind: 'item', id: '1', folder: '1-a', title: 'Asking', next: { stage: 'build' } },
+    { kind: 'item', id: 'L2', folder: 'L2-b', title: 'Plan', next: { stage: 'plan', command: '/approve L2', needsYou: true } },
+    { kind: 'item', id: '3', folder: '3-c', title: 'Ready', next: { stage: 'ship' } },
+    { kind: 'item', id: '4', folder: '4-d', title: 'Published', next: { stage: 'ship' } },
+    { kind: 'item', id: '5', folder: '5-e', title: 'Paused', paused: {}, next: { stage: 'plan', command: '/approve 5', needsYou: true } }
+  ];
+  const rows = agentQueue({
+    items,
+    asking: new Map([['1-a', 1]]),
+    publish: { '3-c': { ready: true, published: null }, '4-d': { ready: true, published: { at: 'x' } } },
+    gaps: [{ id: 'G1', question: 'Who approves?', assumed: 'The EM' }, { id: 'G2', question: 'Refund cap?', assumed: null }, { id: 'G3', question: 'Sent', sent: 'x' }]
+  });
+  assert.deepEqual(rows.map(r => [r.id, r.note]), [
+    ['1-a', 'Answer Tandem'], ['gap:G2', 'Teach Tandem: a build waits on this'], ['gap:G1', 'Teach Tandem'], ['L2-b', 'Approve the plan'], ['3-c', 'Ready to publish']
+  ]);
+  assert.equal(rows[1].route, 'teach');
+  assert.equal(rows[3].route, 'L2');
+  assert.ok(rows.every(r => !('kind' in r)));
+  const cards = summaryCards({ items, prompts: [], prs: [], now: NOW, publish: { '3-c': { ready: true } } });
+  const agents = cards.find(c => c.id === 'agents');
+  assert.equal(agents.kind, 'list');
+  assert.deepEqual(agents.rows.map(r => r.id), ['L2-b', '3-c']);
+});

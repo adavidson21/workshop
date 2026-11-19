@@ -86,3 +86,17 @@ test("publish: review questions, placeholders left out", () => {
   assert.deepEqual(reviewQuestions("## Questions for you\n\n- <`repo/path/File.cs:42`: question, or \"None\">\n"), []);
   assert.deepEqual(reviewQuestions(null), []);
 });
+
+test("ADO links: the line in workitem.md, linked and local, and setting it", async () => {
+  const { linkOf, setLine } = await import("../lib/ado-link.mjs");
+  assert.deepEqual(linkOf("41207", "# Work item 41207: x\n- Type: Bug\n"), { linked: true, ado: "41207", was: null });
+  assert.deepEqual(linkOf("L3", "# Work item L3: x\n"), { linked: false, ado: null, was: null });
+  assert.deepEqual(linkOf("L3", "- ADO item: 5012\n"), { linked: true, ado: "5012", was: null });
+  assert.deepEqual(linkOf("41207", "- ADO item: unlinked (was 41207)\n"), { linked: false, ado: null, was: "41207" });
+  assert.deepEqual(linkOf("41207", "- ADO item: unlinked\n"), { linked: false, ado: null, was: null });
+  const wi = "# Work item L3: Add export\n\n- Type: Feature\n- State: New\n\n## Description\n- not a field line: x\n";
+  const once = setLine(wi, "5012");
+  assert.equal(once, "# Work item L3: Add export\n\n- ADO item: 5012\n- Type: Feature\n- State: New\n\n## Description\n- not a field line: x\n");
+  assert.equal(setLine(once, "unlinked (was 5012)"), once.replace("- ADO item: 5012", "- ADO item: unlinked (was 5012)"));
+  assert.equal(setLine("# Work item L4: y", "unlinked"), "# Work item L4: y\n- ADO item: unlinked\n");
+});

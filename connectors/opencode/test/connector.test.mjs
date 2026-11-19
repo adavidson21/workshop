@@ -574,6 +574,23 @@ for (const kind of ["v1", "v2"]) {
       await call("refresh", {}, ctx());
     });
 
+    test("[P-ado] every numbered item was unlinked once; link and unlink write one line in workitem.md", async () => {
+      let st = await call("state", {}, ctx());
+      assert.deepEqual(st.adoLinks["41207-fix-login-timeout"], { linked: false, ado: null, was: "41207" }, "the one-time unlink");
+      assert.ok(st.adoNotice && st.adoNotice.count >= 1);
+      const wi = path.join(ws.work, "41207-fix-login-timeout", "workitem.md");
+      assert.match(fs.readFileSync(wi, "utf8"), /^- ADO item: unlinked \(was 41207\)$/m);
+      await call("item.link", { folder: "41207-fix-login-timeout", ado: "AB#41207" }, ctx());
+      st = await call("state", {}, ctx());
+      assert.deepEqual(st.adoLinks["41207-fix-login-timeout"], { linked: true, ado: "41207", was: null });
+      await rejects(call("item.link", { folder: "41207-fix-login-timeout", ado: "abc" }, ctx()), "bad_request");
+      await call("item.unlink", { folder: "41207-fix-login-timeout" }, ctx());
+      assert.equal((await call("state", {}, ctx())).adoLinks["41207-fix-login-timeout"].was, "41207");
+      await call("ado.notice.seen", {}, ctx());
+      assert.equal((await call("state", {}, ctx())).adoNotice, null);
+      assert.equal(JSON.parse(fs.readFileSync(path.join(ws.work, "_dashboard", "ado-links.json"), "utf8")).seen, true);
+    });
+
     test("[P-secret] the 2.x password never shows up in results, events or logs", async () => {
       const everything = JSON.stringify([await call("state", {}, ctx()), await call("status", {}, ctx()), oc.status(), f.rec.events, f.rec.logs]);
       assert.equal(everything.includes(PASSWORD), false);

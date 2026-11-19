@@ -275,7 +275,9 @@ def main():
         dp.clock.install(time=at(9, 59)); dp.clock.pause_at(at(10, 0))
         dp.goto(HUB + '/'); dp.clock.run_for(3000); dp.wait_for_timeout(800)
         dp.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const F = await import('/shared/focus.js');
-          const ws = await connect({app: 'settings'}); await ws.data.put('focus', {schema: 'settings.focus', version: 1, rev: 0, items: [], deleted: {}, meta: F.defaults()}); }""")
+          const ws = await connect({app: 'settings'}); await ws.data.put('focus', {schema: 'settings.focus', version: 1, rev: 0, items: [], deleted: {}, meta: F.defaults()});
+          // Docket 12.0.0 hides personal tasks inside Workshop by default; this check counts one, so turn them on.
+          const d = await connect({app: 'prioritizer'}); try { await d.appSettings.set({personalTasks: true}); } catch (e) {} }""")
         dp.evaluate("location.hash = '#/prioritizer'")
         for _ in range(15):
             dp.clock.run_for(1000); dp.wait_for_timeout(300)

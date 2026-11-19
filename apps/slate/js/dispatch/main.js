@@ -141,7 +141,7 @@ let summaryKey = '', summaryTimer = null;
 function publishSummary() {
   clearTimeout(summaryTimer);
   summaryTimer = setTimeout(async () => {
-    const cards = summaryCards({ items: (S.D && S.D.items) || [], prompts: prompts(), prs: S.inbox.items || [], now: Date.now() });
+    const cards = summaryCards({ items: (S.D && S.D.items) || [], prompts: prompts(), prs: S.inbox.items || [], now: Date.now(), publish: (S.D && S.D.publish) || {}, gaps: (S.D && S.D.gaps && S.D.gaps.open) || [] });
     const held = holder && holder.card();
     if (held) cards.push(Object.assign({ updatedAt: Date.now() }, held));
     const key = JSON.stringify(cards.map(c => ({ ...c, updatedAt: 0 })));
@@ -418,6 +418,8 @@ function wantFocus(path) {
   // Chat and the hub moved to the Chat app (Loom 4.8.0); Reviews is the Inbox's PRs chip.
   if (/^(hub|chat)(\/|$)/.test(p)) { openChat(p); setTab('lanes'); return; }
   if (/^reviews\/?$/.test(p)) { setTab('reviews'); return; }
+  // teach: the Teach chip (Loom 6.2.0), where Docket's agent queue sends a knowledge gap.
+  if (/^teach\/?$/.test(p)) { ui().laneFilter = 'teach'; setTab('lanes'); return; }
   // start/<flow>[/<text>]: Start work on that flow's card, filled in with the text (Chat's flow suggestions).
   const sm = /^start(?:\/([a-z]+))?(?:\/([\s\S]*))?$/.exec(p);
   if (sm) {
@@ -618,7 +620,12 @@ async function dropGo() {
   const text = ui().drafts['lanes:drop'] || '';
   const kind = ui().dropKind || guessKind(text);
   const picked = ui().dropAdo && adoIdOf(text) === ui().dropAdo.id ? ui().dropAdo : null;
-  const r = dropStart(text, kind, { project: startProject(), ...(picked ? { ado: true, adoType: picked.type } : {}) });
+  // From ADO (Loom 6.3.0, claude/work-items-source-v1-plan.md): an import starts a local item from the ADO item's
+  // title, unless Keep it linked is ticked (then /start <id>, linked as before).
+  const imported = picked && !ui().dropKeep && kind === 'build';
+  const r = imported
+    ? dropStart(`${String(text).replace(/^\s*#?\d+\s*/, '') || 'ADO ' + picked.id}\n\nImported from ADO #${picked.id}.`, kind, { project: startProject(), ado: false })
+    : dropStart(text, kind, { project: startProject(), ...(picked ? { ado: true, adoType: picked.type } : {}) });
   if (r.error) { toast(r.error, true); focusFirst('#ln-drop'); return; }
   const drafts = {};
   for (const [k, v] of Object.entries(r.drafts)) drafts['start:' + k] = v;
@@ -626,7 +633,7 @@ async function dropGo() {
   try {
     await startCore(r.st, drafts);
     delete ui().drafts['lanes:drop'];
-    ui().dropKind = null; ui().dropGuess = null; ui().dropAdo = null;
+    ui().dropKind = null; ui().dropGuess = null; ui().dropAdo = null; ui().dropKeep = false;
     toast(DROP_STARTED[kind] || 'Started.');
   } catch (e) {
     toast(`Could not start the ${((KINDS[kind] || {}).name || 'work').toLowerCase()}: ${errText(e)}`, true);
@@ -1091,6 +1098,41 @@ listen('click', ev => {
   if (after) {
     const folder = after.getAttribute('data-auto-after');
     act(() => write('autopilot', { folder, action: 'approve-start', after: after.getAttribute('data-after') }), () => toast('Approved. It builds once the other one has its PR text.'), 'a:' + folder);
+    return;
+  }
+  // Work items as the source (Loom 6.3.0): link, unlink, create in ADO, and the one-time notice.
+  const keep = t.closest('[data-drop-keep]');
+  if (keep) { ui().dropKeep = !!keep.checked; return; }
+  if (t.closest('[data-ado-notice]')) { act(() => read('ado.notice.seen', {}), null); return; }
+  const linkT = t.closest('[data-ado-link-toggle]');
+  if (linkT) { const k = 'adolink:' + linkT.getAttribute('data-ado-link-toggle'); ui().open[k] = !ui().open[k]; paint(); return; }
+  const linkB = t.closest('[data-ado-link]');
+  if (linkB) {
+    const folder = linkB.getAttribute('data-ado-link');
+    const ado = (ui().drafts['adolink:' + folder] || linkB.getAttribute('data-was') || '').trim();
+    if (!ado) { toast('Type the ADO work item number.', true); return; }
+    act(() => write('item.link', { folder, ado }), () => { delete ui().open['adolink:' + folder]; toast('Linked to ADO #' + ado.replace(/^#|^AB#/i, '')); }, 'link:' + folder);
+    return;
+  }
+  const unl = t.closest('[data-ado-unlink]');
+  if (unl) {
+    const folder = unl.getAttribute('data-ado-unlink');
+    act(() => write('item.unlink', { folder }), () => toast('Unlinked. Nothing goes to ADO for it now.'), 'link:' + folder);
+    return;
+  }
+  const cre = t.closest('[data-ado-create]');
+  if (cre) {
+    const folder = cre.getAttribute('data-ado-create');
+    const it = itemForFolder(folder);
+    if (!it) return;
+    const type = it.lane === 'bug' ? 'Bug' : 'User Story';
+    confirmOutside({ system: 'ado', title: `Create a ${type} in ADO for ${it.title || folder}?`, body: 'Creates one work item with this title, then links this build to it. Nothing else is sent.', items: [`${type}: ${it.title || folder}`], ok: 'Create and link' }).then(ok => {
+      if (!ok) return;
+      act(async () => {
+        const made = await ws.connectors.call('ado', 'workitem.create', { type, title: String(it.title || folder).slice(0, 255), fields: { description: `From Workshop work item ${it.id || folder}.` } }, { confirm: true });
+        return write('item.link', { folder, ado: String(made.id) });
+      }, r => toast('Created and linked: ADO #' + (r && r.ado)), 'link:' + folder);
+    });
     return;
   }
   if (t.closest('[data-lane-done]')) { ui().laneDone = !ui().laneDone; paint(); return; }

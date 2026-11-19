@@ -53,7 +53,7 @@
         "manifestVersion": 1,
         "id": "prioritizer",
         "name": "Docket",
-        "version": "11.2.0",
+        "version": "12.0.0",
         "description": "Decide what to work on next, and plan your day around it.",
         "icon": "icon.svg",
         "entry": "index.html",
@@ -203,6 +203,13 @@
             "title": "Use sprints",
             "description": "Day counts sprint days and adds every-sprint tasks. Off: Day templates go by weekday and every-sprint tasks are paused.",
             "default": true
+          },
+          {
+            "id": "personalTasks",
+            "type": "boolean",
+            "title": "Personal tasks",
+            "description": "Off: Docket is your agent queue (what Tandem's builds need from you, from Loom) and PR reviews; your own tasks are hidden, not deleted. On: everything shows, as before.",
+            "default": false
           }
         ],
         "files": [
@@ -252,6 +259,7 @@
           "js/render.js",
           "js/route.js",
           "js/row-fields-model.js",
+          "js/agent-queue.js",
           "js/slate-link.js",
           "js/sort-run.js",
           "js/state.js",
@@ -271,7 +279,7 @@
         "manifestVersion": 1,
         "id": "slate",
         "name": "Loom",
-        "version": "6.2.0",
+        "version": "6.3.0",
         "description": "Your backlog and Tandem's runs as cards in four lanes (Clarify, Plan, Work, Ready), plus Health. Drop in a story, an error log, a question or a hand-off; a card stops only when it needs you.",
         "icon": "icon.svg",
         "entry": "index.html",
