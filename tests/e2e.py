@@ -745,7 +745,7 @@ def agent_checks(b, watch):
               and sf.evaluate('document.title').startswith('Settings') and 'Workshop on this computer' in sf.inner_text('#modeNote'))
         check('it has one button to Workshop\'s site to pair from, not a list of sites', sf.locator('[data-open-site]').count() == 1 and sf.locator('a[data-open-site][href="' + HOSTED + '/"]').count() == 1)
         nav = sf.evaluate("[...document.querySelectorAll('.nav-group')].map(g => g.dataset.group + ':' + [...g.querySelectorAll('.nav-item')].map(b => b.dataset.nav).join(','))")
-        check('Settings has a short left nav in three groups', nav == ['workshop:overview,apps,computer,data', 'you:people-teams,knowledge,focus', 'connections:ado,repos,c-echo'])
+        check('Settings has a short left nav in three groups', nav == ['workshop:overview,apps,computer,data', 'you:people-teams,knowledge,focus', 'connections:manager,ado,repos,c-echo'])
         check('Azure DevOps is one nav item with Connections, Work items and Pull requests as tabs',
               sf.evaluate("[...document.querySelectorAll('.navpanel[data-nav=ado] .tab')].map(t => t.dataset.page).join()") == 'connections,work-items,pull-requests')
         check('Status has no Needs you while nothing set up is broken', sf.locator('.needs-you:visible').count() == 0)
