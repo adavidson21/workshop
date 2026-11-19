@@ -74,6 +74,10 @@ eng-agents Core 4.10.0; Workshop project doc `claude/loom-floor-v1-plan.md`. `li
 - **`product.onboard`** `{product}`: runs `/onboard-product <product>`. Tandem writes `.work/_onboarding/<product>.md` (the model's `onboarding`) and makes a trial run (`- Trial: <product>`, the model's `trial`), which gets hands-off autopilot in the quick lane. The product is live once the trial run reaches Ready to publish. **`onboarding.dismiss`** hides a product's steps.
 - `state` adds `epics` (each epic, its stories, where they are, how many are ready) and `onboarding` (each product's five steps: add, scan, gaps, trial, live).
 
+## Where a build is (1.24.0)
+
+eng-agents Core 4.11.0 writes `step.md` in a work folder (`- Step: <build|test|ui|review|fix> | <ISO time>`, `Set-Step.ps1`). The model's item gets `step` (`{name, at}`) only when the file is there. Loom places the build at that station.
+
 ## Approved AI providers
 
 Dispatch sends work to whatever AI provider opencode uses, so at work that should be only the provider your company approved. With `approvedProviders` set, `workshop doctor` (`connectors/opencode/lib/providers.mjs`) reads opencode's config the way opencode merges it (global `~/.config/opencode/opencode.json[c]`, `OPENCODE_CONFIG`, the workspace's `opencode.json[c]` and `.opencode/opencode.json[c]`, `OPENCODE_CONFIG_CONTENT`, and the managed folder) and its saved logins (`~/.local/share/opencode/auth.json`), and fails when:

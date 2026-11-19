@@ -28,10 +28,16 @@ import { notebookRoute } from './doc.js';
 import { digestCard, digestHtml } from './digest.js';
 import { createHolder, heldFor, lastEndedFocusSpan, watchFocus, dateStr, toMin } from '../../../../shared/focus.js';
 import { readCards } from '../../../../shared/summary.js';
+import * as Products from '../../../../shared/products.js';
 
 const OC = 'opencode';
 const app = document.getElementById('app');
 const ws = await getWs();
+// Your products from Settings (Loom 6.6.0's Onboard a product picker). Read when the picker opens.
+S.products = [];
+function readProducts() {
+  ws.data.get(Products.COLLECTION, { app: Products.APP }).then(env => { S.products = Products.list(env); schedule(); }, () => { S.products = []; });
+}
 S.mode = ws.mode;
 // Loom opens on Lanes (Loom 5.0.0): the drop box and the four lanes; a route can open another tab.
 S.ui.tab = 'lanes';
@@ -1020,7 +1026,15 @@ listen('click', ev => {
   if (lf) { ui().laneFilter = lf.getAttribute('data-lane-filter'); paint(); return; }
   // Floor or List (Loom 6.4.0), kept with the project filter; a station's +N more; the folded paper line.
   const lv = t.closest('[data-lane-view]');
-  if (lv) { S.view.lanes = lv.getAttribute('data-lane-view') === 'list' ? 'list' : 'floor'; saveViewNow(); paint(); return; }
+  if (lv) { const v = lv.getAttribute('data-lane-view'); S.view.lanes = ['list', 'rows'].includes(v) ? v : 'floor'; saveViewNow(); paint(); return; }
+  // Onboard a product from Loom (6.6.0): the picker lists your products from Settings; a pick runs product.onboard.
+  if (t.closest('[data-onboard-toggle]')) { ui().onboardPick = !ui().onboardPick; if (ui().onboardPick) readProducts(); paint(); return; }
+  const og = t.closest('[data-onboard-go]');
+  if (og) {
+    const product = og.getAttribute('data-onboard-go');
+    act(() => write('product.onboard', { product }), () => { ui().onboardPick = false; toast(`Tandem is onboarding ${product}. Its steps show as a new line on the floor.`); }, 'onboard');
+    return;
+  }
   const fmore = t.closest('[data-floor-more]');
   if (fmore) { const k = fmore.getAttribute('data-floor-more'); ui().floorOpen = { ...(ui().floorOpen || {}), [k]: !(ui().floorOpen || {})[k] }; paint(); return; }
   if (t.closest('[data-floor-paper]')) { ui().floorPaper = true; paint(); return; }

@@ -326,3 +326,31 @@ body[data-loom-tab=lanes] #runs-root .page:has(.fl-body) { max-width: none; }
 #runs-root .ln-epic { border: 1.5px solid var(--merlot); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; }
 #runs-root .ln-epic p { margin: 0; }
 @media (max-width: 760px) { #runs-root .fl-nl { grid-template-columns: 1fr; } }
+
+/* ---------- Loom 6.6.0: project colors, List rows, Onboard a product ---------- */
+#runs-root .fl-proj { display: inline-flex; margin-right: 4px; }
+#runs-root .fl-ctop .fl-proj + .fl-id { margin-right: auto; }
+#runs-root .fl-list { flex: 999 1 720px; min-width: 0; display: flex; flex-direction: column; gap: 16px; }
+#runs-root .fl-rgroup h2 { margin: 0 0 6px; font: 700 15.5px/1.2 var(--serif, var(--sans)); display: flex; gap: 8px; align-items: baseline; }
+#runs-root .fl-rows { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--surface); }
+#runs-root .fl-rows li + li { border-top: 1px solid var(--line); }
+#runs-root .fl-rowb { display: grid; grid-template-columns: 76px minmax(0, 1.4fr) minmax(140px, 1fr) 120px 90px 120px; gap: 12px; align-items: center; width: 100%; text-align: left;
+  padding: 9px 12px; border: 0; background: none; color: var(--ink); font: 500 13px/1.3 var(--sans); cursor: pointer; }
+#runs-root .fl-rowb:hover, #runs-root .fl-rowb.on { background: var(--hover); }
+#runs-root .fl-rowb:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+#runs-root .fl-rowb.story .fl-rid { color: var(--merlot); }
+#runs-root .fl-rid { display: inline-flex; align-items: center; font: 600 12px/1 var(--mono, monospace); color: var(--muted); }
+#runs-root .fl-rtitle { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+#runs-root .fl-rtitle .fl-type { font-weight: 700; margin-right: 4px; }
+#runs-root .fl-track { display: flex; gap: 3px; }
+#runs-root .fl-tk { flex: 1; height: 8px; border-radius: 4px; background: color-mix(in srgb, var(--ink) 8%, var(--surface)); }
+#runs-root .fl-tk.done { background: color-mix(in srgb, var(--merlot) 40%, var(--surface)); }
+#runs-root .fl-tk.now { background: var(--merlot); }
+#runs-root .fl-tk.stuck { background: var(--danger); }
+#runs-root .fl-rwhere, #runs-root .fl-rtime { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#runs-root .fl-rowb .fl-act { justify-self: start; margin: 0; }
+#runs-root .ln-onboard .ln-pnote { margin: 0 0 6px; }
+@media (max-width: 760px) {
+  #runs-root .fl-rowb { grid-template-columns: 60px minmax(0, 1fr); }
+  #runs-root .fl-rowb .fl-track, #runs-root .fl-rowb .fl-rtime { display: none; }
+}

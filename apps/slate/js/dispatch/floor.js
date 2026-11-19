@@ -13,9 +13,14 @@
    Loom 6.5.0 (eng-agents Core 4.10.0, opencode connector 1.23.0): stories from an approved breakdown wear the brand
    color and ride the hand-off belt until they start; each epic building hands-off has a tracker card (its stories
    and where each one is). Products being onboarded show as new lines at the top, their five steps lit (Add, Scan,
-   Fill the gaps, Trial run, Live). */
+   Fill the gaps, Trial run, Live).
+
+   Loom 6.6.0 (eng-agents Core 4.11.0, connector 1.24.0): a build's station comes from Tandem's step.md when it has
+   one (no more guessing from the session's text); cards carry their project's color; List is rows with a station
+   track (Lanes keeps the four lanes); Onboard a product starts onboarding from Loom. */
 import { S } from './state.js';
-import { h, plural, itemSession, isBusy, itemAuto } from './view.js';
+import { h, plural, itemSession, isBusy, itemAuto, ago } from './view.js';
+import { hasProjects, projectById, projectOf, projectName, sw } from './projects.js';
 import { flowOf, stepIndex, stepsOf } from './flows.js';
 import { KINDS, keyOf } from './lanes.js';
 
@@ -69,6 +74,12 @@ function activityOf(it) {
   const s = it && itemSession(it);
   return String((s && s.activity) || '');
 }
+const STEP_FITS = { build: ['build', 'test', 'fix'], review: ['review', 'test', 'ui', 'fix'] };
+/** The station Tandem's step.md names (Core 4.11.0), or '' when there is none or it does not fit the item's stage. */
+export function toldStep(it) {
+  const st = it && it.step && it.step.name;
+  return st && (STEP_FITS[it.stage] || []).includes(st) ? st : '';
+}
 /** The paper station for a flow step's key. */
 const PAPER_STEP = { investigate: 'research', scope: 'research', slice: 'write', draft: 'write', stories: 'review', milestones: 'review', read: 'review', check: 'review', final: 'review', findings: 'out', backlog: 'out', save: 'out' };
 
@@ -81,6 +92,9 @@ export function stationOf(c) {
     if (c.lane === 'clarify' || c.lane === 'plan') return 'plan';
     if (c.lane === 'ready') return 'dock';
     if (!it) return 'build';
+    // Core 4.11.0: Tandem says where the build is (step.md), when it fits the stage the item is at.
+    const told = toldStep(it);
+    if (told) return told;
     const act = activityOf(it);
     if (it.stage === 'review') {
       const a = itemAuto(it);
@@ -140,12 +154,18 @@ export function floorData(data) {
 
 // ------------------------------------------------------------------ drawing
 const TYPE = c => (c.it && c.it.story) ? 'Story ' + (c.it.story.story || '') : (c.it && c.it.trial) ? 'Trial' : c.quick ? 'Quick' : c.kind === 'build' ? (c.it && c.it.lane === 'bug' ? 'Bug' : 'Feature') : KINDS[c.kind] ? KINDS[c.kind].name : 'Run';
+/** The card's project color (Loom 6.6.0), once you have projects: the same swatch as the project filter. */
+function projSw(c) {
+  if (!c.it || !hasProjects()) return '';
+  const p = projectById(projectOf(c.it));
+  return p && !p.builtIn ? `<span class="fl-proj" title="${h(projectName(p))}">${sw(p.color)}</span>` : '';
+}
 function chipHtml(c, sel) {
   const key = keyOf(c);
   const on = sel && sel === key;
   const label = `${TYPE(c)}: ${c.title}. ${c.status}${c.mine ? '. Your turn: ' + c.action : ''}`;
   return `<button type="button" class="fl-card k-${h(c.kind)}${c.it && c.it.story ? ' story' : ''}${c.mine ? ' mine' : ''}${on ? ' on' : ''}" data-lane-open="${h(key)}" aria-pressed="${!!on}" aria-label="${h(label)}" title="${h(c.title + ' · ' + c.status)}">` +
-    `<span class="fl-ctop"><span class="fl-id">${c.id ? '#' + h(c.id) : h(TYPE(c))}</span>${c.id ? `<span class="fl-type">${h(TYPE(c))}</span>` : ''}</span>` +
+    `<span class="fl-ctop">${projSw(c)}<span class="fl-id">${c.id ? '#' + h(c.id) : h(TYPE(c))}</span>${c.id ? `<span class="fl-type">${h(TYPE(c))}</span>` : ''}</span>` +
     `<span class="fl-title">${h(c.title)}</span>${c.mine && c.action ? `<span class="fl-act">${h(c.action)}</span>` : ''}</button>`;
 }
 function stackHtml(line, s, sel) {
@@ -226,4 +246,64 @@ export function epicPanelHtml(it) {
   if (stepIndex(it) < 4) return '';
   return `<div class="ln-epic"><p class="sub-h">Approving the breakdown is enough</p><p>Tandem makes a local item for each story and builds them in order, hands-off. A story's plan waits for you only if it drifts from the breakdown (more files, a new dependency, a migration, auth code, or areas it did not name). Every PR still waits for you at Publish.</p>` +
     `<div class="row"><button type="button" class="btn primary" data-epic-build="${h(it.folder)}"${busy ? ' disabled' : ''}>${busy ? 'Starting…' : 'Build the stories here'}</button></div></div>`;
+}
+
+// ------------------------------------------------------------------ List (rows, Loom 6.6.0)
+/** The List view: one row per card, grouped Needs you, Running and Also waiting, each with its line's station track. */
+export function rowsData(data) {
+  const fd = floorData(data);
+  const at = {};
+  for (const [line, list] of [['code', fd.code], ['paper', fd.paper]]) for (const s of list) for (const c of s.cards) at[keyOf(c)] = { line, st: s.id };
+  for (const c of fd.express) at[keyOf(c)] = { line: 'code', st: c.station };
+  for (const c of fd.belt) at[keyOf(c)] = { line: 'code', st: 'belt' };
+  for (const c of fd.stuck) at[keyOf(c)] = { line: lineOf(c), st: 'stuck', was: c.it ? stationOf({ ...c, it: { ...c.it, blocked: null, paused: false } }) : '' };
+  const rows = data.cards.map(c => {
+    const a = at[keyOf(c)] || { line: 'other', st: '' };
+    const stations = a.line === 'code' ? CODE : a.line === 'paper' ? PAPER : [];
+    const cur = a.st === 'belt' ? -1 : stations.findIndex(s => s.id === (a.st === 'stuck' ? a.was : a.st));
+    const track = stations.map((s, i) => ({ id: s.id, name: s.name, st: a.st === 'stuck' && i === cur ? 'stuck' : i < cur ? 'done' : i === cur ? 'now' : 'next' }));
+    const since = c.it && c.it.step && c.it.step.at ? Date.parse(c.it.step.at) : c.it && c.it.modifiedMs ? c.it.modifiedMs : 0;
+    const where = a.st === 'belt' ? 'On the hand-off belt' : a.st === 'stuck' ? 'Pulled off the line' : cur >= 0 ? stations[cur].name : '';
+    return { c, line: a.line, track, where, since };
+  });
+  const order = (x, y) => (y.c.at - x.c.at);
+  return [
+    { id: 'mine', name: 'Needs you', rows: rows.filter(r => r.c.mine).sort(order) },
+    { id: 'running', name: 'Running', rows: rows.filter(r => !r.c.mine && r.line !== 'other').sort(order) },
+    { id: 'other', name: 'Also waiting', rows: rows.filter(r => !r.c.mine && r.line === 'other').sort(order) }
+  ].filter(g => g.rows.length);
+}
+function rowHtml(r, sel) {
+  const c = r.c;
+  const key = keyOf(c);
+  const on = sel && sel === key;
+  const track = r.track.length ? `<span class="fl-track" aria-hidden="true">${r.track.map(t => `<span class="fl-tk ${h(t.st)}" title="${h(t.name)}"></span>`).join('')}</span>` : '<span class="fl-track"></span>';
+  const label = `${TYPE(c)}: ${c.title}. ${r.where || c.status}${c.mine ? '. Your turn: ' + c.action : ''}`;
+  return `<li><button type="button" class="fl-rowb${c.it && c.it.story ? ' story' : ''}${on ? ' on' : ''}" data-lane-open="${h(key)}" aria-pressed="${!!on}" aria-label="${h(label)}">` +
+    `<span class="fl-rid">${projSw(c)}${c.id ? '#' + h(c.id) : ''}</span><span class="fl-rtitle"><span class="fl-type">${h(TYPE(c))}</span> ${h(c.title)}</span>${track}` +
+    `<span class="fl-rwhere">${h(r.where || c.status)}</span><span class="fl-rtime">${r.since ? h(ago(r.since)) : ''}</span>` +
+    (c.mine && c.action ? `<span class="fl-act">${h(c.action)}</span>` : '<span></span>') + '</button></li>';
+}
+/** The List view, with the open card's panel beside it. */
+export function rowsHtml(data, sel, panel) {
+  const groups = rowsData(data);
+  const body = groups.length ? groups.map(g => `<section class="fl-rgroup" aria-label="${h(g.name)}"><h2>${h(g.name)} <span class="fl-ln">${g.rows.length}</span></h2><ul class="fl-rows" role="list">${g.rows.map(r => rowHtml(r, sel)).join('')}</ul></section>`).join('')
+    : '<p class="ln-empty">Nothing running. Drop something in above.</p>';
+  return `<div class="ln-body fl-body${panel ? ' has-panel' : ''}"><div class="fl-list">${body}</div>${panel || ''}</div>`;
+}
+
+// ------------------------------------------------------------------ Onboard a product (Loom 6.6.0)
+/** Products from Settings (main.js reads them) that are not being onboarded yet. */
+export function onboardable() {
+  const doing = new Set(((S.D && S.D.onboarding) || []).map(o => String(o.product || '').toLowerCase()));
+  return (S.products || []).filter(p => p && !p.archived && (p.repos || []).length && !doing.has(String(p.name || '').toLowerCase()));
+}
+/** The Onboard a product picker under the drop box (opened from its link). */
+export function onboardPickHtml() {
+  if (!S.ui.onboardPick) return '';
+  const list = onboardable();
+  const busy = S.ui.busy && S.ui.busy.onboard;
+  const rows = list.length ? `<ul role="list">${list.map(p => `<li><button type="button" class="ln-prow" data-onboard-go="${h(p.name)}"${busy ? ' disabled' : ''}><span class="ln-ptitle">${h(p.name)}</span><span class="ln-ptype">${h(plural(p.repos.length, 'repo'))}</span></button></li>`).join('')}</ul>`
+    : '<p class="dim">Every product with repos is onboarded or on its way. Add one in Settings, Products.</p>';
+  return `<div class="ln-pick ln-onboard"><p class="ln-pnote">Tandem drafts any missing repo guide and the product note, logs what it cannot find for Teach, and starts a trial run. It asks nothing; the steps show as a new line on the floor.</p>${rows}</div>`;
 }
