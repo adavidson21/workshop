@@ -277,7 +277,6 @@ body[data-loom-tab=lanes] #runs-root .page:has(.fl-body) { max-width: none; }
 #runs-root .fl-other { background: color-mix(in srgb, var(--ink) 4%, var(--surface)); border: 1px solid var(--line); }
 #runs-root .fl-stuck h2, #runs-root .fl-other h2 { margin: 0; font: 700 14.5px/1.2 var(--serif, var(--sans)); }
 #runs-root .fl-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 6px; }
-#runs-root .fl-fold { margin: 0; font-size: 13px; color: var(--muted); }
 /* Narrow windows: the line scrolls sideways instead of squeezing its stations. */
 @media (max-width: 760px) {
   #runs-root .fl-line { overflow-x: auto; }

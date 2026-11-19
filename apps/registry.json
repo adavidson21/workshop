@@ -279,7 +279,7 @@
         "manifestVersion": 1,
         "id": "slate",
         "name": "Loom",
-        "version": "6.6.0",
+        "version": "6.6.1",
         "description": "Your backlog and Tandem's runs as cards in four lanes (Clarify, Plan, Work, Ready), plus Health. Drop in a story, an error log, a question or a hand-off; a card stops only when it needs you.",
         "icon": "icon.svg",
         "entry": "index.html",
