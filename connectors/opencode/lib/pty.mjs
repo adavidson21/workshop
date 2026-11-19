@@ -1,4 +1,4 @@
-// opencode connector: Chat's terminal (Workshop docs/chat.md, Terminal; connector 1.26.0, Chat 4.0.0).
+// opencode connector: Chat's terminal (Workshop docs/chat.md, Terminal; connector 1.27.0, Chat 4.0.0).
 //
 // Real shells in the workspace, run by opencode (its /pty API, opencode 1.x) and shown in Chat with xterm.js. This
 // module holds each terminal's WebSocket to opencode and passes what the shell prints to the page as connector

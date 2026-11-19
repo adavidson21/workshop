@@ -1,4 +1,4 @@
-// opencode connector: Chat's Files (Workshop docs/chat.md, Files; connector 1.26.0, Chat 4.0.0).
+// opencode connector: Chat's Files (Workshop docs/chat.md, Files; connector 1.27.0, Chat 4.0.0).
 //
 // Lists, reads and saves files in the workspace for Chat's editor, so you can look at or fix what an agent wrote
 // without leaving Chat. Paths are relative to the workspace and must stay inside it, through symbolic links too (the

@@ -10,10 +10,10 @@
 // - "you": a chat started from Chat (chat.start, chat.command, chat.shell without a session).
 // - "hub": a hub message's session (hub.run) that you follow up on.
 // - "oc": any other opencode session in the workspace that you opened from All sessions and sent a message in.
-// And one kept out of it: "side", a side chat (chat.side, connector 1.26.0): a copy of a chat so far (opencode's
+// And one kept out of it: "side", a side chat (chat.side, connector 1.27.0): a copy of a chat so far (opencode's
 // fork) for questions that should not land in that chat. One per chat; its turns are shown from the copy point on.
 //
-// A message can carry pasted images (connector 1.26.0): PNG, JPEG, GIF or WebP, sent to opencode as data URLs, at
+// A message can carry pasted images (connector 1.27.0): PNG, JPEG, GIF or WebP, sent to opencode as data URLs, at
 // most MAX_IMAGES and MAX_IMAGE_DATA base64 characters together (the agent takes 1 MB per request; Chat shrinks
 // big pictures before sending). chat.image reads one back for the thread, so turns never carry the pictures.
 // A message with no agent named goes to opencode's default agent (build unless your opencode config says
@@ -540,7 +540,7 @@ export function renameChat({ session, title }, { config, now = Date.now() } = {}
   return { ok: true, title: c.title };
 }
 
-/* ---------- side chats (connector 1.26.0, Chat 4.0.0) ---------- */
+/* ---------- side chats (connector 1.27.0, Chat 4.0.0) ---------- */
 
 /** The side chat of a chat, if it has one. */
 function sideOf(sid) {
