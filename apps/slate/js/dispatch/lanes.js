@@ -16,7 +16,7 @@ import { projectFilterHtml, inProject, projectFilter, projectChip } from './proj
 import { reviewsHtml } from './pr-reviews.js';
 import { noticedHtml, noticedCount } from './noticed.js';
 import { floorHtml, epicPanelHtml, rowsHtml, onboardPickHtml } from './floor.js';
-import { teachHtml, teachCount, teachBlocking, publishAllHtml, publishOf, adoLinkOf, adoLinkHtml, adoNoticeHtml } from './factory.js';
+import { teachHtml, teachCount, teachBlocking, publishOf, adoLinkOf, adoLinkHtml, adoNoticeHtml } from './factory.js';
 // Set by pages.js (it imports this module): the onboarding guide and an ask's source, for Loom 6.0.0's Lanes.
 // var, no initializer: pages.js may run this setter before this module's body (they import each other).
 var onboardTop, askLabel; // eslint-disable-line no-var
@@ -236,29 +236,8 @@ export function dropStart(text, kind, opts = {}) {
 // ------------------------------------------------------------------ drawing
 const CHAT = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg>';
 const X = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
-function dotsHtml(dots) {
-  return `<span class="ln-dots" aria-hidden="true">${dots.map(d => `<i class="ln-${d.lane} ${d.st}" title="${h(d.title)}"></i>`).join('')}</span>`;
-}
 /** A card's key in the lanes (its folder; board:<id>, reviews or session:<id> for the rest). */
 export const keyOf = c => c.folder || (c.board ? 'board:' + c.board : c.reviews ? 'reviews' : 'session:' + c.session);
-function cardHtml(c, sel) {
-  const key = keyOf(c);
-  const on = sel && sel === key;
-  const label = `${KINDS[c.kind].name}: ${c.title}. ${c.status}${c.mine ? '. Your turn: ' + c.action : ''}`;
-  return `<button type="button" class="ln-card${c.mine ? ' mine' : ''}${on ? ' on' : ''}" data-lane-open="${h(key)}" aria-pressed="${!!on}" aria-label="${h(label)}">` +
-    `<span class="ln-top"><span class="ln-kind k-${c.kind}">${h(KINDS[c.kind].name)}</span>${c.id ? `<span class="ln-id">#${h(c.id)}</span>` : ''}${c.ado ? '<span class="ln-ado" title="Linked to ADO">ADO</span>' : ''}<span class="grow"></span>${dotsHtml(c.dots)}</span>` +
-    `<span class="ln-title">${h(c.title)}</span><span class="ln-status">${h(c.status)}</span>` +
-    (c.mine ? `<span class="ln-act">${h(c.action)}</span>` : '') + '</button>';
-}
-function laneHtml(l, sel, done) {
-  // Ready: Publish all ready (Gate 2 for every build with nothing to answer).
-  const extra = l.id === 'ready' ? publishAllHtml(l.cards.map(c => c.it).filter(Boolean)) : '';
-  return `<section class="ln-lane ln-${l.id}" aria-label="${h(l.name)}"><header><span class="ln-dot" aria-hidden="true"></span><h2>${h(l.name)}</h2><span class="ln-n">${l.cards.length}</span></header>${extra}` +
-    `<p class="ln-desc">${h(l.desc)}</p>` +
-    (l.cards.length ? l.cards.map(c => cardHtml(c, sel)).join('') : '<p class="ln-empty">Nothing here.</p>') +
-    (l.id === 'ready' && done.length ? `<button type="button" class="lnk plain ln-done" data-lane-done="1" aria-expanded="${!!S.ui.laneDone}">${done.length} done today</button>` +
-      (S.ui.laneDone ? `<ul class="ln-donelist" role="list">${done.map(d => `<li><button type="button" class="lnk plain" data-open-run="${h(d.folder)}">${d.id ? '#' + h(d.id) + ' ' : ''}${h(d.title)}</button></li>`).join('')}</ul>` : '') : '') + '</section>';
-}
 function panelHtml(key, data) {
   // The Review card opens even when no teammate's PR waits (the old Reviews address, Review a link).
   const c = data.cards.find(x => keyOf(x) === key) || (key === 'reviews' ? { reviews: true, kind: 'review', lane: 'ready', title: "Teammates' PRs", id: null } : null);
@@ -329,17 +308,16 @@ export function lanesHtml() {
   const top = (S.digestHtml ? S.digestHtml(h) : '') + (onboardTop ? onboardTop() : '') + adoNoticeHtml();
   if (noticed) return `<div class="ln-page">${top}${dropHtml()}${chips}${noticedHtml()}</div>`;
   if (teach) return `<div class="ln-page">${top}${dropHtml()}${chips}${teachHtml()}</div>`;
-  // Loom 6.4.0: Floor (default) draws the same cards as stations on a line (floor.js). Loom 6.6.0: List is rows with a
-  // station track (floor.js rowsHtml); Lanes keeps the four lanes (stored as 'list', its value before 6.6.0).
+  // Loom 6.4.0: Floor (default) draws the same cards as stations on a line (floor.js). Loom 6.7.0: List is rows with a
+  // station track (floor.js rowsHtml); the four lanes are gone (one way to see the work).
   const view = laneView();
-  const views = `<div class="seg ln-views" role="group" aria-label="View">${[['floor', 'Floor'], ['rows', 'List'], ['list', 'Lanes']].map(([k, label]) =>
+  const views = `<div class="seg ln-views" role="group" aria-label="View">${[['floor', 'Floor'], ['list', 'List']].map(([k, label]) =>
     `<button type="button" class="seg-b${k === view ? ' on' : ''}" data-lane-view="${k}" aria-pressed="${k === view}">${label}</button>`).join('')}</div>`;
-  const body = view === 'list' ? `<div class="ln-body${panel ? ' has-panel' : ''}"><div class="ln-lanes">${data.lanes.map(l => laneHtml(l, sel, data.doneList)).join('')}</div>${panel}</div>`
-    : view === 'rows' ? rowsHtml(data, sel, panel) : floorHtml(data, sel, panel);
+  const body = view === 'list' ? rowsHtml(data, sel, panel) : floorHtml(data, sel, panel);
   return `<div class="ln-page">${top}${dropHtml()}<div class="ln-bar">${chips}${views}</div>${projectFilterHtml(workItems())}${body}</div>`;
 }
-/** Floor, List (rows) or Lanes ('list'), kept in this browser with the project filter. Floor is the default. */
-export const laneView = () => (S.view && ['list', 'rows'].includes(S.view.lanes) ? S.view.lanes : 'floor');
+/** Floor or List, kept in this browser with the project filter. Floor is the default. ('rows' was List in 6.6.) */
+export const laneView = () => (S.view && ['list', 'rows'].includes(S.view.lanes) ? 'list' : 'floor');
 /** The tab bar's count on Lanes: cards waiting on you. */
 export function lanesCount() { return lanesData('all').counts.mine + teachBlocking(); }
 /** The run open in the lanes' panel, for wantedFiles (its gate's file is read inline). */

@@ -46,7 +46,7 @@ test('the flow cards: seven to pick from, each step named, the ones that stop fo
   const card = flowCardHtml(FLOWS.find(f => f.id === 'feature'));
   assert.match(card, /<i class="maybe" title="Review \(you, only on blockers\)">/);
   assert.match(card, /4 steps, 2 stops for you/);
-  assert.match(flowCardHtml(FLOWS.find(f => f.id === 'request')), /A card in Lanes, worked in its panel/);
+  assert.match(flowCardHtml(FLOWS.find(f => f.id === 'request')), /A card on the floor, worked in its panel/);
   for (const f of FLOWS) for (const s of stepsOf(f, 'feature')) assert.ok(s.name && s.what, f.id + '.' + s.key + ' says what it does');
 });
 
