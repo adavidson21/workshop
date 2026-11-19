@@ -406,7 +406,8 @@ function openKey(key) {
   const it = itemByKey(key);
   if (!it) return false;
   if (it.kind === 'pr') { setTab('reviews'); focusWanted = { id: itemKey(it), until: Date.now() + 15000 }; schedule(); }
-  else openRun(it.folder, 'work');
+  // Loom 6.4.0: a run (Docket's agent queue, notifications) opens its panel beside the floor, not its own page.
+  else { ui().run = null; ui().laneFilter = 'all'; ui().laneSel = it.folder; setBoardDrawer(''); setTab('lanes', true); }
   return true;
 }
 let keyWanted = null;
@@ -1017,6 +1018,12 @@ listen('click', ev => {
   if (t.closest('[data-lane-close]')) { ui().laneSel = null; setBoardDrawer(''); paint(); return; }
   const lf = t.closest('[data-lane-filter]');
   if (lf) { ui().laneFilter = lf.getAttribute('data-lane-filter'); paint(); return; }
+  // Floor or List (Loom 6.4.0), kept with the project filter; a station's +N more; the folded paper line.
+  const lv = t.closest('[data-lane-view]');
+  if (lv) { S.view.lanes = lv.getAttribute('data-lane-view') === 'list' ? 'list' : 'floor'; saveViewNow(); paint(); return; }
+  const fmore = t.closest('[data-floor-more]');
+  if (fmore) { const k = fmore.getAttribute('data-floor-more'); ui().floorOpen = { ...(ui().floorOpen || {}), [k]: !(ui().floorOpen || {})[k] }; paint(); return; }
+  if (t.closest('[data-floor-paper]')) { ui().floorPaper = true; paint(); return; }
   if (t.closest('[data-lane-start]')) { dropGo(); return; }
   // Noticed (Loom 6.1.0): start as a Quick change, send to Docket, or dismiss.
   const obsStart = t.closest('[data-obs-start]');

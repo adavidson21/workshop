@@ -163,8 +163,10 @@ test('project sheet: create sends only what was typed; edit sends only what chan
   assert.doesNotMatch(projectSheetHtml(), /Folder/, 'no folders in 2.0');
 });
 
-test('view prefs: only the project filter; bad storage gives the defaults; the 1.x sidebar key is removed', () => {
-  assert.deepEqual(cleanView({ project: 'orders-api', folders: [1] }), { project: 'orders-api' });
+test('view prefs: the project filter and Floor or List (6.4.0); bad storage gives the defaults; the 1.x sidebar key is removed', () => {
+  assert.deepEqual(cleanView({ project: 'orders-api', folders: [1] }), { project: 'orders-api', lanes: 'floor' });
+  assert.deepEqual(cleanView({ project: 'all', lanes: 'list' }), { project: 'all', lanes: 'list' });
+  assert.equal(cleanView({ lanes: 'grid' }).lanes, 'floor', 'anything else is the floor');
   assert.deepEqual(cleanView({ project: 'bad id!' }), emptyView());
   assert.deepEqual(cleanView('nope'), emptyView());
   const throwing = { getItem() { throw new Error('blocked'); }, setItem() { throw new Error('blocked'); } };
@@ -176,7 +178,7 @@ test('view prefs: only the project filter; bad storage gives the defaults; the 1
   assert.deepEqual(loadView(ms), emptyView());
   assert.equal(ms.m.has(OLD_KEY), false, 'the old sidebar state is gone');
   assert.ok(saveView(ms, { project: 'billing' }));
-  assert.deepEqual(loadView(ms), { project: 'billing' });
+  assert.deepEqual(loadView(ms), { project: 'billing', lanes: 'floor' });
 });
 
 test('project names are escaped', () => {
