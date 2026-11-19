@@ -95,6 +95,14 @@ def samples_registry(tmp):
     return out
 
 
+def docket_personal_on(frame, page):
+    """Docket 12.0.0 hides personal tasks inside Workshop by default (its agent queue). Checks that use Docket's own
+    tasks turn the Personal tasks switch on first, the way Settings, Apps does (ws.appSettings)."""
+    if not docket_declares('personalTasks'): return
+    frame.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'prioritizer'}); await ws.appSettings.set({personalTasks: true}); }""")
+    page.wait_for_timeout(800)
+
+
 def docket_declares(setting):
     try:
         with open(os.path.join(DOCKET, 'app.json')) as f: return any(x.get('id') == setting for x in json.load(f).get('settings', []))
@@ -1424,6 +1432,7 @@ def agents_checks(b, watch):
         # Prioritizer: stages and Start through the connector.
         pg.keyboard.press('Alt+1'); pg.wait_for_timeout(1500)
         pf = next(f for f in pg.frames if '/apps/prioritizer/' in f.url)
+        docket_personal_on(pf, pg)
         add_ado_task(pf, 'w1', 'Login timeout', '41207', 'User Story')
         add_ado_task(pf, 'w2', 'Brand new', '77777', 'User Story'); pg.wait_for_timeout(800)
         chip = pf.locator('.chip.eng')

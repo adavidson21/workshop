@@ -19,6 +19,7 @@ import { prQueueData } from "./pr-queue.mjs";
 import { gapsData } from "./gaps.mjs";
 import { publishData } from "./publish.mjs";
 import { overlapData } from "./overlap.mjs";
+import { adoLinksData, adoNotice } from "./ado-link.mjs";
 
 export function liveData() {
   const items = {};
@@ -47,7 +48,7 @@ export function liveData() {
 /** The `state` action: the .work model (lib/workparser.mjs) plus live opencode state, as the page got it. */
 export function pageData() {
   const base = model || { items: [], repos: [], activity: [], workspace: opt.workspace, generatedMs: Date.now(), generated: new Date().toISOString() };
-  return { ...base, tandem: { ado: adoConfigured() }, projects: projectsData(folderForToken), reviews: reviewSummary(), observations: observationsData(), autopilotOptions: autoOptions(), gaps: gapsData(), publish: publishData(base.items), overlaps: overlapData(base.items), liveMode: { error: modelError, live: liveData() } };
+  return { ...base, tandem: { ado: adoConfigured() }, projects: projectsData(folderForToken), reviews: reviewSummary(), observations: observationsData(), autopilotOptions: autoOptions(), gaps: gapsData(), publish: publishData(base.items), overlaps: overlapData(base.items), adoLinks: adoLinksData(base.items), adoNotice: adoNotice(), liveMode: { error: modelError, live: liveData() } };
 }
 
 // ------------------------------------------------------------------ events

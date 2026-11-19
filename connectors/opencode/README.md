@@ -62,6 +62,10 @@ Since 1.21.0 (eng-agents Core 4.9.0; Workshop project doc `claude/software-facto
 - Publish: `state.publish` is `{<folder>: {ready, questions, ui, published, pushed}}` for items that are ready or were published (`_dashboard/published.json`). `ui` is each `ui/results-*.json` (`before` from `/start`, `after` from `/review`).
 - Overlaps: `state.overlaps` is `{<folder>: [{with, files}]}` for active items whose `tasks.md` files overlap. Loom offers **Approve, build after it** (`autopilot` with `after`).
 
+## Work items as the source
+
+Since 1.22.0 (Workshop project doc `claude/work-items-source-v1-plan.md`). Tandem's work items are the source of truth; ADO is an optional link per item, one line in `workitem.md` (`- ADO item: <n>` linked, `- ADO item: unlinked` or `unlinked (was <n>)` local; no line: a numbered item is linked, an `L<n>` item local). `state.adoLinks` is `{<folder>: {linked, ado, was}}`. On the first start of 1.22.0 every numbered item with no such line is unlinked once (recorded in `_dashboard/ado-links.json`); `state.adoNotice` (`{count, at}`) tells Loom to say so until `ado.notice.seen`. Items started from ADO afterwards are linked as before. Nothing here talks to ADO: Loom's Create in ADO calls the ADO connector's `workitem.create`, then `item.link`.
+
 ## Approved AI providers
 
 Dispatch sends work to whatever AI provider opencode uses, so at work that should be only the provider your company approved. With `approvedProviders` set, `workshop doctor` (`connectors/opencode/lib/providers.mjs`) reads opencode's config the way opencode merges it (global `~/.config/opencode/opencode.json[c]`, `OPENCODE_CONFIG`, the workspace's `opencode.json[c]` and `.opencode/opencode.json[c]`, `OPENCODE_CONFIG_CONTENT`, and the managed folder) and its saved logins (`~/.local/share/opencode/auth.json`), and fails when:
@@ -139,6 +143,9 @@ Call with `POST /api/connectors/opencode/<action>` and `{"args": {...}}` (write 
 | `gap.answer` | yes | `id` (`G<n>`), `answer` (one line, up to 500 characters) | (new) | 1.21.0: runs `/teach <id> <answer>` (eng-agents Core 4.9.0), which writes the answer where it belongs and closes the gap. 409 when the gap is answered or an answer is on its way. Builds waiting on the gap resume when `/teach` closes it. |
 | `publish` | yes | `folder` | (new) | 1.21.0, Gate 2: for an item whose next step is ship, pushes every branch in `pr.md` (the `push` rules: never the target or default branch, never force) and records it. Returns `{ok, folder, repos: [{repo, branch, target, pr, message}]}` with each repo's create PR link. 409 when the item is not ready. |
 | `publish.all` | yes | optional `project` | (new) | 1.21.0: publishes every ready item with no review questions and no failed UI check. Returns `{ok, published, failed: [{folder, message}]}`. |
+| `item.link` | yes | `folder`, `ado` (a number, `#` or `AB#` allowed) | (new) | 1.22.0: links a work item to an ADO work item: writes `- ADO item: <n>` in its `workitem.md`. |
+| `item.unlink` | yes | `folder` | (new) | 1.22.0: makes it local: `- ADO item: unlinked (was <n>)`. Workshop and Tandem never update ADO for it again. |
+| `ado.notice.seen` | no | | (new) | 1.22.0: hides the one-time notice (`state.adoNotice`). |
 | `ui.image` | no | `folder`, `file` (`<name>/<page>.png` under the item's `ui/`) | (new) | 1.21.0: a UI check screenshot as `{file, dataUrl}` (PNG, at most 5 MB). |
 | `project.move` | yes | `id`, `dir` (-1 or 1) | (new) | 1.21.0: moves a project up or down; autopilot's fair slots go by this order. |
 | `observation.start` | yes | `id`, optional `project` | (new) | 1.20.0: starts one as a local Quick change (`start.local`, lane `quick`, the text as title, where it came from in the description) and marks it started. Returns what `start.local` returns. |

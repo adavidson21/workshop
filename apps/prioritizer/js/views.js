@@ -10,6 +10,7 @@ import { carryCandidates, carryOver, carryPending, currentSection, dayReady, day
 import { trackerReview } from './tracker.js';
 import { fmtUntil, focusNow, heldUntil } from './focus-hours.js';
 import { holdsAll, isHeldNow } from '../../../shared/focus.js';
+import { agentsHtml, personalOffHtml, personalShown } from './agent-queue.js';
 /* Prioritizer: The views: Today (Inbox, Up next and Today), Done with the weekly recap, People.
 
    Today is where the day happens (Docket 7.0.0, Workshop claude/today-home-simplify-v1-plan.md). Work moves left to
@@ -235,7 +236,9 @@ function todayCol(rail){
     <div class="colbody">
       ${left.length ? `<div class="banner carry"><span class="ctext">${ICON.stale}<b>${left.length}</b> left from before</span>
         <button class="ibtn" data-left="clear" aria-label="Send back to their lists" data-tip="Send back to their lists">${ICON.x}</button><button class="btn primary" data-left="carry" data-tip="${plural(left.length, 'unfinished task')} from an earlier day. Keep them on Today, in the same kind of block.">${ICON.sun}<span>Keep</span></button></div>` : ''}
+      ${agentsHtml()}
       ${revs}
+      ${personalOffHtml(state.tasks.filter(t => !t.done && !personalShown(t)).length)}
       ${count.length ? `<div class="progress"><i style="width:${Math.round(cdone / count.length * 100)}%"></i></div>` : ''}
       ${body}
       ${count.filter(t => !t.done).length > 5 ? `<p class="soft">${count.filter(t => !t.done).length} tasks on Today. Keep it to 3 to 5.</p>` : ''}

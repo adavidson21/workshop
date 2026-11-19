@@ -27,7 +27,7 @@ To find an item by id, list `.work/` and match the one folder that starts with `
 
 | File | Written by | What is read from it |
 | --- | --- | --- |
-| `workitem.md` | `/start` (from `Get-WorkItem.ps1` or pasted) | Title line, `Type`, `State`, `Link`, `ADO`, `Fetched` |
+| `workitem.md` | `/start` (from `Get-WorkItem.ps1` or pasted); the `ADO item` line by the opencode connector (1.22.0) | Title line, `Type`, `State`, `Link`, `ADO`, `Fetched`; `ADO item` (`<n>`, `unlinked` or `unlinked (was <n>)`: whether the item is linked to ADO, eng-agents pipeline guide "Who links to ADO") |
 | `repos.md` | `/start` | `Lane`, the repo table |
 | `brief.md` | `/start` (skipped with `--cold`) | Nothing is parsed: shown as Markdown for the person (Tandem Core 2.7.0 and later) |
 | `spec.md` | `/spec` | `Status:` gate |

@@ -13,6 +13,7 @@ import { isRef } from '../../../shared/people.js';
 import { PR_HOLD_DEFAULT, cleanAi, cleanHeld, cleanHoldMinutes } from './pr-ai-model.js';
 import { cleanRowFields } from './row-fields-model.js';
 import { cleanFollow } from './delegate-model.js';
+import { personalShown } from './agent-queue.js';
 /* Prioritizer: Board state: shape, migration, sanitize, saving (through storage.js), per-window UI state, list and scope helpers. */
 /* ---------- state ---------- */
 const PR_SHOW = ['all', 'mine', 'none'];   // the PR filter's values (see shown)
@@ -229,7 +230,8 @@ const defaultListId = () => state.scope !== 'all' && listById(state.scope) ? sta
    'none'. Per window, like scope. Picking the Pull requests list itself always shows its PRs, so 'none' never
    leaves you looking at an empty list you chose. Work items, your own tasks and done tasks are never hidden. */
 function shown(t){
-  return productShown(t) && prShown(t);
+  // Personal tasks off (Docket 12.0.0, agent-queue.js): only PR reviews show; nothing is deleted.
+  return productShown(t) && prShown(t) && personalShown(t);
 }
 /* The product filter (Workshop UX v1): per window, like scope. A task shows when it names the product picked
    (its Product field, or +product in Quick add). A product that is gone from Settings filters nothing. */

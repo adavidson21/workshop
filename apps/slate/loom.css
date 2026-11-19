@@ -221,3 +221,10 @@ body[data-loom-tab=lanes][data-board-drawer="1"] #board-root .work > .panel:not(
 #runs-root .gap textarea { width: 100%; margin-top: 6px; font: inherit; }
 #runs-root .gap .row { margin-top: 6px; }
 #runs-root .ln-puball { margin: 0 0 8px; }
+/* ADO links (Loom 6.3.0): local by default, an ADO chip on linked builds. */
+#runs-root .ln-ado { font-size: 11px; padding: 0 6px; border-radius: 4px; background: var(--panel); color: var(--muted); margin-left: 6px; }
+#runs-root .ln-link { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 8px 0; font-size: 13px; }
+#runs-root .ln-linkform { display: inline-flex; gap: 6px; align-items: center; }
+#runs-root .ln-linkform input { width: 9em; }
+#runs-root .ln-keep { display: block; font-size: 13px; margin-top: 6px; }
+#runs-root .ln-notice { display: flex; gap: 12px; align-items: center; justify-content: space-between; margin-bottom: 10px; }
