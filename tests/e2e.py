@@ -1276,13 +1276,13 @@ def agents_checks(b, watch):
               and af.locator('.fl-card.on[data-lane-open="41610-rate-limit-headers"]').count() == 1 and af.get_attribute('#app .tab.on', 'data-tab') == 'lanes')
         check('the shell keeps the address, and the name and theme are the shell\'s', pg.url.endswith('#/slate') and af.locator('#app .brand').count() == 0 and af.locator('[data-theme-menu]').count() == 0)
 
-        # Loom 6.4.0: the floor is the default view: a code line and a paper line of stations, stuck runs in a bin.
+        # Loom 6.4.0: the floor is the default view: a code line and a research line of stations, stuck runs in a bin.
         af.click('.ln-panel [data-lane-close]'); pg.wait_for_timeout(200)
         check('the floor is the default: Floor is pressed, the code line has its seven stations in order', af.get_attribute('[data-lane-view=floor]', 'aria-pressed') == 'true'
               and af.eval_on_selector_all('.fl-code .fl-name', 'els => els.map(e => e.innerText)') == ['Plan desk', 'Build bay', 'Test bench', 'UI check', 'Review', 'Fix shop', 'Loading dock'])
         check('a run at Ship is at the Loading dock, a root cause at the Plan desk, a stopped run pulled off the line', af.locator('.fl-code .st-dock [data-lane-open="41610-rate-limit-headers"]').count() == 1
               and af.locator('.fl-code .st-plan [data-lane-open="41300-export-retry-fails"]').count() == 1 and af.locator('.fl-stuck [data-lane-open="41502-csv-export"]').count() == 1)
-        check('a spike at its findings is in the paper line\'s Out tray', af.locator('.fl-paper .st-out [data-lane-open="spike-cache-options"]').count() == 1)
+        check('a spike at its findings is in the research line\'s Out tray', af.locator('.fl-paper .st-out [data-lane-open="spike-cache-options"]').count() == 1)
         af.click('.fl-code .st-plan [data-lane-open="41300-export-retry-fails"]'); pg.wait_for_timeout(300)
         check('a card on the floor opens the same panel as the lanes', af.locator('.fl-body .ln-panel .icard.gate').count() == 1)
         af.click('.ln-panel [data-lane-close]'); pg.wait_for_timeout(200)

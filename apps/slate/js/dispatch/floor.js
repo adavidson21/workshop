@@ -3,8 +3,9 @@
    at, so a busy station is visibly taller. Two lines:
    - Code line (Build: feature, bug, quick change): Plan desk, Build bay, Test bench, UI check, Review, Fix shop,
      Loading dock. Quick changes Tandem is building hands-off ride the express lane above it.
-   - Paper line (Ask, Diagnose, Docs, Epic): Plan desk, Research, Write, Review, Out tray. It ends in a brief or a
-     breakdown, never a PR, and its runs never take a build slot.
+   - Research line (Ask, Diagnose, Docs, Epic): Plan desk, Investigate, Write, Review, Out tray. It ends in a brief
+     or a breakdown, never a PR, and its runs never take a build slot. Always shown, even when empty (6.6.1; it was
+     the "paper line" and folded when empty before).
    Stopped cards leave the line for the "Pulled off the line" bin. Everything else (requests, hand-offs, teammates'
    PRs, other sessions) is a chip under the lines. A card's station follows from its lane, stage, autopilot step and
    what its session says it is doing; nothing is stored. Clicking a card opens the same panel as the lanes
@@ -35,7 +36,7 @@ export const CODE = [
 ];
 export const PAPER = [
   { id: 'plan', name: 'Plan desk', you: true, desc: 'Starting up' },
-  { id: 'research', name: 'Research', desc: 'Reading the code' },
+  { id: 'research', name: 'Investigate', desc: 'Reading the code' },
   { id: 'write', name: 'Write', desc: 'Drafting' },
   { id: 'review', name: 'Review', desc: 'Checking' },
   { id: 'out', name: 'Out tray', you: true, desc: 'Read it, or split it' }
@@ -224,10 +225,8 @@ function handoffHtml(fd, sel) {
 /** The floor, with the open card's panel beside it (the lanes' own panel, passed in). */
 export function floorHtml(data, sel, panel) {
   const fd = floorData(data);
-  const paperN = fd.paper.reduce((t, s) => t + s.cards.length, 0);
   const code = lineHtml('code', 'Code line', 'Feature, bug and quick change. Ends in a PR.', fd.code, sel, fd.slots, expressHtml(fd, sel));
-  const paper = paperN || S.ui.floorPaper ? lineHtml('paper', 'Paper line', 'Investigate, error log, docs and epics. Ends in a brief or a breakdown.', fd.paper, sel, null, '')
-    : `<p class="fl-fold">Paper line: nothing running. <button type="button" class="lnk plain" data-floor-paper="1">Show it</button></p>`;
+  const paper = lineHtml('paper', 'Research line', 'Investigate, error log, docs and epics. Ends in a brief or a breakdown.', fd.paper, sel, null, '');
   const stuck = fd.stuck.length ? `<section class="fl-stuck" aria-label="Pulled off the line"><h2>Pulled off the line</h2><div class="fl-row">${fd.stuck.map(c => chipHtml(c, sel)).join('')}</div></section>` : '';
   const other = fd.other.length ? `<section class="fl-other" aria-label="Also waiting"><h2>Also on the floor</h2><div class="fl-row">${fd.other.map(c => chipHtml(c, sel)).join('')}</div></section>` : '';
   return `<div class="ln-body fl-body${panel ? ' has-panel' : ''}"><div class="fl-floor">${newLinesHtml(fd, sel)}${code}${stuck}${handoffHtml(fd, sel)}${paper}${other}</div>${panel || ''}</div>`;

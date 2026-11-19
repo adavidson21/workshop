@@ -1024,7 +1024,7 @@ listen('click', ev => {
   if (t.closest('[data-lane-close]')) { ui().laneSel = null; setBoardDrawer(''); paint(); return; }
   const lf = t.closest('[data-lane-filter]');
   if (lf) { ui().laneFilter = lf.getAttribute('data-lane-filter'); paint(); return; }
-  // Floor or List (Loom 6.4.0), kept with the project filter; a station's +N more; the folded paper line.
+  // Floor or List (Loom 6.4.0), kept with the project filter; a station's +N more.
   const lv = t.closest('[data-lane-view]');
   if (lv) { const v = lv.getAttribute('data-lane-view'); S.view.lanes = ['list', 'rows'].includes(v) ? v : 'floor'; saveViewNow(); paint(); return; }
   // Onboard a product from Loom (6.6.0): the picker lists your products from Settings; a pick runs product.onboard.
@@ -1037,7 +1037,6 @@ listen('click', ev => {
   }
   const fmore = t.closest('[data-floor-more]');
   if (fmore) { const k = fmore.getAttribute('data-floor-more'); ui().floorOpen = { ...(ui().floorOpen || {}), [k]: !(ui().floorOpen || {})[k] }; paint(); return; }
-  if (t.closest('[data-floor-paper]')) { ui().floorPaper = true; paint(); return; }
   if (t.closest('[data-lane-start]')) { dropGo(); return; }
   // Noticed (Loom 6.1.0): start as a Quick change, send to Docket, or dismiss.
   const obsStart = t.closest('[data-obs-start]');

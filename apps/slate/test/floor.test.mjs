@@ -1,5 +1,5 @@
 // Loom 6.4.0 floor (js/dispatch/floor.js; plan: claude/loom-floor-v1-plan.md in the Workshop project): the lanes'
-// cards drawn as stations on a code line and a paper line, stuck cards in their own bin, Floor or List. On the
+// cards drawn as stations on a code line and a research line, stuck cards in their own bin, Floor or List. On the
 // synthetic fixture.
 import { test, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
@@ -36,7 +36,7 @@ const where = () => {
   return out;
 };
 
-test('two lines: the code line ends at the Loading dock, the paper line at the Out tray; your gates are the ends', () => {
+test('two lines: the code line ends at the Loading dock, the research line at the Out tray; your gates are the ends', () => {
   assert.deepEqual(CODE.map(s => s.id), ['plan', 'build', 'test', 'ui', 'review', 'fix', 'dock']);
   assert.deepEqual(PAPER.map(s => s.id), ['plan', 'research', 'write', 'review', 'out']);
   assert.deepEqual(CODE.filter(s => s.you).map(s => s.id), ['plan', 'dock']);
@@ -123,13 +123,13 @@ test('Floor is the default; List shows the four lanes; a card opens the same pan
   assert.match(html, /data-lane-view="list" aria-pressed="true"/);
 });
 
-test('the paper line folds when nothing is on it; requests, hand-offs and reviews sit under the lines', () => {
+test('the research line always shows, even with nothing on it; requests, hand-offs and reviews sit under the lines', () => {
   S.D.items = S.D.items.filter(i => i.kind === 'item');
   let html = floorHtml(lanesData('all'), '', '');
-  assert.match(html, /Paper line: nothing running\. <button type="button" class="lnk plain" data-floor-paper="1">Show it<\/button>/);
-  S.ui.floorPaper = true;
-  html = floorHtml(lanesData('all'), '', '');
-  assert.match(html, /class="fl-line fl-paper"/);
+  assert.match(html, /<section class="fl-line fl-paper" aria-label="Research line"><header class="fl-lh"><h2>Research line<\/h2>/);
+  assert.match(html, /<span class="fl-name">Investigate<\/span>/);
+  assert.match(html, /<span class="fl-ln">0 items<\/span>/);
+  assert.doesNotMatch(html, /data-floor-paper/);
   setBoardFeed([{ id: 'w_1', title: 'Bulk resend <b>', adoId: null, kind: 'request', lane: 'clarify', mine: true, action: 'Brief ready', status: 'Brief', at: 2 }]);
   html = floorHtml(lanesData('all'), '', '');
   assert.match(html, /<section class="fl-other" aria-label="Also waiting"><h2>Also on the floor<\/h2>/);
@@ -220,7 +220,7 @@ test('List is rows grouped Needs you, Running and Also waiting, each with its st
   assert.equal(stuck.where, 'Pulled off the line');
   assert.ok(stuck.track.some(t => t.st === 'stuck'), 'the station it stopped at is marked');
   const spike = groups[0].rows.find(r => r.c.folder === 'spike-cache-options');
-  assert.equal(spike.track.length, 5, 'paper runs use the paper line');
+  assert.equal(spike.track.length, 5, 'paper runs use the research line');
   S.view.lanes = 'rows';
   let html = lanesHtml();
   assert.match(html, /data-lane-view="rows" aria-pressed="true">List</);
