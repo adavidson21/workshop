@@ -482,6 +482,7 @@ label.btn{cursor:pointer}
 .person-form .for-tandem .cfg-row>.cfg-input{flex:1;width:auto;min-width:12rem}
 .pc-confirm{margin:.5rem 0 0;padding:.6rem .8rem;border-left:3px solid var(--accent);background:var(--panel, transparent);font-size:.85rem}
 .pc-confirm p{margin:0 0 .4rem}
+.pc-confirm input[type=text]{display:block;width:100%;max-width:28rem;margin:.2rem 0 .5rem}
 .gl-table{width:100%;border-collapse:collapse;font-size:.88rem}
 .gl-table th{text-align:left;font:500 12px/1.4 var(--mono);letter-spacing:.05em;text-transform:uppercase;color:var(--eyebrow);padding:.2rem .4rem .4rem}
 .gl-table td{padding:.2rem .3rem;vertical-align:middle;border-top:1px solid var(--line)}

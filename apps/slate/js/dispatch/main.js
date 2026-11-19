@@ -1028,7 +1028,17 @@ listen('click', ev => {
   const lv = t.closest('[data-lane-view]');
   if (lv) { S.view.lanes = lv.getAttribute('data-lane-view') === 'list' ? 'list' : 'floor'; saveViewNow(); paint(); return; }
   // Onboard a product from Loom (6.6.0): the picker lists your products from Settings; a pick runs product.onboard.
-  if (t.closest('[data-onboard-toggle]')) { ui().onboardPick = !ui().onboardPick; if (ui().onboardPick) readProducts(); paint(); return; }
+  if (t.closest('[data-onboard-toggle]')) { ui().onboardPick = !ui().onboardPick; if (ui().onboardPick) { ui().coverPick = false; readProducts(); } paint(); return; }
+  // Add regression tests (6.8.0): the same product list; a pick runs tests.cover with the optional area.
+  if (t.closest('[data-cover-toggle]')) { ui().coverPick = !ui().coverPick; if (ui().coverPick) { ui().onboardPick = false; readProducts(); } paint(); return; }
+  const cg = t.closest('[data-cover-go]');
+  if (cg) {
+    const product = cg.getAttribute('data-cover-go');
+    const box = document.getElementById('ln-cover-area');
+    const area = box ? box.value.trim() : '';
+    act(() => write('tests.cover', area ? { product, area } : { product }), () => { ui().coverPick = false; if (box) box.value = ''; if (ui().drafts) ui().drafts['lanes:cover'] = ''; toast(`Tandem is planning regression tests for ${product}. They show on the floor marked Tests.`); }, 'cover');
+    return;
+  }
   const og = t.closest('[data-onboard-go]');
   if (og) {
     const product = og.getAttribute('data-onboard-go');

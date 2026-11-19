@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { S, resetUi } from '../js/dispatch/state.js';
 import { lanesData, lanesHtml, laneView } from '../js/dispatch/lanes.js';
-import { CODE, PAPER, STACK_MAX, lineOf, stationOf, floorData, floorHtml, epicPanelHtml, rowsData, rowsHtml, onboardPickHtml, toldStep } from '../js/dispatch/floor.js';
+import { CODE, PAPER, STACK_MAX, lineOf, stationOf, floorData, floorHtml, epicPanelHtml, rowsData, rowsHtml, onboardPickHtml, coverPickHtml, testsBadge, toldStep } from '../js/dispatch/floor.js';
 import { setBoardFeed } from '../js/loom.js';
 
 const FIXTURE = JSON.parse(fs.readFileSync(new URL('./fixtures/state.json', import.meta.url), 'utf8'));
@@ -253,4 +253,35 @@ test('Onboard a product lists your products with repos that are not onboarding y
   assert.doesNotMatch(html, /No repos|Old|Billing/);
   S.products = [];
   assert.match(onboardPickHtml(), /Add one in Settings, Products/);
+});
+
+test('regression tests on the floor (Loom 6.8.0): cards show failing, flaky or added tests; backfill items are marked Tests', () => {
+  const it = S.D.items.find(i => i.folder === '41207-fix-login-timeout');
+  assert.equal(testsBadge(it), null, 'no badge before the suite runs');
+  it.tests = { verdict: 'fail', passed: 40, failed: 2, flaky: 0, newTests: 1, acceptance: ['AC-1'], at: '2026-10-21T11:50:00Z' };
+  assert.match(floorHtml(lanesData('all'), '', ''), /<span class="fl-title">[^<]*<\/span><span class="fl-tst bad" aria-hidden="true">2 tests failing<\/span>/);
+  assert.match(floorHtml(lanesData('all'), '', ''), /aria-label="[^"]*\. 2 tests failing/);
+  it.tests = { ...it.tests, verdict: 'pass', failed: 0, flaky: 1 };
+  assert.deepEqual(testsBadge(it), { cls: 'warn', text: '1 flaky' });
+  it.tests = { ...it.tests, flaky: 0, newTests: 3 };
+  assert.deepEqual(testsBadge(it), { cls: 'ok', text: '+3 tests' });
+  it.tests = { ...it.tests, verdict: 'skipped' };
+  assert.equal(testsBadge(it), null, 'a skipped suite says nothing on the card');
+  it.coverage = 'Sample Portal';
+  assert.match(floorHtml(lanesData('all'), '', ''), /<span class="fl-type">Tests<\/span>/);
+});
+
+test('Add regression tests lists your products with repos; a pick runs tests.cover with the optional area', () => {
+  let html = lanesHtml();
+  assert.match(html, /data-cover-toggle="1" aria-expanded="false"[^>]*>Add regression tests</);
+  assert.equal(coverPickHtml(), '', 'closed until opened');
+  S.ui.coverPick = true;
+  S.products = [{ name: 'Sample Portal', repos: ['api'] }, { name: 'No repos', repos: [] }, { name: 'Old', repos: ['x'], archived: true }];
+  html = coverPickHtml();
+  assert.match(html, /data-cover-go="Sample Portal"><span class="ln-ptitle">Sample Portal<\/span>/);
+  assert.match(html, /id="ln-cover-area" data-draft="lanes:cover"/);
+  assert.doesNotMatch(html, /No repos|Old/);
+  assert.match(lanesHtml(), /ln-cover/);
+  S.products = [];
+  assert.match(coverPickHtml(), /Add one in Settings, Products/);
 });

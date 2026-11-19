@@ -64,6 +64,38 @@ export function uiResults(folder) {
   return out.sort((a, b) => (a.name === "before" ? -1 : b.name === "before" ? 1 : a.name.localeCompare(b.name)));
 }
 
+/** Regression suite results for an item (eng-agents Core 4.14.0): [{name, verdict, reason, passed, failed, flaky,
+ * skipped, failures, preExisting, flakyTests, newTests, acceptance}] from tests/results-*.json, "before" first. */
+export function testResults(folder) {
+  const dir = path.join(workRoot, folder, "tests");
+  const out = [];
+  let files = [];
+  try {
+    files = fs.readdirSync(dir).filter((f) => /^results-[a-z0-9-]{1,30}\.json$/.test(f));
+  } catch {
+    return out;
+  }
+  const n = (v) => (Number.isInteger(v) && v >= 0 ? v : 0);
+  const rows = (v, max) => (Array.isArray(v) ? v : []).slice(0, max).map((x) => ({ file: String((x && x.file) || ""), title: String((x && x.title) || "").slice(0, 300), ...(x && x.error ? { error: String(x.error).slice(0, 300) } : {}) }));
+  for (const f of files) {
+    try {
+      const r = JSON.parse(fs.readFileSync(path.join(dir, f), "utf8").replace(/^\uFEFF/, ""));
+      out.push({
+        name: String(r.name || f.slice(8, -5)),
+        verdict: ["pass", "fail", "skipped"].includes(r.verdict) ? r.verdict : "skipped",
+        reason: r.reason ? String(r.reason).slice(0, 300) : null,
+        passed: n(r.passed), failed: n(r.failed), flaky: n(r.flaky), skipped: n(r.skipped),
+        failures: rows(r.failures, 20), preExisting: rows(r.preExisting, 20), flakyTests: rows(r.flakyTests, 20), newTests: rows(r.newTests, 40),
+        acceptance: (Array.isArray(r.acceptance) ? r.acceptance : []).map(String).filter((x) => /^AC-\d+$/.test(x)).slice(0, 40),
+      });
+    } catch {}
+  }
+  return out.sort((a, b) => (a.name === "before" ? -1 : b.name === "before" ? 1 : a.name.localeCompare(b.name)));
+}
+
+/** True when a ready item's checks failed after the change (UI checks or the regression suite). */
+export const checksFailed = (info) => !!info && (info.ui.some((u) => u.name !== "before" && u.verdict === "fail") || (info.tests || []).some((t) => t.name !== "before" && t.verdict === "fail"));
+
 /** Gate 2 for one item: ready (or why not), the open review questions, the UI results and when it was published. */
 export function publishInfo(it) {
   if (!it || it.kind !== "item") return null;
@@ -73,7 +105,7 @@ export function publishInfo(it) {
     questions = reviewQuestions(fs.readFileSync(path.join(workRoot, it.folder, "review.md"), "utf8"));
   } catch {}
   const pushed = (it.pr || []).length > 0 && (it.pr || []).every((p) => p.push && p.push.remote && p.push.unpushed === 0);
-  return { ready, questions, ui: uiResults(it.folder), published: published[it.folder] || null, pushed };
+  return { ready, questions, ui: uiResults(it.folder), tests: testResults(it.folder), published: published[it.folder] || null, pushed };
 }
 
 /** Publish info for every work item that is ready or was published, by folder. */
@@ -117,7 +149,7 @@ export function readyToPublish(items) {
   return (items || []).filter((it) => {
     if (it.kind !== "item" || published[it.folder]) return false;
     const info = publishInfo(it);
-    return info && info.ready && !info.questions.length && !info.ui.some((u) => u.name !== "before" && u.verdict === "fail");
+    return info && info.ready && !info.questions.length && !checksFailed(info);
   });
 }
 

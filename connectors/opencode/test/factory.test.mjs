@@ -12,8 +12,8 @@ import { reviewQuestions } from "../lib/publish.mjs";
 
 test("factory settings: defaults, ranges and the file Tandem reads", () => {
   assert.deepEqual(factoryOptions(undefined), { ...FACTORY_DEFAULTS });
-  assert.deepEqual(factoryOptions({ taskFileCap: 99, quickTasks: 0, retries: 2, autoFix: "blockers", reviewRounds: 3, uiChecks: false, worktrees: "busy" }),
-    { taskFileCap: 6, quickTasks: 3, retries: 2, autoFix: "blockers", reviewRounds: 3, uiChecks: false, worktrees: "busy" });
+  assert.deepEqual(factoryOptions({ taskFileCap: 99, quickTasks: 0, retries: 2, autoFix: "blockers", reviewRounds: 3, uiChecks: false, regression: false, worktrees: "busy" }),
+    { taskFileCap: 6, quickTasks: 3, retries: 2, autoFix: "blockers", reviewRounds: 3, uiChecks: false, regression: false, worktrees: "busy" });
   assert.equal(factoryOptions({ autoFix: "nits" }).autoFix, "should-fix");
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "factory-"));
   assert.equal(writeFactoryFile(dir, FACTORY_DEFAULTS), true);
@@ -99,4 +99,33 @@ test("ADO links: the line in workitem.md, linked and local, and setting it", asy
   assert.equal(once, "# Work item L3: Add export\n\n- ADO item: 5012\n- Type: Feature\n- State: New\n\n## Description\n- not a field line: x\n");
   assert.equal(setLine(once, "unlinked (was 5012)"), once.replace("- ADO item: 5012", "- ADO item: unlinked (was 5012)"));
   assert.equal(setLine("# Work item L4: y", "unlinked"), "# Work item L4: y\n- ADO item: unlinked\n");
+});
+
+test("regression suite results: read from tests/, a failure after the change keeps a build out of Publish all ready (1.26.0)", async () => {
+  const { testResults, checksFailed } = await import("../lib/publish.mjs");
+  const { configure, shutdown } = await import("../lib/context.mjs");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "suite-"));
+  const folder = "L9-refund";
+  const tdir = path.join(dir, ".work", folder, "tests");
+  fs.mkdirSync(tdir, { recursive: true });
+  const w = (name, r) => fs.writeFileSync(path.join(tdir, `results-${name}.json`), "\uFEFF" + JSON.stringify({ version: 1, name, ...r }));
+  w("before", { verdict: "fail", passed: 1, failed: 1, failures: [{ file: "orders.spec.ts", title: "Orders > exports csv", error: "x" }] });
+  w("after", { verdict: "pass", passed: 3, failed: 0, flaky: 1, preExisting: [{ file: "orders.spec.ts", title: "Orders > exports csv" }], flakyTests: [{ file: "orders.spec.ts", title: "Orders > lists" }], newTests: [{ file: "refund.spec.ts", title: "saves [AC-1]", status: "expected" }], acceptance: ["AC-1", "bad"] });
+  fs.writeFileSync(path.join(tdir, "playwright-after.json"), "{}");
+  try {
+    configure({ config: { workspace: dir }, env: () => undefined });
+    const rows = testResults(folder);
+    assert.deepEqual(rows.map((r) => [r.name, r.verdict]), [["before", "fail"], ["after", "pass"]]);
+    const after = rows[1];
+    assert.equal(after.flaky, 1);
+    assert.deepEqual(after.acceptance, ["AC-1"], "only AC-<n> ids are kept");
+    assert.equal(after.preExisting.length, 1);
+    assert.deepEqual(testResults("L10-none"), []);
+    assert.equal(checksFailed({ ui: [], tests: rows }), false, "a failing before run does not count");
+    assert.equal(checksFailed({ ui: [], tests: [...rows, { name: "pr", verdict: "fail" }] }), true);
+    assert.equal(checksFailed({ ui: [{ name: "after", verdict: "fail" }], tests: [] }), true);
+  } finally {
+    try { shutdown(); } catch {}
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });

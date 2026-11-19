@@ -11,8 +11,12 @@
 // .work/_onboarding/<product>.md (workparser onboardingOf) and makes a trial run, a local item with "- Trial:".
 // The trial run gets autopilot on its own; when it reaches Ready to publish the product is live.
 //
+// Regression tests (1.26.0, eng-agents Core 4.14.0). `tests.cover` runs `/cover <product> [-- <area>]`, which makes one
+// local Quick change per UI repo with "- Coverage: <product>". Each gets autopilot on its own, like a trial run.
+//
 // Workshop keeps only what it asked for, in .work/_dashboard/epics.json: { epics: { <scope>: { at } },
-// onboarding: { <product>: { at, session, live } } }. Tandem's files stay Tandem's.
+// onboarding: { <product>: { at, session, live } }, coverage: { <product>: { at, session } } }. Tandem's files stay
+// Tandem's.
 
 import fs from "node:fs";
 import path from "node:path";
@@ -21,18 +25,20 @@ import { autopilot, autopilotAction } from "./autopilot.mjs";
 
 const SCOPE = /^scope-[A-Za-z0-9][A-Za-z0-9._-]{0,80}$/;
 const file = () => path.join(stateDir, "epics.json");
-let state = { epics: {}, onboarding: {} };
+const empty = () => ({ epics: {}, onboarding: {}, coverage: {} });
+let state = empty();
 
 export function loadEpics() {
   try {
     const d = JSON.parse(fs.readFileSync(file(), "utf8"));
-    state = { epics: d && typeof d.epics === "object" && d.epics ? d.epics : {}, onboarding: d && typeof d.onboarding === "object" && d.onboarding ? d.onboarding : {} };
+    const obj = (v) => (v && typeof v === "object" ? v : {});
+    state = { epics: obj(d && d.epics), onboarding: obj(d && d.onboarding), coverage: obj(d && d.coverage) };
   } catch {
-    state = { epics: {}, onboarding: {} };
+    state = empty();
   }
 }
 export function resetEpics() {
-  state = { epics: {}, onboarding: {} };
+  state = empty();
 }
 function save() {
   try {
@@ -62,7 +68,7 @@ export function storyAfter(it, items) {
 }
 
 /** A story or trial run Workshop builds hands-off (no plan approval needed from you unless it drifts). */
-export const handsOffItem = (it) => !!it && it.kind === "item" && ((it.story && it.story.breakdown) || !!it.trial);
+export const handsOffItem = (it) => !!it && it.kind === "item" && ((it.story && it.story.breakdown) || !!it.trial || !!it.coverage);
 
 /**
  * Build an epic: make its stories (Tandem's /backlog <scope> local) unless they exist, and remember that you asked,
@@ -95,7 +101,8 @@ export function startWaiting(items, start = autopilotAction) {
 }
 async function startNow(items, start) {
   const started = [];
-  const want = (it) => (it.story && it.story.breakdown && state.epics[it.story.epic]) || (it.trial && state.onboarding[onboardKey(it.trial)]);
+  const want = (it) => (it.story && it.story.breakdown && state.epics[it.story.epic]) || (it.trial && state.onboarding[onboardKey(it.trial)])
+    || (it.coverage && state.coverage[onboardKey(it.coverage)]);
   const list = (items || []).filter((it) => handsOffItem(it) && want(it) && !autopilot[it.folder] && it.stage !== "ship" && it.bucket !== "done" && !it.paused);
   // Stories in story order, so each one's `after` is already known when it queues.
   for (const it of list.sort((a, b) => String(a.story && a.story.story).localeCompare(String(b.story && b.story.story)))) {
@@ -137,6 +144,19 @@ export async function onboardProduct({ product }, { run } = {}) {
   if (!name) throw httpError(400, "Name the product to onboard.");
   const r = await run("onboard-product", name, null);
   state.onboarding[onboardKey(name)] = { product: name, at: new Date().toISOString(), session: r && r.session ? r.session : null, live: null };
+  save();
+  return { ok: true, session: r && r.session ? r.session : null };
+}
+
+/** Backfill regression tests: runs Tandem's /cover, and remembers it so its items build hands-off. */
+export async function coverProduct({ product, area }, { run } = {}) {
+  const clean = (v) => String(v || "").replace(/[\r\n"]+/g, " ").trim();
+  const name = clean(product);
+  if (!name) throw httpError(400, "Name the product to add regression tests for.");
+  const where = clean(area).slice(0, 200);
+  // /cover reads the product before " -- " and the area after it.
+  const r = await run("cover", `${name}${where ? " -- " + where : ""}`, null);
+  state.coverage[onboardKey(name)] = { product: name, area: where || null, at: new Date().toISOString(), session: r && r.session ? r.session : null };
   save();
   return { ok: true, session: r && r.session ? r.session : null };
 }

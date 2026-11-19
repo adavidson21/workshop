@@ -16,6 +16,7 @@ const qh = (id, text) => (globalThis.WorkshopTheme?.hints ? globalThis.WorkshopT
 export async function mountProducts({ ws, toast, el, onSaved = async () => {} }) {
   let drafting = null;          // product id whose Draft from sources is being confirmed
   let onboarding = null;        // product id whose Onboard for Tandem is being confirmed (Settings 7.2.0)
+  let covering = null;          // product id whose Add regression tests is being confirmed (Settings 7.6.0)
   let canDraft = false;         // opencode is connected (Draft from sources)
   let env = null;               // the stored envelope (null: none yet)
   let unreadable = false;
@@ -154,7 +155,10 @@ export async function mountProducts({ ws, toast, el, onSaved = async () => {} })
         <div class="acts left"><button class="btn primary" data-product-draft-go="${esc(p.id)}">Start</button><button class="btn" data-product-draft-cancel>Cancel</button></div></div>` : ''}
       ${onboarding === p.id ? `<div class="pc-confirm" role="group" aria-label="Onboard for Tandem"><p>Tandem gets ${esc(p.name)} ready for its first build: it drafts any missing repo guide and the product note, logs what it cannot find as Teach cards instead of asking, and starts a trial run that adds one test. Loom shows each step on its floor. Nothing is pushed.</p>
         <div class="acts left"><button class="btn primary" data-product-onboard-go="${esc(p.id)}">Start</button><button class="btn" data-product-onboard-cancel>Cancel</button></div></div>` : ''}
-      <div class="acts left">${p.archived ? '' : `<button class="btn" data-product-open="${esc(p.slug)}">${hasNote ? 'Open note' : 'Open Folio'}</button>`}${!p.archived && canDraft && hasNote && p.repos.length ? `<button class="btn" data-product-draft="${esc(p.id)}" title="Tandem proposes note lines from this product's docs">Draft from sources</button>` : ''}${!p.archived && canDraft && p.repos.length ? `<button class="btn" data-product-onboard="${esc(p.id)}" title="Repo guides, the product note, gaps to answer, and a trial run, ready for the first build">Onboard for Tandem</button>` : ''}<button class="btn ghost" data-product-edit="${esc(p.id)}">Edit</button></div></li>`;
+      ${covering === p.id ? `<div class="pc-confirm" role="group" aria-label="Add regression tests"><p>Tandem adds end-to-end tests for what ${esc(p.name)}'s pages do today, one hands-off Quick change per UI repo, with every API mocked and no product code changed. You publish each PR. From then on every build runs them.</p>
+        <label class="pc-k" for="cover-area-${esc(p.id)}">Area or pages (optional)</label><input type="text" id="cover-area-${esc(p.id)}" data-cover-area maxlength="200" placeholder="Leave empty for the main pages">
+        <div class="acts left"><button class="btn primary" data-product-cover-go="${esc(p.id)}">Start</button><button class="btn" data-product-cover-cancel>Cancel</button></div></div>` : ''}
+      <div class="acts left">${p.archived ? '' : `<button class="btn" data-product-open="${esc(p.slug)}">${hasNote ? 'Open note' : 'Open Folio'}</button>`}${!p.archived && canDraft && hasNote && p.repos.length ? `<button class="btn" data-product-draft="${esc(p.id)}" title="Tandem proposes note lines from this product's docs">Draft from sources</button>` : ''}${!p.archived && canDraft && p.repos.length ? `<button class="btn" data-product-onboard="${esc(p.id)}" title="Repo guides, the product note, gaps to answer, and a trial run, ready for the first build">Onboard for Tandem</button>` : ''}${!p.archived && canDraft && p.repos.length ? `<button class="btn" data-product-cover="${esc(p.id)}" title="End-to-end tests for what the product's pages do today, built hands-off">Add regression tests</button>` : ''}<button class="btn ghost" data-product-edit="${esc(p.id)}">Edit</button></div></li>`;
   }
 
   function paint() {
@@ -179,8 +183,22 @@ export async function mountProducts({ ws, toast, el, onSaved = async () => {} })
     if (t.matches('[data-product-cancel]')) { editing = null; return paint(); }
     if (t.matches('[data-product-draft]')) { drafting = t.dataset.productDraft; return paint(); }
     if (t.matches('[data-product-draft-cancel]')) { drafting = null; return paint(); }
-    if (t.matches('[data-product-onboard]')) { onboarding = t.dataset.productOnboard; drafting = null; return paint(); }
+    if (t.matches('[data-product-onboard]')) { onboarding = t.dataset.productOnboard; drafting = null; covering = null; return paint(); }
     if (t.matches('[data-product-onboard-cancel]')) { onboarding = null; return paint(); }
+    if (t.matches('[data-product-cover]')) { covering = t.dataset.productCover; drafting = null; onboarding = null; return paint(); }
+    if (t.matches('[data-product-cover-cancel]')) { covering = null; return paint(); }
+    if (t.matches('[data-product-cover-go]')) {
+      const p = byId(t.dataset.productCoverGo);
+      if (!p) return;
+      const box = t.closest('.pc-confirm').querySelector('[data-cover-area]');
+      const area = box ? box.value.trim() : '';
+      t.disabled = true;
+      try {
+        await ws.connectors.call('opencode', 'tests.cover', area ? { product: p.name, area } : { product: p.name }, { confirm: true });
+        toast(`Tandem is planning regression tests for ${p.name}. Its builds show on Loom.`, 'success');
+      } catch (err) { toast(errText(err), 'error'); }
+      covering = null; return paint();
+    }
     if (t.matches('[data-product-onboard-go]')) {
       const p = byId(t.dataset.productOnboardGo);
       if (!p) return;
