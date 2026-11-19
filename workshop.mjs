@@ -11,6 +11,8 @@
 //   workshop open [--print]                Open Workshop on this computer (sign-in and settings) in the default browser. --print only prints.
 //   workshop stop | restart                Stop the running agent; restart it in the background.
 //   workshop pat [NAME] [--remove]         Save a PAT in a user environment variable (default ADO_PAT) without showing it.
+//   workshop secret set|list|check|remove  Keep a token in this computer's own secret store (Keychain, Credential
+//                                          Manager, Secret Service) for a connector. See docs/security.md, Secrets.
 //   workshop uninstall                     Turn off start at login. Leaves your data folder (dataDir) and ~/.workshop in place.
 //   workshop doctor [--sizes]              Check Node, config.json, the port, the data folder, start at login and hosted mode.
 //   workshop export --readable             Copy your data as spreadsheets and documents into <data folder>/Readable copy/.
@@ -55,6 +57,8 @@ import { verifyPinned, describeBuild, uiDirOf } from './agent/lib/pinned.mjs';
 import { buildRegistry as registryOf, findApp, pinApps, readOff, writeOff, appSwitches } from './agent/lib/apps.mjs';
 import { ENV_NAME, liveEnv, readWindowsUserEnv } from './agent/lib/userenv.mjs';
 import { patProblem, readSecret, startBackground, stopAgent, writeWindowsUserEnv } from './scripts/lib/control.mjs';
+import { SECRET_NAME, daysLeft, readIndex, readSecret as readStoredSecret, storeName } from './agent/lib/secrets.mjs';
+import { removeSecret, saveSecret, secretProblem } from './scripts/lib/secrets-store.mjs';
 
 export const REPO = path.dirname(fileURLToPath(import.meta.url));
 const SERVED_DIRS = ['shell', 'shared', 'icons', 'apps'];
@@ -87,6 +91,13 @@ const USAGE = `Usage: workshop <command> [options]
                                  ADO_PAT). Paste it when asked; it is not shown or kept in shell history.
                                  Workshop picks it up within seconds on Windows, with no restart.
                                  --remove deletes the variable.
+  secret set <name>              Keep a token in this computer's own secret store (macOS Keychain, Windows
+         [--expires YYYY-MM-DD]  Credential Manager, Linux Secret Service) for a connector that names it, such as
+         [--note <words>]        Cloudflare's "cloudflare". Paste it when asked; it is not shown, not put on a
+                                 command line and never written to a file. --expires warns you 14 days before.
+  secret list                    The secrets Workshop keeps: names, store, expiry. Never values.
+  secret check <name>            Read it back from the store and say whether it is there (never shows it).
+  secret remove <name>           Delete it from the store.
   uninstall                      Turn off start at login. Leaves your data folder (dataDir, default ~/Workshop)
                                  and ~/.workshop in place.
   export --readable              Copy your data as spreadsheets (.csv) and documents (.md) into
@@ -1347,6 +1358,68 @@ async function runPat(rest, io) {
   return 0;
 }
 
+/**
+ * workshop secret set|list|check|remove: tokens kept in this computer's own secret store (docs/security.md,
+ * Secrets). Values go to the store on stdin, never on a command line, and are never printed or written to a
+ * file. <home>/secrets.json lists the names, the store and expiry dates only.
+ */
+async function runSecret(rest, io) {
+  const [sub, ...args] = rest;
+  const platform = io.platform || process.platform;
+  const home = resolveHome(io.env);
+  const store = io.secretStore || {};
+  const usage = 'Usage: workshop secret set <name> [--expires YYYY-MM-DD] [--note <words>] | list | check <name> | remove <name>';
+  const opt = flag => { const i = args.indexOf(flag); return i >= 0 ? args[i + 1] : undefined; };
+  const name = args.find((a, i) => !a.startsWith('-') && !['--expires', '--note'].includes(args[i - 1]));
+  if (!storeName(platform)) { io.out(`Workshop has no secret store on ${platform}.`); return 1; }
+  const today = (io.now ? io.now() : new Date()).toISOString().slice(0, 10);
+
+  if (sub === 'list') {
+    const all = readIndex(home);
+    const names = Object.keys(all).sort();
+    if (!names.length) { io.out(`No secrets yet. Save one with: workshop secret set <name>`); return 0; }
+    for (const n of names) {
+      const s = all[n];
+      const d = daysLeft(s.expires, today);
+      const exp = !s.expires ? 'no expiry set' : d < 0 ? `EXPIRED on ${s.expires}` : d <= 14 ? `expires ${s.expires} (in ${d} days)` : `expires ${s.expires}`;
+      io.out(`${n}: ${s.store || storeName(platform)}, saved ${String(s.saved || '').slice(0, 10) || 'unknown'}, ${exp}${s.note ? `. ${s.note}` : ''}`);
+    }
+    return 0;
+  }
+  if (!['set', 'check', 'remove'].includes(sub)) { io.out(usage); return sub ? 1 : 0; }
+  if (!name || !SECRET_NAME.test(name)) { io.out(`${name ? `"${name}" is not a valid secret name. ` : ''}Use lowercase letters, digits and -, for example cloudflare.\n${usage}`); return 1; }
+
+  if (sub === 'check') {
+    const v = await (store.read || readStoredSecret)(name, { platform });
+    io.out(v ? `${name} is in ${storeName(platform)} (${v.length} characters).` : `${name} is not in ${storeName(platform)}. Save it with: workshop secret set ${name}`);
+    return v ? 0 : 1;
+  }
+  if (sub === 'remove') {
+    const r = (store.remove || removeSecret)(home, name, { platform });
+    io.out(r.ok ? `Removed ${name}.${r.message ? ` ${r.message}` : ''} Revoke the token where it was made too, if you no longer use it.` : r.message);
+    return r.ok ? 0 : 1;
+  }
+  const expires = opt('--expires');
+  if (expires !== undefined && (!/^\d{4}-\d{2}-\d{2}$/.test(expires) || !Number.isFinite(Date.parse(`${expires}T00:00:00Z`)))) { io.out('--expires needs a date like 2027-02-01.'); return 1; }
+  if (expires && daysLeft(expires, today) < 0) { io.out(`${expires} has already passed. Make a new token and use its expiry date.`); return 1; }
+  let value;
+  try {
+    value = await (io.secret || readSecret)({ prompt: `Paste the token for ${name} and press Enter (it will not show): ` });
+  } catch (e) {
+    io.out(e && e.code === 'cancelled' ? 'Cancelled. Nothing was saved.' : 'Could not read the token. Nothing was saved.');
+    return 1;
+  }
+  const problem = secretProblem(value);
+  if (problem) { io.out(`${problem} Nothing was saved.`); return 1; }
+  const r = await (store.save || saveSecret)(home, name, value, { platform, expires: expires || null, note: opt('--note') || '' });
+  if (!r.ok) { io.out(`${r.message} Nothing was saved.`); return 1; }
+  io.out(`Saved ${name} (${value.length} characters) in ${storeName(platform)}.`);
+  if (!expires) io.out(`Tip: add its expiry date so Workshop warns you two weeks before: workshop secret set ${name} --expires YYYY-MM-DD`);
+  const running = await (io.probe || agentHealth)(configuredPort(io));
+  io.out(running ? 'Workshop picks it up within a minute; no restart needed.' : 'Start Workshop with: workshop up');
+  return 0;
+}
+
 // --------------------------------------------------------------- command line
 
 export async function main(argv, io = { out: s => console.log(s), env: process.env }) {
@@ -1362,6 +1435,7 @@ export async function main(argv, io = { out: s => console.log(s), env: process.e
   if (cmd === 'stop') return runStop(io);
   if (cmd === 'restart') return runRestart(rest, io);
   if (cmd === 'pat') return runPat(rest, io);
+  if (cmd === 'secret') return runSecret(rest, io);
   if (cmd === 'export') return runExport(rest, io);
 
   if (cmd === 'doctor') {

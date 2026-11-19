@@ -55,6 +55,7 @@ code,.mono{font-family:var(--mono);font-size:.86em}
 .cfg-row.cfg-check>label{min-width:0}
 .cfg-row.cfg-check>.cfg-leaf{flex:none;min-width:0}
 .cfg-row .cfg-leaf{flex:1;min-width:12rem;display:flex;align-items:center;gap:.5rem}
+.cfg-row .cfg-leaf:has(.cfg-secret-cmd){flex-wrap:wrap}
 .cfg-row>.cfg-input{flex:none;width:8rem}
 .cfg-help{flex-basis:100%;margin:0;color:var(--muted);font-size:.8rem}
 .cfg-req{color:var(--muted);font-size:.78rem}
@@ -65,6 +66,8 @@ textarea.cfg-input{resize:vertical}
 .cfg-env-status{flex:none;font-size:.78rem;color:var(--muted);white-space:nowrap}
 .cfg-env-status.ok{color:var(--ink)}
 .cfg-env-status.warn{color:var(--warn)}
+.cfg-secret-cmd{flex-basis:100%;font-size:.78rem;color:var(--muted);user-select:all}
+.cfg-secret-cmd:empty{display:none}
 .cfg-list{display:flex;flex-direction:column;gap:.5rem}
 .cfg-item{display:flex;gap:.5rem;align-items:flex-start}
 .cfg-item>.cfg-input,.cfg-item>.cfg-item-body{flex:1;min-width:0}
@@ -490,3 +493,19 @@ label.check input{accent-color:var(--accent);width:1rem;height:1rem;margin:0}
 #repo-map-card .pc-row{display:grid;grid-template-columns:6.2rem 1fr;gap:.5rem;align-items:baseline;font-size:.88rem}
 #repo-map-card .pc-k{color:var(--muted)}
 #repo-map-card .pc-v.mono{word-break:break-all}
+/* Cloudflare: change sets waiting for you (js/cloudflare-page.js) */
+.cf-set{border:1px solid var(--line);border-radius:var(--r-sm);padding:.75rem .9rem;margin:.6rem 0}
+.cf-head{display:flex;flex-wrap:wrap;gap:.25rem .6rem;align-items:baseline}
+.cf-why{margin:.35rem 0 0;font-size:.88rem}
+.cf-steps{margin:.5rem 0;padding-left:1.3rem;font-size:.88rem;line-height:1.45}
+.cf-steps li{margin:.15rem 0}
+.cf-ok{color:var(--ink);font-weight:600}
+.cf-skip{color:var(--muted)}
+.cf-fail,.cf-err{color:var(--warn)}
+.cf-err{font-size:.8rem}
+.cf-recent{font-size:.9rem;margin:1rem 0 .3rem}
+.cf-done{list-style:none;margin:0;padding:0}
+.cf-done li{padding:.3rem 0;border-top:1px solid var(--line)}
+.cf-done summary{cursor:pointer}
+.cf-status{font-size:.75rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+.cf-status[data-status=failed]{color:var(--warn)}

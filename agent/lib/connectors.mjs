@@ -8,6 +8,7 @@ import { pathToFileURL } from 'node:url';
 import { checkConnectorModule } from './connector-check.mjs';
 import { writeJsonAtomic, KeyedLock } from './fsutil.mjs';
 import { HttpError, STATUS_FOR, fail } from './http.mjs';
+import { SECRET_NAME, readIndex, secretStatus } from './secrets.mjs';
 
 const STOP_MS = 5000;
 const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]{0,127}$/;
@@ -45,6 +46,19 @@ export function envNames(schema, value, acc = new Set()) {
   return acc;
 }
 
+/** Every secret name a config holds in fields marked x-workshop-secret (docs/connector.md, ctx.secret). */
+export function secretNames(schema, value, acc = new Set()) {
+  if (!schema || value === undefined || value === null) return acc;
+  if (schema.type === 'object' && typeof value === 'object') {
+    for (const [k, s] of Object.entries(schema.properties || {})) secretNames(s, value[k], acc);
+  } else if (schema.type === 'array' && Array.isArray(value)) {
+    value.forEach(v => secretNames(schema.items, v, acc));
+  } else if (schema.type === 'string' && schema['x-workshop-secret'] && typeof value === 'string' && SECRET_NAME.test(value)) {
+    acc.add(value);
+  }
+  return acc;
+}
+
 /**
  * The fields (dotted paths) that differ between two configs and are not marked x-workshop-hosted. A hosted
  * page may save a connector config only when this is empty (docs/agent-api.md, PUT connector config).
@@ -67,7 +81,7 @@ const timeout = (ms, what) => new Promise((_, reject) => {
 });
 
 export class ConnectorHost {
-  #dir; #schemas; #env; #home; #storageDir; #dataDir; #log; #events; #config;
+  #dir; #schemas; #env; #home; #storageDir; #dataDir; #log; #events; #config; #secrets; #workMode;
   #entries = new Map();
   #storageLock = new KeyedLock();
 
@@ -82,10 +96,14 @@ export class ConnectorHost {
    * @param {object} o.log         logger from log.mjs
    * @param {object} o.events      EventHub
    * @param {() => object} o.config returns the live config object
+   * @param {(name: string) => Promise<string|undefined>} [o.secrets] reads a secret from this computer's store (lib/secrets.mjs)
+   * @param {() => boolean} [o.workMode] whether work mode is on now
    */
   constructor(o) {
     this.#dir = o.dir; this.#schemas = o.schemas; this.#env = o.env; this.#home = o.home;
     this.#storageDir = o.storageDir; this.#dataDir = o.dataDir || null; this.#log = o.log; this.#events = o.events; this.#config = o.config;
+    this.#secrets = o.secrets || (async () => undefined);
+    this.#workMode = o.workMode || (() => this.#config()?.features?.workMode === true);
   }
 
   async load() {
@@ -146,7 +164,7 @@ export class ConnectorHost {
     const m = entry.mod;
     const o = {
       id: entry.id, name: m ? m.name : entry.id, version: m ? m.version : '0.0.0', enabled: this.#enabled(entry.id), status: this.#status(entry),
-      actions: m ? Object.entries(m.actions).map(([name, a]) => ({ name, title: a.title, write: a.write === true, ...(a.setup === true ? { setup: true } : {}) })) : []
+      actions: m ? Object.entries(m.actions).map(([name, a]) => ({ name, title: a.title, write: a.write === true, ...(a.setup === true ? { setup: true } : {}), ...(a.agent === true ? { agent: true } : {}) })) : []
     };
     if (m?.test) o.test = { action: m.test.action, arg: m.test.arg, label: m.test.label };
     return o;
@@ -155,6 +173,8 @@ export class ConnectorHost {
   #makeCtx(entry) {
     const cfg = deepFreeze(this.#storedConfig(entry));
     const allowed = envNames(entry.mod.configSchema, cfg);
+    const allowedSecrets = secretNames(entry.mod.configSchema, cfg);
+    const readStored = this.#secrets;
     const abort = new AbortController();
     const log = this.#log.for(`connector:${entry.id}`);
     const env = this.#env;
@@ -169,6 +189,15 @@ export class ConnectorHost {
         if (typeof v === 'string') this.#log.addSecret(v);
         return v;
       },
+      // A secret from this computer's own store, named by a field marked x-workshop-secret. Never log, store, emit
+      // or return it.
+      secret: async name => {
+        if (!allowedSecrets.has(name)) throw new Error(`Secret ${name} is not named in this connector's config.`);
+        const v = await readStored(name);
+        if (typeof v === 'string' && v) this.#log.addSecret(v);
+        return typeof v === 'string' && v ? v : undefined;
+      },
+      workMode: () => this.#workMode() === true,
       log: Object.freeze({ info: (m, d) => log.info(m, d), warn: (m, d) => log.warn(m, d), error: (m, d) => log.error(m, d) }),
       storage: Object.freeze({
         async get(key) {
@@ -244,7 +273,11 @@ export class ConnectorHost {
     const cfg = this.#storedConfig(entry);
     const env = {};
     for (const n of envNames(entry.mod.configSchema, cfg)) env[n] = { set: typeof this.#env[n] === 'string' && this.#env[n] !== '' };
-    return { id: entry.id, schema: entry.mod.configSchema, config: cfg, env };
+    // Secrets: whether `workshop secret set` recorded one by that name, and its expiry. Never read for this.
+    const index = readIndex(this.#home);
+    const secrets = {};
+    for (const n of secretNames(entry.mod.configSchema, cfg)) secrets[n] = secretStatus(index, n);
+    return { id: entry.id, schema: entry.mod.configSchema, config: cfg, env, secrets };
   }
 
   /** Validate a new config for one connector. Returns it unchanged if valid; throws invalid_config if not. */
@@ -268,7 +301,34 @@ export class ConnectorHost {
     if (this.#enabled(id)) { await this.#stop(entry); await this.#start(entry); }
   }
 
-  async call(id, action, body) {
+  /** The read actions agents may run through /api/tools: on, ready connectors only. */
+  agentTools() {
+    const out = [];
+    for (const entry of this.#entries.values()) {
+      if (!entry.mod || !this.#enabled(entry.id) || !entry.ctx || this.#status(entry).state !== 'ready') continue;
+      for (const [name, a] of Object.entries(entry.mod.actions)) {
+        if (a.agent === true && a.write !== true) out.push({ connector: entry.id, action: name, title: a.title, ...(a.argsSchema ? { argsSchema: a.argsSchema } : {}) });
+      }
+    }
+    return out;
+  }
+
+  /**
+   * Runs a read action marked `agent: true` for /api/tools. Anything else (a write, a setup action, an action not
+   * marked for agents) is refused as if it did not exist, and there is no confirm: agents can never write.
+   */
+  async callForAgent(id, action, body) {
+    const entry = this.#entries.get(id);
+    const a = entry && entry.mod && Object.hasOwn(entry.mod.actions, action) ? entry.mod.actions[action] : null;
+    if (!a || a.agent !== true || a.write === true) fail('not_found', `There is no ${action} tool for agents in ${id}.`);
+    const errs = this.#schemas.validate('connector-call-request', body);
+    if (errs.length) fail('bad_request', `Send {"args": {...}}: ${errs[0]}`);
+    if (body.confirm !== undefined) fail('bad_request', 'Agents cannot confirm anything. Leave confirm out.');
+    return this.call(id, action, { args: body.args ?? {} }, { caller: 'agent' });
+  }
+
+  /** Runs an action. `meta.caller` is 'agent' for /api/tools and 'person' otherwise; the connector gets it as run's third argument. */
+  async call(id, action, body, meta = { caller: 'person' }) {
     const entry = this.#loaded(id);
     const a = Object.hasOwn(entry.mod.actions, action) ? entry.mod.actions[action] : null;
     if (!a) fail('not_found', `The ${entry.mod.name} connector has no ${action} action.`);
@@ -284,7 +344,7 @@ export class ConnectorHost {
       if (e2.length) fail('bad_request', `Those arguments are not valid: ${e2[0]}`);
     }
     try {
-      const result = await a.run(args, entry.ctx);
+      const result = await a.run(args, entry.ctx, Object.freeze({ caller: meta.caller === 'agent' ? 'agent' : 'person' }));
       const text = JSON.stringify(result === undefined ? null : result);
       return JSON.parse(text);
     } catch (e) {

@@ -22,6 +22,7 @@
    Nothing here needs Azure DevOps: without it the ADO pages say what to do in one line, and the rest works. */
 import { connect } from '../../../shared/workshop-sdk.js';
 import { render as renderForm, readValue } from './forms.js';
+import { mountCloudflareChanges } from './cloudflare-page.js';
 import * as R from './repos.js';
 import * as P from './pages.js';
 import { mountPeople } from './people.js';
@@ -661,7 +662,8 @@ async function appsCard() {
    on the pages they name (ADO: Work items, Pull requests; opencode's PR reviews: Pull requests). A page that
    belongs to a connector says in one line what to do while that connector is off or not set up. */
 const NOTE = {
-  ado: 'PATs never go in here: save one with <code>workshop pat</code> and name its variable in a connection. Which project each repo uses is on <a href="#" class="lnk" data-goto-page="repos">Repos</a>.'
+  ado: 'PATs never go in here: save one with <code>workshop pat</code> and name its variable in a connection. Which project each repo uses is on <a href="#" class="lnk" data-goto-page="repos">Repos</a>.',
+  cloudflare: 'The token never goes in here: save it in this computer\'s own secret store with <code>workshop secret set cloudflare --expires YYYY-MM-DD</code>. Tandem can read your account and propose changes; only you apply them, below.'
 };
 const conn = { list: [], info: {}, cc: {} }; // cc[id]: {schema, config, env}, as getConfig gives it
 const drafts = {};                           // drafts[id]: fields filled in from a link or a file, not saved yet
@@ -724,6 +726,7 @@ async function connectorsSetup() {
     sec.appendChild(connectorBlock(info));
     if (NOTE[info.id]) sec.insertAdjacentHTML('beforeend', `<p class="sub conn-note">${NOTE[info.id]}</p>`);
     if (info.id === 'ado') connectionsCard();
+    if (info.id === 'cloudflare' && info.enabled) mountCloudflareChanges({ ws, card, esc, toast, errText });
   }
   // Generated forms, after every main page exists, so a field on another connector's page finds it.
   for (const info of list) {
@@ -1055,8 +1058,8 @@ function formCard(info, pg) {
     form.className = 'cfg';
     form.dataset.track = '';
     const node = single
-      ? renderForm({ ...props[single], title: undefined, description: undefined }, value[single], cc.env, { readOnly, fold: false })
-      : renderForm(P.subSchema(cc.schema, keys), value, cc.env, { readOnly, fold: isMain, page: pg });
+      ? renderForm({ ...props[single], title: undefined, description: undefined }, value[single], cc.env, { readOnly, fold: false, secrets: cc.secrets })
+      : renderForm(P.subSchema(cc.schema, keys), value, cc.env, { readOnly, fold: isMain, page: pg, secrets: cc.secrets });
     form.appendChild(node);
     form.insertAdjacentHTML('beforeend', `<div class="acts"><span class="msg" aria-live="polite">${esc(lastMsg)}</span>${readOnly ? '' : '<button class="btn primary">Save</button>'}</div>`);
     sec.appendChild(form);

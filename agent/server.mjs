@@ -32,6 +32,7 @@ import { PinnedSite, uiDirOf } from './lib/pinned.mjs';
 import { appSwitches, readOff, writeOff, pinApps, readBuild } from './lib/apps.mjs';
 import { applyStartAtLogin, startAtLoginStatus } from './lib/login.mjs';
 import { liveEnv } from './lib/userenv.mjs';
+import { secretReader } from './lib/secrets.mjs';
 import { openUpdateTerminal, updateArgv } from './lib/terminal.mjs';
 
 export const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -93,7 +94,8 @@ export async function createAgent(o) {
   const leftovers = removeTmpFiles(home);
   const config = await loadConfig(paths.config, schemas);
   const token = await loadToken(paths.token);
-  const log = createLogger({ dir: paths.logs, echo: o.echoLog === true, secrets: [token] });
+  const agentToken = await loadToken(paths.agentToken);
+  const log = createLogger({ dir: paths.logs, echo: o.echoLog === true, secrets: [token, agentToken] });
   for (const f of leftovers) log.warn(`Removed a leftover temp file from an interrupted write: ${path.relative(home, f)}`);
 
   // The data folder (docs/config.md, Data folder). Checked and created before anything else touches it; if it
@@ -171,7 +173,8 @@ export async function createAgent(o) {
   const files = new Files({ root: dataRoot, schemas, log: log.for('files'), lock: dataLock, tracker });
   const watch = new FolderWatch({ root: dataRoot, tracker, events, log: log.for('watch') });
   const connectors = new ConnectorHost({
-    dir: connectorsDir, schemas, env: o.env || liveEnv(process.env), home, storageDir: path.join(paths.data, '_connectors'), dataDir, log, events, config: () => config
+    dir: connectorsDir, schemas, env: o.env || liveEnv(process.env), home, storageDir: path.join(paths.data, '_connectors'), dataDir, log, events, config: () => config,
+    secrets: o.secrets || secretReader(), workMode
   });
 
   let port = 0;
@@ -257,6 +260,9 @@ export async function createAgent(o) {
       const cookieOk = same(parseCookies(req).workshop_token, token);
 
       if (!isApi) { await handlePage(req, res, url, cookieOk); return; }
+
+      // Tools for agents (docs/agent-api.md): programs on this computer, never pages, with the agent token only.
+      if (p === '/api/tools' || p.startsWith('/api/tools/')) { await handleTools(req, res, url); return; }
 
       if (p === '/api/health') {
         if (req.method !== 'GET') fail('method_not_allowed', 'Use GET.');
@@ -359,6 +365,32 @@ document.getElementById('allow').addEventListener('click', function () {
   window.close();
 });
 </script>`));
+  }
+
+  /**
+   * /api/tools: read actions connectors mark `agent: true`, for Tandem's scripts. The agent token (<home>/agent-token)
+   * is the only key: the per-install token and the sign-in cookie are not accepted, a request from a page (any Origin
+   * header) is refused, and nothing here can write, confirm, or change settings. GET lists the tools; POST
+   * /api/tools/<connector>/<action> runs one.
+   */
+  async function handleTools(req, res, url) {
+    if (req.headers.origin !== undefined) fail('forbidden', 'Tools are for programs on this computer, not web pages.');
+    if (!same(req.headers['x-workshop-agent-token'], agentToken)) fail('unauthorized', 'Send the agent token (the agent-token file in the Workshop home) as X-Workshop-Agent-Token.');
+    const parts = url.pathname.split('/').filter(Boolean).slice(2); // after "api/tools"
+    if (parts.length === 0) {
+      if (req.method !== 'GET') fail('method_not_allowed', 'Use GET.');
+      sendJson(res, 200, { tools: connectors.agentTools() }, {});
+      return;
+    }
+    if (parts.length !== 2) fail('not_found', 'Not found.');
+    if (req.method !== 'POST') fail('method_not_allowed', 'Use POST.');
+    const [id, action] = parts;
+    if (!NAME.test(id)) fail('bad_request', `"${id}" is not a valid connector name.`);
+    if (!ACTION.test(action)) fail('bad_request', `"${action}" is not a valid action name.`);
+    const body = (await readJsonBody(req, MB)) ?? {};
+    const result = await connectors.callForAgent(id, action, body);
+    log.for('tools').info(`An agent ran ${id} ${action}.`);
+    sendJson(res, 200, { result }, {});
   }
 
   async function handleApi(req, res, url, { own, cors }) {

@@ -176,6 +176,9 @@ export async function createMockAgent(options = {}) {
     const ctx = {
       config: cfg,
       env: name => { if (!allowed.has(name)) throw new Error(`Environment variable ${name} is not named in this connector's config.`); return env[name]; },
+      // The mock has no secret store (docs/connector.md, ctx.secret): every secret reads as not saved.
+      secret: async () => undefined,
+      workMode: () => false,
       log: { info: (m) => log(entry.id, 'info', m), warn: (m) => log(entry.id, 'warn', m), error: (m) => log(entry.id, 'error', m) },
       storage: {
         async get(key) { return entry.storage.has(key) ? structuredClone(entry.storage.get(key)) : undefined; },

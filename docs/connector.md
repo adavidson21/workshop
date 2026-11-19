@@ -59,9 +59,10 @@ If a connector has a read action named `config.fromUrl` with `setup: true`, Sett
 | --- | --- | --- |
 | `title` | yes | Plain words, shown in logs and Settings. |
 | `write` | yes | `true` if the action changes anything outside Workshop (push, comment, state change). The agent then requires `confirm: true` from the caller. |
+| `agent` | no | `true` for a read action Tandem's agents may run through `/api/tools` ([agent-api.md](agent-api.md), Tools for agents). Must be `write: false`. Shown as `agent: true` in the connector info. |
 | `setup` | no | `true` for a read action that helps fix the connector's settings (for example importing an old settings file, or saying which connection a path uses). The agent runs it even while `status()` reports an error, so Settings can use it before the connector is set up. Must be `write: false`. Shown as `setup: true` in the connector info. |
 | `argsSchema` | no | JSON Schema (subset in [README.md](README.md)) for `args`. The agent validates before calling `run`. |
-| `run(args, ctx)` | yes | Async. Returns JSON-serializable data, which becomes `result`. |
+| `run(args, ctx, meta)` | yes | Async. Returns JSON-serializable data, which becomes `result`. `meta.caller` is `"agent"` when it came through `/api/tools` and `"person"` otherwise, so an action can refuse agents or record who asked. |
 
 Errors: throw an `Error`. To pick the HTTP status and code, set `err.status` (400 to 599) and `err.code` (one of the codes in [agent-api.md](agent-api.md)). The message is shown to the user, so write it in plain words and never include secrets, tokens or full URLs with credentials.
 
@@ -73,6 +74,8 @@ The agent creates one `ctx` per start and passes the same object to `start` and 
 | --- | --- |
 | `ctx.config` | The connector's config, validated, defaults filled in, frozen. |
 | `ctx.env(name)` | Returns the value of environment variable `name`, or `undefined`. Only names that appear in `ctx.config` under a field marked `x-workshop-env` are readable; any other name throws. This is how a connector gets a PAT. Never log, store, emit or return the value. On Windows the agent looks the name up in the user's saved variables (`HKCU\Environment`) first, cached for a few seconds, then in its own environment, so a variable saved after Workshop started (for example with `workshop pat`) is seen without a restart. Read it each time it is needed rather than keeping a copy. |
+| `ctx.secret(name)` | Async. The value of the secret `name` from this computer's secret store ([security.md](security.md), Secrets), or `undefined` when it is not saved. Only names that appear in `ctx.config` under a field marked `x-workshop-secret` are readable; any other name throws. Prefer this to `ctx.env` for new connectors: the value is not in every program's environment. Read it each time it is needed (the agent caches it for a minute); never log, store, emit or return it. |
+| `ctx.workMode()` | Whether work mode is on now. A connector meant only for a personal computer (Cloudflare) reports an error and refuses its actions while it is. |
 | `ctx.log.info(msg, data?)`, `.warn`, `.error` | Writes to `~/.workshop/logs/` tagged with the connector id. The agent redacts the token and every `ctx.env` value it has handed out, but connectors must not pass them in the first place. |
 | `ctx.storage.get(key)` | Async. The JSON value stored under `key`, or `undefined`. |
 | `ctx.storage.put(key, value)` | Async. Stores a JSON value, atomically, in `~/.workshop/data/_connectors/<id>/<key>.json` (in the Workshop home, never the data folder). Keys match `^[a-z0-9][a-z0-9._-]{0,63}$`. Private to this connector. For the connector's own state only (settings it saved, sync cursors); content a person would want back goes in `ctx.dataDir`, working files in `ctx.scratch`. |
@@ -87,7 +90,7 @@ The agent creates one `ctx` per start and passes the same object to `start` and 
 
 - **Outbound calls only to configured hosts.** A connector calls only hosts that come from its config (an ADO server URL, `127.0.0.1` for opencode). No telemetry, no update checks, no third-party CDNs.
 - **Read-only by default.** Anything that changes an outside system is an action with `write: true`.
-- **No secrets in config.** A secret is always an environment variable named by a field marked `x-workshop-env`.
+- **No secrets in config.** A secret is always an environment variable named by a field marked `x-workshop-env`, or a secret in this computer's store named by a field marked `x-workshop-secret`.
 - **No shared state.** Connectors do not import each other or the agent's internals. They get everything through `ctx`.
 - **Node standard library only,** unless the workstream brief allows a dependency.
 - **Company specifics live in config.** No collection URLs, projects, teams or origins in code.
@@ -104,6 +107,7 @@ The Settings app (WS4) builds each connector's form from `configSchema` alone, s
 | `x-workshop-section: "<name>"` on a top-level field | Folds the field into a section with that name on its page, closed until opened (the ADO connector's team reports). An object in a section shows its fields directly. |
 | `x-workshop-hosted: true` on any field | A paired hosted page may change this field (`PUT /api/connectors/<id>/config`). Unmarked fields change only from the agent's own origin. Never mark a field that names a server, a command, a file to read, or an environment variable. |
 | `type: "string"` with `x-workshop-env: true` | Environment variable name field. The form shows the name and whether it is set (from `env` in `GET /api/connectors/<id>/config`). There is no field for the value. |
+| `type: "string"` with `x-workshop-secret: true` | Secret name field. The form shows the name, whether `workshop secret set` saved it and when it expires (from `secrets` in `GET /api/connectors/<id>/config`), and the command to save it. There is no field for the value. |
 | `type: "integer"` or `"number"` | Number field, with `minimum` and `maximum`. |
 | `type: "boolean"` | Checkbox or switch. |
 | `type: "array"` of strings | List of text fields with add and remove. |

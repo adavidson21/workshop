@@ -36,6 +36,44 @@
           }
         }
       }
+    },
+    "secrets": {
+      "description": "Secrets named in x-workshop-secret fields: whether `workshop secret set` saved one by that name, where, and its expiry. Never a value.",
+      "type": "object",
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]{0,39}$"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "set"
+        ],
+        "properties": {
+          "set": {
+            "type": "boolean"
+          },
+          "store": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "expires": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "daysLeft": {
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        }
+      }
     }
   }
 }

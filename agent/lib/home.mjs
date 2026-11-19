@@ -20,6 +20,9 @@ export function homePaths(home) {
     home,
     config: path.join(home, 'config.json'),
     token: path.join(home, 'token'),
+    // The agent token: for programs on this computer (Tandem's scripts) to call read actions marked for agents
+    // through /api/tools, and nothing else (docs/agent-api.md, Tools for agents).
+    agentToken: path.join(home, 'agent-token'),
     data: path.join(home, 'data'),
     logs: path.join(home, 'logs')
   };
