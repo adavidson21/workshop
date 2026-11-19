@@ -475,7 +475,7 @@ for (const kind of ["v1", "v2"]) {
     test("[P-autopilot] builds over the limit queue, and a hands-off Quick change approves itself only with auto", async () => {
       const titles = () => fake.bodiesFor(kind === "v1" ? "POST /session" : "POST /api/session").map((b) => b.title);
       const st0 = await call("state", {}, ctx());
-      assert.deepEqual(st0.autopilotOptions, { maxRuns: 2, quickHandsOff: true, fairSlots: true, factory: { taskFileCap: 6, quickTasks: 3, retries: 3, autoFix: "should-fix", reviewRounds: 2, uiChecks: true, regression: true, worktrees: "always" } });
+      assert.deepEqual(st0.autopilotOptions, { maxRuns: 2, quickHandsOff: true, fairSlots: true, factory: { taskFileCap: 6, quickTasks: 3, retries: 3, autoFix: "should-fix", reviewRounds: 2, uiChecks: true, regression: true, uiCheckPerTask: true, modelSeesImages: false, worktrees: "always" } });
       // A second buildable item: a copy of 41207 (the example's only one that is not blocked).
       fs.cpSync(path.join(ws.work, "41207-fix-login-timeout"), path.join(ws.work, "41208-copy-of-login"), { recursive: true });
       await call("refresh", {}, ctx());
@@ -1079,5 +1079,51 @@ describe("code review at Publish: Send back", { skip: !hasGit }, () => {
     await waitFor(() => titles().length > n && titles().at(-1) === "41610: /revise 41610 auto", "/revise to start again");
     await rejects(call("review.revise", { id: "41610" }), "conflict", /already working/);
     await call("autopilot", { folder: FOLDER, action: "stop" });
+  });
+});
+
+// 1.27.0 (Workshop project doc claude/build-self-check-v1-plan.md): Try it runs Tandem's Start-UiApp.ps1 through
+// opencode's shell, then shows the build's app once app.json names an address that answers.
+describe("Try it: the build's app", { skip: !hasGit }, () => {
+  let ws, fake, app;
+  const FOLDER = "41610-rate-limit-headers";
+  before(async () => {
+    ws = makeWorkspace({ repos: true });
+    fake = await startFakeOpencode({ kind: "v1" });
+    await startConnector(configFor(ws.dir, { url: fake.url }));
+    await waitFor(() => oc.status().details.opencode.connected, "opencode to connect");
+    const http = await import("node:http");
+    app = http.createServer((q, s) => s.end("hi")).listen(0, "127.0.0.1");
+    await new Promise((r) => app.once("listening", r));
+  });
+  after(async () => {
+    app.close();
+    await oc.stop();
+    await fake.close();
+    ws.remove();
+  });
+
+  test("preview.open runs Start-UiApp.ps1 in opencode, then the app's address shows; preview.stop runs Stop-UiApp.ps1", async () => {
+    const r = await call("preview.open", { folder: FOLDER });
+    assert.equal(r.status, "starting");
+    const shells = () => fake.state.bodies.filter((b) => /\/shell$/.test(b.route)).map((b) => b.body.command);
+    await waitFor(() => shells().length === 1, "the shell command");
+    const cmd = shells()[0];
+    assert.match(cmd, /-File "[^"]*eng-agents[\\/]scripts[\\/]ui[\\/]Start-UiApp\.ps1"/);
+    assert.match(cmd, new RegExp(`-WorkFolder "[^"]*${FOLDER}" -Repo "[^"]*gateway" -Guide "[^"]*gateway[\\\\/]AGENTS\\.md"`));
+    assert.equal((await call("state")).previews[FOLDER].status, "starting");
+    // What Start-UiApp.ps1 writes once the app answers.
+    const url = `http://127.0.0.1:${app.address().port}`;
+    fs.mkdirSync(path.join(ws.work, FOLDER, "ui"), { recursive: true });
+    fs.writeFileSync(path.join(ws.work, FOLDER, "ui", "app.json"), JSON.stringify({ version: 1, pid: process.pid, url, ours: true, started: new Date().toISOString() }));
+    await waitFor(async () => (await call("state")).previews[FOLDER].status === "running", "the app to show as running");
+    assert.equal((await call("state")).previews[FOLDER].url, url);
+    assert.deepEqual(await call("preview.open", { folder: FOLDER }), { ok: true, status: "running", url }, "a running app is reused");
+    assert.equal(shells().length, 1);
+    await call("preview.stop", { folder: FOLDER });
+    await waitFor(() => shells().length === 2, "the stop command");
+    assert.match(shells()[1], /Stop-UiApp\.ps1" -WorkFolder "[^"]*41610-rate-limit-headers"/);
+    await rejects(call("preview.open", { folder: "nope" }), "not_found");
+    fs.rmSync(path.join(ws.work, FOLDER, "ui"), { recursive: true });
   });
 });

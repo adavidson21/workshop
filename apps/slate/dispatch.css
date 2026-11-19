@@ -1049,6 +1049,7 @@ body { font-size: 15px; line-height: 1.5; }
 :where(#runs-root, .loom-run) .pub-imgs figure { margin: 0; font-size: 12px; color: var(--muted); }
 :where(#runs-root, .loom-run) .pub-imgs img { width: 100%; height: auto; border: 1px solid var(--line); border-radius: 6px; display: block; }
 :where(#runs-root, .loom-run) .pub-q ul, :where(#runs-root, .loom-run) .pub-over ul, :where(#runs-root, .loom-run) .pub-tests ul { margin: 4px 0; padding-left: 18px; }
+:where(#runs-root, .loom-run) .try { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; font-size: 13px; }
 :where(#runs-root, .loom-run) .pub-code p { margin: 4px 0 0; font-size: 12.5px; }
 :where(#runs-root, .loom-run) .pub-repos { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 6px; }
 :where(#runs-root, .loom-run) .pub-repos li { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 13px; }

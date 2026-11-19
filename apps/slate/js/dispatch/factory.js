@@ -133,9 +133,25 @@ export function publishHtml(it) {
   if (!p.ready) return '';
   const q = p.questions.length ? `<div class="pub-q"><p class="sub-h">Questions from the review</p><ul>${p.questions.map(x => `<li>${md(x)}</li>`).join('')}</ul><p class="dim">Answer them in your head or send it back; they do not block Publish.</p></div>` : '';
   const busy = S.ui.busy && S.ui.busy['pub:' + it.folder];
-  return `<div class="pub"><p class="sub-h">Ready to publish</p>${testsHtml(p)}${uiHtml(it, p)}${q}${codeHtml(it, p)}` +
+  return `<div class="pub"><p class="sub-h">Ready to publish</p>${testsHtml(p)}${uiHtml(it, p)}${q}${codeHtml(it, p)}${tryItHtml(it)}` +
     `<div class="row"><button type="button" class="btn primary" data-publish="${h(it.folder)}"${busy ? ' disabled' : ''} title="Pushes every branch in pr.md (never force), then opens each PR page with the text filled in">${busy ? 'Publishing…' : 'Publish ' + outsideMark('git')}</button>` +
     `<span class="dim">Pushes ${h(String((it.pr || []).length))} branch${(it.pr || []).length === 1 ? '' : 'es'} and opens the PRs.</span></div></div>`;
+}
+
+// ------------------------------------------------------------------ Try it (connector 1.27.0)
+/** The build's app for you to click around in: Try it while it builds or waits at Publish, then Open and Stop. */
+export function tryItHtml(it) {
+  if (!it || it.kind !== 'item' || S.conn !== 'on' || !(it.repos || []).length) return '';
+  if (!['build', 'review', 'pr', 'ship'].includes(it.stage)) return '';
+  const p = (S.D && S.D.previews && S.D.previews[it.folder]) || null;
+  const busy = S.ui.busy && S.ui.busy['try:' + it.folder];
+  const f = h(it.folder);
+  if (p && p.status === 'running' && p.url) {
+    return `<div class="try row"><a class="btn" href="${h(p.url)}" target="_blank" rel="noopener" title="The app this build runs, on this computer">Open the app</a><span class="dim mono">${h(p.url)}</span><button type="button" class="btn ghost small" data-try-stop="${f}"${busy ? ' disabled' : ''}>Stop</button></div>`;
+  }
+  if (p && p.status === 'starting') return '<div class="try row"><span class="dim">Starting the app… it opens here when it answers.</span></div>';
+  const failed = p && p.status === 'failed' ? `<span class="flag warn">${h(p.message || 'The app did not start.')}</span>` : '';
+  return `<div class="try row"><button type="button" class="btn ghost" data-try="${f}"${busy ? ' disabled' : ''} title="Starts the app from this build's worktree (or uses the one Tandem keeps running for its UI checks) so you can click around">${p && p.status === 'failed' ? 'Try again' : 'Try it'}</button>${failed}</div>`;
 }
 
 /** Publish all ready, for the Ready lane: only when at least one build has nothing to answer. */

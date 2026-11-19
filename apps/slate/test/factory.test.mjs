@@ -131,3 +131,22 @@ test('Publish: the code per repo (connector 1.27.0): its size, Review the code, 
   delete p.diff;
   delete p.review;
 });
+
+test('Try it (connector 1.27.0): start, starting, Open the app and Stop, a failure with Try again', async () => {
+  const { tryItHtml } = await import('../js/dispatch/factory.js');
+  const it = item(READY);
+  assert.match(tryItHtml(it), /data-try="41610-rate-limit-headers"[^>]*>Try it</);
+  S.D.previews = { [READY]: { status: 'starting', url: null } };
+  assert.match(tryItHtml(it), /Starting the app/);
+  S.D.previews[READY] = { status: 'running', url: 'http://127.0.0.1:5173' };
+  assert.match(tryItHtml(it), /<a class="btn" href="http:\/\/127\.0\.0\.1:5173" target="_blank" rel="noopener"[^>]*>Open the app<\/a>/);
+  assert.match(tryItHtml(it), /data-try-stop="41610-rate-limit-headers"/);
+  S.D.previews[READY] = { status: 'failed', message: 'No UI checks table.' };
+  assert.match(tryItHtml(it), />Try again<\/button><span class="flag warn">No UI checks table\.<\/span>/);
+  assert.match(publishHtml(it), /Try again/, 'in the Publish block too');
+  S.conn = 'off';
+  assert.equal(tryItHtml(it), '');
+  S.conn = 'on';
+  assert.equal(tryItHtml({ ...it, stage: 'plan' }), '', 'nothing to run before the build');
+  delete S.D.previews;
+});

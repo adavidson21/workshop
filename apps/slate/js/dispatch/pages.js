@@ -16,7 +16,7 @@ import { reviewsHtml, isReviewSession, mineItems, mineState, MINE_STATE, toRevie
 /** A session the hub started (`/hub <text>`): it belongs to the Chat app, not to a run. */
 const isHubCommand = c => /^\/hub\s/.test(String(c || ''));
 import { docHtml } from './doc.js';
-import { publishHtml, overlapHtml } from './factory.js';
+import { publishHtml, overlapHtml, tryItHtml } from './factory.js';
 import { FLOWS, flowOf, flowTag, flowById, stepsOf, stepIndex, currentStep, hereWords, atGate, isFinished, turnHtml, gateFile, sendBackCommand,
   folderCommand, flowTrackHtml, stepLine, miniTrack, isSlateFolder, forkHtml } from './flows.js';
 
@@ -250,7 +250,8 @@ export function runCardHtml(folder) {
   if (d.gates.includes(it)) return gateCard(it);
   if (d.failed.includes(it)) return failedCard(it);
   // A ready build's Publish gate (Loom 6.2.0) sits under its row, in the lanes' panel too.
-  return `<div class="rows">${workRow(it)}</div>` + publishHtml(it);
+  // Try it (connector 1.27.0) while it builds; at Publish it sits in the Publish block.
+  return `<div class="rows">${workRow(it)}</div>` + (it.stage === 'ship' ? '' : tryItHtml(it)) + publishHtml(it);
 }
 /** A hand-off with no movement: who has it, how long, and Open (its card, where Followed up is). */
 function nudgeRow(n) {

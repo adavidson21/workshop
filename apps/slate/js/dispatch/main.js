@@ -1093,6 +1093,10 @@ listen('click', ev => {
   }
   const od = t.closest('[data-onboard-dismiss]');
   if (od) { act(() => write('onboarding.dismiss', { product: od.getAttribute('data-onboard-dismiss') })); return; }
+  const tr = t.closest('[data-try]');
+  if (tr) { const folder = tr.getAttribute('data-try'); act(() => write('preview.open', { folder }), r => { if (r && r.status === 'starting') toast('Starting the app. Open the app shows here when it answers.'); }, 'try:' + folder); return; }
+  const ts = t.closest('[data-try-stop]');
+  if (ts) { const folder = ts.getAttribute('data-try-stop'); act(() => write('preview.stop', { folder }), () => toast('Stopping the app.'), 'try:' + folder); return; }
   const pub = t.closest('[data-publish]');
   if (pub) {
     const folder = pub.getAttribute('data-publish');

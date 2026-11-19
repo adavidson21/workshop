@@ -5,7 +5,7 @@
 // The live server's HTTP routes are the actions below; its event stream is connector events.
 import fs from "node:fs";
 import path from "node:path";
-import { REPO_FOLDER_MAX, VERSION, configure, current, httpError, opt, shutdown, workRoot } from "./lib/context.mjs";
+import { REPO_FOLDER_MAX, VERSION, configure, current, every, httpError, opt, shutdown, workRoot } from "./lib/context.mjs";
 import { installInfo, tandemHealth } from "./lib/tandem-health.mjs";
 import { ARMS, MAX_MODELS, MAX_RUNS, PRESETS, commandFor, evalsHome, listCases, listExperiments, listResults, openEvalsTerminal, readCommands, readGuards, readResult, runArgs, scriptArgs } from "./lib/evals.mjs";
 import { clearModelHooks, model, modelError, onModel, parserGone, refresh, resetModel, watchWork } from "./lib/model.mjs";
@@ -28,6 +28,7 @@ import { COLORS, INBOX, assignRun, createProject, deleteProject, loadProjects, m
 import { findItem } from "./lib/actions.mjs";
 import { broadcastLive, emitProjects } from "./lib/live.mjs";
 import { diffStats, loadReview, needReview, resetReview, reviewSummary, reviseAgain } from "./lib/review.mjs";
+import { openPreview, resetPreviews, stopPreview, sweepIdle } from "./lib/preview.mjs";
 
 // The Publish block's code review and change size (lib/publish.mjs stays free of the review and git code).
 setPublishHooks({ review: (folder) => reviewSummary()[folder] || {}, diff: (it) => diffStats(it) });
@@ -181,6 +182,8 @@ export const configSchema = {
         autoFix: { type: "string", title: "Review findings fixed on their own", description: "Which review findings become fix tasks without asking you. Nits never do.", enum: ["should-fix", "blockers"], "x-workshop-labels": ["Blockers and Should fix", "Blockers only"], default: "should-fix", "x-workshop-hosted": true },
         reviewRounds: { type: "integer", title: "Review rounds", description: "Reviews autopilot runs before a review that is still not ready waits for you. Default 2.", minimum: 1, maximum: 4, default: 2, "x-workshop-hosted": true },
         uiChecks: { type: "boolean", title: "UI checks with screenshots", description: "When a change touches UI files, start the app, screenshot its pages and check them (needs a UI checks table in the repo guide and Playwright in the repo). Skipped, never a stop, when the app cannot start on this computer.", default: true, "x-workshop-hosted": true },
+        uiCheckPerTask: { type: "boolean", title: "UI check in every task", description: "Each task that changes UI files opens its own pages before it commits (one width, with the app kept running for the build), and reads them to confirm what the task promised is there. A problem is fixed in that task instead of in a review round. Needs the same UI checks table.", default: true, "x-workshop-hosted": true },
+        modelSeesImages: { type: "boolean", title: "The model can see images", description: "Also hand the per-task screenshot to the model. Leave off for a model that reads text only: it reads the page as text either way.", default: false, "x-workshop-hosted": true },
         regression: { type: "boolean", title: "Regression tests", description: "Run each repo's whole end-to-end suite before and after every build, and write a test for every acceptance criterion people can see (needs a Regression tests table in the repo guide). A test that passed before and fails now is fixed before the PR.", default: true, "x-workshop-hosted": true },
         worktrees: { type: "string", title: "Worktrees", description: "Every build in its own git worktree, or only when the repo folder is busy.", enum: ["always", "busy"], "x-workshop-labels": ["Every build", "Only when busy"], default: "always", "x-workshop-hosted": true },
       },
@@ -232,6 +235,7 @@ function resetAll() {
   resetActions();
   resetProjects();
   resetReview();
+  resetPreviews();
   resetPrQueue();
   resetOneOnOnes();
   resetHub();
@@ -1392,6 +1396,24 @@ const actions = {
       return needReview().getFile(args.id, args.repo, args.path, args.side);
     },
   },
+  "preview.open": {
+    title: "Try it: start the build's app (or reuse it) and say its address",
+    write: true,
+    argsSchema: obj(["folder"], { folder, repo: str("Repo folder", { maxLength: 260 }) }),
+    async run(args) {
+      needReady();
+      return openPreview(args, findItem);
+    },
+  },
+  "preview.stop": {
+    title: "Try it: stop the build's app",
+    write: true,
+    argsSchema: obj(["folder"], { folder }),
+    async run(args) {
+      needReady();
+      return stopPreview(args, findItem);
+    },
+  },
   "review.revise": {
     title: "Code review: start Tandem on the comments you sent back",
     write: true,
@@ -1456,6 +1478,8 @@ export default {
     onConnected(() => resumeQueued());
     loadProjects();
     loadReview();
+    // 1.27.0: a build's app that nothing has built with or opened for 30 minutes is stopped (Try it, lib/preview.mjs).
+    every(() => { if (oc.connected) sweepIdle((model && model.items) || []).catch(() => {}); }, 5 * 60 * 1000);
     loadPrQueue();
     phase = "starting";
     problem = null;

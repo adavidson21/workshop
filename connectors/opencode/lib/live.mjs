@@ -21,6 +21,7 @@ import { publishData } from "./publish.mjs";
 import { overlapData } from "./overlap.mjs";
 import { adoLinksData, adoNotice } from "./ado-link.mjs";
 import { epicsData, onboardingData } from "./epics.mjs";
+import { previewData } from "./preview.mjs";
 
 export function liveData() {
   const items = {};
@@ -53,6 +54,8 @@ export function pageData() {
   return { ...base, tandem: { ado: adoConfigured() }, projects: projectsData(folderForToken), reviews: reviewSummary(), observations: observationsData(), autopilotOptions: autoOptions(), gaps, publish: publishData(base.items), overlaps: overlapData(base.items), adoLinks: adoLinksData(base.items), adoNotice: adoNotice(),
     // 1.23.0: epics building hands-off (their stories and where they are), and products being onboarded.
     epics: epicsData(base.items), onboarding: onboardingData(base.onboarding, gaps.open, base.items, sessions),
+    // 1.27.0: Try it, each build's app (lib/preview.mjs).
+    previews: previewData(base.items),
     liveMode: { error: modelError, live: liveData() } };
 }
 
