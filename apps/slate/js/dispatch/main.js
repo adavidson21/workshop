@@ -1061,6 +1061,15 @@ listen('click', ev => {
     act(() => write('gap.answer', { id, answer }), () => { delete ui().drafts['teach:' + id]; toast('Saving your answer. Tandem writes it where it belongs.'); }, 'gap:' + id);
     return;
   }
+  // Loom 6.5.0: build an epic's stories here (connector epic.build), and hide a live product's new line.
+  const eb = t.closest('[data-epic-build]');
+  if (eb) {
+    const folder = eb.getAttribute('data-epic-build');
+    act(() => write('epic.build', { folder }), r => toast(r && r.split ? 'Tandem is making the stories. They start building as soon as they exist.' : `Building ${r && r.started ? r.started.length : 0} stories, in order.`), 'epic:' + folder);
+    return;
+  }
+  const od = t.closest('[data-onboard-dismiss]');
+  if (od) { act(() => write('onboarding.dismiss', { product: od.getAttribute('data-onboard-dismiss') })); return; }
   const pub = t.closest('[data-publish]');
   if (pub) {
     const folder = pub.getAttribute('data-publish');

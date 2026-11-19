@@ -8,7 +8,7 @@ import path from "node:path";
 import { REPO_FOLDER_MAX, VERSION, configure, current, httpError, opt, shutdown, workRoot } from "./lib/context.mjs";
 import { installInfo, tandemHealth } from "./lib/tandem-health.mjs";
 import { ARMS, MAX_MODELS, MAX_RUNS, PRESETS, commandFor, evalsHome, listCases, listExperiments, listResults, openEvalsTerminal, readCommands, readGuards, readResult, runArgs, scriptArgs } from "./lib/evals.mjs";
-import { model, modelError, parserGone, refresh, resetModel, watchWork } from "./lib/model.mjs";
+import { clearModelHooks, model, modelError, onModel, parserGone, refresh, resetModel, watchWork } from "./lib/model.mjs";
 import { currentSession, loadLinks } from "./lib/links.mjs";
 import { oc, resetState, sessions } from "./lib/opencode-state.mjs";
 import { connectOpencode, disconnectOpencode, onConnected } from "./lib/opencode-connect.mjs";
@@ -16,6 +16,7 @@ import { abort, answerPermission, answerQuestion, openTerminal, pushBranch, remo
 import { autopilot, autopilotAction, loadAuto, resumeAfterGap, resumeQueued } from "./lib/autopilot.mjs";
 import { decideObservation, findObservation, loadObservations, resetObservations, startArgs } from "./lib/observations.mjs";
 import { answerGap, loadGaps, MAX_ANSWER, onGapClosed, resetGaps } from "./lib/gaps.mjs";
+import { buildEpic, dismissOnboarding, loadEpics, onboardProduct, resetEpics, startWaiting } from "./lib/epics.mjs";
 import { forgetPublished, loadPublished, publishItem, readyToPublish, resetPublished } from "./lib/publish.mjs";
 import { adoNoticeSeen, linkItem, loadAdoLinks, resetAdoLinks, unlinkAllOnce, unlinkItem } from "./lib/ado-link.mjs";
 import { pageData, resetLive } from "./lib/live.mjs";
@@ -214,11 +215,13 @@ function setPhase(p, msg = null) {
   try { ctxRef && ctxRef.statusChanged(); } catch {}
 }
 
+let startingWaiting = false;
 function resetAll() {
   shutdown();
   resetWorkspace();
   disconnectOpencode();
   resetModel();
+  clearModelHooks();
   resetLive();
   resetState();
   resetActions();
@@ -231,6 +234,7 @@ function resetAll() {
   resetVoice();
   resetObservations();
   resetGaps();
+  resetEpics();
   resetPublished();
   resetAdoLinks();
 }
@@ -1143,6 +1147,39 @@ const actions = {
       return r;
     },
   },
+  "epic.build": {
+    title: "Build an epic: split its approved breakdown into stories (/backlog local) and build them hands-off, in order",
+    write: true,
+    argsSchema: obj(["folder"], { folder }),
+    async run(args) {
+      needReady();
+      const r = await buildEpic(args, { items: (model && model.items) || [], run: runLoose });
+      broadcastLive();
+      return r;
+    },
+  },
+  "product.onboard": {
+    title: "Onboard a product: Tandem scans its repos, drafts its guides and note, logs gaps and starts a trial run",
+    write: true,
+    argsSchema: obj(["product"], { product: str("Product name", { minLength: 1, maxLength: 120 }) }),
+    async run(args) {
+      needReady();
+      const r = await onboardProduct(args, { run: runLoose });
+      broadcastLive();
+      return r;
+    },
+  },
+  "onboarding.dismiss": {
+    title: "Stop showing a product's onboarding on Loom's floor",
+    write: false,
+    argsSchema: obj(["product"], { product: str("Product name", { minLength: 1, maxLength: 120 }) }),
+    async run(args) {
+      needReady();
+      const r = dismissOnboarding(args);
+      broadcastLive();
+      return r;
+    },
+  },
   "gap.answer": {
     title: "Answer a knowledge gap (Teach): Tandem writes it where it belongs",
     write: true,
@@ -1359,6 +1396,13 @@ export default {
     loadPublished();
     loadAdoLinks();
     onGapClosed((id) => resumeAfterGap(id));
+    // 1.23.0: an epic you asked to build, and a product's trial run, get autopilot as soon as their items exist.
+    loadEpics();
+    onModel((m) => {
+      if (!m || !oc.connected || startingWaiting) return;
+      startingWaiting = true;
+      return startWaiting(m.items).finally(() => { startingWaiting = false; });
+    });
     onConnected(() => resumeQueued());
     loadProjects();
     loadReview();

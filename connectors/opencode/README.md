@@ -66,6 +66,14 @@ Since 1.21.0 (eng-agents Core 4.9.0; Workshop project doc `claude/software-facto
 
 Since 1.22.0 (Workshop project doc `claude/work-items-source-v1-plan.md`). Tandem's work items are the source of truth; ADO is an optional link per item, one line in `workitem.md` (`- ADO item: <n>` linked, `- ADO item: unlinked` or `unlinked (was <n>)` local; no line: a numbered item is linked, an `L<n>` item local). `state.adoLinks` is `{<folder>: {linked, ado, was}}`. On the first start of 1.22.0 every numbered item with no such line is unlinked once (recorded in `_dashboard/ado-links.json`); `state.adoNotice` (`{count, at}`) tells Loom to say so until `ado.notice.seen`. Items started from ADO afterwards are linked as before. Nothing here talks to ADO: Loom's Create in ADO calls the ADO connector's `workitem.create`, then `item.link`.
 
+## Epics and onboarding (1.23.0)
+
+eng-agents Core 4.10.0; Workshop project doc `claude/loom-floor-v1-plan.md`. `lib/epics.mjs`.
+
+- **`epic.build`** `{folder: scope-<name>}`: approving the breakdown is enough. Runs Tandem's `/backlog <scope> local` unless the stories exist, and remembers that you asked (`_dashboard/epics.json`). Each story item (`workitem.md`: `- Epic:`, `- Story:`, `- Depends on:`, `- Repos:`, `- Areas:`, `- Breakdown: approved`; the model's `story`) then gets autopilot as soon as it exists, after the story it depends on. Autopilot runs `/start <id> feature auto`, `/spec <id> auto` and `/approve <id> spec auto`, which approves the plan unless it drifts from the breakdown; a drifting plan waits for you. Every PR still waits for Publish.
+- **`product.onboard`** `{product}`: runs `/onboard-product <product>`. Tandem writes `.work/_onboarding/<product>.md` (the model's `onboarding`) and makes a trial run (`- Trial: <product>`, the model's `trial`), which gets hands-off autopilot in the quick lane. The product is live once the trial run reaches Ready to publish. **`onboarding.dismiss`** hides a product's steps.
+- `state` adds `epics` (each epic, its stories, where they are, how many are ready) and `onboarding` (each product's five steps: add, scan, gaps, trial, live).
+
 ## Approved AI providers
 
 Dispatch sends work to whatever AI provider opencode uses, so at work that should be only the provider your company approved. With `approvedProviders` set, `workshop doctor` (`connectors/opencode/lib/providers.mjs`) reads opencode's config the way opencode merges it (global `~/.config/opencode/opencode.json[c]`, `OPENCODE_CONFIG`, the workspace's `opencode.json[c]` and `.opencode/opencode.json[c]`, `OPENCODE_CONFIG_CONTENT`, and the managed folder) and its saved logins (`~/.local/share/opencode/auth.json`), and fails when:

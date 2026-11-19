@@ -504,6 +504,77 @@ for (const kind of ["v1", "v2"]) {
       await call("refresh", {}, ctx());
     });
 
+    test("[P-epics] Build the epic starts its stories hands-off in order; Onboard runs /onboard-product and shows its steps", async () => {
+      const titles = () => fake.bodiesFor(kind === "v1" ? "POST /session" : "POST /api/session").map((b) => b.title);
+      const story = (id, n, deps) => `# Work item ${id}: Story ${n}\n\n- Type: Feature\n- Source: Local (no tracker item)\n- Epic: scope-ws\n- Story: ${n}\n- Depends on: ${deps}\n- Repos: gateway\n- Areas: gateway/src\n- Breakdown: approved 2026-11-19\n\n## Description\n\nx\n`;
+      fs.mkdirSync(path.join(ws.work, "scope-ws"), { recursive: true });
+      fs.writeFileSync(path.join(ws.work, "scope-ws", "epics.md"), "# Epics: ws\n");
+      for (const [f, id, n, deps] of [["L50-create-workspace", "L50", "1.1", "none"], ["L51-invite-members", "L51", "1.2", "L50"]]) {
+        fs.mkdirSync(path.join(ws.work, f), { recursive: true });
+        fs.writeFileSync(path.join(ws.work, f, "workitem.md"), story(id, n, deps));
+      }
+      await call("refresh", {}, ctx());
+      let st = await call("state", {}, ctx());
+      const l51 = st.items.find((i) => i.id === "L51");
+      assert.deepEqual(l51.story, { epic: "scope-ws", story: "1.2", dependsOn: ["L50"], repos: ["gateway"], areas: ["gateway/src"], breakdown: true });
+      assert.equal(st.items.find((i) => i.id === "41207").story, undefined, "only items with an Epic line have a story");
+      await rejects(call("epic.build", { folder: "41207-fix-login-timeout" }, ctx()), "bad_request", /not an epic/);
+      const r = await call("epic.build", { folder: "scope-ws" }, ctx());
+      assert.equal(r.split, false, "the stories exist, so no /backlog");
+      assert.deepEqual(r.started, ["L50-create-workspace", "L51-invite-members"]);
+      await waitFor(() => titles().includes("L50: /start L50 feature auto"), "the first story to start on its own");
+      const auto = (await call("state", {}, ctx())).liveMode.live.autopilot;
+      assert.equal(auto["L51-invite-members"].status, "queued");
+      assert.equal(auto["L51-invite-members"].after, "L50-create-workspace", "a story builds after the one it depends on");
+      st = await call("state", {}, ctx());
+      const epic = st.epics.find((e) => e.folder === "scope-ws");
+      assert.deepEqual(epic.stories.map((x) => [x.id, x.story, x.auto]), [["L50", "1.1", "running"], ["L51", "1.2", "queued"]]);
+      assert.equal(epic.total, 2);
+      assert.ok(JSON.parse(fs.readFileSync(path.join(ws.work, "_dashboard", "epics.json"), "utf8")).epics["scope-ws"]);
+      for (const fd of ["L50-create-workspace", "L51-invite-members"]) await call("autopilot", { folder: fd, action: "stop" }, ctx());
+      await waitFor(async () => !!(await call("state", {}, ctx())).liveMode.live.items["L50-create-workspace"], "the story's session to be linked");
+      const live = (await call("state", {}, ctx())).liveMode.live;
+      for (const fd of ["L50-create-workspace", "L51-invite-members"]) await call("autopilot", { folder: fd, action: "dismiss" }, ctx());
+      await finish(live.items["L50-create-workspace"].current);
+      // Onboarding: /onboard-product, then Tandem's file lights up the steps.
+      await call("product.onboard", { product: "Portal" }, ctx());
+      await waitFor(() => titles().includes("/onboard-product Portal"), "/onboard-product to run");
+      fs.mkdirSync(path.join(ws.work, "_onboarding"), { recursive: true });
+      fs.writeFileSync(path.join(ws.work, "_onboarding", "portal.md"), "# Onboarding: Portal\n\n- Product: Portal\n- Scan: done 2026-11-19 | gateway\n- Trial: L52\n");
+      fs.writeFileSync(path.join(ws.work, "gaps.md"), "# Knowledge gaps\n\n- G1 | 2026-11-19 | repo | Portal | /onboard-product | What builds gateway? | dotnet build | open\n");
+      await call("refresh", {}, ctx());
+      st = await call("state", {}, ctx());
+      const ob = st.onboarding.find((o) => o.product === "Portal");
+      assert.deepEqual(ob.steps.map((x) => [x.id, x.st]), [["add", "done"], ["scan", "done"], ["gaps", "now"], ["trial", "now"], ["live", "next"]]);
+      assert.equal(ob.gaps, 1);
+      assert.deepEqual(ob.repos, ["gateway"]);
+      await call("onboarding.dismiss", { product: "Portal" }, ctx());
+      assert.equal((await call("state", {}, ctx())).onboarding.length, 0);
+      for (const f of ["L50-create-workspace", "L51-invite-members", "scope-ws", "_onboarding"]) fs.rmSync(path.join(ws.work, f), { recursive: true });
+      fs.rmSync(path.join(ws.work, "gaps.md"));
+      await call("refresh", {}, ctx());
+    });
+
+    test("[P-epics] a story's drafted plan is approved with /approve <id> spec auto (held only on drift)", async () => {
+      const titles = () => fake.bodiesFor(kind === "v1" ? "POST /session" : "POST /api/session").map((b) => b.title);
+      const f = path.join(ws.work, "L60-story-plan");
+      fs.mkdirSync(f, { recursive: true });
+      fs.writeFileSync(path.join(f, "workitem.md"), "# Work item L60: Story plan\n\n- Type: Feature\n- Epic: scope-x\n- Story: 1.1\n- Depends on: none\n- Breakdown: approved 2026-11-19\n");
+      fs.writeFileSync(path.join(f, "repos.md"), "# Repos\n\n- Lane: feature\n\n| Repo | Branch | Why |\n|---|---|---|\n| gateway | dev/feature/L60-story-plan | x |\n");
+      for (const n of ["spec", "plan"]) fs.writeFileSync(path.join(f, `${n}.md`), `# ${n}\n\nStatus: DRAFT\n`);
+      fs.writeFileSync(path.join(f, "tasks.md"), "# Tasks\n\n## [ ] Task 1: x\n");
+      await call("refresh", {}, ctx());
+      await call("autopilot", { folder: "L60-story-plan", action: "start" }, ctx());
+      await waitFor(() => titles().includes("L60: /approve L60 spec auto"), "the story's plan to be approved by exception");
+      await call("autopilot", { folder: "L60-story-plan", action: "stop" }, ctx());
+      await waitFor(async () => !!(await call("state", {}, ctx())).liveMode.live.items["L60-story-plan"], "the session to be linked");
+      const live = (await call("state", {}, ctx())).liveMode.live;
+      await call("autopilot", { folder: "L60-story-plan", action: "dismiss" }, ctx());
+      await finish(live.items["L60-story-plan"].current);
+      fs.rmSync(f, { recursive: true });
+      await call("refresh", {}, ctx());
+    });
+
     test("[P-observations] Tandem's observations show in state and can be dismissed", async () => {
       fs.writeFileSync(path.join(ws.work, "observations.md"), "# Observations\n\n- O1 | 2026-11-18 | bug | gateway | 41207 | Timeout is swallowed in RetryPolicy\n- O2 | 2026-11-18 | docs | - | - | README still says Node 18\nnot a line\n");
       let obs = (await call("state", {}, ctx())).observations;

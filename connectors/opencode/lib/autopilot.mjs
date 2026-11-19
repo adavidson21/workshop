@@ -50,6 +50,12 @@ import { holdingGap } from "./gaps.mjs";
 
 const autoFile = () => path.join(stateDir, "autopilot.json");
 const AUTO_STEPS = new Set(["quick", "approve", "tasks", "do-task", "review", "pr"]);
+// 1.23.0 (eng-agents Core 4.10.0): a story from an approved breakdown, or a product's trial run, also starts and specs
+// on its own (/start <id> <lane> auto, /spec <id> auto), and a story's plan is approved with /approve <id> spec auto,
+// which holds it for you only when it drifts from the breakdown.
+const HANDS_OFF_STEPS = new Set(["start", "spec"]);
+const isStory = (it) => !!(it && it.story && it.story.breakdown);
+const isHandsOff = (it) => isStory(it) || !!(it && it.trial);
 // Review rounds before a not-READY review waits for you: the factory's reviewRounds (default 2).
 const maxFixRounds = () => (opt && opt.factory && opt.factory.reviewRounds) || 2;
 
@@ -223,18 +229,26 @@ async function autoStep(folder, finished = false) {
 
     let cmd = n.command;
     const approving = cmd && /^\/approve\b/.test(cmd) && (n.stage === "plan" || n.stage === "bug" || n.stage === "quick");
-    const handsOff = it.lane === "quick" && autoOptions().quickHandsOff;
+    // A trial run is a quick change: hands-off like one, even with hands-off Quick changes off.
+    const handsOff = it.lane === "quick" && (autoOptions().quickHandsOff || !!it.trial);
+    const story = isStory(it) && it.lane === "feature";
     let autoApprove = false;
     if (approving && a.approveFirst) cmd = `/approve ${it.id} ${n.stage}`;
     else if (approving && n.stage === "quick" && handsOff) { cmd = `/approve ${it.id} quick`; autoApprove = true; }
+    else if (approving && n.stage === "plan" && story) { cmd = `/approve ${it.id} spec`; autoApprove = true; }
     else if (n.needsYou || !cmd) return autoSet(folder, "waiting", needsYouText(it));
+    // A trial run starts in the quick lane.
+    if (n.stage === "start" && it.trial) cmd = `/start ${it.id} quick`;
 
     const parsed = parseCommand(cmd);
-    if (!parsed || !AUTO_STEPS.has(parsed.name)) return autoSet(folder, "waiting", `Next is ${cmd}, which autopilot does not run. Run it yourself, then click Resume.`);
+    const allowed = parsed && (AUTO_STEPS.has(parsed.name) || (isHandsOff(it) && HANDS_OFF_STEPS.has(parsed.name)));
+    if (!allowed) return autoSet(folder, "waiting", `Next is ${cmd}, which autopilot does not run. Run it yourself, then click Resume.`);
 
     // The same step again means the last run did not move the item forward.
     if (cmd === a.lastCommand && autoApprove) {
-      return autoSet(folder, "waiting", `quick.md needs your review (it was not clean enough to approve on its own${finished && last && last.text ? `: ${String(last.text).trim().split(/\r?\n/).slice(-1)[0].replace(/^Needs you:\s*/i, "").slice(0, 200)}` : ""}). Read quick.md and tasks.md, then click Approve and build.`);
+      const why = finished && last && last.text ? `: ${String(last.text).trim().split(/\r?\n/).slice(-1)[0].replace(/^Needs you:\s*/i, "").slice(0, 200)}` : "";
+      if (story && n.stage === "plan") return autoSet(folder, "waiting", `The plan drifts from the approved breakdown, so it needs your review${why}. Read spec.md, plan.md and tasks.md, then click Approve and build.`);
+      return autoSet(folder, "waiting", `quick.md needs your review (it was not clean enough to approve on its own${why}). Read quick.md and tasks.md, then click Approve and build.`);
     }
     if (cmd === a.lastCommand && a.retried !== cmd) {
       // One more try in a fresh session before it waits (core rule 6: the agent wrote what it tried in progress.md).
@@ -249,6 +263,7 @@ async function autoStep(folder, finished = false) {
 
     let full = cmd;
     if (parsed.name === "quick" || autoApprove) full = `${cmd} auto`; // review by exception: asks nothing, approves only a clean plan
+    if (HANDS_OFF_STEPS.has(parsed.name)) full = `${cmd} auto`; // a story or trial run: asks nothing (Core 4.10.0)
     if (parsed.name === "review") {
       if ((a.fixRounds || 0) >= maxFixRounds()) autoLog(folder, `${maxFixRounds()} review rounds done. This review will ask you which findings to fix.`);
       else full = `${cmd} auto`;
@@ -344,7 +359,9 @@ export async function autopilotAction({ folder, action, after }) {
   if (action === "approve-start" && !canApprove) throw httpError(409, "There is no plan, quick plan or bug analysis waiting for approval.");
   const pendingApprove = action === "resume" && a && a.approveFirst && canApprove;
   // Hands-off Quick change: may start before quick.md exists or while it is a draft (review by exception).
-  const handsOffStart = it.lane === "quick" && autoOptions().quickHandsOff && (n.stage === "quick") && action !== "approve-start";
+  const handsOffStart = (it.lane === "quick" && autoOptions().quickHandsOff && (n.stage === "quick") && action !== "approve-start")
+    // A story from an approved breakdown or a trial run may start before it is set up or planned (Core 4.10.0).
+    || (isHandsOff(it) && ["start", "spec", "plan", "quick"].includes(n.stage) && action !== "approve-start");
   if (action !== "approve-start" && !pendingApprove && !handsOffStart && gate !== "APPROVED") {
     throw httpError(409, `Autopilot starts after ${it.lane === "bug" ? "bug.md" : it.lane === "quick" ? "quick.md" : "plan.md"} is approved.`);
   }
