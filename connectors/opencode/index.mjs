@@ -14,6 +14,7 @@ import { oc, resetState, sessions } from "./lib/opencode-state.mjs";
 import { connectOpencode, disconnectOpencode } from "./lib/opencode-connect.mjs";
 import { abort, answerPermission, answerQuestion, openTerminal, pushBranch, removeItem, reply, resetActions, runCommand, shellData, startItem } from "./lib/actions.mjs";
 import { autopilot, autopilotAction, loadAuto } from "./lib/autopilot.mjs";
+import { decideObservation, findObservation, loadObservations, resetObservations, startArgs } from "./lib/observations.mjs";
 import { pageData, resetLive } from "./lib/live.mjs";
 import { MAX_LOG, TIMEBOXES, addRepo, dismissLoose, onboardRepo, resetWorkspace, runLoose, startLocal, startDocs, startReview, startSpike, startTsd } from "./lib/workspace.mjs";
 import { MAX_MAP, draftArgs, knowledgeRepos, readMap, writeMap } from "./lib/knowledge.mjs";
@@ -21,7 +22,7 @@ import { loadProviders } from "./lib/opencode-connect.mjs";
 import { clearQueue, loadPrQueue, prReviews, resetPrQueue, reviewAll, saveInbox, stopQueue } from "./lib/pr-queue.mjs";
 import { COLORS, INBOX, assignRun, createProject, deleteProject, loadProjects, resetProjects, updateProject } from "./lib/projects.mjs";
 import { findItem } from "./lib/actions.mjs";
-import { emitProjects } from "./lib/live.mjs";
+import { broadcastLive, emitProjects } from "./lib/live.mjs";
 import { loadReview, needReview, resetReview } from "./lib/review.mjs";
 import { DAY, MAX_NOTES_BYTES, MAX_PACKET_BYTES, draftOneOnOne, oneOnOneResult, resetOneOnOnes, tidyOneOnOne, tidyResult } from "./lib/one-on-one.mjs";
 import { HUB_ID, MAX_MESSAGE, hubResult, resetHub, runHub } from "./lib/hub.mjs";
@@ -127,6 +128,29 @@ export const configSchema = {
         },
       },
     },
+    autopilot: {
+      type: "object",
+      title: "Autopilot",
+      additionalProperties: false,
+      properties: {
+        maxRuns: {
+          type: "integer",
+          title: "Builds at once",
+          description: "How many items autopilot builds at the same time (1 to 3). More start queued and begin when one finishes. Each build is a git worktree when its repo is busy, so two builds on one repo do not collide. Default 2.",
+          minimum: 1,
+          maximum: 3,
+          default: 2,
+          "x-workshop-hosted": true,
+        },
+        quickHandsOff: {
+          type: "boolean",
+          title: "Hands-off Quick changes",
+          description: "Review by exception: Build with autopilot on a Quick change writes the quick plan, approves it on its own when it is clean (no open questions, at most 3 assumptions, at most 2 tasks), then builds and reviews it. A plan that is not clean stops for you. Nothing is pushed. Off: you approve every quick plan.",
+          default: true,
+          "x-workshop-hosted": true,
+        },
+      },
+    },
     hub: {
       type: "boolean",
       title: "Hub",
@@ -178,6 +202,7 @@ function resetAll() {
   resetHub();
   resetChats();
   resetVoice();
+  resetObservations();
 }
 
 async function init() {
@@ -246,6 +271,7 @@ const workItemId = str("Work item id (a number, or L and a number for local work
 const reviewRepo = str("Repo folder (from pr.md)", { minLength: 1, maxLength: 255 });
 const sha = str("Commit sha", { pattern: "^[0-9a-f]{40}([0-9a-f]{24})?$" });
 const line = { type: "integer", minimum: 1 };
+const observationId = str("Observation id (O and a number)", { pattern: "^O[0-9]{1,9}$" });
 const prItem = obj(["url"], {
   url: str("Pull request link", { minLength: 10, maxLength: 500 }),
   title: str("Title", { maxLength: 500 }),
@@ -1031,6 +1057,42 @@ const actions = {
       return pushBranch(args);
     },
   },
+  "observation.dismiss": {
+    title: "Dismiss something Tandem noticed",
+    write: true,
+    argsSchema: obj(["id"], { id: observationId }),
+    async run(args) {
+      needReady();
+      const r = decideObservation(args.id, "dismissed");
+      broadcastLive();
+      return r;
+    },
+  },
+  "observation.sent": {
+    title: "Mark something Tandem noticed as sent to Docket",
+    write: true,
+    argsSchema: obj(["id"], { id: observationId }),
+    async run(args) {
+      needReady();
+      const r = decideObservation(args.id, "sent");
+      broadcastLive();
+      return r;
+    },
+  },
+  "observation.start": {
+    title: "Start something Tandem noticed as a Quick change",
+    write: true,
+    argsSchema: obj(["id"], { id: observationId, project: projectId }),
+    async run(args) {
+      needReady();
+      const o = findObservation(args.id);
+      const r = await startLocal({ ...startArgs(o), project: args.project });
+      decideObservation(args.id, "started", { folder: r.folder });
+      if (r.project !== INBOX) emitProjects("run");
+      broadcastLive();
+      return r;
+    },
+  },
   autopilot: {
     title: "Start, resume or stop autopilot",
     write: true,
@@ -1146,6 +1208,7 @@ export default {
     }
     loadLinks();
     loadAuto();
+    loadObservations();
     loadProjects();
     loadReview();
     loadPrQueue();

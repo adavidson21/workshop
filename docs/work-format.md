@@ -84,7 +84,7 @@ From `workitem.md`: `# Work item <id>: <title>` (regex `title`). If missing, fro
 
 ### Repo table (`repos.md`)
 
-Every Markdown table row (regex `repoRow`) with at least 3 cells, skipping the header row (first cell `Order`) and the separator row. Cells are trimmed and backticks removed. Columns: `Order`, `Repo folder`, `Branch`, `Shared?` (`yes` if it starts with `y`), `Why it is involved`. Rows whose folder is empty or a placeholder are skipped.
+Every Markdown table row (regex `repoRow`) with at least 3 cells, skipping the header row (first cell `Order`) and the separator row. Cells are trimmed and backticks removed. Columns: `Order`, `Repo folder`, `Branch`, `Shared?` (`yes` if it starts with `y`), `Why it is involved`, `Base`, and since eng-agents Core 4.8.0 an optional `Path`: a git worktree, `.worktrees/<work folder>/<repo>`, where the work happens when the repo folder was busy. A Path that does not start with `.worktrees/` or contains `..` is ignored. When there is one, the opencode connector reads the repo's git state from it and emits `path` on the repo (left out otherwise, so older readers and the parity test see no change). Rows whose folder is empty or a placeholder are skipped.
 
 ### Tasks (`tasks.md`)
 
@@ -214,6 +214,16 @@ These are current behavior. A port must reproduce them until a contract change s
 2. Rule 11 compares file modification times, so touching `tasks.md` without changing it asks for a new review.
 3. `field` matches the first line with that label anywhere in the file, including inside a description that happens to start a line with `Type:`.
 
+## Observations (`observations.md`)
+
+Since eng-agents Core 4.8.0, `.work/observations.md` holds what agents noticed out of scope (core rule 5), written only by eng-agents' `Add-Observation.ps1`, one line each and never edited:
+
+```
+- O<n> | <yyyy-mm-dd> | <kind> | <repo or -> | <source or -> | <text>
+```
+
+`kind` is `bug`, `debt`, `docs`, `tests` or `idea` (anything else reads as `idea`); `-` reads as none. Ids are never reused (`.work/.observation-ids`). Other lines are skipped. The opencode connector shows the open ones in Loom (Noticed); what you did with each is kept in `.work/_dashboard/observations.json`, never in this file.
+
 ## Connector-owned files
 
-The opencode connector owns `.work/_dashboard/` (`sessions.json`: which opencode session belongs to which item; `autopilot.json`; `pr-queue.json`: Review all and the nightly PR review). Their format is internal to the connector and not part of this contract. eng-agents commands never read or write them.
+The opencode connector owns `.work/_dashboard/` (`sessions.json`: which opencode session belongs to which item; `autopilot.json`; `pr-queue.json`: Review all and the nightly PR review; `observations.json`: what you did with each observation). Their format is internal to the connector and not part of this contract. eng-agents commands never read or write them.

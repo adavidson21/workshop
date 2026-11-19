@@ -212,7 +212,9 @@ export function repoRows(text) {
     if (cells.length < 3) continue;
     if (/^order$/i.test(cells[0]) || /^:?-+:?$/i.test(cells[0])) continue;
     if (!cleanValue(cells[1])) continue;
-    rows.push({ folder: cells[1], branch: cleanValue(cells[2]), shared: cells.length > 3 && /^y/i.test(cells[3]), why: cells.length > 4 ? cleanValue(cells[4]) : null });
+    // Path (Core 4.8.0): a git worktree under .worktrees/ where the work happens; empty means the repo folder.
+    const wt = cells.length > 6 ? cleanValue(cells[6]) : null;
+    rows.push({ folder: cells[1], branch: cleanValue(cells[2]), shared: cells.length > 3 && /^y/i.test(cells[3]), why: cells.length > 4 ? cleanValue(cells[4]) : null, path: wt && /^\.worktrees\/[^\0]+$/.test(wt.replace(/\\/g, "/")) && !wt.split(/[\\/]/).includes("..") ? wt.replace(/\\/g, "/") : null });
   }
   return rows;
 }
@@ -668,10 +670,10 @@ export async function readWork({ workRoot, configPath, recent = 80, gitOk, hide 
 
     const repoStates = [];
     for (const r of repoRows(reposText)) {
-      const gs = await repoState(path.join(workspace, r.folder));
+      const gs = await repoState(path.join(workspace, r.path || r.folder));
       const web = webOf.get(gs);
       const links = r.branch && web ? branchLinks(web, r.branch, gs.defaultBranch) : null;
-      repoStates.push({ folder: r.folder, branch: r.branch, shared: r.shared, why: r.why, git: gs, links });
+      repoStates.push({ folder: r.folder, branch: r.branch, shared: r.shared, why: r.why, ...(r.path ? { path: r.path } : {}), git: gs, links });
     }
 
     const taskList = tasksOf(readText(path.join(folder, "tasks.md")));

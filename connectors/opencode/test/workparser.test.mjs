@@ -263,3 +263,26 @@ test("hiddenSet keeps one to four names and drops the rest", () => {
 test("a missing work folder is an error that says what to pass", async () => {
   await assert.rejects(readWork({ workRoot: path.join(REPO, "no-such-folder", ".work") }), /No work folder at/);
 });
+
+test("repos.md Path (eng-agents Core 4.8.0): a worktree under .worktrees, anything else ignored", async () => {
+  const { repoRows } = await import("../lib/workparser.mjs");
+  const rows = repoRows([
+    "| Order | Repo folder | Branch | Shared? | Why it is involved | Base | Path |",
+    "|---|---|---|---|---|---|---|",
+    "| 1 | api | dev/feature/1-x | no | the API | origin/main | .worktrees/1-x/api |",
+    "| 2 | web | dev/feature/1-x | no | the UI | origin/main | |",
+    "| 3 | evil | dev/feature/1-x | no | no | origin/main | ../outside |",
+    "| 4 | old | dev/feature/1-x | no | six columns | origin/main |",
+  ].join("\n"));
+  assert.deepEqual(rows.map((r) => r.path), [".worktrees/1-x/api", null, null, null]);
+});
+
+test("observations.md lines parse; other lines are skipped", async () => {
+  const { parseObservations, startArgs } = await import("../lib/observations.mjs");
+  const list = parseObservations("# Observations\n\n- O3 | 2026-11-18 | debt | api | L2 | Two retry helpers do the same thing\n- O4 | 2026-11-18 | weird | - | - | Unknown kind reads as idea\n- nope\n");
+  assert.deepEqual(list.map((o) => [o.id, o.kind, o.repo, o.source]), [["O3", "debt", "api", "L2"], ["O4", "idea", null, null]]);
+  const a = startArgs(list[0]);
+  assert.equal(a.lane, "quick");
+  assert.equal(a.title, "Two retry helpers do the same thing");
+  assert.match(a.description, /Noticed by Tandem \(O3, 2026-11-18, while working on L2\)\.\nRepo: api/);
+});

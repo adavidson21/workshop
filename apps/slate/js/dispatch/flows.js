@@ -197,6 +197,7 @@ export function hereWords(it, step) {
   if (it.paused) return 'Paused';
   if (it.blocked) return 'Blocked';
   if (asking(it)) return 'Waiting on you';
+  if (autoIs(it, 'queued')) return 'Queued';
   if (autoIs(it, 'running') || isBusy(itemSession(it))) return 'Working';
   if (it.kind === 'item') {
     if (it.stage === 'ship') return 'Your turn';
@@ -228,6 +229,7 @@ export function turnHtml(it) {
   const s = itemSession(it);
   if (it.paused) return '<span class="turnw t-hold">Paused' + (it.paused.reason ? ':</span> ' + md(it.paused.reason) : '.</span>');
   if (asking(it)) return '<span class="turnw t-you">Your turn:</span> answer Tandem';
+  if (autoIs(it, 'queued')) return '<span class="turnw t-tandem">Tandem:</span> queued, starts when a running build finishes';
   if (autoIs(it, 'running')) return '<span class="turnw t-tandem">Tandem:</span> ' + h((s && s.activity) || 'running the rest on autopilot');
   if (isBusy(s)) return '<span class="turnw t-tandem">Tandem:</span> ' + h(s.activity || (step ? step.name.toLowerCase() : 'working'));
   if (it.blocked) return '<span class="turnw t-stop">Stopped:</span> ' + md(it.blocked);

@@ -472,6 +472,52 @@ for (const kind of ["v1", "v2"]) {
       await finish(sid);
     });
 
+    test("[P-autopilot] builds over the limit queue, and a hands-off Quick change approves itself only with auto", async () => {
+      const titles = () => fake.bodiesFor(kind === "v1" ? "POST /session" : "POST /api/session").map((b) => b.title);
+      const st0 = await call("state", {}, ctx());
+      assert.deepEqual(st0.autopilotOptions, { maxRuns: 2, quickHandsOff: true });
+      // A second buildable item: a copy of 41207 (the example's only one that is not blocked).
+      fs.cpSync(path.join(ws.work, "41207-fix-login-timeout"), path.join(ws.work, "41208-copy-of-login"), { recursive: true });
+      await call("refresh", {}, ctx());
+      await call("autopilot", { folder: "41207-fix-login-timeout", action: "start" }, ctx());
+      await call("autopilot", { folder: "41208-copy-of-login", action: "start" }, ctx());
+      const q = await call("autopilot", { folder: "41720-show-item-count", action: "start" }, ctx());
+      assert.deepEqual(q, { ok: true, queued: true });
+      let auto = (await call("state", {}, ctx())).liveMode.live.autopilot;
+      assert.equal(auto["41720-show-item-count"].status, "queued");
+      assert.match(auto["41720-show-item-count"].message, /Queued: 2 builds are running/);
+      await rejects(call("autopilot", { folder: "41720-show-item-count", action: "start" }, ctx()), "conflict", /already queued/);
+      // A slot frees up: the queued Quick change starts, approving its draft plan in auto mode (review by exception).
+      await call("autopilot", { folder: "41207-fix-login-timeout", action: "stop" }, ctx());
+      await waitFor(async () => (await call("state", {}, ctx())).liveMode.live.autopilot["41720-show-item-count"].status === "running", "the queued build to start");
+      await waitFor(() => titles().includes("41720: /approve 41720 quick auto"), "the auto approval to run");
+      for (const fd of ["41208-copy-of-login", "41720-show-item-count"]) await call("autopilot", { folder: fd, action: "stop" }, ctx());
+      const live = (await call("state", {}, ctx())).liveMode.live;
+      for (const fd of ["41207-fix-login-timeout", "41208-copy-of-login", "41720-show-item-count"]) {
+        await call("autopilot", { folder: fd, action: "dismiss" }, ctx());
+        await finish(live.items[fd].current);
+      }
+      fs.rmSync(path.join(ws.work, "41208-copy-of-login"), { recursive: true });
+      await call("refresh", {}, ctx());
+    });
+
+    test("[P-observations] Tandem's observations show in state and can be dismissed", async () => {
+      fs.writeFileSync(path.join(ws.work, "observations.md"), "# Observations\n\n- O1 | 2026-11-18 | bug | gateway | 41207 | Timeout is swallowed in RetryPolicy\n- O2 | 2026-11-18 | docs | - | - | README still says Node 18\nnot a line\n");
+      let obs = (await call("state", {}, ctx())).observations;
+      assert.deepEqual(obs.open.map((o) => o.id), ["O2", "O1"], "newest first");
+      assert.deepEqual(obs.open[1], { id: "O1", n: 1, date: "2026-11-18", kind: "bug", repo: "gateway", source: "41207", text: "Timeout is swallowed in RetryPolicy" });
+      assert.equal(obs.open[0].repo, null);
+      await rejects(call("observation.dismiss", { id: "O9" }, ctx()), "not_found");
+      await call("observation.dismiss", { id: "O2" }, ctx());
+      obs = (await call("state", {}, ctx())).observations;
+      assert.deepEqual(obs.open.map((o) => o.id), ["O1"]);
+      assert.equal(obs.handled, 1);
+      const saved = JSON.parse(fs.readFileSync(path.join(ws.work, "_dashboard", "observations.json"), "utf8"));
+      assert.equal(saved.decided.O2.status, "dismissed");
+      assert.match(fs.readFileSync(path.join(ws.work, "observations.md"), "utf8"), /O2 \| 2026-11-18/, "the agents' file is never changed");
+      fs.rmSync(path.join(ws.work, "observations.md"));
+    });
+
     test("[P-secret] the 2.x password never shows up in results, events or logs", async () => {
       const everything = JSON.stringify([await call("state", {}, ctx()), await call("status", {}, ctx()), oc.status(), f.rec.events, f.rec.logs]);
       assert.equal(everything.includes(PASSWORD), false);

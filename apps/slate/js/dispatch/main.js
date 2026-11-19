@@ -19,6 +19,7 @@ import { reviewUrlCheck, reviewAllList, prArg } from './pr-reviews.js';
 import { createCaptureStore } from '../../../../shared/capture-box.js';
 import { slateLinks, summaryCards } from './summary.js';
 import { sendWork, workOffer } from './slate-handoff.js';
+import { noticedList, observationTask, startArgsOf } from './noticed.js';
 import { useApps } from '../../../../shared/capture.js';
 import { loadView, saveView, pruneView } from './local.js';
 import { notebookRoute } from './doc.js';
@@ -1003,6 +1004,32 @@ listen('click', ev => {
   const lf = t.closest('[data-lane-filter]');
   if (lf) { ui().laneFilter = lf.getAttribute('data-lane-filter'); paint(); return; }
   if (t.closest('[data-lane-start]')) { dropGo(); return; }
+  // Noticed (Loom 6.1.0): start as a Quick change, send to Docket, or dismiss.
+  const obsStart = t.closest('[data-obs-start]');
+  if (obsStart) {
+    const id = obsStart.getAttribute('data-obs-start');
+    const o = noticedList().find(x => x.id === id);
+    act(async () => {
+      const res = await write('observation.start', { id });
+      try { await sendWork(ws, workOffer({ action: 'start.local', args: startArgsOf(o), res })); } catch (e) { /* Slate is optional */ }
+      return res;
+    }, () => toast('Started as a Quick change'), 'obs:' + id);
+    return;
+  }
+  const obsDocket = t.closest('[data-obs-docket]');
+  if (obsDocket) {
+    const id = obsDocket.getAttribute('data-obs-docket');
+    const o = noticedList().find(x => x.id === id);
+    if (!o) return;
+    act(async () => { await sendWork(ws, observationTask(o)); return write('observation.sent', { id }); }, () => toast('Sent to Docket'), 'obs:' + id);
+    return;
+  }
+  const obsDismiss = t.closest('[data-obs-dismiss]');
+  if (obsDismiss) {
+    const id = obsDismiss.getAttribute('data-obs-dismiss');
+    act(() => write('observation.dismiss', { id }), null, 'obs:' + id);
+    return;
+  }
   if (t.closest('[data-lane-done]')) { ui().laneDone = !ui().laneDone; paint(); return; }
   if (t.closest('[data-ado-toggle]')) { ui().dropPick = !ui().dropPick; paint(); if (ui().dropPick) focusFirst('#ln-adoq'); return; }
   const adoPick = t.closest('[data-ado-pick]');
@@ -1161,7 +1188,7 @@ listen('click', ev => {
   const ap = t.closest('[data-auto]');
   if (ap) {
     const folder = ap.getAttribute('data-auto'), action = ap.getAttribute('data-act');
-    act(() => write('autopilot', { folder, action }), () => { if (/^(start|approve-start|resume)$/.test(action)) toast('Autopilot started'); }, 'a:' + folder);
+    act(() => write('autopilot', { folder, action }), r => { if (/^(start|approve-start|resume)$/.test(action)) toast(r && r.queued ? 'Queued: it starts when a running build finishes' : 'Autopilot started'); }, 'a:' + folder);
     return;
   }
   const pm = t.closest('[data-perm]');
