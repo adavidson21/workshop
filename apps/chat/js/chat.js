@@ -14,12 +14,24 @@
      asks Tandem or captures a task, receipt or note. Then Rewrite (Chat 2.2.0), which swaps in Rewrite a draft
      (rewrite.js): the same composer with For and Reader in its bar, your drafts and their rewrites as turns.
 
-   Everything goes through the opencode connector's chat.* actions; a message, a command or a click is the only
-   thing that makes opencode act, and opencode's own permission settings decide what an agent may do, exactly as in
-   the terminal. Drawn into its own element, so typing survives repaints (keepFocus). */
+   - The workbench (Chat 4.0.0, bench.js): a panel beside the chat with a Terminal, Files to browse and edit the
+     workspace, and a Side chat for questions that should not land in the chat. Ctrl+` opens the terminal. A file a
+     tool read or changed has an Open button that shows it in Files.
+   - Pictures (Chat 4.0.0, images.js): paste or drop one into the composer and it goes with the message; pictures in
+     the thread are read with chat.image and set after drawing (paint), so the HTML never carries them.
+
+   Everything goes through the opencode connector's chat.*, term.* and files.* actions; a message, a command or a
+   click is the only thing that makes opencode act, and opencode's own permission settings decide what an agent may
+   do, exactly as in the terminal. The sidebar and the chat are drawn into their own element, so typing survives
+   repaints (keepFocus); the workbench is a separate element they never redraw. */
 import { esc, flowCardsHtml, flowRoute } from './hub-model.js';
 import { WRITING, groupChats, keepFocus, lastTandem, liveEchoes, matchChat, tandemTurn, youTurn } from './thread.js';
-import { BUILTINS, HELP, cycleAgent, filesIn, matchCommands, matchModels, modelFromKey, modelKey, modelLabel, money, parseInput, popupFor, promptHtml, questionAnswers, richRows, splitRevert, tokens } from './parts.js';
+import { BUILTINS, HELP, cycleAgent, filesIn, matchCommands, matchModels, modelFromKey, modelKey, modelLabel, money, parseInput, popupFor, promptClick, promptHtml, richRows, splitRevert, tokens } from './parts.js';
+import { startBench } from './bench.js';
+import { startTerminal } from './terminal.js';
+import { startFiles } from './files.js';
+import { startSide } from './side.js';
+import { addPictures, chipsHtml, picturesIn } from './images.js';
 
 const OC = 'opencode';
 const LIST_MS = 10000;
@@ -47,6 +59,8 @@ const ICON = {
   redo: '<svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true" focusable="false"><path d="M15 14l5-5-5-5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M20 9H10a6 6 0 000 12h3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>',
   compact: '<svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true" focusable="false"><path d="M8 4l4 4 4-4M8 20l4-4 4 4M4 12h16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   term: '<svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true" focusable="false"><rect x="3" y="4.5" width="18" height="15" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M7 10l3 2.5L7 15M12.5 15H17" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  files: '<svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true" focusable="false"><path d="M6 3.5h8l4 4V20a.5.5 0 01-.5.5h-11A.5.5 0 016 20z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M14 3.5V8h4M9 12.5h6M9 16h6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
+  side: '<svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true" focusable="false"><path d="M4 5.5h10a2 2 0 012 2V13a2 2 0 01-2 2H9l-3.5 3v-3H4a2 2 0 01-2-2V7.5a2 2 0 012-2z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M18.5 9.5H20a2 2 0 012 2V17a2 2 0 01-2 2h-1.5v2.5L15.5 19H12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>',
   caret: '<svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true" focusable="false"><path d="M7 10l5 5 5-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'
 };
 
@@ -60,6 +74,11 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
   const el = document.createElement('section');
   el.className = 'chat';
   el.setAttribute('aria-label', 'Chat');
+  // The sidebar and the chat are drawn into `core` (display: contents, so they stay cells of .chat's grid); the
+  // workbench beside them is its own element, never redrawn.
+  const core = document.createElement('div');
+  core.className = 'chat-core';
+  el.appendChild(core);
   let items = [], sel = null, conv = null, err = '', listErr = '', sending = false, visible = false;
   let query = '', renaming = null, renameText = '', closed = loadSide(), drawer = false;
   let all = !!readJson(ALL_KEY, false), details = !!readJson(DETAILS_KEY, false);
@@ -76,7 +95,17 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
   const answers = {}, custom = {}; // question id -> per question: picked labels, typed answer
   const history = [];
   const pending = new Map(); // session -> item, for a chat just started that the connector has not listed yet
+  const pics = {}; // draft key -> pictures pasted into the composer (images.js)
+  const imgs = new Map(); // picture id or session|message|part -> data URL, for <img> in the thread and composer
+  const imgLoading = new Set();
+  const wasBusy = {}; // session -> busy at the last read, to tell Files when a turn ends
   let listTimer = 0, convTimer = 0, fileTimer = 0, noteTimer = 0;
+  // flash() is defined below; the workbench's tools call it later, never while starting.
+  const terminal = startTerminal(ws, { onTui: () => builtin('tui', '') });
+  const workFiles = startFiles(ws, { flash: text => flash(text) }); // not `files`: that is a message's @files below
+  const side = startSide(ws, { agents: () => (options && options.agents) || [], model: () => modelNow(), paint, keep: p => imgs.set(p.id, p.url), flash: text => flash(text) });
+  const bench = startBench({ tools: { terminal, files: workFiles, side }, onChange: st => { el.classList.toggle('bench-open', st.open); el.style.setProperty('--bench-w', st.width + 'px'); if (lastHtml != null) { lastHtml = null; draw(); } } });
+  el.appendChild(bench.el);
 
   /* ---------- data ---------- */
   const key = () => sel || NEW;
@@ -88,7 +117,7 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
   const itemOf = sid => listed().find(c => c.session === sid) || null;
   const agents = () => (options && options.agents) || [];
   const echoing = sid => !!(echo[sid] && echo[sid].length);
-  const echoTurns = sid => (echo[sid] || []).map(e => ({ id: '', role: 'you', text: e.text, agent: e.agent, parts: e.files.map(f => ({ type: 'file', name: f })) }));
+  const echoTurns = sid => (echo[sid] || []).map(e => ({ id: '', role: 'you', text: e.text, agent: e.agent, parts: e.files.map(f => ({ type: 'file', name: f })).concat((e.pics || []).map(id => ({ type: 'file', name: 'picture', image: true, local: id }))) }));
   /* Working: opencode says so, or a message is on its way to it. */
   const working = () => !!(sel && ((conv && conv.busy) || echoing(sel)));
   /** The agents the picker offers here: New chat adds Hub and, with Rewrite a draft on hand, Rewrite at the top. */
@@ -139,6 +168,9 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
       if (sel !== want) return;
       conv = r; err = r.error || '';
       if (echo[want]) echo[want] = liveEchoes(echo[want], r.turns, { busy: !!r.busy });
+      if (wasBusy[want] && !r.busy) workFiles.changed();
+      wasBusy[want] = !!r.busy;
+      side.setSession(want, r);
       const row = itemOf(want); // keep the sidebar's spinner and dot in step without waiting for the list
       if (row) { row.busy = !!r.busy; row.waiting = !!r.waiting; }
       if (!sessPick[want]) sessPick[want] = { agent: r.agent || (r.from === 'hub' ? 'chat' : pick.agent === HUB ? '' : pick.agent), model: r.model ? modelKey(r.model) : pick.model };
@@ -152,6 +184,7 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
     if (!session && hub) hub.clearDone();
     sel = session || null; conv = null; err = ''; renaming = null; pop = null; help = false; afterOpen = false;
     if (phone()) drawer = false;
+    side.setSession(sel, itemOf(sel));
     if (sel && hub) { const it = itemOf(sel); if (it && it.hub) hub.ensure(it); }
     draw();
     if (sel) loadConv();
@@ -182,7 +215,10 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
     pop = null;
     if (parsed.kind === 'builtin') { drafts[k] = ''; draw(); return builtin(parsed.name, parsed.args); }
     const files = parsed.kind === 'text' ? filesIn(text, picked[k]) : [];
-    const job = { parsed, files, text: text.trim(), ...pickArgs() };
+    const list = pics[k] || [];
+    if (list.length && parsed.kind !== 'text') { err = 'Pictures go with a message, not with a / command or ! shell command.'; draw(); return; }
+    const job = { parsed, files, pics: list, text: text.trim(), ...pickArgs() };
+    pics[k] = [];
     history.push(text.trim());
     if (history.length > 50) history.shift();
     drafts[k] = ''; picked[k] = new Set();
@@ -191,17 +227,20 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
   }
   async function run(session, job) {
     const { parsed, files, agent, model } = job;
+    const list = job.pics || [];
     const pickOf = { ...(agent ? { agent } : {}), ...(model ? { model } : {}) };
+    const images = list.length ? { images: list.map(({ name, mime, data }) => ({ name, mime, data })) } : {};
+    for (const p of list) imgs.set(p.id, p.url);
     const ek = session || NEW;
-    const mine = { text: parsed.kind === 'text' ? parsed.text : job.text, files, agent: agent || null, base: !session ? 0 : conv ? (conv.turns || []).length : null, at: Date.now() };
+    const mine = { text: parsed.kind === 'text' ? parsed.text : job.text, files, pics: list.map(p => p.id), agent: agent || null, base: !session ? 0 : conv ? (conv.turns || []).length : null, at: Date.now() };
     echo[ek] = [...(echo[ek] || []), mine];
     sending = true; err = ''; draw();
     try {
       let r = null;
       if (parsed.kind === 'shell') r = await ws.connectors.call(OC, 'chat.shell', { ...(session ? { session } : {}), command: parsed.command, ...pickOf }, confirm);
       else if (parsed.kind === 'command') r = await ws.connectors.call(OC, 'chat.command', { ...(session ? { session } : {}), name: parsed.name, args: parsed.args, ...pickOf }, confirm);
-      else if (session) await ws.connectors.call(OC, 'chat.send', { session, text: parsed.text, ...pickOf, ...(files.length ? { files } : {}) }, confirm);
-      else r = await ws.connectors.call(OC, 'chat.start', { text: parsed.text, ...pickOf, ...(files.length ? { files } : {}) }, confirm);
+      else if (session) await ws.connectors.call(OC, 'chat.send', { session, text: parsed.text, ...pickOf, ...(files.length ? { files } : {}), ...images }, confirm);
+      else r = await ws.connectors.call(OC, 'chat.start', { text: parsed.text, ...pickOf, ...(files.length ? { files } : {}), ...images }, confirm);
       const sid = session || (r && r.session);
       if (!session && sid) {
         sessPick[sid] = { agent: agent || '', model: model ? modelKey(model) : '' };
@@ -218,7 +257,7 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
       echo[ek] = (echo[ek] || []).filter(x => x !== mine);
       const msg = e.message || "Couldn't send that.";
       if (session && /still working/.test(msg)) { (queue[session] = queue[session] || []).unshift(job); setTimeout(loadConv, BUSY_MS); }
-      else { err = msg; if (!drafts[key()]) drafts[key()] = job.text; }
+      else { err = msg; if (!drafts[key()]) drafts[key()] = job.text; if (list.length && !(pics[key()] || []).length) pics[key()] = list; }
     }
     sending = false; draw();
     focusBox();
@@ -236,9 +275,17 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
     if (name === 'models') return openPop('model');
     if (name === 'agents') return openPop('agent');
     if (name === 'sessions') { all = true; writeJson(ALL_KEY, all); if (closed) { closed = false; saveSide(false); } if (phone()) drawer = true; draw(); return loadList(); }
-    if (name === 'terminal') {
-      try { await ws.connectors.call(OC, 'terminal', sel ? { session: sel } : {}); flash('Opened in a terminal window.'); }
-      catch (e) { ws.toast(e.message || "Couldn't open a terminal.", { kind: 'error' }); }
+    if (name === 'terminal') { bench.open('terminal'); if (args) terminal.run(args); return; }
+    if (name === 'files') { bench.open('files'); if (args) workFiles.open(args.replace(/^@/, '')); return; }
+    if (name === 'side') {
+      if (!sel) { err = 'Open a chat first. A side chat asks about the chat in view.'; draw(); return; }
+      bench.open('side', { focus: !args });
+      if (args) side.ask(args);
+      return;
+    }
+    if (name === 'tui') {
+      try { await ws.connectors.call(OC, 'terminal', sel ? { session: sel } : {}); flash("Opened in opencode's own window."); }
+      catch (e) { ws.toast(e.message || "Couldn't open a terminal window.", { kind: 'error' }); }
       return;
     }
     if (!needChat()) return;
@@ -397,7 +444,16 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
       ? `<button type="button" class="chat-icon" data-chat-side title="Open sidebar" aria-label="Open sidebar">${ICON.side}</button>` +
         (sel ? `<button type="button" class="chat-icon" data-chat-new title="New chat" aria-label="New chat">${ICON.plus}</button>` : '')
       : '';
-    return `<header class="chat-top">${sideBtn}<h2>${esc(title)}</h2>${extra}</header>`;
+    return `<header class="chat-top">${sideBtn}<h2>${esc(title)}</h2>${extra}${benchBtns()}</header>`;
+  }
+  /* The workbench's three buttons (Chat 4.0.0), at the right of every pane's header. */
+  function benchBtns() {
+    const st = bench ? bench.state() : { open: false };
+    const b = (tab, icon, title, off = '') => {
+      const on = st.open && st.tab === tab;
+      return `<button type="button" class="chat-icon bench-btn${on ? ' on' : ''}" data-bench="${tab}" title="${off || title}" aria-label="${title}" aria-pressed="${on}"${off ? ' aria-disabled="true"' : ''}>${icon}</button>`;
+    };
+    return `<span class="row bench-btns">${b('terminal', ICON.term, 'Terminal (Ctrl+`)')}${b('files', ICON.files, 'Files')}${b('side', ICON.side, 'Side chat', sel ? '' : 'Side chat: open a chat first')}</span>`;
   }
   function picksHtml() {
     const a = agentNow();
@@ -422,7 +478,7 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
     const action = busy && !draft.trim()
       ? `<button type="button" class="chat-send stop" data-chat-stop title="Stop (Esc twice)" aria-label="Stop">${ICON.stop}</button>`
       : `<button type="button" class="chat-send" data-chat-send title="${busy ? 'Queue' : 'Send'}" aria-label="${busy ? 'Queue' : 'Send'}"${off || sending ? ' disabled' : ''}>${ICON.up}</button>`;
-    return `<div class="chat-compose"><div class="chat-col pop-anchor">${popHtml()}<div class="chat-box${shell ? ' shell' : ''}">` +
+    return `<div class="chat-compose"><div class="chat-col pop-anchor">${popHtml()}<div class="chat-box${shell ? ' shell' : ''}" data-chat-drop>` + chipsHtml(pics[k], 'data-pic-x') +
       `<textarea rows="1" data-keep="chat:${esc(k)}" placeholder="${off ? 'opencode is not connected' : sel ? 'Message opencode' : 'Ask anything, or / for commands'}" aria-label="Message to opencode"${off ? ' disabled' : ''}>${esc(draft)}</textarea>` +
       `<div class="chat-bar">${picksHtml()}<span class="grow"></span>${ctx ? `<span class="chat-ctx">${esc(ctx)}</span>` : ''}${action}</div></div>` +
       `<p class="chat-hint" aria-live="polite">${hint}</p></div></div>`;
@@ -438,7 +494,7 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
     const icon = (b, name, title) => `<button type="button" class="chat-icon" data-builtin="${name}" title="${title}" aria-label="${title}">${b}</button>`;
     return `<span class="row">` + icon(ICON.undo, 'undo', 'Undo the last message (/undo)') +
       (conv && conv.revert ? icon(ICON.redo, 'redo', 'Redo (/redo)') : '') +
-      icon(ICON.compact, 'compact', 'Compact this chat (/compact)') + icon(ICON.term, 'terminal', 'Open in the opencode terminal') +
+      icon(ICON.compact, 'compact', 'Compact this chat (/compact)') +
       (busy ? '<button type="button" class="btn ghost" data-chat-stop>Stop</button>' : '') + '</span>';
   }
   /* Under the last answer: one quiet Start work... button; its menu has the flow cards and Save as note (Chat 2.3.0). */
@@ -479,7 +535,7 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
       rows += '<p class="hub-meta">Loading the answer...</p>';
     }
     const { shown, undone } = splitRevert(later, conv && conv.revert);
-    rows += richRows(shown.concat(echoTurns(sel)), { open, details, busy: busy && !(first && first.running), activity: (conv && conv.activity) || (echoing(sel) ? 'Sending' : '') });
+    rows += richRows(shown.concat(echoTurns(sel)), { open, details, session: sel, busy: busy && !(first && first.running), activity: (conv && conv.activity) || (echoing(sel) ? 'Sending' : '') });
     if (undone) rows += `<p class="divider undo"><span>Undid ${undone} message${undone === 1 ? '' : 's'} and ${undone === 1 ? 'its' : 'their'} changes. <button type="button" class="lnk" data-builtin="redo">Redo</button> brings ${undone === 1 ? 'it' : 'them'} back; your next message drops ${undone === 1 ? 'it' : 'them'}.</span></p>`;
     for (const job of queue[sel] || []) rows += `<div class="turn you queued"><span class="who">You, queued</span><div class="tx">${esc(job.text)}</div><span class="you-agent">Queued</span></div>`;
     if (!conv && !first && !fromHub && !echoing(sel)) rows += '<p class="hub-meta">Loading...</p>';
@@ -530,7 +586,7 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
     el.classList.toggle('side-closed', closed);
     el.classList.toggle('drawer-open', drawer);
     const html = sideHtml() + paneHtml() + (drawer ? '<div class="chat-scrim" data-chat-side></div>' : '');
-    if (html === lastHtml && el.firstChild === lastFirst && el.firstChild) { mountHub(); return; }
+    if (html === lastHtml && core.firstChild === lastFirst && core.firstChild) { mountHub(); return; }
     const scroller = el.querySelector('[data-chat-follow]');
     const atEnd = !scroller || scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 80;
     const keepTop = scroller && !atEnd ? scroller.scrollTop : null;
@@ -541,8 +597,8 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
     const back = keepFocus(el);
     if (hubEl && el.contains(hubEl)) hubEl.remove();
     if (rewrite && el.contains(rewrite.el)) rewrite.el.remove();
-    el.innerHTML = html;
-    lastHtml = html; lastFirst = el.firstChild;
+    core.innerHTML = html;
+    lastHtml = html; lastFirst = core.firstChild;
     back();
     mountRewrite(true, inRw);
     if (popFocus != null) { const b = el.querySelector(`[data-pop-i="${popFocus}"]`); if (b) b.focus(); }
@@ -553,6 +609,56 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
     if (s) s.scrollTop = atEnd ? s.scrollHeight : keepTop;
     const on = el.querySelector('.pop-it.on');
     if (on && on.scrollIntoView) on.scrollIntoView({ block: 'nearest' });
+    paint(core);
+  }
+
+  /* ---------- pictures: previews and the thread's pictures, set after drawing ---------- */
+  function paint(root) {
+    for (const img of root.querySelectorAll('img[data-img-local],img[data-img-ref]')) {
+      const id = img.getAttribute('data-img-local') || img.getAttribute('data-img-ref');
+      const url = imgs.get(id);
+      if (url) { if (img.getAttribute('src') !== url) img.src = url; continue; }
+      if (img.hasAttribute('data-img-ref')) fetchImage(id);
+    }
+  }
+  async function fetchImage(ref) {
+    if (imgLoading.has(ref) || imgs.has(ref) || imgLoading.size > 4) return;
+    const [session, message, part] = ref.split('|');
+    imgLoading.add(ref);
+    try {
+      const r = await ws.connectors.call(OC, 'chat.image', { session, message, part: +part });
+      imgs.set(ref, `data:${r.mime};base64,${r.data}`);
+    } catch (e) { imgs.set(ref, ''); }
+    imgLoading.delete(ref);
+    paint(el);
+  }
+  async function takePictures(files) {
+    const k = key();
+    if (!files.length || hubMode() || rewriteMode()) return;
+    if (options && options.can && options.can.images === false) { flash("This opencode can't take pictures from Chat."); return; }
+    const list = pics[k] = pics[k] || [];
+    const errors = await addPictures(list, files);
+    for (const p of list) imgs.set(p.id, p.url);
+    if (errors.length) flash(errors[0]);
+    draw();
+    focusBox();
+  }
+  function viewPicture(img) {
+    if (!img || !img.src) return;
+    const box = document.createElement('div');
+    box.className = 'pic-view';
+    box.setAttribute('role', 'dialog');
+    box.setAttribute('aria-label', img.alt || 'Picture');
+    box.tabIndex = -1;
+    const big = document.createElement('img');
+    big.src = img.src; big.alt = img.alt || '';
+    box.appendChild(big);
+    const done = () => { box.remove(); document.removeEventListener('keydown', key, true); };
+    const key = e => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); done(); } };
+    box.addEventListener('click', done);
+    document.addEventListener('keydown', key, true);
+    document.body.appendChild(box);
+    box.focus();
   }
 
   /* ---------- input ---------- */
@@ -629,6 +735,9 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
     // A button in a hub chat's first answer (a flow card, Save as note, a suggested action, a choice).
     if (hub && b.closest('.hub-intro') && hub.click(b)) return;
     const d = b.dataset;
+    // The workbench handles its own clicks (bench.js and its tools); from it, the chat only opens files, pictures,
+    // subagent sessions and Sources, and copies code.
+    if (bench.el.contains(b) && d.openFile == null && d.imgView == null && d.copy == null && d.chatOpen == null && d.srcNote == null && d.srcWrong == null && d.srcPage == null) return;
     if (d.chatOpen != null) select(d.chatOpen);
     else if (d.chatNew != null) { leaveRewrite(); select(null); loadOptions(); }
     else if (d.chatSide != null) toggleSide();
@@ -652,30 +761,48 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
       const code = b.parentElement && b.parentElement.querySelector('code');
       if (code && navigator.clipboard) navigator.clipboard.writeText(code.textContent).then(() => ws.toast('Copied.', { kind: 'success' }), () => {});
     }
-    else if (d.perm != null) answer({ kind: 'permission', id: d.id, reply: d.perm });
-    else if (d.qPick != null) {
-      const p = ((conv && conv.prompts) || []).find(x => x.id === d.qPick);
-      const qi = +d.qi, q = p && p.questions[qi];
-      if (!q) return;
-      const mine = ((answers[p.id] = answers[p.id] || [])[qi] = answers[p.id][qi] || []);
-      const i = mine.indexOf(d.label);
-      if (q.multiple) { if (i >= 0) mine.splice(i, 1); else mine.push(d.label); }
-      else answers[p.id][qi] = i >= 0 ? [] : [d.label];
-      draw();
+    else if (d.perm != null || d.qPick != null || d.qSend != null || d.qReject != null) {
+      const r = promptClick(d, (conv && conv.prompts) || [], { answers, custom });
+      if (r && r.answer) answer(r.answer); else if (r && r.redraw) draw();
     }
-    else if (d.qSend != null) {
-      const p = ((conv && conv.prompts) || []).find(x => x.id === d.qSend);
-      if (p) answer({ kind: 'question', id: p.id, answers: questionAnswers(p, answers, custom) });
-    }
-    else if (d.qReject != null) answer({ kind: 'question', id: d.qReject, reject: true });
+    // The workbench (Chat 4.0.0): its buttons in the header, a file to open in Files, a picture to look at.
+    else if (d.bench != null) { if (d.bench === 'side' && !sel) { ws.toast('Open a chat first. A side chat asks about the chat in view.', { kind: 'warn' }); return; } bench.toggle(d.bench); }
+    else if (d.openFile != null) { bench.open('files', { focus: false }); workFiles.open(d.openFile); }
+    else if (d.imgView != null) viewPicture(b.querySelector('img'));
+    else if (d.picX != null) { const k = key(); pics[k] = (pics[k] || []).filter(p => p.id !== d.picX); draw(); focusBox(); }
     // A Sources chip (sources.js, Workshop docs/knowledge.md): open where the fact is kept.
     else if (d.srcNote != null) ws.open({ app: 'notes', path: d.srcNote });
     else if (d.srcWrong != null) { ws.open({ app: 'notes', path: d.srcWrong }); ws.toast('Fix the line in Folio. Tandem reads the note as you leave it.'); }
     else if (d.srcPage != null) ws.open({ app: 'settings', path: d.srcPage });
   });
 
+  /* Pictures: paste into the box, or drop anywhere on the composer. */
+  el.addEventListener('paste', e => {
+    if (!e.target.matches || !e.target.matches('[data-keep^="chat:"]')) return;
+    const files = picturesIn(e.clipboardData, { paste: true });
+    if (files.length) { e.preventDefault(); takePictures(files); }
+  });
+  el.addEventListener('dragover', e => { if (e.target.closest && e.target.closest('[data-chat-drop]') && e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files')) { e.preventDefault(); e.target.closest('[data-chat-drop]').classList.add('drop'); } });
+  el.addEventListener('dragleave', e => { const box = e.target.closest && e.target.closest('[data-chat-drop]'); if (box && !box.contains(e.relatedTarget)) box.classList.remove('drop'); });
+  el.addEventListener('drop', e => {
+    const box = e.target.closest && e.target.closest('[data-chat-drop]');
+    if (!box) return;
+    box.classList.remove('drop');
+    const files = picturesIn(e.dataTransfer);
+    if (files.length) { e.preventDefault(); takePictures(files); }
+  });
+  // Ctrl+` opens or closes the terminal, as in most editors.
+  document.addEventListener('keydown', e => {
+    if (!visible || !e.ctrlKey || e.altKey || e.metaKey || (e.key !== '`' && e.code !== 'Backquote')) return;
+    e.preventDefault();
+    bench.toggle('terminal');
+    if (!bench.state().open) focusBox();
+  });
+  if (typeof window !== 'undefined') window.addEventListener('beforeunload', e => { if (workFiles.unsaved().length) { e.preventDefault(); e.returnValue = ''; } });
+
   if (rewrite) rewrite.setBar({ picks: picksHtml, pop: popHtml });
   draw();
+  bench.start();
   return {
     el,
     /* main.js calls this when Chat comes into view or leaves it. */

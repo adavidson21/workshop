@@ -52,7 +52,8 @@ Apps may use these. Each module's header comment says what it exports and how to
 | `shared/save-file.js` | Give the person a file to keep (a download). |
 | `shared/site.js` | Where Workshop lives on the web ([site.md](site.md)). |
 | `shared/app-folders.js` | The folder each app keeps its data in, inside the data folder ([data-format.md](data-format.md), App folders). |
-| `shared/vendor/` | Third-party code served from this site (SheetJS); see `vendor/README.md`. |
+| `shared/monaco.js` | The Monaco code editor (`loadMonaco`, `applyMonacoTheme`, `languageOf`), for Loom's code review and Chat's Files. |
+| `shared/vendor/` | Third-party code served from this site (SheetJS, and Monaco for `shared/monaco.js`); see `vendor/README.md`. |
 | `shared/sw-register.js` | Registers a site's service worker. Only for apps that still have a site of their own; goes with them. |
 | `shared/standalone-bar.js` | The top bar for an app opened on its own page. Goes when apps no longer have sites of their own. |
 | `shared/pair.js` | Pairing a site with the agent. The shell uses it; apps with a site of their own too, until those sites go. |

@@ -31,7 +31,9 @@ import { loadReview, needReview, resetReview } from "./lib/review.mjs";
 import { DAY, MAX_NOTES_BYTES, MAX_PACKET_BYTES, draftOneOnOne, oneOnOneResult, resetOneOnOnes, tidyOneOnOne, tidyResult } from "./lib/one-on-one.mjs";
 import { HUB_ID, MAX_MESSAGE, hubResult, resetHub, runHub } from "./lib/hub.mjs";
 import { MAX_PROMPT as VOICE_MAX, KINDS as VOICE_KINDS, resetVoice, runVoice, voiceResult } from "./lib/voice.mjs";
-import { MAX_FILES as CHAT_FILES, MAX_TEXT as CHAT_MAX, chatFiles, chatMessages, chatOptions, commandChat, compactChat, listChats, redoChat, removeChat, renameChat, resetChats, sendChat, shellChat, startChat, undoChat } from "./lib/chat.mjs";
+import { MAX_FILES as CHAT_FILES, MAX_IMAGES, MAX_IMAGE_DATA, MAX_TEXT as CHAT_MAX, chatFiles, chatImage, chatMessages, chatOptions, commandChat, compactChat, listChats, redoChat, removeChat, renameChat, resetChats, sendChat, shellChat, sideChat, startChat, undoChat } from "./lib/chat.mjs";
+import { MAX_INPUT as TERM_INPUT, resetTerms, termClose, termInput, termList, termOpen, termRead, termResize, termResume } from "./lib/pty.mjs";
+import { MAX_EDIT, filesRead, filesStat, filesTree, filesWrite } from "./lib/workfiles.mjs";
 import { MAX_FILE, PM_FOLDER, approveFolder, startHandoff, startRefine, startScope, startShape, startSlice, startTriage, writePmFile } from "./lib/slate.mjs";
 import { listDocs, writeWorkFile } from "./lib/docs.mjs";
 import { WORK_RESET_PHRASE, resetWork } from "./lib/reset.mjs";
@@ -233,6 +235,7 @@ function resetAll() {
   resetOneOnOnes();
   resetHub();
   resetChats();
+  resetTerms();
   resetVoice();
   resetObservations();
   resetGaps();
@@ -362,7 +365,11 @@ const chatPick = {
   agent: str("Agent (empty: opencode's default)", { maxLength: 64, pattern: "^[A-Za-z0-9._-]*$" }),
   model: { type: "object", title: "Model (empty: the agent's or opencode's default)", additionalProperties: false, required: ["provider", "id"], properties: { provider: str("Provider id", { minLength: 1, maxLength: 200 }), id: str("Model id", { minLength: 1, maxLength: 200 }) } },
   files: { type: "array", title: "Workspace files to attach (@path)", maxItems: CHAT_FILES, items: str("File path in the workspace", { minLength: 1, maxLength: 500 }) },
+  // Pasted images (Chat 4.0.0): base64, checked against their type in lib/chat.mjs.
+  images: { type: "array", title: "Pasted images", maxItems: MAX_IMAGES, items: obj(["mime", "data"], { name: str("File name", { maxLength: 120 }), mime: { type: "string", title: "Type", enum: ["image/png", "image/jpeg", "image/gif", "image/webp"] }, data: str("The image, base64", { minLength: 4, maxLength: MAX_IMAGE_DATA }) }) },
 };
+const termId = str("Terminal id", { minLength: 4, maxLength: 104, pattern: "^pty[A-Za-z0-9_-]+$" });
+const filePath = str("Path in the workspace", { minLength: 1, maxLength: 1000 });
 const evalsRunSchema = obj([], {
   preset: { type: "string", title: "Run kind", enum: PRESETS },
   cases: { type: "array", title: "Cases", maxItems: 60, items: str("Case", { pattern: "^[a-z0-9][a-z0-9-]{0,60}$" }) },
@@ -983,6 +990,117 @@ const actions = {
       return listChats({ config: ctxRef && ctxRef.config, hubs: !!(args && args.hubs), all: !!(args && args.all) });
     },
   },
+  "chat.side": {
+    title: "Ask in a side chat: a copy of the chat so far, so the question does not land in it",
+    write: true,
+    argsSchema: obj(["session", "text"], { session, side: str("The side chat to ask in (empty: start one)", { maxLength: 200 }), text: str("The question", { minLength: 1, maxLength: CHAT_MAX }), agent: chatPick.agent, model: chatPick.model, images: chatPick.images }),
+    async run(args) {
+      needReady();
+      return sideChat(args, { config: ctxRef && ctxRef.config });
+    },
+  },
+  "chat.image": {
+    title: "Chat: a pasted image of a turn, for the thread",
+    write: false,
+    argsSchema: obj(["session", "message", "part"], { session, message: str("Message id", { minLength: 4, maxLength: 104 }), part: { type: "integer", title: "Part", minimum: 0, maximum: 500 } }),
+    async run(args) {
+      needReady();
+      return chatImage(args, { config: ctxRef && ctxRef.config });
+    },
+  },
+  // Chat's terminal (lib/pty.mjs): shells in the workspace that opencode runs. Opening one is logged as a change;
+  // what you type in it is not, as in any terminal. Agents cannot use these (none is marked for agents).
+  "term.list": {
+    title: "Terminal: the terminals Chat opened",
+    write: false,
+    argsSchema: obj([], {}),
+    async run() {
+      needReady();
+      return termList();
+    },
+  },
+  "term.open": {
+    title: "Terminal: open a shell in the workspace (opencode runs it)",
+    write: true,
+    argsSchema: obj([], { title: str("Name", { maxLength: 60 }), rows: { type: "integer", title: "Rows", minimum: 2, maximum: 300 }, cols: { type: "integer", title: "Columns", minimum: 2, maximum: 1000 } }),
+    async run(args) {
+      needReady();
+      return termOpen(args);
+    },
+  },
+  "term.read": {
+    title: "Terminal: what it printed, from a position on",
+    write: false,
+    argsSchema: obj(["id"], { id: termId, from: { type: "integer", title: "From", minimum: 0 } }),
+    async run(args) {
+      needReady();
+      return termRead(args);
+    },
+  },
+  "term.input": {
+    title: "Terminal: keys or pasted text for a terminal you opened",
+    write: false,
+    argsSchema: obj(["id", "data"], { id: termId, data: str("Keys", { maxLength: TERM_INPUT }) }),
+    async run(args) {
+      needReady();
+      return termInput(args);
+    },
+  },
+  "term.resize": {
+    title: "Terminal: its size changed",
+    write: false,
+    argsSchema: obj(["id", "rows", "cols"], { id: termId, rows: { type: "integer", title: "Rows", minimum: 2, maximum: 300 }, cols: { type: "integer", title: "Columns", minimum: 2, maximum: 1000 } }),
+    async run(args) {
+      needReady();
+      return termResize(args);
+    },
+  },
+  "term.close": {
+    title: "Terminal: end its shell and close it",
+    write: false,
+    argsSchema: obj(["id"], { id: termId }),
+    async run(args) {
+      needReady();
+      return termClose(args);
+    },
+  },
+  // Chat's Files (lib/workfiles.mjs): workspace files to read and fix. Saving is logged as a change.
+  "files.tree": {
+    title: "Files: one folder of the workspace",
+    write: false,
+    argsSchema: obj([], { dir: str("Folder in the workspace (empty: the workspace)", { maxLength: 1000 }) }),
+    async run(args) {
+      needReady();
+      return filesTree(args);
+    },
+  },
+  "files.read": {
+    title: "Files: a workspace file's text",
+    write: false,
+    argsSchema: obj(["path"], { path: filePath }),
+    async run(args) {
+      needReady();
+      return filesRead(args);
+    },
+  },
+  "files.write": {
+    title: "Files: save a workspace file (only if it did not change since you opened it)",
+    write: true,
+    argsSchema: obj(["path", "content"], { path: filePath, content: str("The text", { maxLength: MAX_EDIT }), mtime: { type: "number", title: "The file's mtime when you opened it" }, create: { type: "boolean", title: "Create it" }, force: { type: "boolean", title: "Save over whatever is there" } }),
+    async run(args) {
+      needReady();
+      return filesWrite(args);
+    },
+  },
+  "files.stat": {
+    title: "Files: when open files last changed",
+    write: false,
+    argsSchema: obj(["paths"], { paths: { type: "array", title: "Paths", maxItems: 50, items: filePath } }),
+    async run(args) {
+      needReady();
+      return filesStat(args);
+    },
+  },
   "chat.remove": {
     title: "Stop listing a chat (the opencode session is kept)",
     write: false,
@@ -1439,7 +1557,10 @@ export default {
       if (!m || !oc.connected) return;
       return startWaiting(m.items); // passes run one at a time (epics.mjs)
     });
-    onConnected(() => resumeQueued());
+    onConnected(() => {
+      resumeQueued();
+      termResume(); // Chat's terminals (lib/pty.mjs) stream again after a restart
+    });
     loadProjects();
     loadReview();
     loadPrQueue();

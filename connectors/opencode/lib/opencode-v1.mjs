@@ -9,6 +9,7 @@ import { appendText, errText, httpJson, oc, parseProviders, permissions, questio
 import { loadState } from "./opencode-connect.mjs";
 import { broadcastLive } from "./live.mjs";
 import { v1Turn } from "./chat-parts.mjs";
+import { ptyEvent } from "./pty.mjs";
 
 export function makeV1(url) {
   const base = url.replace(/\/+$/, "");
@@ -190,10 +191,11 @@ export function makeV1(url) {
       if (!r.ok || !Array.isArray(r.data)) throw httpError(502, `opencode could not list the messages (${errText(r)}).`);
       return r.data.map((m) => v1Turn(m, opt.workspace));
     },
-    /** A message with any agent and model, and files as file parts (what the TUI sends for @path). */
-    async promptRich(id, { text, agent, model, files }) {
+    /** A message with any agent and model, files as file parts (what the TUI sends for @path) and pasted images as data URLs (Chat 4.0.0). */
+    async promptRich(id, { text, agent, model, files, images }) {
       const parts = [{ type: "text", text }];
       for (const f of files || []) parts.push({ type: "file", mime: "text/plain", url: "file://" + (f.startsWith("/") ? "" : "/") + f.replace(/\\/g, "/"), filename: f.split(/[\\/]/).pop() });
+      for (const im of images || []) parts.push({ type: "file", mime: im.mime, url: `data:${im.mime};base64,${im.data}`, filename: im.name });
       const body = { parts, ...(agent ? { agent } : {}), ...(model ? { model: { providerID: model.provider, modelID: model.id } } : {}) };
       const r = await call(`/session/${id}/prompt_async`, { method: "POST", body });
       if (!r.ok) throw httpError(502, `opencode did not take the message (${errText(r)}).`);
@@ -224,6 +226,48 @@ export function makeV1(url) {
     async findFiles(query) {
       const r = await call("/find/file", { query: { query, dirs: "false" }, timeout: 5000 });
       return r.ok && Array.isArray(r.data) ? r.data.filter((x) => typeof x === "string") : [];
+    },
+    /* ---------- Chat's workbench (Chat 4.0.0): side chats, pasted images and terminals ---------- */
+    /** A copy of the session so far, for a side chat: {id, title}. */
+    async fork(id) {
+      const r = await call(`/session/${id}/fork`, { method: "POST", body: {} });
+      if (!r.ok || !r.data || !r.data.id) throw httpError(502, `opencode could not start a side chat (${errText(r)}).`);
+      return { id: r.data.id, title: r.data.title || null };
+    },
+    async setTitle(id, title) {
+      return (await call(`/session/${id}`, { method: "PATCH", body: { title } })).ok;
+    },
+    /** One message as opencode keeps it ({info, parts}), or null. */
+    async rawMessage(id, messageID) {
+      const r = await call(`/session/${id}/message/${messageID}`);
+      return r.ok && r.data && typeof r.data === "object" ? r.data : null;
+    },
+    /** A shell in the workspace, run by opencode (its /pty API): {id, title, status}. */
+    async ptyCreate({ title }) {
+      const r = await call("/pty", { method: "POST", body: { title, cwd: opt.workspace } });
+      if (!r.ok || !r.data || !r.data.id) throw httpError(r.status === 404 ? 501 : 502, r.status === 404 ? "This opencode has no terminals. Update opencode (npm i -g opencode-ai), then restart it." : `opencode could not open a terminal (${errText(r)}).`);
+      return { id: r.data.id, title: r.data.title || title, status: r.data.status || "running" };
+    },
+    /** The terminal, or null when opencode no longer has it (it exited). */
+    async ptyGet(id) {
+      const r = await call(`/pty/${id}`, { timeout: 5000 });
+      return r.ok && r.data && r.data.id ? { id: r.data.id, title: r.data.title || "", status: r.data.status || "running", exitCode: r.data.exitCode ?? null } : null;
+    },
+    async ptyResize(id, rows, cols) {
+      const r = await call(`/pty/${id}`, { method: "PUT", body: { size: { rows, cols } } });
+      if (!r.ok && r.status !== 404) throw httpError(502, `opencode could not resize the terminal (${errText(r)}).`);
+    },
+    async ptyRemove(id) {
+      const r = await call(`/pty/${id}`, { method: "DELETE" });
+      if (!r.ok && r.status !== 404) throw httpError(502, `opencode could not close the terminal (${errText(r)}).`);
+    },
+    /** The terminal's WebSocket address. `cursor`: replay its output from there (null: all opencode kept). */
+    ptySocket(id, cursor) {
+      const u = new URL(`${base}/pty/${id}/connect`);
+      u.protocol = u.protocol === "https:" ? "wss:" : "ws:";
+      u.searchParams.set("directory", opt.workspace);
+      if (cursor != null) u.searchParams.set("cursor", String(cursor));
+      return u.toString();
     },
     eventsRequest() {
       const u = new URL(base + "/event");
@@ -292,6 +336,10 @@ export function makeV1(url) {
           upsertSession(sid, { command: `/${p.name}${p.arguments ? " " + p.arguments : ""}` });
           linkFrom(sid, () => folderForArgs(p.arguments), `/${p.name} ${p.arguments || ""}`.trim());
           break;
+        case "pty.exited":
+        case "pty.deleted":
+          ptyEvent(ev.type, p);
+          return false;
         case "server.instance.disposed":
         case "global.disposed":
           later(() => loadState().then(broadcastLive, () => {}), 500);

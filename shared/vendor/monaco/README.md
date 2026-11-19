@@ -13,4 +13,4 @@ Served from this site for Dispatch's code review screen, so the page makes no re
 
 Written by `scripts/vendor-monaco.mjs`; do not edit by hand. Left out: the TypeScript, CSS, HTML and JSON language services (their modes are stubs that do nothing) and translations. Syntax colors come from Monarch (`vs/basic-languages`). The icon font is moved out of `vs/editor/editor.main.css` into `vs/editor/codicon.ttf` (the page's CSP refuses `data:` fonts). `vs/editor-worker.js` is a copy of `vs/assets/editor.worker-*.js` under a fixed name.
 
-To update: `npm pack monaco-editor@<version>` in an empty folder, extract it, then run `node scripts/vendor-monaco.mjs <folder>/package <tarball>` and `node shell/registry.mjs`.
+To update: `npm pack monaco-editor@<version>` in an empty folder, extract it, then run `node scripts/vendor-monaco.mjs <folder>/package <tarball>`.

@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// Vendors a trimmed Monaco editor into apps/slate/vendor/monaco for Loom's code review screen.
+// Vendors a trimmed Monaco editor into shared/vendor/monaco for Loom's code review screen and Chat's Files
+// (both load it through shared/monaco.js; it moved out of apps/slate/vendor in Chat 4.0.0).
 //
 //   npm pack monaco-editor@<version>          (in an empty folder)
 //   tar xzf monaco-editor-<version>.tgz
@@ -9,9 +10,9 @@
 // Drops the language services (TypeScript, CSS, HTML and JSON workers and modes) and translations:
 // a read-only review of a diff has no project to check against, so they would only add wrong error
 // squiggles and about 20 MB. Their modes are replaced with stubs that do nothing.
-// Then rewrites "files" in apps/slate/app.json so the service worker precaches the copy, and writes
-// vendor/monaco/README.md with the version and the tarball's SHA-256, and rewrites apps/slate/vendor/SHA256SUMS
-// (tests/check-vendor.mjs). Node 22, no dependencies.
+// Then writes vendor/monaco/README.md with the version and the tarball's SHA-256, and rewrites
+// shared/vendor/SHA256SUMS (tests/check-vendor.mjs). The service worker caches the files the first time a page
+// loads them (sw.js). Node 22, no dependencies.
 
 import crypto from "node:crypto";
 import fs from "node:fs";
@@ -27,8 +28,8 @@ if (!pkgDir || !fs.existsSync(path.join(pkgDir, "min", "vs", "loader.js"))) {
 }
 const version = JSON.parse(fs.readFileSync(path.join(pkgDir, "package.json"), "utf8")).version;
 const src = path.join(pkgDir, "min", "vs");
-const appDir = path.join(root, "apps", "slate");
-const out = path.join(appDir, "vendor", "monaco");
+const vendorDir = path.join(root, "shared", "vendor");
+const out = path.join(vendorDir, "monaco");
 const outVs = path.join(out, "vs");
 
 const LANGUAGE_WORKER = /^(ts|css|html|json)\.worker-[\w-]+\.js$/;
@@ -97,12 +98,12 @@ for (const f of ["LICENSE", "ThirdPartyNotices.txt"]) {
 }
 
 const sha = tarball ? crypto.createHash("sha256").update(fs.readFileSync(tarball)).digest("hex") : null;
-const bytes = written.reduce((n, f) => n + fs.statSync(path.join(appDir, f)).size, 0);
+const bytes = written.reduce((n, f) => n + fs.statSync(path.join(vendorDir, f.replace(/^vendor\//, ""))).size, 0);
 fs.writeFileSync(
   path.join(out, "README.md"),
   `# Monaco editor (trimmed)
 
-Served from this site for Loom's code review screen, so the page makes no requests to other origins and works offline.
+Served from this site for Loom's code review screen and Chat's Files, so the pages make no requests to other origins. Both load it through \`shared/monaco.js\`; the service worker keeps each file once a page has loaded it, so it works offline after first use.
 
 | | |
 | --- | --- |
@@ -115,18 +116,12 @@ Served from this site for Loom's code review screen, so the page makes no reques
 
 Written by \`scripts/vendor-monaco.mjs\`; do not edit by hand. Left out: the TypeScript, CSS, HTML and JSON language services (their modes are stubs that do nothing) and translations. Syntax colors come from Monarch (\`vs/basic-languages\`). The icon font is moved out of \`vs/editor/editor.main.css\` into \`vs/editor/codicon.ttf\` (the page's CSP refuses \`data:\` fonts). \`vs/editor-worker.js\` is a copy of \`vs/assets/editor.worker-*.js\` under a fixed name.
 
-To update: \`npm pack monaco-editor@<version>\` in an empty folder, extract it, then run \`node scripts/vendor-monaco.mjs <folder>/package <tarball>\` and \`node shell/registry.mjs\`.
+To update: \`npm pack monaco-editor@<version>\` in an empty folder, extract it, then run \`node scripts/vendor-monaco.mjs <folder>/package <tarball>\`.
 `,
 );
 written.push("vendor/monaco/README.md");
 
-// app.json "files": the app's own files, then the vendored copy.
-const manifestPath = path.join(appDir, "app.json");
-const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
-manifest.files = [...(manifest.files || []).filter((f) => !f.startsWith("vendor/monaco/")), ...written.sort()];
-fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + "\n");
-
 // Pin the new copy's hashes (tests/check-vendor.mjs checks them in CI).
-writeSums(path.join(appDir, "vendor"));
+writeSums(vendorDir);
 
-console.log(`Monaco ${version}: ${written.length} files, ${(bytes / 1048576).toFixed(1)} MB in apps/slate/vendor/monaco. Updated apps/slate/vendor/SHA256SUMS.`);
+console.log(`Monaco ${version}: ${written.length} files, ${(bytes / 1048576).toFixed(1)} MB in shared/vendor/monaco. Updated shared/vendor/SHA256SUMS.`);

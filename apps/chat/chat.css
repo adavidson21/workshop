@@ -332,3 +332,140 @@ button.tool-line:hover { background: var(--hover); }
 .src-p { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 28ch; }
 .src .lnk { font: 500 12px/1.6 var(--sans, inherit); }
 .src.file { color: var(--muted); }
+
+/* ---------- Chat 4.0.0: the workbench beside the chat (js/bench.js, terminal.js, files.js, side.js) ----------
+   A third column of .chat when open (its width is --bench-w, set by bench.js). chat.js draws the sidebar and the
+   chat into .chat-core, which takes no box, so they stay cells of the grid. Under 1100px the chat list steps aside
+   while it is open; on a phone it covers the chat. */
+.chat-core { display: contents; }
+.chat.bench-open { grid-template-columns: var(--side) minmax(0, 1fr) var(--bench-w, 520px); }
+.chat.bench-open.side-closed { grid-template-columns: minmax(0, 1fr) var(--bench-w, 520px); }
+.bench { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; border-left: 1px solid var(--line); background: var(--surface); }
+.bench[hidden] { display: none; }
+.bench-grip { position: absolute; top: 0; bottom: 0; left: -4px; width: 8px; z-index: 3; cursor: col-resize; touch-action: none; }
+.bench-grip:hover, .bench-grip:focus-visible, .bench.sizing .bench-grip { background: linear-gradient(90deg, transparent 3px, var(--accent) 3px, var(--accent) 5px, transparent 5px); outline: none; }
+.bench.sizing { user-select: none; }
+.bench-top { display: flex; align-items: center; gap: 6px; min-height: 52px; padding: 8px 8px 8px 12px; border-bottom: 1px solid var(--line); }
+.bench-tabs { flex: 1; display: flex; gap: 2px; min-width: 0; }
+.bench-tab { min-height: 30px; padding: 4px 12px; border: 0; border-radius: var(--r-sm); background: transparent; color: var(--muted); font: 500 13.5px/1.3 var(--sans); cursor: pointer; white-space: nowrap; }
+.bench-tab:hover { background: var(--hover); color: var(--ink); }
+.bench-tab.on { background: var(--panel); color: var(--ink); box-shadow: inset 0 0 0 1px var(--line); }
+.bench-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.bench-pane { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.bench-pane[hidden] { display: none; }
+.bench-btns { margin-left: 6px; padding-left: 6px; border-left: 1px solid var(--line); }
+.chat-icon.bench-btn.on { background: var(--panel); color: var(--accent); box-shadow: inset 0 0 0 1px var(--line); }
+.chat-icon.bench-btn[aria-disabled="true"] { opacity: .45; }
+.chat-icon.sm { width: 28px; height: 28px; }
+.chat-icon:disabled { opacity: .4; cursor: default; }
+.lnk.quiet { color: var(--muted); font-size: 12.5px; text-decoration: none; }
+.lnk.quiet:hover { color: var(--ink); text-decoration: underline; }
+.btn.sm { min-height: 26px; padding: 2px 10px; font-size: 12.5px; }
+/* Half a screen: the chat list makes room for the panel while it is open. A phone: the panel covers the chat. */
+@media (max-width: 1100px) {
+  .chat.bench-open, .chat.bench-open.side-closed { grid-template-columns: minmax(0, 1fr) min(var(--bench-w, 520px), 62%); }
+  .chat.bench-open .chat-side { display: none; }
+}
+@media (max-width: 820px) {
+  .chat.bench-open, .chat.bench-open.side-closed { grid-template-columns: minmax(0, 1fr); }
+  .bench { position: absolute; inset: 0; z-index: 4; }
+  .bench-grip { display: none; }
+}
+
+/* Terminal */
+.term { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.term-bar { display: flex; align-items: center; gap: 4px; min-height: 38px; padding: 4px 8px; border-bottom: 1px solid var(--line); }
+.term-bar .grow { flex: 1; }
+.term-tabs { display: flex; gap: 2px; min-width: 0; overflow-x: auto; }
+.term-tab { display: inline-flex; align-items: center; border-radius: var(--r-sm); }
+.term-tab > button:first-child { padding: 3px 4px 3px 10px; border: 0; background: transparent; color: var(--muted); font: 500 12.5px/1.4 var(--sans); cursor: pointer; white-space: nowrap; }
+.term-tab.on { background: var(--panel); box-shadow: inset 0 0 0 1px var(--line); }
+.term-tab.on > button:first-child { color: var(--ink); }
+.term-ended { margin-left: 4px; font-weight: 400; color: var(--muted); }
+.term-x { display: inline-grid; place-items: center; width: 22px; height: 22px; margin-right: 2px; border: 0; border-radius: var(--r-sm); background: transparent; color: var(--muted); cursor: pointer; }
+.term-x:hover { background: var(--hover); color: var(--ink); }
+.term-note { margin: 8px 12px 0; font-size: 13px; color: var(--muted); }
+.term-note code { font: 12px/1.4 var(--mono); }
+.term-body { position: relative; flex: 1; min-height: 0; padding: 6px 4px 4px 10px; }
+.term-box { position: absolute; inset: 6px 4px 4px 10px; }
+.term-box[hidden] { display: none; }
+.term-box .xterm { height: 100%; }
+.term-box .xterm-viewport { background: transparent !important; }
+
+/* Files */
+.files { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.files-bar { display: flex; align-items: center; gap: 4px; min-height: 38px; padding: 4px 8px; border-bottom: 1px solid var(--line); }
+.files-find { flex: 1; min-width: 0; min-height: 28px; padding: 3px 10px; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--bg); color: var(--ink); font: 13px/1.3 var(--sans); }
+.files-find.making { border-color: var(--accent); font-family: var(--mono); }
+.files-main { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(150px, 34%) minmax(0, 1fr); }
+.files.no-tree .files-main { grid-template-columns: minmax(0, 1fr); }
+.files.no-tree .files-tree { display: none; }
+.files-tree { min-height: 0; overflow: auto; padding: 4px 0 12px; border-right: 1px solid var(--line); background: var(--panel); }
+.ft-list { list-style: none; margin: 0; padding: 0; }
+.ft-row { display: flex; align-items: center; gap: 6px; width: 100%; min-height: 26px; padding: 2px 8px 2px calc(var(--d, 0) * 14px + 8px); border: 0; background: transparent; color: var(--ink); font: 13px/1.35 var(--sans); text-align: left; cursor: pointer; white-space: nowrap; }
+.ft-row span { overflow: hidden; text-overflow: ellipsis; }
+.ft-row svg { flex: none; color: var(--muted); }
+.ft-row:hover { background: var(--hover); }
+.ft-row.on { background: var(--surface); box-shadow: inset 2px 0 0 var(--accent); }
+.ft-row.isopen span { font-weight: 600; }
+.ft-row.dir .chev { margin-right: -2px; }
+.ft-row.dir:not(.open) svg { color: var(--muted); }
+.ft-row.hit span { font-family: var(--mono); font-size: 12.5px; }
+.ft-meta { padding: 4px 8px 4px calc(var(--d, 0) * 14px + 26px); font-size: 12.5px; color: var(--muted); list-style: none; margin: 0; }
+.ft-meta.err { color: var(--danger); }
+.files-ed { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.files-tabs { display: flex; gap: 2px; padding: 4px 6px 0; overflow-x: auto; border-bottom: 1px solid var(--line); min-height: 4px; }
+.files-tabs:empty { display: none; }
+.ftab { display: inline-flex; align-items: center; border-radius: var(--r-sm) var(--r-sm) 0 0; }
+.ftab > button:first-child { display: inline-flex; align-items: center; gap: 5px; padding: 4px 4px 5px 10px; border: 0; background: transparent; color: var(--muted); font: 12.5px/1.35 var(--mono); cursor: pointer; white-space: nowrap; }
+.ftab.on { background: var(--panel); box-shadow: inset 0 0 0 1px var(--line); }
+.ftab.on > button:first-child { color: var(--ink); }
+.ftab-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
+.files-note { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 7px 12px; border-bottom: 1px solid var(--line); background: var(--warn-soft, var(--panel)); font-size: 13px; }
+.files-note[hidden] { display: none; }
+.files-note span { flex: 1 1 220px; }
+.files-mon { flex: 1; min-height: 0; }
+.files-mon[hidden] { display: none; }
+.files-empty { margin: 28px 20px; color: var(--muted); font-size: 13.5px; text-align: center; }
+.files-empty[hidden] { display: none; }
+
+/* Side chat */
+.side { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.side-about { margin: 0; padding: 9px 14px; border-bottom: 1px solid var(--line); background: var(--panel); font-size: 12.5px; color: var(--muted); }
+.side-about b { color: var(--ink); font-weight: 600; }
+.side-scroll { flex: 1; min-height: 0; overflow-y: auto; padding: 14px 14px 8px; }
+.side .turns { gap: 14px; margin: 0; }
+.side .turn { display: block; }
+.side .turn .who { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.side .turn.you { display: flex; justify-content: flex-end; flex-wrap: wrap; }
+.side .turn.you .tx { max-width: 88%; padding: 7px 12px; border-radius: 16px; background: var(--panel); font-size: 14px; }
+.side .turn.tandem .tx { font-size: 14px; line-height: 1.55; }
+.side .you-agent { flex-basis: 100%; text-align: right; font-size: 11.5px; color: var(--muted); }
+.side-acts { margin: -4px 0 0; font-size: 12.5px; }
+.side-compose { padding: 6px 12px 12px; }
+.side-compose .chat-box { border-radius: 16px; padding: 8px 8px 6px 12px; }
+.side-agent select { min-height: 28px; max-width: 170px; padding: 2px 8px; border: 1px solid var(--line); border-radius: 999px; background: transparent; color: var(--ink); font: 500 12.5px/1.3 var(--sans); }
+.side-empty { margin: 28px 22px; color: var(--muted); font-size: 13.5px; }
+.side-empty p { margin: 0 0 6px; }
+.side-empty b { color: var(--ink); }
+
+/* Tool lines with a file: Open sits beside the line */
+.tool-row { display: flex; align-items: center; gap: 6px; }
+.tool-row > .tool-line { flex: 1; min-width: 0; }
+.tool-file { flex: none; font-size: 12.5px; padding: 0 6px; }
+.tool-sum .tool-file { padding: 0; font: 12.5px/1.4 var(--mono); }
+button.att-chip { cursor: pointer; color: var(--ink); }
+button.att-chip:hover { border-color: var(--accent); }
+
+/* Pictures (js/images.js): in the composer, in the thread, and full size */
+.pics { display: flex; flex-wrap: wrap; gap: 8px; padding: 4px 0 6px; }
+.pic { position: relative; display: inline-block; }
+.pic img { display: block; width: 64px; height: 64px; object-fit: cover; border-radius: 10px; border: 1px solid var(--line); background: var(--panel); }
+.pic-x { position: absolute; top: -6px; right: -6px; display: grid; place-items: center; width: 20px; height: 20px; padding: 0; border: 1px solid var(--line); border-radius: 50%; background: var(--surface); color: var(--ink); font-size: 14px; line-height: 1; cursor: pointer; }
+.pic-x:hover { background: var(--hover); }
+.chat-box.drop { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
+.att-pic { display: inline-block; padding: 0; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); cursor: zoom-in; overflow: hidden; }
+.att-pic img { display: block; max-width: 220px; max-height: 160px; min-width: 40px; min-height: 40px; object-fit: contain; }
+.pic-view { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 4vh 4vw; background: color-mix(in srgb, #000 72%, transparent); cursor: zoom-out; }
+.pic-view img { max-width: 100%; max-height: 100%; border-radius: 6px; box-shadow: var(--shadow-lg); background: var(--surface); }
+.pic-view:focus { outline: none; }
