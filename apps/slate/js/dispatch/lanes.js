@@ -15,6 +15,7 @@ import { pickable, boardFeed } from '../loom.js';
 import { projectFilterHtml, inProject, projectFilter, projectChip } from './projects.js';
 import { reviewsHtml } from './pr-reviews.js';
 import { noticedHtml, noticedCount } from './noticed.js';
+import { teachHtml, teachCount, teachBlocking, publishAllHtml, publishOf } from './factory.js';
 // Set by pages.js (it imports this module): the onboarding guide and an ask's source, for Loom 6.0.0's Lanes.
 // var, no initializer: pages.js may run this setter before this module's body (they import each other).
 var onboardTop, askLabel; // eslint-disable-line no-var
@@ -117,7 +118,7 @@ function actionOf(it, kind, lane) {
   if (it.blocked || (itemSession(it) && itemSession(it).error && !isBusy(itemSession(it)))) return 'See why it stopped';
   if (asking(it)) return 'Answer';
   if (lane === 'plan') return kind === 'build' && it.stage === 'bug' ? 'Review root cause' : kind === 'docs' ? 'Read the draft' : 'Review spec';
-  if (lane === 'ready') return kind === 'build' ? 'Open PR' : kind === 'diagnose' ? 'See the fix' : kind === 'ask' ? 'Read the answer' : kind === 'epic' ? 'Create in ADO' : 'Pick what is next';
+  if (lane === 'ready') return kind === 'build' ? (publishOf(it) && publishOf(it).published ? 'Open PR' : 'Publish') : kind === 'diagnose' ? 'See the fix' : kind === 'ask' ? 'Read the answer' : kind === 'epic' ? 'Create in ADO' : 'Pick what is next';
   return 'Open';
 }
 
@@ -248,7 +249,9 @@ function cardHtml(c, sel) {
     (c.mine ? `<span class="ln-act">${h(c.action)}</span>` : '') + '</button>';
 }
 function laneHtml(l, sel, done) {
-  return `<section class="ln-lane ln-${l.id}" aria-label="${h(l.name)}"><header><span class="ln-dot" aria-hidden="true"></span><h2>${h(l.name)}</h2><span class="ln-n">${l.cards.length}</span></header>` +
+  // Ready: Publish all ready (Gate 2 for every build with nothing to answer).
+  const extra = l.id === 'ready' ? publishAllHtml(l.cards.map(c => c.it).filter(Boolean)) : '';
+  return `<section class="ln-lane ln-${l.id}" aria-label="${h(l.name)}"><header><span class="ln-dot" aria-hidden="true"></span><h2>${h(l.name)}</h2><span class="ln-n">${l.cards.length}</span></header>${extra}` +
     `<p class="ln-desc">${h(l.desc)}</p>` +
     (l.cards.length ? l.cards.map(c => cardHtml(c, sel)).join('') : '<p class="ln-empty">Nothing here.</p>') +
     (l.id === 'ready' && done.length ? `<button type="button" class="lnk plain ln-done" data-lane-done="1" aria-expanded="${!!S.ui.laneDone}">${done.length} done today</button>` +
@@ -277,7 +280,7 @@ function panelHtml(key, data) {
     `<h3>${c.id ? `<span class="num">#${h(c.id)}</span> ` : ''}${h(c.title)}</h3></div><button type="button" class="ibtn" data-lane-close="1" aria-label="Close panel" title="Close">${X}</button></div>` +
     `<div class="ln-pills">${pills}</div>${c.it ? `<p class="iturn">${turnHtml(c.it)}</p>` : ''}${body}</aside>`;
 }
-export const LANE_FILTERS = [['all', 'All'], ['mine', 'Your turn'], ['build', 'Build'], ['diagnose', 'Diagnose'], ['ask', 'Ask'], ['noticed', 'Noticed']];
+export const LANE_FILTERS = [['all', 'All'], ['mine', 'Your turn'], ['build', 'Build'], ['diagnose', 'Diagnose'], ['ask', 'Ask'], ['teach', 'Teach'], ['noticed', 'Noticed']];
 /** The drop box: one text box, the guessed kind (shown once there is text), Start, and Other flows. */
 export function dropHtml() {
   const text = S.ui.drafts['lanes:drop'] || '';
@@ -308,9 +311,11 @@ export function lanesHtml() {
   const filter = LANE_FILTERS.some(([k]) => k === S.ui.laneFilter) ? S.ui.laneFilter : 'all';
   // Noticed is not a filter on the cards: it shows what Tandem spotted out of scope in place of the lanes.
   const noticed = filter === 'noticed';
-  const data = lanesData(noticed ? 'all' : filter);
+  const teach = filter === 'teach';
+  const data = lanesData(noticed || teach ? 'all' : filter);
   data.counts.noticed = noticedCount();
-  const sel = noticed ? '' : S.ui.laneSel || '';
+  data.counts.teach = teachCount();
+  const sel = noticed || teach ? '' : S.ui.laneSel || '';
   const panel = sel ? panelHtml(sel, data) : '';
   const chips = `<div class="chips ln-chips" role="group" aria-label="Show">${LANE_FILTERS.map(([k, label]) =>
     `<button type="button" class="chip${filter === k ? ' on' : ''}" data-lane-filter="${k}" aria-pressed="${filter === k}">${h(label)}<span class="n">${data.counts[k] || 0}</span></button>`).join('')}` +
@@ -318,10 +323,11 @@ export function lanesHtml() {
   // The afternoon digest and first-run onboarding sit on top (they were on the Inbox until Loom 6.0.0).
   const top = (S.digestHtml ? S.digestHtml(h) : '') + (onboardTop ? onboardTop() : '');
   if (noticed) return `<div class="ln-page">${top}${dropHtml()}${chips}${noticedHtml()}</div>`;
+  if (teach) return `<div class="ln-page">${top}${dropHtml()}${chips}${teachHtml()}</div>`;
   return `<div class="ln-page">${top}${dropHtml()}${chips}${projectFilterHtml(workItems())}<div class="ln-body${panel ? ' has-panel' : ''}"><div class="ln-lanes">${data.lanes.map(l => laneHtml(l, sel, data.doneList)).join('')}</div>${panel}</div></div>`;
 }
 /** The tab bar's count on Lanes: cards waiting on you. */
-export function lanesCount() { return lanesData('all').counts.mine; }
+export function lanesCount() { return lanesData('all').counts.mine + teachBlocking(); }
 /** The run open in the lanes' panel, for wantedFiles (its gate's file is read inline). */
 export function laneRun() {
   const k = S.ui.laneSel || '';

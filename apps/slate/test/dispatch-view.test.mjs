@@ -55,10 +55,10 @@ test('1.2.0 clearer track: checked, current and faint stages', () => {
 test('1.4.0 one main button per step, command in the tooltip, plain words', () => {
   const blocked = nextHtml(item('41502-csv-export'), false);
   assert.equal(count(blocked, /class="btn primary"/g), 1, 'one main button');
-  // 41300 waits for bug.md approval: Approve and build is the main button, Approve only is secondary.
+  // 41300 waits for bug.md approval: Approve (which starts the build) is the main button, approving without building is secondary.
   const gate = nextHtml(item('41300-export-retry-fails'), true);
-  assert.match(gate, /class="btn primary" data-auto="41300-export-retry-fails" data-act="approve-start"[^>]*>Approve and build</);
-  assert.match(gate, /class="btn" data-run="41300-export-retry-fails" data-cmd="\/approve 41300"[^>]*title="Runs \/approve 41300 in opencode[^"]*"[^>]*>Approve only</);
+  assert.match(gate, /class="btn primary" data-auto="41300-export-retry-fails" data-act="approve-start"[^>]*>Approve</);
+  assert.match(gate, /class="btn" data-run="41300-export-retry-fails" data-cmd="\/approve 41300"[^>]*title="Runs \/approve 41300 in opencode[^"]*"[^>]*>Approve, do not build yet</);
   assert.match(gate, /data-file="41300-export-retry-fails" data-name="bug.md">Open bug.md</, 'the file to read opens in the app');
   const words = nextHtml(item('41207-fix-login-timeout'), false);
   assert.match(words, /<span class="act">Task 3: Use the setting on the renewal page<\/span>/, 'the step in plain words, not the command');
@@ -127,7 +127,7 @@ test('3.0 a run opens its own page: the flow track is its navigation, the step s
   html = render();
   assert.match(html, /data-close-run="inbox">&larr; Inbox</);
   assert.match(html, /<section class="spanel here" aria-label="Root cause">/);
-  assert.match(html, /data-act="approve-start"[^>]*>Approve and build</);
+  assert.match(html, /data-act="approve-start"[^>]*>Approve</);
   assert.match(html, /<span class="mono">bug\.md<\/span>/);
   assert.match(html, /data-sb-toggle="41300-export-retry-fails" aria-expanded="false">Send back with a note</);
   S.ui.open['sb:41300-export-retry-fails'] = true;

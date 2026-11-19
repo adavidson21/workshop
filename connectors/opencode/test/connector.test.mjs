@@ -475,7 +475,7 @@ for (const kind of ["v1", "v2"]) {
     test("[P-autopilot] builds over the limit queue, and a hands-off Quick change approves itself only with auto", async () => {
       const titles = () => fake.bodiesFor(kind === "v1" ? "POST /session" : "POST /api/session").map((b) => b.title);
       const st0 = await call("state", {}, ctx());
-      assert.deepEqual(st0.autopilotOptions, { maxRuns: 2, quickHandsOff: true });
+      assert.deepEqual(st0.autopilotOptions, { maxRuns: 2, quickHandsOff: true, fairSlots: true, factory: { taskFileCap: 6, quickTasks: 3, retries: 3, autoFix: "should-fix", reviewRounds: 2, uiChecks: true, worktrees: "always" } });
       // A second buildable item: a copy of 41207 (the example's only one that is not blocked).
       fs.cpSync(path.join(ws.work, "41207-fix-login-timeout"), path.join(ws.work, "41208-copy-of-login"), { recursive: true });
       await call("refresh", {}, ctx());
@@ -516,6 +516,62 @@ for (const kind of ["v1", "v2"]) {
       assert.equal(saved.decided.O2.status, "dismissed");
       assert.match(fs.readFileSync(path.join(ws.work, "observations.md"), "utf8"), /O2 \| 2026-11-18/, "the agents' file is never changed");
       fs.rmSync(path.join(ws.work, "observations.md"));
+    });
+
+    test("[P-factory] factory.json is written, gaps show and Teach runs /teach, Publish refuses an item that is not ready", async () => {
+      const fj = JSON.parse(fs.readFileSync(path.join(ws.work, "factory.json"), "utf8"));
+      assert.equal(fj.taskFileCap, 6);
+      assert.equal(fj.worktrees, "always");
+      fs.writeFileSync(path.join(ws.work, "gaps.md"), "# Knowledge gaps\n\n- G1 | 2026-11-18 | fact | Portal | 41207 | May a refund exceed the total? | - | open\n- G2 | 2026-11-18 | term | - | - | What is a plan year? | CoverageYear | answered 2026-11-18: products/portal.md, Remembered\n");
+      let st = await call("state", {}, ctx());
+      assert.deepEqual(st.gaps.open.map((g) => g.id), ["G1"]);
+      assert.equal(st.gaps.open[0].assumed, null);
+      assert.equal(st.gaps.answered, 1);
+      await rejects(call("gap.answer", { id: "G2", answer: "x" }, ctx()), "conflict", /already answered/);
+      await rejects(call("gap.answer", { id: "G9", answer: "x" }, ctx()), "not_found");
+      const titles = () => fake.bodiesFor(kind === "v1" ? "POST /session" : "POST /api/session").map((b) => b.title);
+      const r = await call("gap.answer", { id: "G1", answer: "No, never\nmore than the order total." }, ctx());
+      assert.equal(r.ok, true);
+      await waitFor(() => titles().some((t) => t === "/teach G1 No, never more than the order total."), "/teach to run");
+      st = await call("state", {}, ctx());
+      assert.ok(st.gaps.open[0].sent, "the card shows the answer is on its way");
+      await rejects(call("gap.answer", { id: "G1", answer: "again" }, ctx()), "conflict", /already being saved/);
+      // /teach closes the line: the sent answer is forgotten.
+      fs.writeFileSync(path.join(ws.work, "gaps.md"), "- G1 | 2026-11-18 | fact | Portal | 41207 | May a refund exceed the total? | - | answered 2026-11-18: products/portal.md, Business rules\n");
+      st = await call("state", {}, ctx());
+      assert.deepEqual(st.gaps.open, []);
+      assert.deepEqual(JSON.parse(fs.readFileSync(path.join(ws.work, "_dashboard", "gaps.json"), "utf8")).sent, {});
+      fs.rmSync(path.join(ws.work, "gaps.md"));
+      await rejects(call("publish", { folder: "41207-fix-login-timeout" }, ctx()), "conflict", /not ready to publish/);
+      await rejects(call("ui.image", { folder: "41207-fix-login-timeout", file: "after/home-1280.png" }, ctx()), "not_found");
+      fs.mkdirSync(path.join(ws.work, "41207-fix-login-timeout", "ui", "after"), { recursive: true });
+      fs.writeFileSync(path.join(ws.work, "41207-fix-login-timeout", "ui", "after", "home-1280.png"), Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+      const img = await call("ui.image", { folder: "41207-fix-login-timeout", file: "after/home-1280.png" }, ctx());
+      assert.equal(img.dataUrl, "data:image/png;base64,iVBORw==");
+      await rejects(call("ui.image", { folder: "41207-fix-login-timeout", file: "../x/home.png" }, ctx()), "not_found");
+      fs.rmSync(path.join(ws.work, "41207-fix-login-timeout", "ui"), { recursive: true });
+      // The example's one ready item (41610) is tried; its repo is not in the test workspace, so the push fails and says so.
+      const pa = await call("publish.all", {}, ctx());
+      assert.deepEqual(pa, { ok: false, published: [], failed: [{ folder: "41610-rate-limit-headers", message: "Repo folder gateway not found in the workspace." }] });
+      assert.equal((await call("state", {}, ctx())).publish["41610-rate-limit-headers"].ready, true);
+      // Build after: an item that changes the same files waits for the other one's PR text.
+      const t7 = path.join(ws.work, "41207-fix-login-timeout", "tasks.md");
+      const tasks7 = fs.readFileSync(t7, "utf8");
+      fs.writeFileSync(t7, tasks7.replace("- Repo: `web-app`", "- Repo: `web-app`\n- Files:\n  - `src/renew.ts` (changed)"));
+      fs.cpSync(path.join(ws.work, "41207-fix-login-timeout"), path.join(ws.work, "41208-copy-of-login"), { recursive: true });
+      await call("refresh", {}, ctx());
+      assert.ok(((await call("state", {}, ctx())).overlaps["41208-copy-of-login"] || []).some((o) => o.with === "41207-fix-login-timeout"), "the copy shares every file with 41207");
+      await rejects(call("autopilot", { folder: "41208-copy-of-login", action: "start", after: "41208-copy-of-login" }, ctx()), "bad_request");
+      const q = await call("autopilot", { folder: "41208-copy-of-login", action: "start", after: "41207-fix-login-timeout" }, ctx());
+      assert.deepEqual(q, { ok: true, queued: true });
+      const a8 = (await call("state", {}, ctx())).liveMode.live.autopilot["41208-copy-of-login"];
+      assert.equal(a8.after, "41207-fix-login-timeout");
+      assert.match(a8.message, /builds after 41207-fix-login-timeout/);
+      await call("autopilot", { folder: "41208-copy-of-login", action: "stop" }, ctx());
+      await call("autopilot", { folder: "41208-copy-of-login", action: "dismiss" }, ctx());
+      fs.rmSync(path.join(ws.work, "41208-copy-of-login"), { recursive: true });
+      fs.writeFileSync(t7, tasks7);
+      await call("refresh", {}, ctx());
     });
 
     test("[P-secret] the 2.x password never shows up in results, events or logs", async () => {

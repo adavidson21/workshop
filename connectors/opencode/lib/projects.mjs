@@ -216,6 +216,24 @@ export function updateProject(args) {
   return { project: { ...p, builtIn: false } };
 }
 
+/** The project ids in their order (the order of projects.json; Inbox last). Autopilot's fair slots use it. */
+export function projectOrder() {
+  return [...data.projects.map((p) => p.id), INBOX];
+}
+
+/** Move a project one place up (dir -1) or down (dir 1) in the order. Returns the new order. */
+export function moveProject({ id, dir }) {
+  find(id);
+  const i = data.projects.findIndex((p) => p.id === id);
+  const j = i + (dir < 0 ? -1 : 1);
+  if (j >= 0 && j < data.projects.length) {
+    const [p] = data.projects.splice(i, 1);
+    data.projects.splice(j, 0, p);
+    save();
+  }
+  return { ok: true, order: projectOrder() };
+}
+
 /** Remove a project. Its runs move to Inbox; their .work folders are not touched. */
 export function deleteProject({ id }) {
   find(id);
