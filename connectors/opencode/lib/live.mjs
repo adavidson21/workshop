@@ -20,6 +20,7 @@ import { gapsData } from "./gaps.mjs";
 import { publishData } from "./publish.mjs";
 import { overlapData } from "./overlap.mjs";
 import { adoLinksData, adoNotice } from "./ado-link.mjs";
+import { epicsData, onboardingData } from "./epics.mjs";
 
 export function liveData() {
   const items = {};
@@ -48,7 +49,11 @@ export function liveData() {
 /** The `state` action: the .work model (lib/workparser.mjs) plus live opencode state, as the page got it. */
 export function pageData() {
   const base = model || { items: [], repos: [], activity: [], workspace: opt.workspace, generatedMs: Date.now(), generated: new Date().toISOString() };
-  return { ...base, tandem: { ado: adoConfigured() }, projects: projectsData(folderForToken), reviews: reviewSummary(), observations: observationsData(), autopilotOptions: autoOptions(), gaps: gapsData(), publish: publishData(base.items), overlaps: overlapData(base.items), adoLinks: adoLinksData(base.items), adoNotice: adoNotice(), liveMode: { error: modelError, live: liveData() } };
+  const gaps = gapsData();
+  return { ...base, tandem: { ado: adoConfigured() }, projects: projectsData(folderForToken), reviews: reviewSummary(), observations: observationsData(), autopilotOptions: autoOptions(), gaps, publish: publishData(base.items), overlaps: overlapData(base.items), adoLinks: adoLinksData(base.items), adoNotice: adoNotice(),
+    // 1.23.0: epics building hands-off (their stories and where they are), and products being onboarded.
+    epics: epicsData(base.items), onboarding: onboardingData(base.onboarding, gaps.open, base.items, sessions),
+    liveMode: { error: modelError, live: liveData() } };
 }
 
 // ------------------------------------------------------------------ events

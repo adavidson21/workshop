@@ -83,6 +83,39 @@ export function field(text, label) {
   return cleanValue(m[1]);
 }
 
+// A story from an approved breakdown (eng-agents Core 4.10.0, /backlog <scope> local): the epic (scope folder) it
+// came from, its story number, the local ids it waits for, its repos and areas, and whether the engineer approved
+// the breakdown (then autopilot builds it hands-off and holds its plan only on drift). Null when workitem.md has no
+// "- Epic:" line.
+export function storyOf(wi) {
+  const epic = field(wi, "Epic");
+  if (!epic) return null;
+  const list = (v) => (v ? String(v).replace(/`/g, "").split(/\s*,\s*/).map((x) => x.trim()).filter((x) => x && !/^(none|-)$/i.test(x)) : []);
+  const dependsOn = list(field(wi, "Depends on")).filter((x) => /^(L?\d+)$/i.test(x));
+  return { epic, story: field(wi, "Story"), dependsOn, repos: list(field(wi, "Repos")), areas: list(field(wi, "Areas")), breakdown: /^approved\b/i.test(field(wi, "Breakdown") || "") };
+}
+
+// Products being onboarded (Core 4.10.0 /onboard-product): .work/_onboarding/<product>.md, written by Tandem's
+// Set-Onboarding.ps1: "- Product:", "- Scan: done <date> | <repos>", "- Trial: <local id>", "- Live: <date>".
+export function onboardingOf(workRootFull) {
+  const dir = path.join(workRootFull, "_onboarding");
+  const out = [];
+  for (const d of entries(dir).filter((x) => x.isFile() && /^[a-z0-9-]{1,60}\.md$/.test(x.name)).sort((a, b) => cmp(a.name, b.name))) {
+    const text = readText(path.join(dir, d.name));
+    const product = field(text, "Product");
+    if (!product) continue;
+    const scan = field(text, "Scan");
+    const sm = scan ? /^done\s+(\d{4}-\d{2}-\d{2})(?:\s*\|\s*(.*))?$/i.exec(scan) : null;
+    out.push({
+      product, file: d.name,
+      scan: sm ? { date: sm[1], repos: sm[2] ? sm[2].split(/\s*,\s*/).filter(Boolean) : [] } : null,
+      trial: field(text, "Trial") || null,
+      live: field(text, "Live") || null,
+    });
+  }
+  return out;
+}
+
 // The body of "## Heading" up to the next "## ", without HTML comments.
 export function section(text, heading) {
   if (!text) return null;
@@ -740,6 +773,12 @@ export async function readWork({ workRoot, configPath, recent = 80, gitOk, hide 
       modified: base.modified, modifiedMs: base.modifiedMs,
       files: base.files,
     };
+    // Core 4.10.0: a story from an approved breakdown, and a product's onboarding trial run. Only when present, so
+    // items read the same as New-Dashboard.ps1 (which has neither).
+    const story = storyOf(wi);
+    if (story) item.story = story;
+    const trial = field(wi, "Trial");
+    if (trial) item.trial = trial;
 
     // PR text per repo, with the ADO "create PR" link and whether the branch is pushed.
     const prList = [];
@@ -810,6 +849,7 @@ export async function readWork({ workRoot, configPath, recent = 80, gitOk, hide 
     .slice(0, recent)
     .map((x) => x.a);
 
+  const onboarding = onboardingOf(workRootFull);
   const nowNs = BigInt(Date.now()) * 1000000n;
   return {
     generated: isoLocal(nowNs),
@@ -825,5 +865,6 @@ export async function readWork({ workRoot, configPath, recent = 80, gitOk, hide 
     repos,
     repoCategories,
     activity: sortedActivity,
+    ...(onboarding.length ? { onboarding } : {}),
   };
 }

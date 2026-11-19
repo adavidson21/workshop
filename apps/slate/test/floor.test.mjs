@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { S, resetUi } from '../js/dispatch/state.js';
 import { lanesData, lanesHtml, laneView } from '../js/dispatch/lanes.js';
-import { CODE, PAPER, STACK_MAX, lineOf, stationOf, floorData, floorHtml } from '../js/dispatch/floor.js';
+import { CODE, PAPER, STACK_MAX, lineOf, stationOf, floorData, floorHtml, epicPanelHtml } from '../js/dispatch/floor.js';
 import { setBoardFeed } from '../js/loom.js';
 
 const FIXTURE = JSON.parse(fs.readFileSync(new URL('./fixtures/state.json', import.meta.url), 'utf8'));
@@ -135,4 +135,53 @@ test('the paper line folds when nothing is on it; requests, hand-offs and review
   assert.match(html, /<section class="fl-other" aria-label="Also waiting"><h2>Also on the floor<\/h2>/);
   assert.match(html, /data-lane-open="board:w_1"/);
   assert.match(html, /Bulk resend &lt;b&gt;/, 'titles are escaped');
+});
+
+// Loom 6.5.0 (eng-agents Core 4.10.0, connector 1.23.0): epics hand off to builds; products onboard as new lines.
+function addStory(folder, id, n, stage, deps = []) {
+  const base = S.D.items.find(i => i.folder === '41207-fix-login-timeout');
+  S.D.items.push({ ...clone(base), folder, id, title: 'Story ' + n, stage, bucket: 'active', paused: false, blocked: null,
+    story: { epic: 'scope-ws', story: n, dependsOn: deps, repos: ['api'], areas: ['api/src'], breakdown: true } });
+}
+
+test('stories wear the brand outline; one not started yet rides the hand-off belt; a tracker card per epic', () => {
+  addStory('L50-create', 'L50', '1.1', 'build');
+  addStory('L51-invite', 'L51', '1.2', 'start', ['L50']);
+  S.D.epics = [{ folder: 'scope-ws', title: 'Team workspaces', asked: '2026-11-19T10:00:00Z', total: 2, ready: 0,
+    stories: [{ folder: 'L50-create', id: 'L50', story: '1.1', title: 'Story 1.1', stage: 'build' }, { folder: 'L51-invite', id: 'L51', story: '1.2', title: 'Story 1.2', stage: 'start' }] }];
+  const fd = floorData(lanesData('all'));
+  assert.deepEqual(fd.belt.map(c => c.folder), ['L51-invite']);
+  assert.ok(fd.code.find(s => s.id === 'build').cards.some(c => c.folder === 'L50-create'));
+  assert.deepEqual(fd.epics[0].stories.map(x => [x.story, x.at, x.atName]), [['1.1', 'build', 'Build bay'], ['1.2', 'belt', 'On the belt']]);
+  const html = floorHtml(lanesData('all'), '', '');
+  assert.match(html, /class="fl-card k-build story"[^>]*data-lane-open="L50-create"[^>]*>.*?Story 1\.1/);
+  assert.match(html, /aria-label="Hand-off belt: stories from approved breakdowns, waiting to start"/);
+  assert.match(html, /<article class="fl-epic" aria-label="Epic Team workspaces">.*?<span class="fl-eready">0 of 2 ready<\/span>/);
+  assert.match(html, /data-lane-open="L51-invite"><span class="fl-sid">1\.2<\/span><span class="fl-stitle">Story 1\.2<\/span><span class="fl-sat at-belt">On the belt<\/span>/);
+  assert.ok(html.indexOf('fl-handoff') > html.indexOf('fl-code') && html.indexOf('fl-handoff') < html.indexOf('fl-paper'), 'between the code line and the paper line');
+});
+
+test('an epic with an approved breakdown offers Build the stories here; once asked, it says how far along it is', () => {
+  const ep = { folder: 'scope-ws', kind: 'scope', title: 'Team workspaces', state: 'Milestones approved', files: [] };
+  assert.match(epicPanelHtml(ep), /data-epic-build="scope-ws">Build the stories here</);
+  assert.equal(epicPanelHtml({ ...ep, state: 'Stories in review' }), '', 'not before the breakdown is approved');
+  S.D.epics = [{ folder: 'scope-ws', title: 'Team workspaces', asked: '2026-11-19T10:00:00Z', total: 3, ready: 1, stories: [] }];
+  const html = epicPanelHtml(ep);
+  assert.match(html, /1 of 3 stories ready to publish/);
+  assert.doesNotMatch(html, /data-epic-build/);
+  assert.equal(epicPanelHtml(S.D.items.find(i => i.folder === '41207-fix-login-timeout')), '', 'only epics');
+});
+
+test('products being onboarded are new lines on top, their five steps lit, gaps and the trial run one click away', () => {
+  S.D.onboarding = [{ product: 'Sample <Portal>', gaps: 2, repos: ['api'], live: null, trial: { folder: '41207-fix-login-timeout', id: 'L52', stage: 'build' },
+    steps: [{ id: 'add', name: 'Add', st: 'done' }, { id: 'scan', name: 'Scan', st: 'done' }, { id: 'gaps', name: 'Fill the gaps', st: 'now' }, { id: 'trial', name: 'Trial run', st: 'now' }, { id: 'live', name: 'Live', st: 'next' }] },
+    { product: 'Billing', gaps: 0, live: '2026-11-19', trial: null, steps: [{ id: 'add', name: 'Add', st: 'done' }, { id: 'live', name: 'Live', st: 'done' }] }];
+  const html = floorHtml(lanesData('all'), '', '');
+  assert.ok(html.indexOf('fl-new') < html.indexOf('fl-code'), 'new lines sit above the code line');
+  assert.match(html, /<span class="fl-nlname">Sample &lt;Portal&gt;<\/span>/);
+  assert.match(html, /<li class="fl-step now" aria-label="Fill the gaps: now">/);
+  assert.match(html, /<li class="fl-step next" aria-label="Live: next">/);
+  assert.match(html, /data-lane-filter="teach">2 gaps to answer</);
+  assert.match(html, /data-lane-open="41207-fix-login-timeout">Trial run L52</);
+  assert.match(html, /<span class="fl-live">Live<\/span><button type="button" class="lnk plain" data-onboard-dismiss="Billing">Hide</);
 });

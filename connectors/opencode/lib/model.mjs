@@ -17,6 +17,24 @@ export function setModel(data) {
   model = data;
   modelError = null;
 }
+// Called after each read of .work (1.23.0: epics.mjs starts hands-off stories and trial runs once they exist).
+let hooks = [];
+export function onModel(fn) {
+  hooks.push(fn);
+}
+export function clearModelHooks() {
+  hooks = [];
+}
+function runHooks() {
+  for (const fn of hooks) {
+    try {
+      const r = fn(model);
+      if (r && r.catch) r.catch((e) => log("model hook failed:", e && e.message ? e.message : e));
+    } catch (e) {
+      log("model hook failed:", e && e.message ? e.message : e);
+    }
+  }
+}
 let refreshing = false;
 let refreshAgain = false;
 let watcher = null;
@@ -72,6 +90,7 @@ export async function refresh() {
     } else {
       setModel(r.data);
       linkSessionsFromModel();
+      runHooks();
     }
     emitModel();
   });
