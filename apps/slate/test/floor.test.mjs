@@ -186,7 +186,7 @@ test('products being onboarded are new lines on top, their five steps lit, gaps 
   assert.match(html, /<span class="fl-live">Live<\/span><button type="button" class="lnk plain" data-onboard-dismiss="Billing">Hide</);
 });
 
-// Loom 6.6.0 (eng-agents Core 4.11.0, connector 1.24.0).
+// Loom 6.6.0 (eng-agents Core 4.12.0, connector 1.24.0).
 test("Tandem's step.md places a build at its station, when it fits the item's stage", () => {
   const it = S.D.items.find(i => i.folder === '41207-fix-login-timeout');
   S.L.sessions.ses_0001abc.activity = 'Reading files';

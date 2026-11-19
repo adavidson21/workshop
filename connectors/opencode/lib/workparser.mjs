@@ -95,7 +95,7 @@ export function storyOf(wi) {
   return { epic, story: field(wi, "Story"), dependsOn, repos: list(field(wi, "Repos")), areas: list(field(wi, "Areas")), breakdown: /^approved\b/i.test(field(wi, "Breakdown") || "") };
 }
 
-// Where a build is (eng-agents Core 4.11.0): step.md's "- Step: <build|test|ui|review|fix> | <ISO time>", or null.
+// Where a build is (eng-agents Core 4.12.0): step.md's "- Step: <build|test|ui|review|fix> | <ISO time>", or null.
 export function stepOf(text) {
   const m = /^\s*-\s*Step:\s*(build|test|ui|review|fix)\s*\|\s*(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z)\s*$/im.exec(String(text || ""));
   return m ? { name: m[1].toLowerCase(), at: m[2] } : null;
@@ -785,7 +785,7 @@ export async function readWork({ workRoot, configPath, recent = 80, gitOk, hide 
     if (story) item.story = story;
     const trial = field(wi, "Trial");
     if (trial) item.trial = trial;
-    // Core 4.11.0: the station the build is at now (Set-Step.ps1 writes step.md), only when present.
+    // Core 4.12.0: the station the build is at now (Set-Step.ps1 writes step.md), only when present.
     const st = stepOf(readText(path.join(folder, "step.md")));
     if (st) item.step = st;
 

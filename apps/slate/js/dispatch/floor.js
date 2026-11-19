@@ -15,7 +15,7 @@
    and where each one is). Products being onboarded show as new lines at the top, their five steps lit (Add, Scan,
    Fill the gaps, Trial run, Live).
 
-   Loom 6.6.0 (eng-agents Core 4.11.0, connector 1.24.0): a build's station comes from Tandem's step.md when it has
+   Loom 6.6.0 (eng-agents Core 4.12.0, connector 1.24.0): a build's station comes from Tandem's step.md when it has
    one (no more guessing from the session's text); cards carry their project's color; List is rows with a station
    track (Lanes keeps the four lanes); Onboard a product starts onboarding from Loom. */
 import { S } from './state.js';
@@ -75,7 +75,7 @@ function activityOf(it) {
   return String((s && s.activity) || '');
 }
 const STEP_FITS = { build: ['build', 'test', 'fix'], review: ['review', 'test', 'ui', 'fix'] };
-/** The station Tandem's step.md names (Core 4.11.0), or '' when there is none or it does not fit the item's stage. */
+/** The station Tandem's step.md names (Core 4.12.0), or '' when there is none or it does not fit the item's stage. */
 export function toldStep(it) {
   const st = it && it.step && it.step.name;
   return st && (STEP_FITS[it.stage] || []).includes(st) ? st : '';
@@ -92,7 +92,7 @@ export function stationOf(c) {
     if (c.lane === 'clarify' || c.lane === 'plan') return 'plan';
     if (c.lane === 'ready') return 'dock';
     if (!it) return 'build';
-    // Core 4.11.0: Tandem says where the build is (step.md), when it fits the stage the item is at.
+    // Core 4.12.0: Tandem says where the build is (step.md), when it fits the stage the item is at.
     const told = toldStep(it);
     if (told) return told;
     const act = activityOf(it);

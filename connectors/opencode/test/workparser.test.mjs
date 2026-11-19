@@ -288,7 +288,7 @@ test("observations.md lines parse; other lines are skipped", async () => {
   assert.match(a.description, /Noticed by Tandem \(O3, 2026-11-18, while working on L2\)\.\nRepo: api/);
 });
 
-test("Core 4.10.0 and 4.11.0: story, trial, step and onboarding are read only when present", async () => {
+test("Core 4.10.0 and 4.12.0: story, trial, step and onboarding are read only when present", async () => {
   const { storyOf, stepOf, onboardingOf } = await import("../lib/workparser.mjs");
   assert.equal(storyOf("# Work item L1: x\n\n- Type: Feature\n"), null);
   assert.deepEqual(storyOf("- Epic: scope-ws\r\n- Story: 1.2\r\n- Depends on: L1, L2\r\n- Repos: `api`, web\r\n- Areas: api/src\r\n- Breakdown: approved 2026-11-19\r\n"),
