@@ -249,7 +249,8 @@ export function runCardHtml(folder) {
   const d = inboxData();
   if (d.gates.includes(it)) return gateCard(it);
   if (d.failed.includes(it)) return failedCard(it);
-  return `<div class="rows">${workRow(it)}</div>`;
+  // A ready build's Publish gate (Loom 6.2.0) sits under its row, in the lanes' panel too.
+  return `<div class="rows">${workRow(it)}</div>` + publishHtml(it);
 }
 /** A hand-off with no movement: who has it, how long, and Open (its card, where Followed up is). */
 function nudgeRow(n) {
