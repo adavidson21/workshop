@@ -14,7 +14,9 @@ import { fileURLToPath } from "node:url";
 
 // The connector folder (this file is in its lib/ subfolder).
 export const HERE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-export const VERSION = "1.19.0"; // the connector's version (index.mjs exports it)
+export const MAX_AUTO_RUNS = 3; // the hard cap: more mostly competes for the model's rate limits and the CPU
+export const DEFAULT_AUTO_RUNS = 2;
+export const VERSION = "1.20.0"; // the connector's version (index.mjs exports it)
 export const APP = "eng-agents-dashboard"; // the shell status shape keeps this name (README, `status`)
 export const FRESH_SESSION = new Set(["do-task", "check-docs"]); // the pipeline says: run these in a new session
 export const isWin = process.platform === "win32";
@@ -85,6 +87,9 @@ export function configure(c) {
     config: cfg.engAgentsConfig ? path.resolve(expandHome(cfg.engAgentsConfig)) : null,
     poll: Math.max(5, cfg.pollSeconds || 20),
     hide: Array.isArray(cfg.hiddenRepos) ? cfg.hiddenRepos.slice() : [],
+    // autopilot (1.20.0): how many builds run at once (1 to 3), and hands-off Quick changes (review by exception).
+    autoMaxRuns: Math.min(MAX_AUTO_RUNS, Math.max(1, Number.isInteger(cfg.autopilot && cfg.autopilot.maxRuns) ? cfg.autopilot.maxRuns : DEFAULT_AUTO_RUNS)),
+    quickHandsOff: !cfg.autopilot || cfg.autopilot.quickHandsOff !== false, // default on
     username: env(oc.usernameEnv) || "opencode",
     password: env(oc.passwordEnv) || null,
   };

@@ -6,7 +6,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { current, httpError, later, log, stateDir } from "./context.mjs";
+import { current, httpError, later, log, opt, stateDir } from "./context.mjs";
 import { runModel, setModel } from "./model.mjs";
 import { currentSession, linkSessionsFromModel } from "./links.mjs";
 import { sessions } from "./opencode-state.mjs";
@@ -27,14 +27,21 @@ import { broadcastLive, emitAutopilot, emitModel } from "./live.mjs";
 //   - the review still is not READY after MAX_FIX_ROUNDS rounds of fix tasks
 // Permission prompts and agent questions do not stop it: the step waits for your answer on the page.
 // Replying to the agent in a waiting step's session resumes it.
+//
+// 1.20.0 (eng-agents Core 4.8.0):
+//   - Parallel builds: at most opt.autoMaxRuns (default 2, cap 3) run at once. Starting one more queues it
+//     (status "queued"); the oldest queued build starts when a running one stops running.
+//   - Hands-off Quick changes (opt.quickHandsOff, review by exception): a quick-lane item can start before its
+//     plan exists. Autopilot runs /quick <id> auto, then /approve <id> quick auto, which approves quick.md only
+//     when it is clean and otherwise leaves it, so autopilot waits for you like any other gate.
 
 const autoFile = () => path.join(stateDir, "autopilot.json");
-const AUTO_STEPS = new Set(["approve", "tasks", "do-task", "review", "pr"]);
+const AUTO_STEPS = new Set(["quick", "approve", "tasks", "do-task", "review", "pr"]);
 const MAX_FIX_ROUNDS = 2;
 
 // { "<folder>": { status, message, command, lastCommand, session, inFlight, sawBusy,
 //                 approveFirst, fixRounds, started, updated, log: [{ at, text }] } }
-// status: "running" | "waiting" (needs you) | "done" | "stopped"
+// status: "running" | "queued" (waits for a free slot) | "waiting" (needs you) | "done" | "stopped"
 export let autopilot = {};
 export function loadAuto() {
   stepping.clear();
@@ -44,6 +51,10 @@ export function loadAuto() {
     autopilot = {};
   }
   for (const a of Object.values(autopilot)) {
+    if (a.status === "queued") {
+      a.status = "waiting";
+      a.message = "Workshop restarted the opencode connector while this build was queued. Click Resume to queue it again.";
+    }
     if (a.status === "running") {
       a.status = "waiting";
       a.inFlight = false;
@@ -74,9 +85,31 @@ function autoLog(folder, text) {
   log(`autopilot ${folder}: ${text}`);
 }
 
+/** The settings Loom needs: hands-off Quick changes and the parallel limit. */
+export function autoOptions() {
+  return { maxRuns: (opt && opt.autoMaxRuns) || 2, quickHandsOff: !opt || opt.quickHandsOff !== false };
+}
+const runningCount = () => Object.values(autopilot).filter((a) => a.status === "running").length;
+
+// A slot is free: start the oldest queued build.
+function startQueued() {
+  if (runningCount() >= autoOptions().maxRuns) return;
+  const next = Object.entries(autopilot).filter(([, a]) => a.status === "queued").sort((x, y) => String(x[1].queued || "").localeCompare(String(y[1].queued || "")))[0];
+  if (!next) return;
+  const [folder, a] = next;
+  a.status = "running";
+  a.message = null;
+  autoLog(folder, "A slot freed up: started");
+  saveAuto();
+  emitAutopilot(folder, "running", null);
+  broadcastLive();
+  autoStep(folder).catch(() => {});
+}
+
 function autoSet(folder, status, message) {
   const a = autopilot[folder];
   if (!a) return;
+  const wasRunning = a.status === "running";
   a.status = status;
   a.message = message || null;
   a.inFlight = false;
@@ -84,6 +117,7 @@ function autoSet(folder, status, message) {
   saveAuto();
   emitAutopilot(folder, status, a.message);
   broadcastLive();
+  if (wasRunning && status !== "running") later(startQueued, 0);
 }
 
 // Why the item needs you, in one line, from the page's own next step.
@@ -126,19 +160,28 @@ async function autoStep(folder, finished = false) {
 
     let cmd = n.command;
     const approving = cmd && /^\/approve\b/.test(cmd) && (n.stage === "plan" || n.stage === "bug" || n.stage === "quick");
+    const handsOff = it.lane === "quick" && autoOptions().quickHandsOff;
+    let autoApprove = false;
     if (approving && a.approveFirst) cmd = `/approve ${it.id} ${n.stage}`;
+    else if (approving && n.stage === "quick" && handsOff) { cmd = `/approve ${it.id} quick`; autoApprove = true; }
     else if (n.needsYou || !cmd) return autoSet(folder, "waiting", needsYouText(it));
 
     const parsed = parseCommand(cmd);
     if (!parsed || !AUTO_STEPS.has(parsed.name)) return autoSet(folder, "waiting", `Next is ${cmd}, which autopilot does not run. Run it yourself, then click Resume.`);
 
     // The same step again means the last run did not move the item forward.
+    if (cmd === a.lastCommand && autoApprove) {
+      return autoSet(folder, "waiting", `quick.md needs your review (it was not clean enough to approve on its own${finished && last && last.text ? `: ${String(last.text).trim().split(/\r?\n/).slice(-1)[0].replace(/^Needs you:\s*/i, "").slice(0, 200)}` : ""}). Read quick.md and tasks.md, then click Approve and build.`);
+    }
     if (cmd === a.lastCommand) {
       const said = finished && last && last.text ? ` The agent said: "${String(last.text).trim().split(/\r?\n/).slice(-1)[0].slice(0, 200)}"` : "";
       return autoSet(folder, "waiting", `${cmd} ended without finishing. Reply to the agent, or fix it yourself, then click Resume.${said}`);
     }
 
+    if (parsed.name === "quick" && !handsOff) return autoSet(folder, "waiting", `Next is ${cmd}. Run it yourself, then approve quick.md (or turn on hands-off Quick changes in opencode settings).`);
+
     let full = cmd;
+    if (parsed.name === "quick" || autoApprove) full = `${cmd} auto`; // review by exception: asks nothing, approves only a clean plan
     if (parsed.name === "review") {
       if ((a.fixRounds || 0) >= MAX_FIX_ROUNDS) autoLog(folder, `${MAX_FIX_ROUNDS} fix rounds done. This review will ask you which findings to fix.`);
       else full = `${cmd} auto`;
@@ -217,7 +260,7 @@ export async function autopilotAction({ folder, action }) {
   if (!["start", "approve-start", "resume"].includes(action)) throw httpError(400, "Bad action.");
 
   needOpencode();
-  if (a && a.status === "running") throw httpError(409, "Autopilot is already running this item.");
+  if (a && (a.status === "running" || a.status === "queued")) throw httpError(409, a.status === "queued" ? "This build is already queued." : "Autopilot is already running this item.");
   if (it.paused) throw httpError(409, `The item is paused. Run /resume ${it.id} first.`);
   const s = sessions.get(currentSession(folder));
   if (s && s.status !== "idle") throw httpError(409, "This item's agent is still working. Wait for it, or stop it first.");
@@ -227,19 +270,32 @@ export async function autopilotAction({ folder, action }) {
   const canApprove = n.command && /^\/approve\b/.test(n.command) && (n.stage === "plan" || n.stage === "bug" || n.stage === "quick");
   if (action === "approve-start" && !canApprove) throw httpError(409, "There is no plan, quick plan or bug analysis waiting for approval.");
   const pendingApprove = action === "resume" && a && a.approveFirst && canApprove;
-  if (action !== "approve-start" && !pendingApprove && gate !== "APPROVED") {
+  // Hands-off Quick change: may start before quick.md exists or while it is a draft (review by exception).
+  const handsOffStart = it.lane === "quick" && autoOptions().quickHandsOff && (n.stage === "quick") && action !== "approve-start";
+  if (action !== "approve-start" && !pendingApprove && !handsOffStart && gate !== "APPROVED") {
     throw httpError(409, `Autopilot starts after ${it.lane === "bug" ? "bug.md" : it.lane === "quick" ? "quick.md" : "plan.md"} is approved.`);
   }
 
+  const full = runningCount() >= autoOptions().maxRuns;
   if (action === "resume" && a) {
-    a.status = "running";
+    a.status = full ? "queued" : "running";
+    if (full) a.queued = new Date().toISOString();
     a.message = null;
     a.lastCommand = null; // you fixed something: allow the same step once more
     a.inFlight = false;
     autoLog(folder, "Resumed");
   } else {
-    autopilot[folder] = { status: "running", message: null, command: null, lastCommand: null, session: null, inFlight: false, sawBusy: false, approveFirst: action === "approve-start", fixRounds: 0, started: new Date().toISOString(), log: [] };
+    autopilot[folder] = { status: full ? "queued" : "running", queued: full ? new Date().toISOString() : null, message: null, command: null, lastCommand: null, session: null, inFlight: false, sawBusy: false, approveFirst: action === "approve-start", fixRounds: 0, started: new Date().toISOString(), log: [] };
     autoLog(folder, action === "approve-start" ? "Started: approve, then build" : "Started");
+  }
+  if (full) {
+    const n2 = autoOptions().maxRuns;
+    autopilot[folder].message = `Queued: ${n2} build${n2 === 1 ? " is" : "s are"} running. It starts when one finishes.`;
+    autoLog(folder, "Queued");
+    saveAuto();
+    emitAutopilot(folder, "queued", autopilot[folder].message);
+    broadcastLive();
+    return { ok: true, queued: true };
   }
   saveAuto();
   emitAutopilot(folder, "running", null);
@@ -253,7 +309,7 @@ export async function autopilotAction({ folder, action }) {
 export function autoData() {
   const out = {};
   for (const [folder, a] of Object.entries(autopilot)) {
-    out[folder] = { status: a.status, message: a.message, command: a.command, session: a.session, fixRounds: a.fixRounds || 0, maxFixRounds: MAX_FIX_ROUNDS, started: a.started, updated: a.updated, log: (a.log || []).slice(-8) };
+    out[folder] = { status: a.status, queued: a.queued || null, message: a.message, command: a.command, session: a.session, fixRounds: a.fixRounds || 0, maxFixRounds: MAX_FIX_ROUNDS, started: a.started, updated: a.updated, log: (a.log || []).slice(-8) };
   }
   return out;
 }

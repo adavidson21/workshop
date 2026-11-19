@@ -293,6 +293,37 @@ export async function pushBranch({ folder, repo }) {
   }
 }
 
+// The item's git worktrees (repos.md Path, eng-agents Core 4.8.0): `git worktree remove`, never --force, so
+// one with uncommitted changes is kept and named. Only paths under <workspace>/.worktrees/<folder>/. The branch
+// stays in the repo. Returns the worktree paths kept, each with why.
+export async function removeWorktrees(it) {
+  const ws = path.resolve(opt.workspace);
+  const root = path.join(ws, ".worktrees", it.folder);
+  const kept = [];
+  for (const r of it.repos || []) {
+    if (!r.path) continue;
+    const wt = path.resolve(ws, r.path);
+    const repo = path.resolve(ws, r.folder || "");
+    if (!wt.startsWith(root + path.sep) || !repo.startsWith(ws + path.sep)) { kept.push(`${r.path}: not this item's worktree`); continue; }
+    if (!fs.existsSync(wt)) continue;
+    const g = await gitRun(repo, ["worktree", "remove", wt], 60000);
+    if (g.code !== 0) {
+      const why = g.out.trim().split(/\r?\n/).filter(Boolean).slice(-1)[0] || "git refused";
+      kept.push(`${r.path}: ${why}`);
+      log(`kept worktree ${r.path}: ${g.out.trim()}`);
+    } else log(`removed worktree ${r.path}`);
+  }
+  // Empty folders left under .worktrees/<folder>, and that folder itself.
+  const prune = (dir) => {
+    try {
+      for (const e of fs.readdirSync(dir, { withFileTypes: true })) if (e.isDirectory() && !e.isSymbolicLink()) prune(path.join(dir, e.name));
+      if (!fs.readdirSync(dir).length) fs.rmdirSync(dir);
+    } catch {}
+  };
+  if (fs.existsSync(root)) prune(root);
+  return kept;
+}
+
 export async function abort({ session }) {
   needOpencode();
   await oc.api.abort(session);
@@ -325,6 +356,7 @@ export async function removeItem({ folder, confirm }) {
   }
   if (st.isSymbolicLink() || !st.isDirectory()) throw httpError(400, `.work/${folder} is not a plain folder. Delete it yourself.`);
 
+  const kept = await removeWorktrees(it);
   try {
     fs.rmSync(full, { recursive: true, force: false, maxRetries: 3, retryDelay: 200 });
   } catch (e) {
@@ -343,7 +375,7 @@ export async function removeItem({ folder, confirm }) {
   log(`removed .work/${folder}`);
   await refresh();
   broadcastLive();
-  return { ok: true, removed: folder };
+  return kept.length ? { ok: true, removed: folder, kept } : { ok: true, removed: folder };
 }
 
 export function attachCommand(session) {

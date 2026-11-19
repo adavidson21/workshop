@@ -202,7 +202,7 @@ export function cmdWords(it, cmd) {
 export function nextBtns(it, primaryOnly) {
   const n = it.next || {};
   const cmd = it.paused ? '/resume ' + it.id : n.command;
-  const running = autoIs(it, 'running');
+  const running = autoIs(it, 'running') || autoIs(it, 'queued');
   const kind = running || autoIs(it, 'waiting') ? null : autoStartKind(it);
   const name = cmd ? cmd.split(/\s+/)[0] : '';
   if (running) return '';
@@ -295,6 +295,9 @@ export function questionHtml(q, showWho) {
 export function autoStartKind(it) {
   if (it.kind !== 'item' || it.paused) return null;
   const n = it.next || {};
+  // Hands-off Quick change (review by exception, connector 1.20.0): autopilot writes the quick plan and approves it
+  // itself when it is clean, so Build with autopilot shows before the plan exists and on a draft plan.
+  if (handsOff(it) && n.stage === 'quick') return 'start';
   if (n.command && /^\/approve\b/.test(n.command) && (n.stage === 'plan' || n.stage === 'bug' || n.stage === 'quick')) return 'approve-start';
   const gate = it.lane === 'bug' ? (it.gates || {}).bug : it.lane === 'quick' ? (it.gates || {}).quick : (it.gates || {}).plan;
   return gate === 'APPROVED' && n.stage !== 'ship' ? 'start' : null;
@@ -303,7 +306,11 @@ function autoBtn(it, act, label, cls, tip, off) {
   const dis = off || (!ocReady() && act !== 'stop' && act !== 'dismiss' ? 'opencode is not connected' : (S.ui.busy['a:' + it.folder] ? 'Working' : ''));
   return `<button type="button" class="btn${cls ? ' ' + cls : ''}" data-auto="${h(it.folder)}" data-act="${act}" title="${h(dis || tip)}"${dis ? ' disabled' : ''}>${h(label)}</button>`;
 }
+const handsOff = it => it.lane === 'quick' && !!(S.D && S.D.autopilotOptions && S.D.autopilotOptions.quickHandsOff);
 function autoTip(it, kind) {
+  if (kind === 'start' && handsOff(it) && (it.next || {}).stage === 'quick') {
+    return 'Writes the quick plan and approves it on its own when it is clean (no open questions, at most 3 assumptions, at most 2 tasks), then builds, reviews and writes the PR text. A plan that is not clean stops for you. Never pushes.';
+  }
   return (kind === 'approve-start' ? 'Approves ' + (it.lane === 'bug' ? 'bug.md' : it.lane === 'quick' ? 'quick.md' : 'plan.md') + ', then runs' : 'Runs') +
     ' the rest: tasks, each task in a new session, review (fix rounds for Blockers), and PR text. Stops when it needs you. Never pushes.';
 }
@@ -311,10 +318,14 @@ function autoTip(it, kind) {
 export function autoHtml(it) {
   if (!L() || it.kind !== 'item') return '';
   const a = itemAuto(it);
-  if (!a || (a.status !== 'running' && a.status !== 'waiting')) return '';
+  if (!a || !['running', 'waiting', 'queued'].includes(a.status)) return '';
   const log = a.log && a.log.length ? `<details${openAttr('a:' + it.folder, false)}><summary>Autopilot log</summary>` +
     '<ul class="hist">' + a.log.slice().reverse().map(x => `<li>${h(timeOf(Date.parse(x.at)))} ${h(x.text)}</li>`).join('') + '</ul></details>' : '';
   const rounds = a.fixRounds ? `<span class="then">fix round ${a.fixRounds} of ${a.maxFixRounds}</span>` : '';
+  if (a.status === 'queued') {
+    return '<div class="auto run"><div class="auto-head"><span class="state">Autopilot queued</span>' +
+      `<span class="row">${autoBtn(it, 'stop', 'Cancel', '', 'Take it out of the queue')}</span></div><p class="msg">${md(a.message || '')}</p>${log}</div>`;
+  }
   if (a.status === 'running') {
     return '<div class="auto run"><div class="auto-head"><span class="state"><span class="spin" aria-hidden="true"></span>Autopilot</span>' +
       (a.command ? `<span class="then" title="${h(a.command)}">${h(cmdWords(it, a.command.replace(/\s+auto$/, '')))}</span>` : '') + rounds +

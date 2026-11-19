@@ -6,12 +6,13 @@
 // calls the `state` or `status` action for the data, as the agent API does for data events.
 
 import { cancel, ctx, isWin, later, opt, running } from "./context.mjs";
+import { observationsData } from "./observations.mjs";
 import { model, modelError } from "./model.mjs";
 import { currentSession, folderForSession, folderForToken, links } from "./links.mjs";
 import { projectsData } from "./projects.mjs";
 import { oc, permissions, questions, sessions } from "./opencode-state.mjs";
 import { attachCommand } from "./actions.mjs";
-import { autoData, autopilot } from "./autopilot.mjs";
+import { autoData, autoOptions, autopilot } from "./autopilot.mjs";
 import { adoConfigured, loose, looseData } from "./workspace.mjs";
 import { reviewSummary } from "./review.mjs";
 import { prQueueData } from "./pr-queue.mjs";
@@ -43,7 +44,7 @@ export function liveData() {
 /** The `state` action: the .work model (lib/workparser.mjs) plus live opencode state, as the page got it. */
 export function pageData() {
   const base = model || { items: [], repos: [], activity: [], workspace: opt.workspace, generatedMs: Date.now(), generated: new Date().toISOString() };
-  return { ...base, tandem: { ado: adoConfigured() }, projects: projectsData(folderForToken), reviews: reviewSummary(), liveMode: { error: modelError, live: liveData() } };
+  return { ...base, tandem: { ado: adoConfigured() }, projects: projectsData(folderForToken), reviews: reviewSummary(), observations: observationsData(), autopilotOptions: autoOptions(), liveMode: { error: modelError, live: liveData() } };
 }
 
 // ------------------------------------------------------------------ events
