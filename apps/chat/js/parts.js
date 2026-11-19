@@ -3,7 +3,9 @@
 
    Parts come from the opencode connector's chat.messages (connectors/opencode/lib/chat-parts.mjs): text, reasoning,
    tool calls (with output, diffs, todos and subagent sessions), files, patches and compaction. Everything from
-   opencode is escaped. Tool calls and thinking fold; which ones are open is the caller's (`open`, a Set of keys). */
+   opencode is escaped. Tool calls and thinking fold; which ones are open is the caller's (`open`, a Set of keys).
+   Since Chat 4.0.0 a file a tool read or changed, and a file you attached, has an Open button (data-open-file) that
+   opens it in the workbench's Files, and a pasted image shows as a picture (data-img-ref, filled in by chat.js). */
 import { esc, mdHtml } from './md.js';
 import { sourcesHtml, splitSources } from './sources.js';
 
@@ -19,7 +21,10 @@ export const BUILTINS = [
   { name: 'agents', description: 'Pick an agent' },
   { name: 'sessions', description: 'Show every opencode session' },
   { name: 'export', description: 'Save the last answer as a note' },
-  { name: 'terminal', description: 'Open this chat in the opencode terminal' },
+  { name: 'terminal', description: 'Open the terminal beside the chat' },
+  { name: 'files', description: 'Open Files beside the chat: browse and edit the workspace' },
+  { name: 'side', description: 'Ask in a side chat, which does not add to this one: /side <question>' },
+  { name: 'tui', description: "Open this chat in opencode's own terminal window" },
   { name: 'details', description: 'Show or hide tool details' },
   { name: 'help', description: 'What you can type here' }
 ];
@@ -126,6 +131,13 @@ function todosHtml(list) {
 }
 
 const STATUS_WORD = { pending: 'Waiting', running: 'Running', error: 'Failed', completed: '' };
+const FILE_TOOLS = /^(read|edit|write|multiedit|create)$/;
+/** A workspace path a tool named, or '' for anything else (absolute paths, outside the workspace, globs). */
+export function workspacePath(p) {
+  const s = String(p || '').trim();
+  return s && !/^([\\/]|[A-Za-z]:|\.\.(\/|\\|$)|~)/.test(s) && !/[*?\n]/.test(s) && s.length <= 500 ? s : '';
+}
+const openBtn = (path, label = 'Open') => `<button type="button" class="lnk tool-file" data-open-file="${esc(path)}" title="Open ${esc(path)} in Files">${label}</button>`;
 
 /** One tool call: a line you can open, with what it did. `details`: open everything that has output. */
 export function toolHtml(p, key, { open, details = false } = {}) {
@@ -148,7 +160,8 @@ export function toolHtml(p, key, { open, details = false } = {}) {
     if (p.output && !p.diff) body += `<pre class="out">${esc(p.output)}</pre>`;
     if (p.error) body += `<pre class="out err">${esc(p.error)}</pre>`;
   }
-  return `<div class="tool st-${esc(p.status)}">${line}${body}</div>`;
+  const file = FILE_TOOLS.test(p.tool) ? workspacePath(p.input) : '';
+  return `<div class="tool st-${esc(p.status)}">${file ? `<div class="tool-row">${line}${openBtn(file)}</div>` : line}${body}</div>`;
 }
 
 /** An answer's text: its Markdown, and a trailing Sources list as chips (sources.js). */
@@ -157,8 +170,20 @@ export function textHtml(text) {
   return `<div class="md">${mdHtml(body)}</div>${sourcesHtml(sources)}`;
 }
 
+/**
+ * A file part: a pasted image as a picture (its data comes later: data-img-ref is session|message|part for
+ * chat.image, data-img-local an id the page keeps for one just sent), any other file as a chip that opens it.
+ */
+export function attHtml(p, messageId = '', session = '') {
+  if (p.image) {
+    const ref = p.local ? ` data-img-local="${esc(p.local)}"` : messageId && session && Number.isInteger(p.part) ? ` data-img-ref="${esc(`${session}|${messageId}|${p.part}`)}"` : '';
+    return ref ? `<button type="button" class="att-pic" data-img-view title="${esc(p.name)}"><img alt="${esc(p.name)}"${ref}></button>` : `<span class="att-chip">${esc(p.name)}</span>`;
+  }
+  return workspacePath(p.name) ? `<button type="button" class="att-chip" data-open-file="${esc(p.name)}" title="Open in Files">${esc(p.name)}</button>` : `<span class="att-chip">${esc(p.name)}</span>`;
+}
+
 /** The parts of one of opencode's turns. */
-export function partsHtml(turn, { open, details = false } = {}) {
+export function partsHtml(turn, { open, details = false, session = '' } = {}) {
   const id = (turn && turn.id) || '';
   const parts = (turn && turn.parts) || [];
   const out = [];
@@ -169,8 +194,11 @@ export function partsHtml(turn, { open, details = false } = {}) {
       const o = open && open.has(key) ? !details : details;
       out.push(`<div class="think"><button type="button" class="think-h" data-tool="${esc(key)}" aria-expanded="${o}"><span class="chev" aria-hidden="true"></span>Thinking</button>${o ? `<div class="think-b">${mdHtml(p.text)}</div>` : ''}</div>`);
     } else if (p.type === 'tool') out.push(toolHtml(p, key, { open, details }));
-    else if (p.type === 'file') out.push(`<p class="att"><span class="att-chip">${esc(p.name)}</span></p>`);
-    else if (p.type === 'patch' && p.files && p.files.length) out.push(`<p class="tool-sum">Changed ${p.files.length === 1 ? esc(p.files[0]) : `${p.files.length} files: ${p.files.map(esc).join(', ')}`}</p>`);
+    else if (p.type === 'file') out.push(`<p class="att">${attHtml(p, id, session)}</p>`);
+    else if (p.type === 'patch' && p.files && p.files.length) {
+      const name = f => (workspacePath(f) ? openBtn(f, esc(f)) : esc(f));
+      out.push(`<p class="tool-sum">Changed ${p.files.length === 1 ? name(p.files[0]) : `${p.files.length} files: ${p.files.map(name).join(', ')}`}</p>`);
+    }
     else if (p.type === 'subtask') out.push(`<p class="tool-sum">Subagent ${esc(p.agent)}: ${esc(p.text)}</p>`);
     else if (p.type === 'compaction') out.push('<p class="divider"><span>Compacted</span></p>');
   });
@@ -191,14 +219,14 @@ export function metaHtml(turn) {
 }
 
 /** Turns as HTML rows. Consecutive answers from opencode (one per step) share one block and one meta line. */
-export function richRows(turns, { open, details = false, busy = false, activity = '' } = {}) {
+export function richRows(turns, { open, details = false, busy = false, activity = '', session = '' } = {}) {
   const list = Array.isArray(turns) ? turns : [];
   const rows = [];
   let lastAgent = null;
   for (let i = 0; i < list.length; i++) {
     const t = list[i];
     if (t.role === 'you') {
-      const files = (t.parts || []).filter(p => p.type === 'file').map(p => `<span class="att-chip">${esc(p.name)}</span>`).join('');
+      const files = (t.parts || []).filter(p => p.type === 'file').map(p => attHtml(p, t.id, session)).join('');
       // The agent shows only when it changed from your last message (Chat 2.3.0): the picker already says which.
       const tag = t.agent && lastAgent !== null && t.agent !== lastAgent ? `<span class="you-agent">${esc(t.agent)}</span>` : '';
       if (t.agent) lastAgent = t.agent;
@@ -207,7 +235,7 @@ export function richRows(turns, { open, details = false, busy = false, activity 
     }
     const group = [t];
     while (i + 1 < list.length && list[i + 1].role !== 'you') group.push(list[++i]);
-    const body = group.map(g => (g.parts ? partsHtml(g, { open, details }) : textHtml(g.text))).join('');
+    const body = group.map(g => (g.parts ? partsHtml(g, { open, details, session }) : textHtml(g.text))).join('');
     const last = group[group.length - 1];
     const sum = group.reduce((a, g) => a + (Number(g.cost) || 0), 0);
     const meta = metaHtml({ ...last, cost: sum });
@@ -244,6 +272,31 @@ export function promptHtml(p, { answers = {}, custom = {} } = {}) {
     `<p class="ask-btns"><button type="button" class="btn primary" data-q-send="${esc(p.id)}">Answer</button><button type="button" class="btn ghost" data-q-reject="${esc(p.id)}">Dismiss</button></p></div>`;
 }
 
+/**
+ * A click in a permission prompt or question (promptHtml's buttons), for the main chat and side chats alike.
+ * `state` is {answers, custom}, changed in place when a choice is picked. Returns {answer: args for the connector's
+ * answer action}, {redraw: true} after a pick, or null when the click was not one of these.
+ */
+export function promptClick(d, prompts, state) {
+  if (d.perm != null) return { answer: { kind: 'permission', id: d.id, reply: d.perm } };
+  if (d.qReject != null) return { answer: { kind: 'question', id: d.qReject, reject: true } };
+  if (d.qSend != null) {
+    const p = (prompts || []).find(x => x.id === d.qSend);
+    return p ? { answer: { kind: 'question', id: p.id, answers: questionAnswers(p, state.answers, state.custom) } } : null;
+  }
+  if (d.qPick != null) {
+    const p = (prompts || []).find(x => x.id === d.qPick);
+    const qi = +d.qi, q = p && p.questions[qi];
+    if (!q) return null;
+    const mine = ((state.answers[p.id] = state.answers[p.id] || [])[qi] = state.answers[p.id][qi] || []);
+    const i = mine.indexOf(d.label);
+    if (q.multiple) { if (i >= 0) mine.splice(i, 1); else mine.push(d.label); }
+    else state.answers[p.id][qi] = i >= 0 ? [] : [d.label];
+    return { redraw: true };
+  }
+  return null;
+}
+
 /** The answers to send for a question: per question, the picked labels, or the typed answer when there is one. */
 export function questionAnswers(p, answers = {}, custom = {}) {
   return (p.questions || []).map((q, qi) => {
@@ -264,5 +317,6 @@ export function splitRevert(turns, revertId) {
 
 export const HELP = [
   ['Enter', 'Send'], ['Shift+Enter', 'New line'], ['Tab, Shift+Tab', 'Switch agent'], ['/', 'Commands (yours and opencode\'s)'],
-  ['@', 'Attach a workspace file'], ['!', 'Run a shell command in the workspace'], ['Up', 'Last message (empty box)'], ['Esc twice', 'Stop opencode']
+  ['@', 'Attach a workspace file'], ['!', 'Run a shell command in the workspace'], ['Up', 'Last message (empty box)'], ['Esc twice', 'Stop opencode'],
+  ['Paste or drop a picture', 'Send it with the message'], ['Ctrl+`', 'Terminal beside the chat'], ['Ctrl+S', 'Save the file open in Files']
 ];

@@ -9,7 +9,7 @@
    page calling the agent on 127.0.0.1.
 
    Bump VERSION when shipping a change so open windows get the "New version" toast. */
-const VERSION = '7.38.0';
+const VERSION = '7.39.0';
 const CACHE = 'workshop-' + VERSION;
 const CORE = [
   './', './index.html', './manifest.webmanifest',
@@ -23,7 +23,7 @@ const CORE = [
   './shared/brand/fonts/figtree-latin-wght-italic.woff2', './shared/brand/fonts/figtree-latin-ext-wght-italic.woff2',
   './shared/brand/fonts/dm-mono-latin-400-normal.woff2', './shared/brand/fonts/dm-mono-latin-ext-400-normal.woff2',
   './shared/brand/fonts/dm-mono-latin-500-normal.woff2', './shared/brand/fonts/dm-mono-latin-ext-500-normal.woff2',
-  './shared/vendor/xlsx.full.min.js',
+  './shared/vendor/xlsx.full.min.js', './shared/monaco.js',
   './icons/favicon.svg', './icons/favicon-32.png', './icons/app-192.png', './icons/app-512.png',
   './icons/app-maskable-512.png', './icons/app-touch-180.png'
 ];
@@ -84,8 +84,9 @@ self.addEventListener('fetch', e => {
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
   if (untouchable(url)) return;
-  // Pages and code: network first, so a reload always gets the latest. Everything else: cache first.
-  if (req.mode === 'navigate' || /(\/|\.html|\.js|\.mjs|\.css|\.json)$/.test(url.pathname)) return e.respondWith(networkFirst(req));
+  // Pages and code: network first, so a reload always gets the latest. Everything else: cache first. Vendored
+  // libraries too big to precache (Monaco) are kept the first time a page loads them, so they work offline after.
+  if (req.mode === 'navigate' || /(\/|\.html|\.js|\.mjs|\.css|\.json)$/.test(url.pathname) || url.pathname.includes('/shared/vendor/')) return e.respondWith(networkFirst(req));
   e.respondWith(caches.match(req, { ignoreSearch: true }).then(hit => hit || fetch(req)));
 });
 

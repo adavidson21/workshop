@@ -75,6 +75,13 @@ export async function startFakeOpencode({ kind, version, password = null, userna
       return json(res, 200, { id, title: body.title });
     }
     if ((r = m(/^\/session\/([^/]+)$/)) && req.method === "GET") return s.sessions.has(r[1]) ? json(res, 200, { id: r[1] }) : json(res, 404, {});
+    if ((r = m(/^\/session\/([^/]+)$/)) && req.method === "PATCH") return s.sessions.has(r[1]) ? (s.sessions.get(r[1]).title = body.title, json(res, 200, { id: r[1], title: body.title })) : json(res, 404, {});
+    // A side chat (Chat 4.0.0): a copy of the session.
+    if ((r = m(/^\/session\/([^/]+)\/fork$/)) && req.method === "POST") {
+      const id = newId();
+      s.sessions.set(id, { id, title: `${(s.sessions.get(r[1]) || {}).title || "Session"} (fork #1)` });
+      return json(res, 200, { id, title: s.sessions.get(id).title });
+    }
     if ((r = m(/^\/session\/([^/]+)\/message$/))) return json(res, 200, [{ info: { role: "assistant", time: { completed: 5 } }, parts: [{ type: "text", text: `Last reply in ${r[1]}` }] }]);
     if ((r = m(/^\/session\/([^/]+)\/command$/))) {
       if (s.commandResult) {

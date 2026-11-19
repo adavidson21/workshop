@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { AGENT, KEEP, chatFiles, chatMessages, chatOptions, commandChat, compactChat, listChats, noteIntent, recordHub, redoChat, removeChat, renameChat, resetChats, sendChat, shellChat, startChat, undoChat } from "../lib/chat.mjs";
+import { AGENT, KEEP, MAX_IMAGE_DATA, chatFiles, chatImage, chatMessages, chatOptions, cleanImages, commandChat, compactChat, listChats, noteIntent, recordHub, redoChat, removeChat, renameChat, resetChats, sendChat, shellChat, sideChat, startChat, undoChat } from "../lib/chat.mjs";
 import { oc, permissions, questions, sessions, upsertSession } from "../lib/opencode-state.mjs";
 import { configure } from "../lib/context.mjs";
 
@@ -210,4 +210,87 @@ test("a chat's messages carry parts, totals and the prompts of its subagents", a
   assert.equal(m.agent, "build");
   assert.deepEqual(m.model, { provider: "p", id: "m" });
   assert.equal(listChats({ config: on }).items[0].waiting, true, "the list shows a subagent's prompt too");
+});
+
+/* ---------- Chat 4.0.0: pasted images and side chats ---------- */
+const PNG = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(16)]).toString("base64");
+const JPG = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(16)]).toString("base64");
+
+test("pasted images: checked against their type and size, then sent with the message", async () => {
+  assert.deepEqual(cleanImages(undefined), []);
+  const [a, b] = cleanImages([{ mime: "image/png", data: PNG, name: "screen shot<1>.png" }, { mime: "image/jpeg", data: JPG }]);
+  assert.deepEqual([a.name, b.name], ["screen shot1.png", "image-2.jpg"]);
+  assert.throws(() => cleanImages([{ mime: "image/svg+xml", data: PNG }]), /PNG, JPEG, GIF or WebP/);
+  assert.throws(() => cleanImages([{ mime: "image/jpeg", data: PNG }]), /not the type it says/);
+  assert.throws(() => cleanImages([{ mime: "image/png", data: "not base64!" }]), /could not be read/);
+  assert.throws(() => cleanImages(Array(5).fill({ mime: "image/png", data: PNG })), /Up to 4/);
+  assert.throws(() => cleanImages([{ mime: "image/png", data: PNG + "A".repeat(MAX_IMAGE_DATA) }]), (e) => e.code === "too_large");
+  rich = [];
+  oc.kind = "v1";
+  oc.api.promptRich = async (id, o) => { rich.push({ id, ...o }); };
+  await startChat({ text: "what is wrong here?", images: [{ mime: "image/png", data: PNG, name: "err.png" }] }, { config: on });
+  assert.deepEqual(rich[0].images, [{ mime: "image/png", data: PNG, name: "err.png" }]);
+  oc.kind = "v2";
+  upsertSession("ses_1", { status: "idle" });
+  await rejects(sendChat({ session: "ses_1", text: "and this?", images: [{ mime: "image/png", data: PNG }] }, { config: on }), "bad_request", /cannot take pasted images/);
+  oc.kind = null;
+});
+
+test("chat.image reads one pasted image back; anything else is not found", async () => {
+  await startChat({ text: "hi" }, { config: on });
+  oc.api.rawMessage = async (sid, mid) => (mid === "msg_1" ? { info: { id: "msg_1" }, parts: [{ type: "text", text: "hi" }, { type: "file", url: `data:image/png;base64,${PNG}` }, { type: "file", url: "file:///w/a.cs" }] } : null);
+  assert.deepEqual(await chatImage({ session: "ses_1", message: "msg_1", part: 1 }, { config: on }), { mime: "image/png", data: PNG });
+  await rejects(chatImage({ session: "ses_1", message: "msg_1", part: 2 }, { config: on }), "not_found");
+  await rejects(chatImage({ session: "ses_1", message: "msg_2", part: 1 }, { config: on }), "not_found");
+  await rejects(chatImage({ session: "ses_1", message: "../x", part: 1 }, { config: on }), "bad_request");
+});
+
+test("a side chat copies the chat so far, keeps its own thread, and stays out of the list and the chat", async () => {
+  await startChat({ text: "refactor the sample api" }, { config: on, now: 1 });
+  upsertSession("ses_1", { status: "busy" });
+  const forks = [];
+  rich = [];
+  const titles = {};
+  oc.api.promptRich = async (id, o) => { rich.push({ id, ...o }); };
+  oc.api.fork = async (id) => { forks.push(id); return { id: `ses_side${forks.length}`, title: "x (fork #1)" }; };
+  oc.api.setTitle = async (id, t) => { titles[id] = t; return true; };
+  oc.api.richMessages = async (id, limit) => {
+    const all = [
+      { id: "msg_a", role: "user", text: "refactor the sample api", parts: [] },
+      { id: "msg_b", role: "assistant", text: "Working on it.", parts: [] },
+      ...(id === "ses_side1" && turns.side ? turns.side : []),
+    ];
+    return all.slice(-limit);
+  };
+  const r = await sideChat({ session: "ses_1", text: "what does Program.cs do?" }, { config: on, now: 5 });
+  assert.deepEqual(r, { side: "ses_side1" });
+  assert.deepEqual(forks, ["ses_1"], "even while the chat is working");
+  assert.equal(rich[0].id, "ses_side1");
+  assert.equal(rich[0].agent, "chat", "Tandem's read-only chat agent unless you pick one");
+  assert.equal(titles.ses_side1, "Side chat: refactor the sample api");
+  assert.deepEqual(listChats({ config: on }).items.map((c) => c.session), ["ses_1"], "not in the list");
+  sessions.set("ses_side1", { id: "ses_side1", status: "idle", title: "Side chat" });
+  assert.deepEqual(listChats({ config: on, all: true }).items.map((c) => c.session), ["ses_1"], "not in All sessions either");
+  // The thread of the side chat starts after the copy.
+  turns.side = [{ id: "msg_c", role: "user", text: "what does Program.cs do?", parts: [] }, { id: "msg_d", role: "assistant", text: "It starts the host.", parts: [] }];
+  const side = await chatMessages({ session: "ses_side1" }, { config: on });
+  assert.deepEqual(side.turns.map((t) => t.text), ["what does Program.cs do?", "It starts the host."]);
+  assert.deepEqual([side.from, side.main, side.copied], ["side", "ses_1", 2]);
+  upsertSession("ses_1", { status: "idle" });
+  assert.equal((await chatMessages({ session: "ses_1" }, { config: on })).side, "ses_side1", "the chat knows its side chat");
+  // A follow-up goes to the same side chat; plan when Tandem is not installed; a picked agent wins.
+  oc.agents = new Set(["build", "plan"]);
+  await sideChat({ session: "ses_1", side: "ses_side1", text: "and Startup.cs?" }, { config: on, now: 6 });
+  assert.deepEqual([forks.length, rich[1].id, rich[1].agent], [1, "ses_side1", "plan"]);
+  upsertSession("ses_side1", { status: "idle" });
+  await sideChat({ session: "ses_1", side: "ses_side1", text: "x", agent: "build" }, { config: on });
+  assert.equal(rich[2].agent, "build");
+  await rejects(sideChat({ session: "ses_side1", text: "x" }, { config: on }), "bad_request", /side chat already/);
+  await rejects(sideChat({ session: "ses_1", side: "ses_nope", text: "x" }, { config: on }), "not_found");
+  // Start over: forget it; the next question copies the chat again, and only one side chat is kept per chat.
+  removeChat({ session: "ses_side1" }, { config: on });
+  await sideChat({ session: "ses_1", text: "fresh question" }, { config: on, now: 9 });
+  assert.equal(forks.length, 2);
+  const saved = JSON.parse(fs.readFileSync(file, "utf8")).items.filter((c) => c.from === "side");
+  assert.deepEqual(saved.map((c) => [c.session, c.parent, c.mark]), [["ses_side2", "ses_1", "msg_b"]], "kept across restarts, with where the copy ends");
 });

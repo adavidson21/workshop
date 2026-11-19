@@ -10,6 +10,12 @@
 // - "you": a chat started from Chat (chat.start, chat.command, chat.shell without a session).
 // - "hub": a hub message's session (hub.run) that you follow up on.
 // - "oc": any other opencode session in the workspace that you opened from All sessions and sent a message in.
+// And one kept out of it: "side", a side chat (chat.side, connector 1.26.0): a copy of a chat so far (opencode's
+// fork) for questions that should not land in that chat. One per chat; its turns are shown from the copy point on.
+//
+// A message can carry pasted images (connector 1.26.0): PNG, JPEG, GIF or WebP, sent to opencode as data URLs, at
+// most MAX_IMAGES and MAX_IMAGE_DATA base64 characters together (the agent takes 1 MB per request; Chat shrinks
+// big pictures before sending). chat.image reads one back for the thread, so turns never carry the pictures.
 // A message with no agent named goes to opencode's default agent (build unless your opencode config says
 // otherwise); a hub thread's follow-ups default to Tandem's read-only `chat` agent.
 //
@@ -23,6 +29,7 @@ import path from "node:path";
 import { ctx, httpError, inWorkspace, log, opt } from "./context.mjs";
 import { broadcastLive } from "./live.mjs";
 import { oc, permissions, questions, sessions, upsertSession } from "./opencode-state.mjs";
+import { IMAGE_URL } from "./chat-parts.mjs";
 
 /** Hub threads' follow-ups default to this read-only agent (eng-agents Core 2.14.0). */
 export const AGENT = "chat";
@@ -31,6 +38,10 @@ export const MAX_ALL = 200;
 export const KEEP = 100;
 export const MAX_TEXT = 20000;
 export const MAX_TURNS = 100;
+export const MAX_IMAGES = 4;
+export const MAX_IMAGE_DATA = 920000;
+/** A side chat's agent unless you pick one: Tandem's read-only chat agent, else opencode's plan agent. */
+export const SIDE_AGENTS = ["chat", "plan"];
 const TITLE_MAX = 80;
 
 let chats = null; // session id -> {session, from, title, hub?, intent?, at, last, replies, hidden?, renamed?}
@@ -70,7 +81,7 @@ function load() {
   try {
     const d = JSON.parse(fs.readFileSync(chatFile(), "utf8"));
     for (const c of Array.isArray(d.items) ? d.items : []) {
-      if (c && typeof c.session === "string" && (c.from === "you" || c.from === "hub" || c.from === "oc")) chats.set(c.session, c);
+      if (c && typeof c.session === "string" && (c.from === "you" || c.from === "hub" || c.from === "oc" || c.from === "side")) chats.set(c.session, c);
     }
   } catch { /* none yet */ }
   return chats;
@@ -109,7 +120,7 @@ export function noteIntent(hubId, intent) {
 /** Captures and go are done on the page; everything else from the hub is a conversation. */
 const NOT_A_CHAT = new Set(["capture", "go"]);
 function isChat(c) {
-  if (c.hidden) return false;
+  if (c.hidden || c.from === "side") return false;
   if (c.from === "you" || c.from === "oc" || c.replies > 0) return true;
   if (!c.intent) { const i = routeIntent(c.hub); if (i) c.intent = i; }
   return !NOT_A_CHAT.has(c.intent);
@@ -155,6 +166,30 @@ function cleanFiles(files) {
     const full = path.resolve(root, s);
     if (!inWorkspace(full)) throw httpError(400, `${s} is not in the workspace.`);
     return full;
+  });
+}
+/* Pasted images: the type each says it is must match its first bytes, as the agent's files API checks. */
+const MAGIC = {
+  "image/png": (b) => b.length >= 8 && b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47,
+  "image/jpeg": (b) => b.length >= 3 && b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff,
+  "image/gif": (b) => b.length >= 6 && b.subarray(0, 4).toString("latin1") === "GIF8",
+  "image/webp": (b) => b.length >= 12 && b.subarray(0, 4).toString("latin1") === "RIFF" && b.subarray(8, 12).toString("latin1") === "WEBP",
+};
+const EXT = { "image/png": "png", "image/jpeg": "jpg", "image/gif": "gif", "image/webp": "webp" };
+export function cleanImages(images) {
+  if (images == null) return [];
+  if (!Array.isArray(images) || images.length > MAX_IMAGES) throw httpError(400, `Up to ${MAX_IMAGES} images in one message.`);
+  let total = 0;
+  return images.map((im, i) => {
+    const mime = String((im && im.mime) || "");
+    const data = String((im && im.data) || "");
+    if (!MAGIC[mime]) throw httpError(400, "Images must be PNG, JPEG, GIF or WebP.");
+    if (!data || data.length % 4 || !/^[A-Za-z0-9+/]+={0,2}$/.test(data)) throw httpError(400, "That image could not be read.");
+    total += data.length;
+    if (total > MAX_IMAGE_DATA) throw httpError(413, "Those images are too big together. Send fewer or smaller ones.");
+    if (!MAGIC[mime](Buffer.from(data.slice(0, 32), "base64"))) throw httpError(400, "That image is not the type it says it is.");
+    const name = String((im && im.name) || "").replace(/[^A-Za-z0-9 ._()-]/g, "").trim().slice(0, 80) || `image-${i + 1}.${EXT[mime]}`;
+    return { mime, data, name };
   });
 }
 function cleanText(text) {
@@ -219,14 +254,15 @@ function errOf(r) {
   return m ? String(m).slice(0, 300) : `HTTP ${r ? r.status : "?"}`;
 }
 
-async function send(session, { text, agent, model, files }) {
-  if (oc.api.promptRich) await oc.api.promptRich(session, { text, agent, model, files });
+async function send(session, { text, agent, model, files, images }) {
+  if (images && images.length && oc.kind !== "v1") throw httpError(501, "This opencode cannot take pasted images from Chat.");
+  if (oc.api.promptRich) await oc.api.promptRich(session, { text, agent, model, files, images });
   else await oc.api.prompt(session, text, agent);
   markBusy(session, "Reading your message");
 }
 function opts(args, { forHub = false } = {}) {
   const agent = cleanAgent(args.agent != null && args.agent !== "" ? args.agent : forHub ? AGENT : null);
-  return { agent, model: cleanModel(args.model), files: cleanFiles(args.files) };
+  return { agent, model: cleanModel(args.model), files: cleanFiles(args.files), images: cleanImages(args.images) };
 }
 async function newSession(title, now) {
   const created = await oc.api.createSession(titleOf(title));
@@ -374,7 +410,7 @@ export async function chatOptions({ config } = {}) {
     models: models.models.slice(0, 500),
     defaults: models.defaults,
     commands: commands.slice(0, 300).map((c) => ({ name: c.name, description: String(c.description).slice(0, 300) })),
-    can: { shell: !!oc.api.shell, undo: !!oc.api.revert, compact: !!oc.api.summarize, files: !!oc.api.findFiles },
+    can: { shell: !!oc.api.shell, undo: !!oc.api.revert, compact: !!oc.api.summarize, files: !!oc.api.findFiles, images: oc.kind === "v1", side: !!oc.api.fork, terminal: !!oc.api.ptyCreate },
   };
 }
 
@@ -405,6 +441,13 @@ export async function chatMessages({ session }, { config } = {}) {
     while (i < turns.length && turns[i].role === "assistant") i++;
     turns = turns.slice(i);
   }
+  // A side chat shows only what was asked in it: the copied chat is its context, not its thread.
+  let copied = 0;
+  if (c.from === "side") {
+    const i = c.mark ? turns.findIndex((m) => m.id === c.mark) : -1;
+    if (i >= 0) { copied = i + 1; turns = turns.slice(i + 1); }
+  }
+  const side = c.from === "side" ? null : sideOf(c.session);
   const info = oc.api.sessionInfo ? await oc.api.sessionInfo(c.session).catch(() => null) : null;
   const s = sessions.get(c.session);
   const shown = turns.filter((m) => m.text || (m.parts && m.parts.length) || m.error).slice(-MAX_TURNS);
@@ -430,6 +473,8 @@ export async function chatMessages({ session }, { config } = {}) {
     agent,
     model,
     totals: { cost, context },
+    ...(c.from === "side" ? { main: c.parent, copied } : {}),
+    ...(side ? { side: side.session } : {}),
     ...(s && s.error ? { error: s.error } : {}),
     turns: shown.map((m) => ({
       id: m.id || "",
@@ -479,7 +524,7 @@ export function removeChat({ session }, { config } = {}) {
   const c = known(session);
   if (c.unlisted) return { ok: true };
   if (c.from === "hub") c.hidden = true;
-  else load().delete(c.session);
+  else load().delete(c.session); // a side chat too: the next question starts a new one
   save();
   return { ok: true };
 }
@@ -493,4 +538,69 @@ export function renameChat({ session, title }, { config, now = Date.now() } = {}
   c.title = t.slice(0, TITLE_MAX);
   save();
   return { ok: true, title: c.title };
+}
+
+/* ---------- side chats (connector 1.26.0, Chat 4.0.0) ---------- */
+
+/** The side chat of a chat, if it has one. */
+function sideOf(sid) {
+  let found = null;
+  for (const c of load().values()) if (c.from === "side" && c.parent === sid && (!found || (c.at || 0) > (found.at || 0))) found = c;
+  return found;
+}
+function sideAgent() {
+  for (const a of SIDE_AGENTS) if (oc.agents.has(a)) return a;
+  return null;
+}
+
+/**
+ * chat.side: a question about a chat that should not land in it. The first one copies the chat so far (opencode's
+ * fork) and asks there; later ones (with `side`) go to the same side chat, which keeps its own thread. Tandem's
+ * read-only chat agent answers unless you pick another (opencode's plan agent when Tandem is not installed). Nothing
+ * is added to the chat itself.
+ */
+export async function sideChat(args, { config, now = Date.now() } = {}) {
+  needAi(config);
+  const main = known(args.session);
+  if (main.from === "side") throw httpError(400, "That is a side chat already. Ask in it, or in its chat.");
+  const t = cleanText(args.text);
+  needOc();
+  if (!oc.api.fork) throw httpError(501, "This opencode cannot start side chats.");
+  const agent = cleanAgent(args.agent != null && args.agent !== "" ? args.agent : sideAgent());
+  const model = cleanModel(args.model);
+  const images = cleanImages(args.images);
+  let side = null;
+  if (args.side) {
+    side = load().get(String(args.side));
+    if (!side || side.from !== "side" || side.parent !== main.session) throw httpError(404, "That side chat is gone. Ask again to start a new one.");
+    needIdle(side.session);
+  } else {
+    const f = await oc.api.fork(main.session);
+    const last = await (oc.api.richMessages || oc.api.messages)(f.id, 1).catch(() => []);
+    const title = titleOf(`Side chat: ${main.title || (sessions.get(main.session) || {}).title || "Chat"}`);
+    side = { session: f.id, from: "side", parent: main.session, title, at: now, last: now, replies: 0, mark: (last[last.length - 1] || {}).id || null };
+    upsertSession(f.id, { title, status: "idle" });
+    for (const c of [...load().values()]) if (c.from === "side" && c.parent === main.session) load().delete(c.session);
+    load().set(f.id, side);
+    save();
+    if (oc.api.setTitle) oc.api.setTitle(f.id, title).catch(() => {});
+    log(`side chat ${f.id} started from ${main.session}`);
+  }
+  await send(side.session, { text: t, agent, model, files: [], images });
+  touch(side, now);
+  return { side: side.session };
+}
+
+/** chat.image: one pasted image of a turn, as {mime, data} (base64), for the thread. */
+export async function chatImage({ session, message, part }, { config } = {}) {
+  needAi(config);
+  const c = known(session);
+  needOc();
+  if (!oc.api.rawMessage) throw httpError(501, "This opencode cannot show pasted images in Chat.");
+  if (!/^msg[A-Za-z0-9_-]{1,100}$/.test(String(message || ""))) throw httpError(400, "Bad message id.");
+  const m = await oc.api.rawMessage(c.session, message);
+  const p = m && Array.isArray(m.parts) ? m.parts[part] : null;
+  const hit = p && p.type === "file" && typeof p.url === "string" ? IMAGE_URL.exec(p.url) : null;
+  if (!hit) throw httpError(404, "That image is not in the chat any more.");
+  return { mime: hit[1], data: p.url.slice(hit[0].length) };
 }

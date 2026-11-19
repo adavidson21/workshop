@@ -5,11 +5,11 @@
    The hash names a selection, so it can be linked: #file=src/x.ts&L=12-18 (&side=old for removed code).
 
    review-state.js has the logic and review-view.js the HTML; this file paints them, runs Monaco
-   (vendor/monaco, loaded by review-monaco.js) and handles input. */
+   (shared/vendor/monaco, loaded by ../../../../shared/monaco.js) and handles input. */
 
 import { connect } from '../../../../shared/workshop-sdk.js';
 import { mountBar } from '../../../../shared/standalone-bar.js';
-import { loadMonaco } from './review-monaco.js';
+import { applyMonacoTheme, loadMonaco } from '../../../../shared/monaco.js';
 import { reviewApi, mockReviewApi } from './review-api.js';
 import {
   parseHash, formatHash, select, draftKey, loadDraft, saveDraft, emptyDraft, nextCommentId, upsertComment, removeComment,
@@ -129,21 +129,7 @@ const zoneIds = { old: [], new: [] };
 let hover = null; // { side, line }
 
 function cssVar(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
-function applyTheme() {
-  const dark = (document.documentElement.getAttribute('data-theme') || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')) === 'dark';
-  const hex = v => (/^#[0-9a-f]{6}$/i.test(v) ? v : null);
-  const colors = {};
-  const set = (k, v) => { if (hex(v)) colors[k] = v; };
-  set('editor.background', cssVar('--surface'));
-  set('editorGutter.background', cssVar('--surface'));
-  set('editor.foreground', cssVar('--ink'));
-  set('editorLineNumber.foreground', cssVar('--muted'));
-  set('editorLineNumber.activeForeground', cssVar('--ink'));
-  set('editorWidget.background', cssVar('--surface'));
-  set('editorWidget.border', cssVar('--line'));
-  monaco.editor.defineTheme('workshop', { base: dark ? 'vs-dark' : 'vs', inherit: true, rules: [], colors });
-  monaco.editor.setTheme('workshop');
-}
+function applyTheme() { applyMonacoTheme(monaco); }
 
 async function startMonaco() {
   monaco = await loadMonaco();

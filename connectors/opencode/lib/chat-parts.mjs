@@ -8,7 +8,7 @@
 //   {type: "reasoning", text}
 //   {type: "tool", tool, status: "pending" | "running" | "completed" | "error", title, input, output, error, diff,
 //    todos: [{content, status}], child}
-//   {type: "file", name}
+//   {type: "file", name, image?, mime?, part?}   (a pasted image: `part` is its place in the message, for chat.image)
 //   {type: "patch", files: [path]}
 //   {type: "subtask", agent, text}
 //   {type: "compaction"}
@@ -111,12 +111,24 @@ function joinText(parts) {
   return parts.filter((p) => p.type === "text").map((p) => p.text).join("\n").trim().slice(0, TEXT_MAX);
 }
 
+export const IMAGE_URL = /^data:(image\/(?:png|jpeg|gif|webp));base64,/;
+/**
+ * A file part: its name, and for a pasted image (a data URL, Chat 4.0.0) `image`, `mime` and `part`, its place in the
+ * message, so the page can ask for the picture itself (chat.image). The data URL is never sent with the turns.
+ */
+export function filePart(p, i, root) {
+  const url = typeof p.url === "string" ? p.url : "";
+  const img = IMAGE_URL.exec(url);
+  const name = (p.source && p.source.path) || p.filename || (url && !url.startsWith("data:") ? url : "") || (img ? "image" : "file");
+  return { type: "file", name: relPath(name, root), ...(img ? { image: true, mime: img[1], ...(i >= 0 ? { part: i } : {}) } : {}) };
+}
+
 /** opencode 1.x: {info, parts}. */
 export function v1Turn(m, root) {
   const info = (m && m.info) || {};
   const parts = [];
-  for (const p of (m && Array.isArray(m.parts) ? m.parts : [])) {
-    if (!p || typeof p !== "object") continue;
+  (m && Array.isArray(m.parts) ? m.parts : []).forEach((p, i) => {
+    if (!p || typeof p !== "object") return;
     if (p.type === "text") {
       if (!p.synthetic && !p.ignored && p.text) parts.push({ type: "text", text: String(p.text).slice(0, TEXT_MAX) });
     } else if (p.type === "reasoning") {
@@ -125,13 +137,13 @@ export function v1Turn(m, root) {
       const st = p.state || {};
       parts.push(toolPart({ tool: p.tool, state: st.status, input: st.input, output: st.output, title: st.title, metadata: st.metadata, error: st.error }, root));
     } else if (p.type === "file") {
-      parts.push({ type: "file", name: relPath((p.source && p.source.path) || p.filename || p.url || "file", root) });
+      parts.push(filePart(p, i, root));
     } else if (p.type === "patch") {
       parts.push({ type: "patch", files: (Array.isArray(p.files) ? p.files : []).slice(0, 50).map((f) => relPath(f, root)) });
     } else if (p.type === "subtask") {
       parts.push({ type: "subtask", agent: String(p.agent || ""), text: cut(p.description || p.prompt || "", 600) });
     } else if (p.type === "compaction") parts.push({ type: "compaction" });
-  }
+  });
   const role = info.role === "user" ? "user" : "assistant";
   const model = info.model && typeof info.model === "object" ? modelOf(info.model.providerID, info.model.modelID) : modelOf(info.providerID, info.modelID);
   return {
@@ -159,7 +171,7 @@ export function v2Turn(m, root) {
     else if (c.type === "tool" || c.type === "tool-call" || c.type === "tool_call") {
       const st = c.state && typeof c.state === "object" ? c.state : {};
       parts.push(toolPart({ tool: c.name || c.tool, state: st.status || c.status || (typeof c.state === "string" ? c.state : null), input: c.input || st.input, output: c.output != null ? c.output : st.output, title: c.title || st.title, metadata: c.metadata || st.metadata, error: c.error || st.error }, root));
-    } else if (c.type === "file") parts.push({ type: "file", name: relPath(c.path || c.filename || c.name || c.url || "file", root) });
+    } else if (c.type === "file") parts.push(filePart({ filename: c.path || c.filename || c.name, url: c.url }, -1, root));
   }
   const role = m && m.type === "user" ? "user" : "assistant";
   const mod = m && m.model;

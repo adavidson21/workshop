@@ -198,7 +198,7 @@ export function repoFolder(name) {
 }
 
 // Errors carry the status and code the agent API uses (docs/agent-api.md).
-const CODES = { 400: "bad_request", 404: "not_found", 409: "conflict", 500: "internal", 503: "unavailable" };
+const CODES = { 400: "bad_request", 403: "forbidden", 404: "not_found", 409: "conflict", 413: "too_large", 500: "internal", 503: "unavailable" };
 export function httpError(status, message) {
   // The live server used 501 (not supported here) and 502 (opencode refused); the agent API has codes for neither.
   const s = status === 501 ? 400 : status === 502 ? 503 : status;
