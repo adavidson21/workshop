@@ -11,12 +11,13 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { factoryOptions, writeFactoryFile } from "./factory.mjs";
 
 // The connector folder (this file is in its lib/ subfolder).
 export const HERE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-export const MAX_AUTO_RUNS = 3; // the hard cap: more mostly competes for the model's rate limits and the CPU
+export const MAX_AUTO_RUNS = 5; // the hard cap: more mostly competes for the model's rate limits and the CPU (3 until 1.21.0)
 export const DEFAULT_AUTO_RUNS = 2;
-export const VERSION = "1.20.0"; // the connector's version (index.mjs exports it)
+export const VERSION = "1.21.0"; // the connector's version (index.mjs exports it)
 export const APP = "eng-agents-dashboard"; // the shell status shape keeps this name (README, `status`)
 export const FRESH_SESSION = new Set(["do-task", "check-docs"]); // the pipeline says: run these in a new session
 export const isWin = process.platform === "win32";
@@ -90,6 +91,10 @@ export function configure(c) {
     // autopilot (1.20.0): how many builds run at once (1 to 3), and hands-off Quick changes (review by exception).
     autoMaxRuns: Math.min(MAX_AUTO_RUNS, Math.max(1, Number.isInteger(cfg.autopilot && cfg.autopilot.maxRuns) ? cfg.autopilot.maxRuns : DEFAULT_AUTO_RUNS)),
     quickHandsOff: !cfg.autopilot || cfg.autopilot.quickHandsOff !== false, // default on
+    // 1.21.0: projects with nothing running get the next free slot first (default on).
+    fairSlots: !cfg.autopilot || cfg.autopilot.fairSlots !== false,
+    // 1.21.0: the software factory's settings, also written to .work/factory.json for Tandem.
+    factory: factoryOptions(cfg.factory),
     username: env(oc.usernameEnv) || "opencode",
     password: env(oc.passwordEnv) || null,
   };
@@ -107,6 +112,7 @@ export function configure(c) {
   } catch (e) {
     return `Could not create ${workRoot}: ${e.code || e.message}`;
   }
+  writeFactoryFile(workRoot, opt.factory);
   stateDir = path.join(workRoot, "_dashboard");
   sessionsFile = path.join(stateDir, "sessions.json");
   try {

@@ -41,13 +41,26 @@ The first commit on the WS3 branch is the verbatim copy, so `git diff` against i
 | `approvedProviders` | `[]` | | The opencode provider ids your company allows. `workshop doctor` checks opencode against them (below). Changed only from Workshop on this computer. |
 | `prReviews.nightlyAt` | `7:00 PM` | (new) | Local time, like `2:00 AM` (`02:00` works too). Each day at this time the PR review queue reviews the PRs that were waiting on you the last time Dispatch checked (see PR review queue below). Empty turns it off. Hosted pages may change it. |
 | `prReviews.onSync` | `true` | (new) | Each time an app saves the PRs waiting on you (`pr.inbox.save`, after Docket or Dispatch checks Azure DevOps), new PRs and PRs with a new commit are queued for `/pr-review` at once, blocking tier first. A PR is queued once per commit, so a failed review is not retried on every check. Docket shows the result on its PR tasks (`pr.reviews`). Off: only Review all and the nightly run. Hosted pages may change it. |
-| `autopilot.maxRuns` | `2` | (new) | 1.20.0: how many items autopilot builds at once, 1 to 3 (3 is the cap). More queue. Hosted pages may change it. |
+| `autopilot.maxRuns` | `2` | (new) | 1.20.0: how many items autopilot builds at once, 1 to 5 (the cap was 3 until 1.21.0). More queue. Hosted pages may change it. Edited on Settings, Factory. |
+| `autopilot.fairSlots` | `true` | (new) | 1.21.0: when a slot frees up, a queued build from a project with nothing running starts first, then by project order (`project.move`), then oldest. Off: oldest first. |
+| `factory.*` | see Software factory | (new) | 1.21.0: `taskFileCap` (6), `quickTasks` (3), `retries` (3), `autoFix` (`should-fix` or `blockers`), `reviewRounds` (2), `uiChecks` (true), `worktrees` (`always` or `busy`). Written to `.work/factory.json` on every start; Tandem (eng-agents Core 4.9.0) reads it. Edited on Settings, Factory. |
 | `autopilot.quickHandsOff` | `true` | (new) | 1.20.0: hands-off Quick changes (review by exception, above). Off: you approve every quick plan. Hosted pages may change it. |
 | `hub` | | (new) | No longer used since 1.17.0: Chat, the hub and Writing use AI whenever this connector is on. Kept so saved settings stay valid; Settings hides it. |
 
 The password is read through `ctx.env` and only sent to opencode. It is never logged, returned or emitted.
 
 A bad setting (no `.work` in the workspace, a URL on another computer) shows in the connector's status with what to fix. It never stops the agent.
+
+## Software factory
+
+Since 1.21.0 (eng-agents Core 4.9.0; Workshop project doc `claude/software-factory-v1-plan.md`). You touch a build twice: approve the plan (Loom's **Approve** starts the build) and publish the PR. Between them autopilot runs on its own:
+
+- `factory.json`: the factory settings, written to `.work/factory.json` on every start. Tandem reads them (task size cap, retries, which review findings become fix tasks, review rounds, UI checks, worktrees).
+- Review rounds come from `factory.reviewRounds`. A step that ends without moving the item forward gets one more try in a fresh session before it waits.
+- A restart keeps running and queued builds queued; they start again once opencode is connected.
+- Knowledge gaps: `state.gaps` is `{open: [{id, n, date, kind, product, source, question, assumed, status, sent}], answered}` from `.work/gaps.md` (written only by Tandem). A build whose step stopped on a gap with no safe assumption (`assumed: null`, `source` its id) waits on it (`autopilot.gap`); `gap.answer` resumes it once `/teach` closes the line. What Workshop sent is kept in `_dashboard/gaps.json`.
+- Publish: `state.publish` is `{<folder>: {ready, questions, ui, published, pushed}}` for items that are ready or were published (`_dashboard/published.json`). `ui` is each `ui/results-*.json` (`before` from `/start`, `after` from `/review`).
+- Overlaps: `state.overlaps` is `{<folder>: [{with, files}]}` for active items whose `tasks.md` files overlap. Loom offers **Approve, build after it** (`autopilot` with `after`).
 
 ## Approved AI providers
 
@@ -120,9 +133,14 @@ Call with `POST /api/connectors/opencode/<action>` and `{"args": {...}}` (write 
 | `abort` | yes | `session` | `POST /api/abort` | |
 | `remove` | yes | `folder`, `confirm` (the item id typed, or the folder name for spikes, docs and TSDs) | `POST /api/remove` | Deletes the item's `.work` folder, session links and autopilot state, and since 1.20.0 its git worktrees (repos.md `Path` under `.worktrees/<folder>/`, `git worktree remove`, never forced: one with uncommitted changes is kept and listed in `kept`). Repos, branches and opencode sessions are left alone. `{ok, removed, kept?}`. Refused while the agent or autopilot is working on it. |
 | `push` | yes | `folder`, `repo` | `POST /api/push` | `git -C <repo> push -u origin <branch>` for the branch in `pr.md`. Never `main`, `master`, `develop`, `dev` or the PR's target branch, never `--force`, only repo folders inside the workspace. |
-| `autopilot` | yes | `folder`, `action` (`start`, `approve-start`, `resume`, `stop`, `dismiss`) | `POST /api/autopilot` | Since 1.20.0: past `autopilot.maxRuns` running builds, `start` and `resume` queue the item (`{ok, queued: true}`, status `queued`) and the oldest queued one starts when a slot frees; `stop` takes it out of the queue. With `autopilot.quickHandsOff`, `start` also works on a quick-lane item before `quick.md` is approved: autopilot runs `/quick <id> auto` and `/approve <id> quick auto` (eng-agents Core 4.8.0, review by exception), which approves only a clean plan; a held plan waits for you. |
+| `autopilot` | yes | `folder`, `action` (`start`, `approve-start`, `resume`, `stop`, `dismiss`), optional `after` (1.21.0: another item folder; the build stays queued until that item's PR text is ready) | `POST /api/autopilot` | Since 1.20.0: past `autopilot.maxRuns` running builds, `start` and `resume` queue the item (`{ok, queued: true}`, status `queued`) and the oldest queued one starts when a slot frees; `stop` takes it out of the queue. With `autopilot.quickHandsOff`, `start` also works on a quick-lane item before `quick.md` is approved: autopilot runs `/quick <id> auto` and `/approve <id> quick auto` (eng-agents Core 4.8.0, review by exception), which approves only a clean plan; a held plan waits for you. |
 | `observation.dismiss` | yes | `id` (`O<n>`) | (new) | 1.20.0: hides one of Tandem's observations (`.work/observations.md`). Kept in `.work/_dashboard/observations.json`; the file is never written. `{ok, id, status}`. |
 | `observation.sent` | yes | `id` | (new) | 1.20.0: marks one as sent to Docket (Loom sends the task offer itself). |
+| `gap.answer` | yes | `id` (`G<n>`), `answer` (one line, up to 500 characters) | (new) | 1.21.0: runs `/teach <id> <answer>` (eng-agents Core 4.9.0), which writes the answer where it belongs and closes the gap. 409 when the gap is answered or an answer is on its way. Builds waiting on the gap resume when `/teach` closes it. |
+| `publish` | yes | `folder` | (new) | 1.21.0, Gate 2: for an item whose next step is ship, pushes every branch in `pr.md` (the `push` rules: never the target or default branch, never force) and records it. Returns `{ok, folder, repos: [{repo, branch, target, pr, message}]}` with each repo's create PR link. 409 when the item is not ready. |
+| `publish.all` | yes | optional `project` | (new) | 1.21.0: publishes every ready item with no review questions and no failed UI check. Returns `{ok, published, failed: [{folder, message}]}`. |
+| `ui.image` | no | `folder`, `file` (`<name>/<page>.png` under the item's `ui/`) | (new) | 1.21.0: a UI check screenshot as `{file, dataUrl}` (PNG, at most 5 MB). |
+| `project.move` | yes | `id`, `dir` (-1 or 1) | (new) | 1.21.0: moves a project up or down; autopilot's fair slots go by this order. |
 | `observation.start` | yes | `id`, optional `project` | (new) | 1.20.0: starts one as a local Quick change (`start.local`, lane `quick`, the text as title, where it came from in the description) and marks it started. Returns what `start.local` returns. |
 | `project.create` | yes | `name`, optional `color`, `repo`, `baseBranch`, `instructions`, `model`, `agent`, `tracker` | (new) | Adds a Dispatch project. `repo` must be a folder in the workspace. `{project}`. |
 | `project.update` | yes | `id`, then any field above (an empty string clears it, except `name`) | (new) | `{project}`. Inbox cannot be changed. |

@@ -11,16 +11,18 @@ import { ARMS, MAX_MODELS, MAX_RUNS, PRESETS, commandFor, evalsHome, listCases, 
 import { model, modelError, parserGone, refresh, resetModel, watchWork } from "./lib/model.mjs";
 import { currentSession, loadLinks } from "./lib/links.mjs";
 import { oc, resetState, sessions } from "./lib/opencode-state.mjs";
-import { connectOpencode, disconnectOpencode } from "./lib/opencode-connect.mjs";
+import { connectOpencode, disconnectOpencode, onConnected } from "./lib/opencode-connect.mjs";
 import { abort, answerPermission, answerQuestion, openTerminal, pushBranch, removeItem, reply, resetActions, runCommand, shellData, startItem } from "./lib/actions.mjs";
-import { autopilot, autopilotAction, loadAuto } from "./lib/autopilot.mjs";
+import { autopilot, autopilotAction, loadAuto, resumeAfterGap, resumeQueued } from "./lib/autopilot.mjs";
 import { decideObservation, findObservation, loadObservations, resetObservations, startArgs } from "./lib/observations.mjs";
+import { answerGap, loadGaps, MAX_ANSWER, onGapClosed, resetGaps } from "./lib/gaps.mjs";
+import { forgetPublished, loadPublished, publishItem, readyToPublish, resetPublished } from "./lib/publish.mjs";
 import { pageData, resetLive } from "./lib/live.mjs";
 import { MAX_LOG, TIMEBOXES, addRepo, dismissLoose, onboardRepo, resetWorkspace, runLoose, startLocal, startDocs, startReview, startSpike, startTsd } from "./lib/workspace.mjs";
 import { MAX_MAP, draftArgs, knowledgeRepos, readMap, writeMap } from "./lib/knowledge.mjs";
 import { loadProviders } from "./lib/opencode-connect.mjs";
 import { clearQueue, loadPrQueue, prReviews, resetPrQueue, reviewAll, saveInbox, stopQueue } from "./lib/pr-queue.mjs";
-import { COLORS, INBOX, assignRun, createProject, deleteProject, loadProjects, resetProjects, updateProject } from "./lib/projects.mjs";
+import { COLORS, INBOX, assignRun, createProject, deleteProject, loadProjects, moveProject, projectOf, resetProjects, updateProject } from "./lib/projects.mjs";
 import { findItem } from "./lib/actions.mjs";
 import { broadcastLive, emitProjects } from "./lib/live.mjs";
 import { loadReview, needReview, resetReview } from "./lib/review.mjs";
@@ -131,15 +133,23 @@ export const configSchema = {
     autopilot: {
       type: "object",
       title: "Autopilot",
+      "x-workshop-page": "factory",
       additionalProperties: false,
       properties: {
         maxRuns: {
           type: "integer",
           title: "Builds at once",
-          description: "How many items autopilot builds at the same time (1 to 3). More start queued and begin when one finishes. Each build is a git worktree when its repo is busy, so two builds on one repo do not collide. Default 2.",
+          description: "How many items autopilot builds at the same time (1 to 5). More start queued and begin when one finishes. Each build has its own git worktree, so builds on one repo do not collide. Default 2.",
           minimum: 1,
-          maximum: 3,
+          maximum: 5,
           default: 2,
+          "x-workshop-hosted": true,
+        },
+        fairSlots: {
+          type: "boolean",
+          title: "Every project gets a turn",
+          description: "When a slot frees up, a queued build from a project with nothing running goes first, so two projects move side by side. Off: oldest first.",
+          default: true,
           "x-workshop-hosted": true,
         },
         quickHandsOff: {
@@ -149,6 +159,22 @@ export const configSchema = {
           default: true,
           "x-workshop-hosted": true,
         },
+      },
+    },
+    factory: {
+      type: "object",
+      title: "Software factory",
+      description: "How much Tandem checks between your two gates (approve the plan, publish the PR). Saved to .work/factory.json, which Tandem reads.",
+      "x-workshop-page": "factory",
+      additionalProperties: false,
+      properties: {
+        taskFileCap: { type: "integer", title: "Files per task", description: "The most files one task may change. Test files do not count. Default 6.", minimum: 2, maximum: 12, default: 6, "x-workshop-hosted": true },
+        quickTasks: { type: "integer", title: "Tasks in a Quick change", description: "A Quick change with more tasks steps up to a feature. Default 3.", minimum: 1, maximum: 5, default: 3, "x-workshop-hosted": true },
+        retries: { type: "integer", title: "Tries before it stops", description: "Tries at one failing step. Autopilot then gives it one fresh session before it waits for you. Default 3.", minimum: 1, maximum: 5, default: 3, "x-workshop-hosted": true },
+        autoFix: { type: "string", title: "Review findings fixed on their own", description: "Which review findings become fix tasks without asking you. Nits never do.", enum: ["should-fix", "blockers"], "x-workshop-labels": ["Blockers and Should fix", "Blockers only"], default: "should-fix", "x-workshop-hosted": true },
+        reviewRounds: { type: "integer", title: "Review rounds", description: "Reviews autopilot runs before a review that is still not ready waits for you. Default 2.", minimum: 1, maximum: 4, default: 2, "x-workshop-hosted": true },
+        uiChecks: { type: "boolean", title: "UI checks with screenshots", description: "When a change touches UI files, start the app, screenshot its pages and check them (needs a UI checks table in the repo guide and Playwright in the repo). Skipped, never a stop, when the app cannot start on this computer.", default: true, "x-workshop-hosted": true },
+        worktrees: { type: "string", title: "Worktrees", description: "Every build in its own git worktree, or only when the repo folder is busy.", enum: ["always", "busy"], "x-workshop-labels": ["Every build", "Only when busy"], default: "always", "x-workshop-hosted": true },
       },
     },
     hub: {
@@ -203,6 +229,8 @@ function resetAll() {
   resetChats();
   resetVoice();
   resetObservations();
+  resetGaps();
+  resetPublished();
 }
 
 async function init() {
@@ -221,6 +249,20 @@ const clip = (m) => (m && m.length > 500 ? m.slice(0, 497) + "..." : m);
 
 function needReady() {
   if (phase !== "ready") throw httpError(503, problem || "The opencode connector is not ready yet.");
+}
+
+// A UI check screenshot: .work/<folder>/ui/<name>/<page>.png or ui/diff/<page>.png, as a data URL (at most 5 MB).
+function readUiImage({ folder, file }) {
+  if (!folder || folder.startsWith(".") || /[\\/]/.test(folder) || folder.includes("\0") || !/^[a-z0-9-]{1,30}\/[a-z0-9-]{1,80}\.png$/.test(file)) throw httpError(404, "Not found.");
+  const full = path.join(workRoot, folder, "ui", ...file.split("/"));
+  let st;
+  try {
+    st = fs.statSync(full);
+  } catch {
+    throw httpError(404, "Not found.");
+  }
+  if (!st.isFile() || st.size > 5 * 1024 * 1024) throw httpError(404, "Not found.");
+  return { file, dataUrl: `data:image/png;base64,${fs.readFileSync(full).toString("base64")}` };
 }
 
 // .work/<folder>/<file>.md only, read-only (the live server's /files/ route).
@@ -272,6 +314,7 @@ const reviewRepo = str("Repo folder (from pr.md)", { minLength: 1, maxLength: 25
 const sha = str("Commit sha", { pattern: "^[0-9a-f]{40}([0-9a-f]{24})?$" });
 const line = { type: "integer", minimum: 1 };
 const observationId = str("Observation id (O and a number)", { pattern: "^O[0-9]{1,9}$" });
+const gapId = str("Gap id (G and a number)", { pattern: "^G[0-9]{1,9}$" });
 const prItem = obj(["url"], {
   url: str("Pull request link", { minLength: 10, maxLength: 500 }),
   title: str("Title", { maxLength: 500 }),
@@ -1045,7 +1088,9 @@ const actions = {
     argsSchema: obj(["folder", "confirm"], { folder, confirm: str("Type the item id to confirm", { maxLength: 200 }) }),
     async run(args) {
       needReady();
-      return removeItem(args);
+      const r = await removeItem(args);
+      forgetPublished(args.folder);
+      return r;
     },
   },
   push: {
@@ -1093,10 +1138,73 @@ const actions = {
       return r;
     },
   },
+  "gap.answer": {
+    title: "Answer a knowledge gap (Teach): Tandem writes it where it belongs",
+    write: true,
+    argsSchema: obj(["id", "answer"], { id: gapId, answer: str("The answer", { minLength: 1, maxLength: MAX_ANSWER }) }),
+    async run(args) {
+      needReady();
+      const r = await answerGap(args, runLoose);
+      broadcastLive();
+      return r;
+    },
+  },
+  publish: {
+    title: "Publish: push every branch of a ready item and get its create PR links",
+    write: true,
+    argsSchema: obj(["folder"], { folder }),
+    async run(args) {
+      needReady();
+      const r = await publishItem(findItem(args.folder), pushBranch);
+      broadcastLive();
+      return r;
+    },
+  },
+  "publish.all": {
+    title: "Publish every item that is ready with nothing to answer",
+    write: true,
+    argsSchema: obj([], { project: projectId }),
+    async run(args) {
+      needReady();
+      let items = readyToPublish((model && model.items) || []);
+      if (args.project) items = items.filter((it) => projectOf(it.folder) === args.project);
+      const done = [];
+      const failed = [];
+      for (const it of items) {
+        try {
+          done.push(await publishItem(it, pushBranch));
+        } catch (e) {
+          failed.push({ folder: it.folder, message: e.message });
+        }
+      }
+      broadcastLive();
+      return { ok: !failed.length, published: done, failed };
+    },
+  },
+  "ui.image": {
+    title: "Read a UI check screenshot of a work item",
+    write: false,
+    argsSchema: obj(["folder", "file"], { folder, file: str("Screenshot path under ui/", { minLength: 5, maxLength: 200, pattern: "^[a-z0-9-]{1,30}/[a-z0-9-]{1,80}\\.png$" }) }),
+    async run(args) {
+      needReady();
+      return readUiImage(args);
+    },
+  },
+  "project.move": {
+    title: "Move a project up or down (autopilot's order for free slots)",
+    write: true,
+    argsSchema: obj(["id", "dir"], { id: projectId, dir: { type: "integer", title: "Direction (-1 up, 1 down)", enum: [-1, 1] } }),
+    async run(args) {
+      needReady();
+      const r = moveProject(args);
+      emitProjects("update");
+      return r;
+    },
+  },
   autopilot: {
     title: "Start, resume or stop autopilot",
     write: true,
-    argsSchema: obj(["folder", "action"], { folder, action: { type: "string", title: "Action", enum: ["start", "approve-start", "resume", "stop", "dismiss"] } }),
+    argsSchema: obj(["folder", "action"], { folder, action: { type: "string", title: "Action", enum: ["start", "approve-start", "resume", "stop", "dismiss"] }, after: str("Build after this item folder (it changes the same files); empty clears it", { maxLength: 200 }) }),
     async run(args) {
       needReady();
       return autopilotAction(args);
@@ -1209,6 +1317,10 @@ export default {
     loadLinks();
     loadAuto();
     loadObservations();
+    loadGaps();
+    loadPublished();
+    onGapClosed((id) => resumeAfterGap(id));
+    onConnected(() => resumeQueued());
     loadProjects();
     loadReview();
     loadPrQueue();

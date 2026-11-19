@@ -1300,7 +1300,11 @@ def agents_checks(b, watch):
         check('the run\'s buttons work inside the panel (Send back opens its note box there)', af.locator('.ln-panel [data-sb-toggle][aria-expanded=true]').count() == 1
               and af.locator('.ln-panel textarea').count() == 1)
         af.click('.ln-panel [data-sb-toggle]'); pg.wait_for_timeout(300)
-        check('a run at Ship is a card in Ready that says Open PR', af.locator('.ln-ready .ln-card.mine[data-lane-open="41610-rate-limit-headers"] .ln-act').inner_text() == 'Open PR')
+        check('a run at Ship is a card in Ready that says Publish (Loom 6.2.0)', af.locator('.ln-ready .ln-card.mine[data-lane-open="41610-rate-limit-headers"] .ln-act').inner_text() == 'Publish')
+        af.click('.ln-ready .ln-card[data-lane-open="41610-rate-limit-headers"]'); pg.wait_for_timeout(500)
+        check('its panel has the Publish gate and Publish all ready shows in Ready', af.locator('.ln-panel [data-publish="41610-rate-limit-headers"]').count() == 1
+              and af.locator('.ln-ready [data-publish-all]').count() == 1)
+        af.click('.ln-panel [data-lane-close]'); pg.wait_for_timeout(300)
         if os.environ.get('LOOM_SHOTS'): pg.screenshot(path='/tmp/loom-lanes.png')
 
         # Health > Tandem: the opencode connector's tandem.health, read from the example .work (docs/tandem-health.md).

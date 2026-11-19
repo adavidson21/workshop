@@ -23,6 +23,7 @@ export const PAGES = {
   apps: { label: 'Apps', group: 'workshop' },
   computer: { label: 'This computer', group: 'workshop' },
   data: { label: 'Data & backups', group: 'workshop' },
+  factory: { label: 'Factory', group: 'workshop', owner: 'opencode' },
   people: { label: 'People & groups', group: 'you', nav: 'people-teams' },
   team: { label: 'Team area paths', group: 'you', nav: 'people-teams' },
   products: { label: 'Products', group: 'you', nav: 'knowledge' },

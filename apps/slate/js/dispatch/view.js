@@ -206,8 +206,9 @@ export function nextBtns(it, primaryOnly) {
   const kind = running || autoIs(it, 'waiting') ? null : autoStartKind(it);
   const name = cmd ? cmd.split(/\s+/)[0] : '';
   if (running) return '';
-  const auto = kind ? autoBtn(it, kind, kind === 'approve-start' ? 'Approve and build' : 'Build with autopilot', 'primary', autoTip(it, kind), '') : '';
-  const step = cmd ? runBtn(it, cmd, name === '/approve' ? (kind ? 'Approve only' : 'Approve') : name === '/resume' ? 'Resume' : kind ? 'Run next step only' : 'Run', !!kind || autoIs(it, 'waiting')) : '';
+  // The software factory (Loom 6.2.0): approving the plan is the first of your two gates; the build starts on its own.
+  const auto = kind ? autoBtn(it, kind, kind === 'approve-start' ? 'Approve' : 'Build with autopilot', 'primary', autoTip(it, kind), '') : '';
+  const step = cmd ? runBtn(it, cmd, name === '/approve' ? (kind ? 'Approve, do not build yet' : 'Approve') : name === '/resume' ? 'Resume' : kind ? 'Run next step only' : 'Run', !!kind || autoIs(it, 'waiting')) : '';
   return primaryOnly ? (auto || step) : auto + step;
 }
 /** The step in plain words: the action text, else the command's words. */
@@ -309,10 +310,10 @@ function autoBtn(it, act, label, cls, tip, off) {
 const handsOff = it => it.lane === 'quick' && !!(S.D && S.D.autopilotOptions && S.D.autopilotOptions.quickHandsOff);
 function autoTip(it, kind) {
   if (kind === 'start' && handsOff(it) && (it.next || {}).stage === 'quick') {
-    return 'Writes the quick plan and approves it on its own when it is clean (no open questions, at most 3 assumptions, at most 2 tasks), then builds, reviews and writes the PR text. A plan that is not clean stops for you. Never pushes.';
+    return 'Writes the quick plan and approves it on its own when it is clean (no open questions, at most 3 assumptions, at most 3 tasks), then builds, reviews, checks the UI and writes the PR text. A plan that is not clean stops for you. You publish it.';
   }
   return (kind === 'approve-start' ? 'Approves ' + (it.lane === 'bug' ? 'bug.md' : it.lane === 'quick' ? 'quick.md' : 'plan.md') + ', then runs' : 'Runs') +
-    ' the rest: tasks, each task in a new session, review (fix rounds for Blockers), and PR text. Stops when it needs you. Never pushes.';
+    ' the rest on its own: tasks, review with fix rounds, UI checks, and PR text. Stops only when it truly needs you. You publish it.';
 }
 // Only while autopilot runs or needs you. Starting it is the main button on the Next line.
 export function autoHtml(it) {
@@ -1173,7 +1174,7 @@ function startSheetHtml() {
     const steps = shownSteps(stepsOf(shown, lane));
     const flowLine = `<div class="start-flow"><button type="button" class="lnk plain" data-flow="">&larr; All flows</button>` +
       `<ol class="fline">${steps.map(s => `<li class="${s.you === true ? 'you' : s.you ? 'maybe' : ''}">${h(s.name)}</li>`).join('')}</ol>` +
-      (f.handsOff && shown.id !== 'diagnose' ? '<p class="note">Hands-off after you approve: <b>Approve and build</b> runs the tasks, review and PR text, and stops only when it needs you. It never pushes.</p>' : '') + '</div>';
+      (f.handsOff && shown.id !== 'diagnose' ? '<p class="note">Hands-off after you approve: <b>Approve</b> runs the tasks, review, UI checks and PR text, and stops only when it needs you. You publish it.</p>' : '') + '</div>';
     body = flowLine + `<form class="cfg" data-start-form="1" novalidate>${startFormHtml(f, st)}</form>` +
       (o.connected ? '' : '<p class="gmsg bad">opencode is not connected, so nothing can start.</p>') +
       (st.error ? `<p class="gmsg bad" role="status">${md(st.error)}</p>` : '');

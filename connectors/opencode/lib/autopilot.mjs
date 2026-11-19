@@ -12,6 +12,8 @@ import { currentSession, linkSessionsFromModel } from "./links.mjs";
 import { sessions } from "./opencode-state.mjs";
 import { findItem, needOpencode, parseCommand, runCommand } from "./actions.mjs";
 import { broadcastLive, emitAutopilot, emitModel } from "./live.mjs";
+import { projectOf, projectOrder } from "./projects.mjs";
+import { holdingGap } from "./gaps.mjs";
 
 //
 // Runs the build half of the pipeline for one work item without you switching sessions:
@@ -34,10 +36,22 @@ import { broadcastLive, emitAutopilot, emitModel } from "./live.mjs";
 //   - Hands-off Quick changes (opt.quickHandsOff, review by exception): a quick-lane item can start before its
 //     plan exists. Autopilot runs /quick <id> auto, then /approve <id> quick auto, which approves quick.md only
 //     when it is clean and otherwise leaves it, so autopilot waits for you like any other gate.
+//
+// 1.21.0 (software factory, eng-agents Core 4.9.0):
+//   - Up to 5 builds at once. With opt.fairSlots (default on), a free slot goes first to a queued build whose
+//     project has nothing running, then by project order, then oldest first.
+//   - A build may wait for another one (`after`, chosen at approval when both change the same files): it stays
+//     queued until that item's PR text is ready.
+//   - A step that ends without moving the item forward gets one more try in a fresh session before it waits.
+//   - A step that stopped on a knowledge gap with no safe assumption waits on that gap; answering it (gap.answer)
+//     resumes the build.
+//   - A restart keeps queued and running builds queued; they start again once opencode is connected.
+//   - Review rounds come from the factory settings.
 
 const autoFile = () => path.join(stateDir, "autopilot.json");
 const AUTO_STEPS = new Set(["quick", "approve", "tasks", "do-task", "review", "pr"]);
-const MAX_FIX_ROUNDS = 2;
+// Review rounds before a not-READY review waits for you: the factory's reviewRounds (default 2).
+const maxFixRounds = () => (opt && opt.factory && opt.factory.reviewRounds) || 2;
 
 // { "<folder>": { status, message, command, lastCommand, session, inFlight, sawBusy,
 //                 approveFirst, fixRounds, started, updated, log: [{ at, text }] } }
@@ -50,15 +64,15 @@ export function loadAuto() {
   } catch {
     autopilot = {};
   }
+  // A restart keeps builds going: running and queued ones are queued again and start once opencode is
+  // connected (resumeQueued), oldest first.
   for (const a of Object.values(autopilot)) {
-    if (a.status === "queued") {
-      a.status = "waiting";
-      a.message = "Workshop restarted the opencode connector while this build was queued. Click Resume to queue it again.";
-    }
-    if (a.status === "running") {
-      a.status = "waiting";
+    if (a.status === "queued" || a.status === "running") {
+      if (a.status === "running") a.queued = a.started || new Date().toISOString();
+      a.status = "queued";
       a.inFlight = false;
-      a.message = "Workshop restarted the opencode connector. Click Resume to carry on.";
+      a.lastCommand = null;
+      a.message = "Workshop restarted the opencode connector. It carries on when opencode is connected.";
     }
   }
   try {
@@ -87,23 +101,66 @@ function autoLog(folder, text) {
 
 /** The settings Loom needs: hands-off Quick changes and the parallel limit. */
 export function autoOptions() {
-  return { maxRuns: (opt && opt.autoMaxRuns) || 2, quickHandsOff: !opt || opt.quickHandsOff !== false };
+  return { maxRuns: (opt && opt.autoMaxRuns) || 2, quickHandsOff: !opt || opt.quickHandsOff !== false, fairSlots: !opt || opt.fairSlots !== false, factory: (opt && opt.factory) || null };
 }
 const runningCount = () => Object.values(autopilot).filter((a) => a.status === "running").length;
 
-// A slot is free: start the oldest queued build.
+// A build that waits for another item (`after`) may start once that item is gone, or has its PR text
+// (stage ship), or its own build stopped for good.
+function afterDone(a) {
+  if (!a.after) return true;
+  const other = findItem(a.after);
+  if (!other || other.kind !== "item") return true;
+  if (other.next && other.next.stage === "ship") return true;
+  const oa = autopilot[a.after];
+  return !!oa && (oa.status === "done" || oa.status === "stopped");
+}
+
+/**
+ * Which queued build starts next. Pure: `queued` is [[folder, a]], `running` the folders running now,
+ * `projectOf(folder)` a project id, `order` the project ids in their order.
+ * With fair slots, a build from a project with nothing running goes first, then by project order, then oldest.
+ */
+export function pickNext(queued, running, { fair = true, projectOf: pOf = () => null, order = [] } = {}) {
+  if (!queued.length) return null;
+  const busy = new Set(running.map((f) => pOf(f)));
+  const rank = (f) => {
+    const i = order.indexOf(pOf(f));
+    return i < 0 ? order.length : i;
+  };
+  const sorted = queued.slice().sort((x, y) => {
+    if (fair) {
+      const fx = busy.has(pOf(x[0])) ? 1 : 0, fy = busy.has(pOf(y[0])) ? 1 : 0;
+      if (fx !== fy) return fx - fy;
+      const r = rank(x[0]) - rank(y[0]);
+      if (r) return r;
+    }
+    return String(x[1].queued || "").localeCompare(String(y[1].queued || ""));
+  });
+  return sorted[0];
+}
+
+// A slot is free: start the next queued build (see pickNext). Builds waiting on another item are skipped.
 function startQueued() {
-  if (runningCount() >= autoOptions().maxRuns) return;
-  const next = Object.entries(autopilot).filter(([, a]) => a.status === "queued").sort((x, y) => String(x[1].queued || "").localeCompare(String(y[1].queued || "")))[0];
-  if (!next) return;
-  const [folder, a] = next;
-  a.status = "running";
-  a.message = null;
-  autoLog(folder, "A slot freed up: started");
-  saveAuto();
-  emitAutopilot(folder, "running", null);
-  broadcastLive();
-  autoStep(folder).catch(() => {});
+  while (runningCount() < autoOptions().maxRuns) {
+    const queued = Object.entries(autopilot).filter(([, a]) => a.status === "queued" && afterDone(a));
+    const running = Object.entries(autopilot).filter(([, a]) => a.status === "running").map(([f]) => f);
+    const next = pickNext(queued, running, { fair: autoOptions().fairSlots, projectOf, order: projectOrder() });
+    if (!next) return;
+    const [folder, a] = next;
+    a.status = "running";
+    a.message = null;
+    autoLog(folder, a.after ? `${a.after} is ready: started` : "A slot freed up: started");
+    saveAuto();
+    emitAutopilot(folder, "running", null);
+    broadcastLive();
+    autoStep(folder).catch(() => {});
+  }
+}
+
+/** After a restart: start queued builds once opencode is connected. */
+export function resumeQueued() {
+  later(startQueued, 0);
 }
 
 function autoSet(folder, status, message) {
@@ -154,9 +211,15 @@ async function autoStep(folder, finished = false) {
     if (finished && last && last.error) return autoSet(folder, "waiting", `${a.command} stopped: ${last.error}`);
     // A review that turned Blockers into fix tasks starts a fix round.
     if (finished && a.command && /^\/review\b.*\sauto$/.test(a.command) && it.gates.review && it.gates.review !== "READY") a.fixRounds = (a.fixRounds || 0) + 1;
+    // The step stopped on a knowledge gap it could not work around: wait for your answer (gap.answer resumes).
+    const gap = finished ? holdingGap(it.id) : null;
+    if (gap) {
+      a.gap = gap.id;
+      return autoSet(folder, "waiting", `Needs you: answer ${gap.id} (Teach): ${gap.question}`);
+    }
 
     const n = it.next || {};
-    if (n.stage === "ship") return autoSet(folder, "done", "PR text is ready in pr.md. Push the branches and open the PRs.");
+    if (n.stage === "ship") return autoSet(folder, "done", "Ready to publish: the PR text is in pr.md. Click Publish to push the branches and open the PRs.");
 
     let cmd = n.command;
     const approving = cmd && /^\/approve\b/.test(cmd) && (n.stage === "plan" || n.stage === "bug" || n.stage === "quick");
@@ -173,9 +236,13 @@ async function autoStep(folder, finished = false) {
     if (cmd === a.lastCommand && autoApprove) {
       return autoSet(folder, "waiting", `quick.md needs your review (it was not clean enough to approve on its own${finished && last && last.text ? `: ${String(last.text).trim().split(/\r?\n/).slice(-1)[0].replace(/^Needs you:\s*/i, "").slice(0, 200)}` : ""}). Read quick.md and tasks.md, then click Approve and build.`);
     }
-    if (cmd === a.lastCommand) {
+    if (cmd === a.lastCommand && a.retried !== cmd) {
+      // One more try in a fresh session before it waits (core rule 6: the agent wrote what it tried in progress.md).
+      a.retried = cmd;
+      autoLog(folder, `${cmd} ended without finishing: one more try in a fresh session`);
+    } else if (cmd === a.lastCommand) {
       const said = finished && last && last.text ? ` The agent said: "${String(last.text).trim().split(/\r?\n/).slice(-1)[0].slice(0, 200)}"` : "";
-      return autoSet(folder, "waiting", `${cmd} ended without finishing. Reply to the agent, or fix it yourself, then click Resume.${said}`);
+      return autoSet(folder, "waiting", `${cmd} ended without finishing, twice. Reply to the agent, or fix it yourself, then click Resume.${said}`);
     }
 
     if (parsed.name === "quick" && !handsOff) return autoSet(folder, "waiting", `Next is ${cmd}. Run it yourself, then approve quick.md (or turn on hands-off Quick changes in opencode settings).`);
@@ -183,11 +250,13 @@ async function autoStep(folder, finished = false) {
     let full = cmd;
     if (parsed.name === "quick" || autoApprove) full = `${cmd} auto`; // review by exception: asks nothing, approves only a clean plan
     if (parsed.name === "review") {
-      if ((a.fixRounds || 0) >= MAX_FIX_ROUNDS) autoLog(folder, `${MAX_FIX_ROUNDS} fix rounds done. This review will ask you which findings to fix.`);
+      if ((a.fixRounds || 0) >= maxFixRounds()) autoLog(folder, `${maxFixRounds()} review rounds done. This review will ask you which findings to fix.`);
       else full = `${cmd} auto`;
     }
 
+    if (a.lastCommand !== cmd) a.retried = null;
     a.lastCommand = cmd;
+    a.gap = null;
     a.command = full;
     a.inFlight = true;
     a.sawBusy = false;
@@ -241,7 +310,7 @@ export function autoOnReply(sid) {
   emitAutopilot(folder, "running", null);
 }
 
-export async function autopilotAction({ folder, action }) {
+export async function autopilotAction({ folder, action, after }) {
   const it = findItem(folder);
   if (!it || it.kind !== "item") throw httpError(404, `No work item folder "${folder}". Refresh the page.`);
   const a = autopilot[folder];
@@ -258,6 +327,10 @@ export async function autopilotAction({ folder, action }) {
     return { ok: true };
   }
   if (!["start", "approve-start", "resume"].includes(action)) throw httpError(400, "Bad action.");
+  if (after != null) {
+    const other = findItem(after);
+    if (!other || other.kind !== "item" || after === folder) throw httpError(400, `No other work item folder "${after}" to build after.`);
+  }
 
   needOpencode();
   if (a && (a.status === "running" || a.status === "queued")) throw httpError(409, a.status === "queued" ? "This build is already queued." : "Autopilot is already running this item.");
@@ -276,21 +349,25 @@ export async function autopilotAction({ folder, action }) {
     throw httpError(409, `Autopilot starts after ${it.lane === "bug" ? "bug.md" : it.lane === "quick" ? "quick.md" : "plan.md"} is approved.`);
   }
 
-  const full = runningCount() >= autoOptions().maxRuns;
+  const wait = after != null && !afterDone({ after });
+  const full = wait || runningCount() >= autoOptions().maxRuns;
   if (action === "resume" && a) {
     a.status = full ? "queued" : "running";
     if (full) a.queued = new Date().toISOString();
+    if (after !== undefined) a.after = after || null;
+    a.retried = null;
+    a.gap = null;
     a.message = null;
     a.lastCommand = null; // you fixed something: allow the same step once more
     a.inFlight = false;
     autoLog(folder, "Resumed");
   } else {
-    autopilot[folder] = { status: full ? "queued" : "running", queued: full ? new Date().toISOString() : null, message: null, command: null, lastCommand: null, session: null, inFlight: false, sawBusy: false, approveFirst: action === "approve-start", fixRounds: 0, started: new Date().toISOString(), log: [] };
+    autopilot[folder] = { status: full ? "queued" : "running", queued: full ? new Date().toISOString() : null, message: null, command: null, lastCommand: null, retried: null, gap: null, after: after || null, session: null, inFlight: false, sawBusy: false, approveFirst: action === "approve-start", fixRounds: 0, started: new Date().toISOString(), log: [] };
     autoLog(folder, action === "approve-start" ? "Started: approve, then build" : "Started");
   }
   if (full) {
     const n2 = autoOptions().maxRuns;
-    autopilot[folder].message = `Queued: ${n2} build${n2 === 1 ? " is" : "s are"} running. It starts when one finishes.`;
+    autopilot[folder].message = wait ? `Queued: builds after ${after}, which changes the same files. It starts when ${after}'s PR text is ready.` : `Queued: ${n2} build${n2 === 1 ? " is" : "s are"} running. It starts when one finishes.`;
     autoLog(folder, "Queued");
     saveAuto();
     emitAutopilot(folder, "queued", autopilot[folder].message);
@@ -309,7 +386,30 @@ export async function autopilotAction({ folder, action }) {
 export function autoData() {
   const out = {};
   for (const [folder, a] of Object.entries(autopilot)) {
-    out[folder] = { status: a.status, queued: a.queued || null, message: a.message, command: a.command, session: a.session, fixRounds: a.fixRounds || 0, maxFixRounds: MAX_FIX_ROUNDS, started: a.started, updated: a.updated, log: (a.log || []).slice(-8) };
+    out[folder] = { status: a.status, queued: a.queued || null, message: a.message, command: a.command, session: a.session, fixRounds: a.fixRounds || 0, maxFixRounds: maxFixRounds(), after: a.after || null, gap: a.gap || null, started: a.started, updated: a.updated, log: (a.log || []).slice(-8) };
+  }
+  return out;
+}
+
+/** A gap was answered: resume the builds that waited on it. Returns the folders resumed. */
+export function resumeAfterGap(gapId) {
+  const out = [];
+  for (const [folder, a] of Object.entries(autopilot)) {
+    if (a.status !== "waiting" || a.gap !== gapId) continue;
+    a.gap = null;
+    a.lastCommand = null;
+    a.retried = null;
+    a.status = runningCount() >= autoOptions().maxRuns ? "queued" : "running";
+    if (a.status === "queued") a.queued = new Date().toISOString();
+    a.message = null;
+    autoLog(folder, `${gapId} answered: resumed`);
+    out.push(folder);
+    emitAutopilot(folder, a.status, null);
+    if (a.status === "running") autoStep(folder).catch(() => {});
+  }
+  if (out.length) {
+    saveAuto();
+    broadcastLive();
   }
   return out;
 }

@@ -16,6 +16,7 @@ import { reviewsHtml, isReviewSession, mineItems, mineState, MINE_STATE, toRevie
 /** A session the hub started (`/hub <text>`): it belongs to the Chat app, not to a run. */
 const isHubCommand = c => /^\/hub\s/.test(String(c || ''));
 import { docHtml } from './doc.js';
+import { publishHtml, overlapHtml } from './factory.js';
 import { FLOWS, flowOf, flowTag, flowById, stepsOf, stepIndex, currentStep, hereWords, atGate, isFinished, turnHtml, gateFile, sendBackCommand,
   folderCommand, flowTrackHtml, stepLine, miniTrack, isSlateFolder, forkHtml } from './flows.js';
 
@@ -248,7 +249,8 @@ export function runCardHtml(folder) {
   const d = inboxData();
   if (d.gates.includes(it)) return gateCard(it);
   if (d.failed.includes(it)) return failedCard(it);
-  return `<div class="rows">${workRow(it)}</div>`;
+  // A ready build's Publish gate (Loom 6.2.0) sits under its row, in the lanes' panel too.
+  return `<div class="rows">${workRow(it)}</div>` + publishHtml(it);
 }
 /** A hand-off with no movement: who has it, how long, and Open (its card, where Followed up is). */
 function nudgeRow(n) {
@@ -450,9 +452,9 @@ function stepPanelHtml(it, step) {
   const file = stepFile(it, step, rel);
   if (rel === 'here') {
     if (it.kind === 'item') {
-      body += autoHtml(it) + nextHtml(it, true);
+      body += autoHtml(it) + nextHtml(it, true) + overlapHtml(it);
       if (sendBackCommand(it)) body += `<div class="row acts"><button type="button" class="btn ghost" data-sb-toggle="${h(it.folder)}" aria-expanded="${!!S.ui.open['sb:' + it.folder]}">Send back with a note</button></div>` + sendBackHtml(it);
-      if (step.key === 'ship' || it.stage === 'ship') body += prHtml(it);
+      if (step.key === 'ship' || it.stage === 'ship') body += publishHtml(it) + prHtml(it);
       if (step.key === 'build') body += tasksHtml(it);
     } else {
       const acts = folderActs(it, true);

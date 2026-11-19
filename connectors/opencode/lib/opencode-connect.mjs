@@ -95,7 +95,14 @@ function startV1Serve(url) {
 }
 
 /** Stops the event stream, and a 1.x `opencode serve` this connector started (as the live server did on exit). */
+// Called each time the event stream connects (autopilot resumes builds queued over a restart).
+let connectHooks = [];
+export function onConnected(fn) {
+  connectHooks.push(fn);
+}
+
 export function disconnectOpencode() {
+  connectHooks = [];
   if (eventsCtrl) eventsCtrl.abort();
   eventsCtrl = null;
   const child = serveChild;
@@ -201,6 +208,9 @@ async function followEvents() {
     oc.connected = true;
     log(`opencode ${oc.version || ""} connected at ${oc.url} (${oc.kind === "v2" ? "2.x API" : "1.x API"})`);
     broadcastLive();
+    for (const fn of connectHooks) {
+      try { fn(); } catch {}
+    }
     const reader = r.body.getReader();
     const dec = new TextDecoder();
     let buf = "";

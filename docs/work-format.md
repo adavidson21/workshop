@@ -224,6 +224,23 @@ Since eng-agents Core 4.8.0, `.work/observations.md` holds what agents noticed o
 
 `kind` is `bug`, `debt`, `docs`, `tests` or `idea` (anything else reads as `idea`); `-` reads as none. Ids are never reused (`.work/.observation-ids`). Other lines are skipped. The opencode connector shows the open ones in Loom (Noticed); what you did with each is kept in `.work/_dashboard/observations.json`, never in this file.
 
+## Knowledge gaps (`gaps.md`)
+
+Since eng-agents Core 4.9.0, `.work/gaps.md` holds what agents needed to know and could not find (core rule 3), written only by eng-agents' `Add-Gap.ps1` (new lines) and `Close-Gap.ps1` (the last cell):
+
+```
+- G<n> | <yyyy-mm-dd> | <kind> | <product or -> | <source or -> | <question> | <assumed or -> | open
+- G<n> | <yyyy-mm-dd> | <kind> | <product or -> | <source or -> | <question> | <assumed or -> | answered <yyyy-mm-dd>: <where it was written>
+```
+
+`kind` is `fact`, `term`, `repo` or `process` (anything else reads as `fact`). `assumed` is `-` when the agent had no safe assumption and stopped the step; `source` is then the work item id. Ids are never reused (`.work/.gap-ids`). The opencode connector shows open ones as Teach cards; answering runs `/teach`.
+
+## Factory settings (`factory.json`) and UI checks (`ui/`)
+
+Since connector 1.21.0, the opencode connector writes `.work/factory.json` (Settings, Factory) on every start: `{version: 1, taskFileCap, quickTasks, retries, autoFix, reviewRounds, uiChecks, worktrees}`. eng-agents commands read it (Core 4.9.0) and never write it.
+
+An item folder's `ui/` holds UI check results, written only by eng-agents' `Test-Ui.ps1`: `results-<name>.json` (`before` from `/start`, `after` from `/review`: `{version: 1, name, at, url, verdict: pass|fail|skipped, reason, pages: [{path, width, file, status, error, consoleErrors, failedRequests, a11y, diff}], problems, changed}`), the screenshots in `<name>/` and changed-pixel images in `diff/`.
+
 ## Connector-owned files
 
-The opencode connector owns `.work/_dashboard/` (`sessions.json`: which opencode session belongs to which item; `autopilot.json`; `pr-queue.json`: Review all and the nightly PR review; `observations.json`: what you did with each observation). Their format is internal to the connector and not part of this contract. eng-agents commands never read or write them.
+The opencode connector owns `.work/_dashboard/` (`sessions.json`: which opencode session belongs to which item; `autopilot.json`; `pr-queue.json`: Review all and the nightly PR review; `observations.json`: what you did with each observation; `gaps.json`: answers sent to `/teach`; `published.json`: what Publish pushed). Their format is internal to the connector and not part of this contract. eng-agents commands never read or write them.

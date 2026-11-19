@@ -102,10 +102,10 @@ test('Products sits in You & your team and works with no connector', () => {
   assert.deepEqual(P.routeToPage('products'), { page: 'products' });
 });
 
-test('Settings v3: three groups and eleven nav items, some holding pages as tabs', () => {
+test('Settings v3: three groups and twelve nav items (Factory since 1.21.0), some holding pages as tabs', () => {
   assert.deepEqual(P.GROUPS.map(g => g.id), ['workshop', 'you', 'connections']);
   const items = [...new Set(P.ORDER.filter(id => !P.PAGES[id].hidden).map(P.navOf))];
-  assert.deepEqual(items, ['overview', 'apps', 'computer', 'data', 'people-teams', 'knowledge', 'focus', 'writing', 'ado', 'agents', 'repos']);
+  assert.deepEqual(items, ['overview', 'apps', 'computer', 'data', 'factory', 'people-teams', 'knowledge', 'focus', 'writing', 'ado', 'agents', 'repos']);
   assert.deepEqual(P.tabsOf('knowledge'), ['products', 'glossary', 'repo-map', 'checks']);
   assert.deepEqual(P.routeToPage('knowledge'), { page: 'products' });
   assert.deepEqual(P.tabsOf('people-teams'), ['people', 'team']);
@@ -152,4 +152,11 @@ test('GitHub: its fields land on its own page, and with no connection it is not 
   assert.deepEqual(P.formPages('github', schema), ['c-github']);
   assert.equal(P.connectorState({ id: 'github', enabled: true, status: { state: 'error' } }, {}), 'empty');
   assert.equal(P.connectorState({ id: 'github', enabled: true, status: { state: 'ready' } }, { connections: [{ name: 'github' }] }), 'ready');
+});
+
+test('Factory: the opencode connector\'s autopilot and factory settings go on their own page', async () => {
+  const { configSchema } = (await import('../../../connectors/opencode/index.mjs')).default;
+  assert.equal(P.PAGES.factory.owner, 'opencode');
+  assert.deepEqual(P.formKeys('opencode', configSchema, 'factory'), ['autopilot', 'factory']);
+  assert.ok(!P.formKeys('opencode', configSchema, 'agents').includes('factory'));
 });

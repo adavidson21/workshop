@@ -20,6 +20,8 @@ import { createCaptureStore } from '../../../../shared/capture-box.js';
 import { slateLinks, summaryCards } from './summary.js';
 import { sendWork, workOffer } from './slate-handoff.js';
 import { noticedList, observationTask, startArgsOf } from './noticed.js';
+import { publishItems, readyClean } from './factory.js';
+import { confirmOutside } from '../../../../shared/outside.js';
 import { useApps } from '../../../../shared/capture.js';
 import { loadView, saveView, pruneView } from './local.js';
 import { notebookRoute } from './doc.js';
@@ -867,6 +869,11 @@ async function moveRun(folder, project) {
   schedule();
 }
 
+// Open each published repo's create PR page (Publish, Publish all ready).
+function openPrs(r) {
+  for (const x of (r && r.repos) || []) if (x.pr && /^https:\/\//.test(x.pr)) { try { window.open(x.pr, '_blank', 'noopener'); } catch (e) { /* blocked: the links stay on the card */ } }
+}
+
 async function act(fn, done, busyKey) {
   if (busyKey) { ui().busy[busyKey] = true; schedule(); }
   try { const r = await fn(); if (done) done(r); }
@@ -1028,6 +1035,62 @@ listen('click', ev => {
   if (obsDismiss) {
     const id = obsDismiss.getAttribute('data-obs-dismiss');
     act(() => write('observation.dismiss', { id }), null, 'obs:' + id);
+    return;
+  }
+  // The software factory (Loom 6.2.0): Teach a gap, Publish a ready build (or all of them), see UI check shots,
+  // approve a plan to build after an overlapping one.
+  const teach = t.closest('[data-teach]');
+  if (teach) {
+    const id = teach.getAttribute('data-teach');
+    const answer = (ui().drafts['teach:' + id] || '').trim();
+    if (!answer) return;
+    act(() => write('gap.answer', { id, answer }), () => { delete ui().drafts['teach:' + id]; toast('Saving your answer. Tandem writes it where it belongs.'); }, 'gap:' + id);
+    return;
+  }
+  const pub = t.closest('[data-publish]');
+  if (pub) {
+    const folder = pub.getAttribute('data-publish');
+    const it = itemForFolder(folder);
+    if (!it) return;
+    confirmOutside({ system: 'git', title: `Publish ${it.id ? '#' + it.id + ' ' : ''}${it.title || folder}?`, body: 'Pushes each branch to its remote (never force), then opens the PR pages with the text filled in.', items: publishItems(it), ok: 'Publish' }).then(ok => {
+      if (!ok) return;
+      act(() => write('publish', { folder }), r => { openPrs(r); toast('Published. Create each PR on the page that opened.'); }, 'pub:' + folder);
+    });
+    return;
+  }
+  if (t.closest('[data-publish-all]')) {
+    const list = ((S.D && S.D.items) || []).filter(readyClean);
+    if (!list.length) return;
+    confirmOutside({ system: 'git', title: `Publish ${list.length} ready build${list.length === 1 ? '' : 's'}?`, body: 'Each has passing checks and no review questions. Pushes every branch (never force), then opens the PR pages.', items: list.map(it => (it.id ? '#' + it.id + ' ' : '') + (it.title || it.folder)), ok: 'Publish all' }).then(ok => {
+      if (!ok) return;
+      act(() => write('publish.all', {}), r => {
+        for (const p of (r && r.published) || []) openPrs(p);
+        toast(r && r.failed && r.failed.length ? `Published ${r.published.length}; ${r.failed.length} did not go through: ${r.failed.map(f => f.message).join(' ')}` : `Published ${(r && r.published.length) || 0}.`, !!(r && r.failed && r.failed.length));
+      }, 'pub:all');
+    });
+    return;
+  }
+  const shot = t.closest('[data-ui-shot]');
+  if (shot) {
+    const k = shot.getAttribute('data-ui-shot');
+    const key = 'shot:' + k;
+    ui().open[key] = !ui().open[key];
+    paint();
+    if (ui().open[key]) {
+      const [folder, file] = k.split('|');
+      const want = [file, shot.getAttribute('data-ui-before'), shot.getAttribute('data-ui-diff')].filter(Boolean);
+      ui().shots = ui().shots || {};
+      for (const f of want) {
+        if (ui().shots[folder + '|' + f]) continue;
+        read('ui.image', { folder, file: f }).then(r => { ui().shots[folder + '|' + f] = r.dataUrl; paint(); }).catch(() => {});
+      }
+    }
+    return;
+  }
+  const after = t.closest('[data-auto-after]');
+  if (after) {
+    const folder = after.getAttribute('data-auto-after');
+    act(() => write('autopilot', { folder, action: 'approve-start', after: after.getAttribute('data-after') }), () => toast('Approved. It builds once the other one has its PR text.'), 'a:' + folder);
     return;
   }
   if (t.closest('[data-lane-done]')) { ui().laneDone = !ui().laneDone; paint(); return; }
