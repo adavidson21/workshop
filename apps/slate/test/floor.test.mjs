@@ -206,8 +206,14 @@ test("Tandem's step.md places a build at its station, when it fits the item's st
   it.step = { name: 'test', at: '2026-10-21T11:50:00Z' };
   assert.equal(stationOf(card(it.folder)), 'test', 'no guessing: step.md says test');
   it.step = { name: 'ui', at: '2026-10-21T11:50:00Z' };
-  assert.equal(toldStep(it), '', 'UI checks only happen in review');
-  assert.equal(stationOf(card(it.folder)), 'build');
+  assert.equal(toldStep(it), 'ui', 'eng-agents Core 4.15.0: a task checks its own pages while it builds');
+  assert.equal(stationOf(card(it.folder)), 'ui');
+  it.step = { name: 'build', at: '2026-10-21T11:50:00Z' };
+  S.D.reviews = { [it.folder]: { 'web-app': { status: 'revising', revision: 1, sentBack: 2 } } };
+  assert.equal(stationOf(card(it.folder)), 'fix', 'a Send back builds its fix tasks in the Fix shop');
+  assert.match(floorHtml(lanesData('all'), '', ''), /class="fl-tst sb" aria-hidden="true">Your comments: 2</);
+  delete S.D.reviews;
+  it.step = { name: 'ui', at: '2026-10-21T11:50:00Z' };
   it.stage = 'review';
   assert.equal(stationOf(card(it.folder)), 'ui');
   it.step = { name: 'fix', at: '2026-10-21T11:50:00Z' };

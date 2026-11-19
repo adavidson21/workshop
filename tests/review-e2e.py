@@ -99,7 +99,7 @@ def main():
         pg.wait_for_selector('.rv-card')
         check('Ctrl+Enter saves the comment as a collapsed card', pg.locator('.rv-card').count() == 1 and pg.locator('.rv-form').count() == 0)
         check('saved comment shows a gutter marker', side(pg, 'modified').locator('.rv-cglyph').count() == 1)
-        check('saved comment is in the Review panel', 'L4-9' in pg.locator('.rv-entry').first.inner_text())
+        check('saved comment is in the Review panel', 'L4-9' in pg.locator('.rv-entry[data-act=jump]').first.inner_text())
         check('file shows its comment count', pg.locator('.rv-file.on .rv-ccount').inner_text() == '1')
 
         # Esc cancels a new box.
@@ -121,12 +121,12 @@ def main():
 
         # Refresh keeps the drafts.
         pg.reload()
-        pg.wait_for_selector('.rv-entry')
-        check('refresh keeps every draft comment', pg.locator('.rv-entry').count() == 2)
+        pg.wait_for_selector('.rv-entry[data-act=jump]')
+        check('refresh keeps every draft comment', pg.locator('.rv-entry[data-act=jump]').count() == 2)
 
         # Clicking a panel entry jumps to the lines and opens the card.
         open_file(pg, 'rounding.ts')
-        pg.locator('.rv-entry', has_text='L4-9').click()
+        pg.locator('.rv-entry[data-act=jump]', has_text='L4-9').click()
         pg.wait_for_selector('.rv-card.open')
         check('panel entry opens its file and expands the card', pg.locator('.rv-file.on .rv-name').inner_text() == 'totals.ts' and 'Round once' in pg.locator('.rv-card.open').inner_text())
 
@@ -135,18 +135,45 @@ def main():
         pg.locator('.rv-form [name=body]').fill('Round once, at the end of orderTotal.')
         pg.locator('.rv-form button[type=submit]').click()
         pg.wait_for_function('() => !document.querySelector(".rv-form")')
-        check('editing keeps the id and updates the text', 'at the end of orderTotal' in pg.locator('.rv-panel').inner_text() and pg.locator('.rv-entry').count() == 2)
+        check('editing keeps the id and updates the text', 'at the end of orderTotal' in pg.locator('.rv-panel').inner_text() and pg.locator('.rv-entry[data-act=jump]').count() == 2)
 
-        # Request changes sends one payload with every comment and its quoted code.
+        # Tandem's review beside the diff (connector 1.27.0): its notes in the panel, one marked fixed, a mark in the gutter.
+        notes = pg.locator('.rv-notes').inner_text()
+        check("Tandem's review lists its notes, the fixed one marked", "Tandem's review (2)" in pg.locator('.rv-panel').inner_text() and 'Nit' in notes and 'Fixed' in notes)
+        pg.locator('[data-act=jump-note][data-line="14"]').click()
+        pg.wait_for_function('() => document.querySelector(".rv-file.on .rv-name")?.textContent === "totals.ts"')
+        pg.wait_for_selector('.monaco-diff-editor .editor.modified .rv-nglyph')
+        check('a note opens its file, with its mark in the gutter', True)
+        # A teammate's PR comment becomes a draft comment, sent back like the engineer's own.
+        check('On the PR lists the teammate\'s comment', 'Should the total use roundMoney' in pg.locator('.rv-threads').inner_text())
+        pg.locator('[data-act=thread-add][data-id=t1]').click()
+        pg.wait_for_function('() => [...document.querySelectorAll(".rv-entry[data-act=jump]")].some(e => e.textContent.includes("Sam on the PR"))')
+        check('Add to my comments makes a draft and the button says so', pg.locator('[data-act=thread-add][data-id=t1]').is_disabled())
+        pg.locator('.rv-entry[data-act=jump]', has_text='Sam on the PR').click()
+        cid = pg.evaluate('() => [...document.querySelectorAll(".rv-entry[data-act=jump]")].find(e => e.textContent.includes("Sam on the PR")).dataset.id')
+        pg.wait_for_selector(f'.rv-card.open [data-act=c-delete][data-id={cid}]')
+        pg.locator(f'.rv-card.open [data-act=c-delete][data-id={cid}]').click()
+        pg.wait_for_function('() => ![...document.querySelectorAll(".rv-entry[data-act=jump]")].some(e => e.textContent.includes("Sam on the PR"))')
+        # Make it a rule on the first comment.
+        pg.locator('.rv-entry[data-act=jump]', has_text='at the end of orderTotal').click()
+        pg.wait_for_selector('.rv-card.open [data-act=c-edit][data-id=c1]')
+        pg.locator('.rv-card.open [data-act=c-edit][data-id=c1]').click()
+        pg.locator('.rv-form [name=rule]').check()
+        pg.locator('.rv-form button[type=submit]').click()
+        pg.wait_for_function('() => !document.querySelector(".rv-form")')
+        check('a rule comment shows its Rule chip', pg.locator('.rv-card .rv-rule').count() == 1)
+
+        # Send back sends one payload with every comment and its quoted code.
         pg.locator('#rv-summary').fill('Close. Two things to look at.')
-        check('Request changes is enabled with comments', pg.locator('[data-act=request]').is_enabled())
+        check('Send back is enabled with comments', pg.locator('[data-act=request]').is_enabled() and pg.locator('[data-act=request]').inner_text() == 'Send back')
         pg.locator('[data-act=request]').click()
-        pg.locator('.rv-banner', has_text='revising').wait_for()
+        pg.locator('.rv-banner', has_text='Tandem is working on your comments').wait_for()
         fb = pg.evaluate('window.__reviewMock.lastFeedback')
         by = {c['id']: c for c in fb['comments']}
         check('one payload with every comment', fb['verdict'] == 'request_changes' and len(fb['comments']) == 2 and fb['summary'] == 'Close. Two things to look at.')
         check('quoted code is the exact new-side lines', by['c1']['quotedCode'].startswith('export function orderTotal') and by['c1']['quotedCode'].endswith('return roundMoney(total);') and by['c1']['side'] == 'new' and (by['c1']['startLine'], by['c1']['endLine']) == (4, 9))
         check('suggested code and the chosen type are sent', 'suggestedCode' in by['c1'] and by['c1']['type'] == 'suggestion')
+        check('Make it a rule is sent', by['c1'].get('rule') is True and 'rule' not in by['c2'])
         check('old-side quote is line 11 of the base file', by['c2']['side'] == 'old' and by['c2']['startLine'] == 11 and by['c2']['quotedCode'] == 'export function orderTax(order: Order, rate: number): number {' and by['c2']['type'] == 'question')
         check('the item moves to revising and verdict buttons go away', pg.locator('[data-act=request]').count() == 0)
 
@@ -176,34 +203,32 @@ def main():
         pg.wait_for_selector('.rv-banner.bad')
         check('stale head: clear error, nothing sent, draft kept', 'changed since this review was loaded' in pg.locator('.rv-banner.bad').inner_text() and pg.locator('.rv-entry[data-act=jump]').count() == 1)
 
-        # Approve with drafts asks first. Approve only approves; pushing is its own button with the shared git confirm.
-        check('the approve button only approves', pg.locator('[data-act=approve]').inner_text() == 'Approve')
-        check('nothing is pushed before Approve', pg.evaluate('window.__reviewMock.pushes.length') == 0)
+        # Approve and publish (connector 1.27.0): the shared git confirm comes first; a No sends nothing at all.
+        check('the approve button publishes, with the git mark', pg.locator('[data-act=approve]').inner_text().startswith('Approve and publish') and pg.locator('[data-act=approve] .out-mark[data-out=git]').count() == 1)
+        check('nothing is published before Approve', pg.evaluate('window.__reviewMock.publishes.length') == 0)
         pg.locator('[data-act=approve]').click()
         check('approve with drafts asks before discarding them', pg.locator('.rv-confirm').count() == 1)
         pg.locator('[data-act=approve-confirm]').click()
-        pg.wait_for_selector('[data-act=push]')
-        check('Approve pushes nothing', pg.evaluate('window.__reviewMock.lastFeedback.verdict') == 'approve'
-              and pg.evaluate('window.__reviewMock.pushes.length') == 0 and 'not pushed yet' in pg.locator('.rv-banner.ok').inner_text())
-        check('Push to origin carries the git mark', pg.locator('[data-act=push] .out-mark[data-out=git]').count() == 1)
-        pg.locator('[data-act=push]').click()
         pg.wait_for_selector('dialog.out-dialog[open]')
-        check('the push confirm says it changes the git remote, with Cancel focused',
+        check('the publish confirm says it changes the git remote, lists every branch, with Cancel focused',
               'Changes the git remote' in pg.locator('dialog.out-dialog .out-banner').inner_text()
+              and 'shop-web: dev/feature/L1-round-order-totals' in pg.locator('dialog.out-dialog').inner_text()
               and pg.evaluate('() => document.activeElement && document.activeElement.dataset.act') == 'cancel')
         pg.locator('dialog.out-dialog [data-act=cancel]').click()
         pg.wait_for_function('() => !document.querySelector("dialog.out-dialog")')
-        check('Cancel pushes nothing', pg.evaluate('window.__reviewMock.pushes.length') == 0)
-        pg.evaluate('window.__reviewMock.failNextPush()')
-        pg.locator('[data-act=push]').click()
+        check('Cancel sends no verdict and publishes nothing', pg.evaluate('window.__reviewMock.lastFeedback.verdict') == 'request_changes'
+              and pg.evaluate('window.__reviewMock.publishes.length') == 0 and pg.locator('[data-act=approve]').count() == 1)
+        pg.evaluate('window.__reviewMock.failNextPublish()')
+        pg.locator('[data-act=approve]').click()
+        pg.locator('[data-act=approve-confirm]').click()
         pg.locator('dialog.out-dialog [data-out-ok]').click()
-        pg.wait_for_selector('.rv-banner.bad')
-        check('a failed push keeps the verdict and says so', pg.evaluate('window.__reviewMock.lastFeedback.verdict') == 'approve'
-              and 'push did not go through' in pg.locator('.rv-banner.bad').inner_text() and pg.locator('[data-act=approve]').count() == 0)
-        pg.locator('[data-act=push]').click()
+        pg.locator('.rv-banner.ok', has_text='Publishing did not go through').wait_for()
+        check('a failed publish keeps the verdict and says so', pg.evaluate('window.__reviewMock.lastFeedback.verdict') == 'approve'
+              and pg.locator('[data-act=approve]').count() == 0 and pg.locator('[data-act=publish]').count() == 1)
+        pg.locator('[data-act=publish]').click()
         pg.locator('dialog.out-dialog [data-out-ok]').click()
-        pg.locator('.rv-banner.ok', has_text='Approved and pushed').wait_for()
-        check('Push to origin retries, and the branch is pushed once', pg.evaluate('window.__reviewMock.pushes') == ['shop-api'] and pg.locator('[data-act=push]').count() == 0)
+        pg.locator('.rv-banner.ok', has_text='Approved and published').wait_for()
+        check('Publish retries, and the build is published once', pg.evaluate('window.__reviewMock.publishes') == ['L1-round-order-totals'] and pg.locator('[data-act=publish]').count() == 0)
 
         # The repo switcher.
         check('repo switcher lists both repos', pg.eval_on_selector_all('[data-act=repo] option', 'els => els.map(e => e.value)') == ['shop-api', 'shop-web'])

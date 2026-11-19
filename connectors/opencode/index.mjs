@@ -17,7 +17,7 @@ import { autopilot, autopilotAction, loadAuto, resumeAfterGap, resumeQueued } fr
 import { decideObservation, findObservation, loadObservations, resetObservations, startArgs } from "./lib/observations.mjs";
 import { answerGap, loadGaps, MAX_ANSWER, onGapClosed, resetGaps } from "./lib/gaps.mjs";
 import { buildEpic, coverProduct, dismissOnboarding, loadEpics, onboardProduct, resetEpics, startWaiting } from "./lib/epics.mjs";
-import { forgetPublished, loadPublished, publishItem, readyToPublish, resetPublished } from "./lib/publish.mjs";
+import { forgetPublished, loadPublished, publishItem, readyToPublish, resetPublished, setPublishHooks } from "./lib/publish.mjs";
 import { adoNoticeSeen, linkItem, loadAdoLinks, resetAdoLinks, unlinkAllOnce, unlinkItem } from "./lib/ado-link.mjs";
 import { pageData, resetLive } from "./lib/live.mjs";
 import { MAX_LOG, TIMEBOXES, addRepo, dismissLoose, onboardRepo, resetWorkspace, runLoose, startLocal, startDocs, startReview, startSpike, startTsd } from "./lib/workspace.mjs";
@@ -27,7 +27,10 @@ import { clearQueue, loadPrQueue, prReviews, resetPrQueue, reviewAll, saveInbox,
 import { COLORS, INBOX, assignRun, createProject, deleteProject, loadProjects, moveProject, projectOf, resetProjects, updateProject } from "./lib/projects.mjs";
 import { findItem } from "./lib/actions.mjs";
 import { broadcastLive, emitProjects } from "./lib/live.mjs";
-import { loadReview, needReview, resetReview } from "./lib/review.mjs";
+import { diffStats, loadReview, needReview, resetReview, reviewSummary, reviseAgain } from "./lib/review.mjs";
+
+// The Publish block's code review and change size (lib/publish.mjs stays free of the review and git code).
+setPublishHooks({ review: (folder) => reviewSummary()[folder] || {}, diff: (it) => diffStats(it) });
 import { DAY, MAX_NOTES_BYTES, MAX_PACKET_BYTES, draftOneOnOne, oneOnOneResult, resetOneOnOnes, tidyOneOnOne, tidyResult } from "./lib/one-on-one.mjs";
 import { HUB_ID, MAX_MESSAGE, hubResult, resetHub, runHub } from "./lib/hub.mjs";
 import { MAX_PROMPT as VOICE_MAX, KINDS as VOICE_KINDS, resetVoice, runVoice, voiceResult } from "./lib/voice.mjs";
@@ -1242,10 +1245,10 @@ const actions = {
   "publish.all": {
     title: "Publish every item that is ready with nothing to answer",
     write: true,
-    argsSchema: obj([], { project: projectId }),
+    argsSchema: obj([], { project: projectId, skip: { type: "array", title: "Leave out (folders with draft comments)", maxItems: 200, items: folder } }),
     async run(args) {
       needReady();
-      let items = readyToPublish((model && model.items) || []);
+      let items = readyToPublish((model && model.items) || [], args.skip || []);
       if (args.project) items = items.filter((it) => projectOf(it.folder) === args.project);
       const done = [];
       const failed = [];
@@ -1387,6 +1390,17 @@ const actions = {
     async run(args) {
       needReady();
       return needReview().getFile(args.id, args.repo, args.path, args.side);
+    },
+  },
+  "review.revise": {
+    title: "Code review: start Tandem on the comments you sent back",
+    write: true,
+    argsSchema: obj(["id"], { id: workItemId }),
+    async run(args) {
+      needReady();
+      const r = await reviseAgain(args.id);
+      broadcastLive();
+      return r;
     },
   },
   "review.submit": {

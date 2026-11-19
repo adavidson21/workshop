@@ -7,7 +7,8 @@
    - Overlap: at approval, a build that changes the same files as another offers Build after that one.
    No DOM: main.js paints what these return and handles the clicks. */
 import { S } from './state.js';
-import { h, md, itemForFolder } from './view.js';
+import { h, md, itemForFolder, reviewHref } from './view.js';
+import { hasDraft } from './review-state.js';
 import { outsideMark } from '../../../../shared/outside.js';
 
 const KIND_NAMES = { fact: 'Fact', term: 'Term', repo: 'Repo', process: 'Process' };
@@ -49,10 +50,16 @@ export function teachHtml() {
 /** Gate 2 info for a run, from state.publish (connector 1.21.0), or null. */
 export const publishOf = it => (it && S.D && S.D.publish && S.D.publish[it.folder]) || null;
 
-/** Ready to publish with nothing to answer and no failed UI check: what Publish all ready would send. */
+const store = (() => { try { return window.localStorage; } catch (e) { return null; } })();
+/** Draft code review comments not sent yet for this item, in this browser (Publish all ready leaves those out). */
+export const hasDrafts = it => !!(store && it && it.id && hasDraft(store, it.id));
+
+/** Ready to publish with nothing to answer and no failed UI check: what Publish all ready would send. Since connector
+ *  1.27.0 also nothing waiting on Tandem from a Send back, no must fix comment it declined, and no unsent draft. */
 export function readyClean(it) {
   const p = publishOf(it);
-  return !!p && p.ready && !p.published && !p.questions.length && !p.ui.some(u => u.name !== 'before' && u.verdict === 'fail') && !(p.tests || []).some(t => t.name !== 'before' && t.verdict === 'fail');
+  return !!p && p.ready && !p.published && !p.questions.length && !p.ui.some(u => u.name !== 'before' && u.verdict === 'fail') && !(p.tests || []).some(t => t.name !== 'before' && t.verdict === 'fail') &&
+    !p.revising && !p.openMustFix && !hasDrafts(it);
 }
 export const readyCleanCount = (items) => (items || []).filter(readyClean).length;
 
@@ -98,6 +105,23 @@ function shotImgs(it, before, after, diff) {
   return `<div class="pub-imgs">${one(before, 'Before')}${one(after, 'After')}${one(diff, 'What changed')}</div>`;
 }
 
+const plural = (n, one, many = one + 's') => `${n} ${n === 1 ? one : many}`;
+/** The code, per repo (connector 1.27.0): how big the change is, where its code review stands, and Review the code. */
+function codeHtml(it, p) {
+  const rows = (it.pr || []).map(r => {
+    const d = (p.diff || []).find(x => x.repo === r.repo);
+    const rv = (p.review || {})[r.repo] || null;
+    const size = d && d.files != null ? `${plural(d.files, 'file')}, <span class="add">+${h(String(d.additions))}</span> <span class="del">-${h(String(d.deletions))}</span>` : '<span class="dim">counting the change…</span>';
+    const rev = rv && rv.revision > 1 ? ` <span class="dim">revision ${h(String(rv.revision))}</span>` : '';
+    const link = S.conn === 'on' ? `<a class="btn small" href="${h(reviewHref(it, r.repo))}" data-review title="Read the diff with Tandem's notes, comment on lines, then approve and publish or send it back">Review the code</a>` : '';
+    return `<li><span class="mono">${h(r.repo)}</span> ${size}${rev}${link}</li>`;
+  });
+  if (!rows.length) return '';
+  const drafts = hasDrafts(it) ? '<p class="dim">You have draft comments in the code review that are not sent yet.</p>' : '';
+  const mf = p.openMustFix ? `<p class="flag warn">Tandem declined ${plural(p.openMustFix, 'must fix comment')}. Read its answers in the code review before you publish.</p>` : '';
+  return `<div class="pub-code"><p class="sub-h">The code</p><ul class="pub-repos">${rows.join('')}</ul>${mf}${drafts}<p class="dim">Optional: Publish works without opening it.</p></div>`;
+}
+
 /** The Publish block on a ready build's page and panel. */
 export function publishHtml(it) {
   const p = publishOf(it);
@@ -109,7 +133,7 @@ export function publishHtml(it) {
   if (!p.ready) return '';
   const q = p.questions.length ? `<div class="pub-q"><p class="sub-h">Questions from the review</p><ul>${p.questions.map(x => `<li>${md(x)}</li>`).join('')}</ul><p class="dim">Answer them in your head or send it back; they do not block Publish.</p></div>` : '';
   const busy = S.ui.busy && S.ui.busy['pub:' + it.folder];
-  return `<div class="pub"><p class="sub-h">Ready to publish</p>${testsHtml(p)}${uiHtml(it, p)}${q}` +
+  return `<div class="pub"><p class="sub-h">Ready to publish</p>${testsHtml(p)}${uiHtml(it, p)}${q}${codeHtml(it, p)}` +
     `<div class="row"><button type="button" class="btn primary" data-publish="${h(it.folder)}"${busy ? ' disabled' : ''} title="Pushes every branch in pr.md (never force), then opens each PR page with the text filled in">${busy ? 'Publishing…' : 'Publish ' + outsideMark('git')}</button>` +
     `<span class="dim">Pushes ${h(String((it.pr || []).length))} branch${(it.pr || []).length === 1 ? '' : 'es'} and opens the PRs.</span></div></div>`;
 }
@@ -119,7 +143,7 @@ export function publishAllHtml(items) {
   const n = readyCleanCount(items);
   if (!n) return '';
   const busy = S.ui.busy && S.ui.busy['pub:all'];
-  return `<button type="button" class="btn primary small ln-puball" data-publish-all="1"${busy ? ' disabled' : ''} title="Publishes every ready build whose review has no questions and whose tests and UI checks passed">${busy ? 'Publishing…' : `Publish all ready (${n})`}</button>`;
+  return `<button type="button" class="btn primary small ln-puball" data-publish-all="1"${busy ? ' disabled' : ''} title="Publishes every ready build whose review has no questions, whose tests and UI checks passed, and that has no code review comments waiting">${busy ? 'Publishing…' : `Publish all ready (${n})`}</button>`;
 }
 
 /** The confirm text for Publish: each repo and branch. */

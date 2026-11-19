@@ -152,3 +152,26 @@ body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 var(-
   .rv-panel { border-left: 0; border-top: 1px solid var(--line); overflow: visible; }
   .rv-top { padding: 12px 16px; }
 }
+
+/* Connector 1.27.0: reading order, Tandem's review beside the diff, teammates' PR comments, Make it a rule. */
+.rv-rgroup + .rv-rgroup { margin-top: 8px; }
+.rv-ghead { margin: 0; padding: 4px 8px 2px; font: 600 12px var(--sans); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; width: 100%; text-align: left; }
+button.rv-ghead { cursor: pointer; }
+.rv-ftask { margin-left: 10px; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rv-ncount { flex: none; min-width: 18px; height: 18px; padding: 0 5px; display: grid; place-items: center; border-radius: 9px; font: 600 12px var(--mono); color: var(--warn); background: var(--warn-soft); }
+.rv-nglyph { display: grid; place-items: center; }
+.rv-nglyph::before { content: ""; width: 8px; height: 8px; border-radius: 2px; transform: rotate(45deg); background: var(--warn); }
+.rv-nglyph.fixed::before { background: #2F7A4E; opacity: .7; }
+.rv-toggles { display: flex; flex-wrap: wrap; gap: 6px 16px; }
+.rv-rule { flex: none; font: 600 11.5px/1 var(--sans); padding: 3px 6px; border-radius: 4px; color: var(--accent); background: var(--accent-soft); }
+.rv-notes, .rv-threads { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.rv-note.fixed { opacity: .72; }
+.rv-note.fixed:hover { opacity: 1; }
+.rv-nsev { flex: none; font: 600 11.5px/1 var(--sans); padding: 3px 6px; border-radius: 4px; color: var(--muted); background: var(--hover); }
+.rv-nsev.n-blocker { color: var(--danger); background: var(--danger-soft); }
+.rv-nsev.n-should_fix, .rv-nsev.n-question { color: var(--warn); background: var(--warn-soft); }
+.rv-thread { display: grid; gap: 4px; padding: 7px 8px; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--surface); font-size: 13px; }
+.rv-thread.fixed { opacity: .72; }
+.rv-tmeta { margin: 0; font-size: 12px; color: var(--muted); display: flex; gap: 8px; }
+.rv-thread .btn { justify-self: start; }
+.rv-hint { margin: 6px 0 0; font-size: 12px; }

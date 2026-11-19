@@ -4,6 +4,12 @@
 // Publish all ready does the same for every ready item with no open review questions.
 //
 // What was published, and when, is kept in .work/_dashboard/published.json: { "<folder>": { at, repos: [...] } }.
+//
+// 1.27.0 (claude/publish-review-v1-plan.md): the Publish block also says how big each repo's change is and where its
+// code review stands (hooks set by index.mjs, so this module stays free of the review and git code). Publish refuses
+// while Tandem works on Send back comments, and Publish all ready skips builds with a must fix comment Tandem
+// declined, and any the page names (`skip`: drafts not sent yet). The after-Publish watcher (after-publish.mjs)
+// keeps each repo's PR state in the same record, under `watch`.
 
 import fs from "node:fs";
 import path from "node:path";
@@ -11,6 +17,14 @@ import { httpError, stateDir, workRoot } from "./context.mjs";
 
 const stateFile = () => path.join(stateDir, "published.json");
 let published = {};
+
+// Set by index.mjs: hooks.review(folder) => {"<repo>": {status, revision, sentBack, openMustFix}}, hooks.diff(item) =>
+// [{repo, files, additions, deletions}].
+const hooks = { review: () => ({}), diff: () => [] };
+export function setPublishHooks(h) {
+  if (h && typeof h.review === "function") hooks.review = h.review;
+  if (h && typeof h.diff === "function") hooks.diff = h.diff;
+}
 
 export function loadPublished() {
   try {
@@ -105,7 +119,10 @@ export function publishInfo(it) {
     questions = reviewQuestions(fs.readFileSync(path.join(workRoot, it.folder, "review.md"), "utf8"));
   } catch {}
   const pushed = (it.pr || []).length > 0 && (it.pr || []).every((p) => p.push && p.push.remote && p.push.unpushed === 0);
-  return { ready, questions, ui: uiResults(it.folder), tests: testResults(it.folder), published: published[it.folder] || null, pushed };
+  const review = hooks.review(it.folder) || {};
+  const revising = Object.values(review).some((r) => r && r.status === "revising");
+  const openMustFix = Object.values(review).reduce((n, r) => n + ((r && r.openMustFix) || 0), 0);
+  return { ready, questions, ui: uiResults(it.folder), tests: testResults(it.folder), published: published[it.folder] || null, pushed, review, revising, openMustFix, diff: ready ? hooks.diff(it) : [] };
 }
 
 /** Publish info for every work item that is ready or was published, by folder. */
@@ -127,6 +144,7 @@ export function publishData(items) {
 export async function publishItem(it, push) {
   if (!it || it.kind !== "item") throw httpError(404, "No such work item. Refresh the page.");
   if (!(it.next && it.next.stage === "ship")) throw httpError(409, `${it.id} is not ready to publish yet: ${(it.next && (it.next.text || it.next.action)) || "the build is not done"}.`);
+  if (Object.values(hooks.review(it.folder) || {}).some((r) => r && r.status === "revising")) throw httpError(409, `Tandem is working on the comments you sent back for ${it.id}. It comes back to Publish when it is done.`);
   const rows = it.pr || [];
   if (!rows.length) throw httpError(409, "pr.md has no repo sections to publish.");
   const repos = [];
@@ -144,13 +162,27 @@ export async function publishItem(it, push) {
   return { ok: true, folder: it.folder, repos };
 }
 
-/** The items Publish all ready would publish: ready, not published, no open review questions. */
-export function readyToPublish(items) {
+/** The items Publish all ready would publish: ready, not published, no open review questions, no failed checks, no
+ *  comments waiting on Tandem or must fix comments it declined, and not in `skip` (folders with drafts in the page). */
+export function readyToPublish(items, skip = []) {
+  const no = new Set(skip || []);
   return (items || []).filter((it) => {
-    if (it.kind !== "item" || published[it.folder]) return false;
+    if (it.kind !== "item" || published[it.folder] || no.has(it.folder)) return false;
     const info = publishInfo(it);
-    return info && info.ready && !info.questions.length && !checksFailed(info);
+    return info && info.ready && !info.questions.length && !checksFailed(info) && !info.revising && !info.openMustFix;
   });
+}
+
+/** Published records, for the after-Publish watcher: {"<folder>": {at, repos: [{repo, branch, target, pr, watch?}], merged?}}. */
+export const publishedRecords = () => published;
+
+/** Changes one published record with fn(record) and saves it. Returns the record, or null when there is none. */
+export function updatePublished(folder, fn) {
+  const r = published[folder];
+  if (!r) return null;
+  fn(r);
+  save();
+  return r;
 }
 
 /** Forget an item's publish record (the item was removed). */

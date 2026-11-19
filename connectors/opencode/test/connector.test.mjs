@@ -988,3 +988,96 @@ describe("push", { skip: skip || (!hasGit && "git is not installed") }, () => {
     await rejects(call("push", { folder: "41610-rate-limit-headers", repo: "gateway" }), "unavailable", /Push failed for gateway/);
   });
 });
+
+// 1.27.0 (Workshop project doc claude/publish-review-v1-plan.md): Send back from the code review starts autopilot with
+// /revise first; the build goes round again and comes back to Publish as the next revision.
+describe("code review at Publish: Send back", { skip: !hasGit }, () => {
+  let ws, fake;
+  const FOLDER = "41610-rate-limit-headers";
+  const titles = () => fake.bodiesFor("POST /session").map((b) => b.title);
+  const live = async () => (await call("state")).liveMode.live;
+  const finish = async (sid) => {
+    fake.send(busyEvent("v1", sid));
+    await waitFor(async () => (await live()).sessions[sid]?.status === "busy", "the session to be busy");
+    fake.send(idleEvent("v1", sid));
+    await waitFor(async () => (await live()).sessions[sid]?.status === "idle", "the session to go idle");
+  };
+  const sessionFor = async (title) => {
+    await waitFor(() => titles().includes(title), `${title} to run`);
+    await waitFor(async () => !!(await live()).items[FOLDER]?.current, "the session to be linked");
+    return (await live()).items[FOLDER].current;
+  };
+  const feedback = (s, comments) => ({ workItemId: "41610", repo: "gateway", revision: s.revision, headSha: s.headSha, verdict: "request_changes", comments });
+  before(async () => {
+    ws = makeWorkspace({ repos: true });
+    fake = await startFakeOpencode({ kind: "v1" });
+    await startConnector(configFor(ws.dir, { url: fake.url }));
+    await waitFor(() => oc.status().details.opencode.connected, "opencode to connect");
+  });
+  after(async () => {
+    await oc.stop();
+    await fake.close();
+    ws.remove();
+  });
+
+  test("the session carries Tandem's findings and the files in reading order; Publish shows the change size", async () => {
+    const s = await call("review.session", { id: "41610", repo: "gateway" });
+    assert.deepEqual(s.files.map((f) => f.path), ["headers.txt"]);
+    assert.equal(s.files[0].folded, false);
+    assert.deepEqual(s.notes.map((n) => [n.path, n.line, n.severity, n.state]), [["src/RateLimit/HeaderWriter.cs", 18, "should_fix", "open"], ["tests/RateLimitTests.cs", 40, "nit", "open"]]);
+    await waitFor(async () => (await call("state")).publish[FOLDER].diff[0].files === 1, "the change size to be counted");
+    assert.deepEqual((await call("state")).publish[FOLDER].diff, [{ repo: "gateway", files: 1, additions: 1, deletions: 0 }]);
+  });
+
+  test("Send back runs /revise, Publish waits, and the build comes back as revision 2 with Tandem's answers", async () => {
+    let s = await call("review.session", { id: "41610", repo: "gateway" });
+    const r = await call("review.submit", { id: "41610", repo: "gateway", feedback: feedback(s, [{ id: "c1", path: "headers.txt", side: "new", startLine: 1, endLine: 1, quotedCode: "x", type: "question", body: "Why x?", rule: true }]) });
+    assert.equal(r.status, "revising");
+    const dir = path.join(ws.work, FOLDER, "code-review", "gateway");
+    assert.equal(JSON.parse(fs.readFileSync(path.join(dir, "rev-1.json"), "utf8")).comments[0].rule, true, "Make it a rule is kept for /revise");
+    const sid = await sessionFor("41610: /revise 41610 auto");
+    let st = await call("state");
+    assert.equal(st.reviews[FOLDER].gateway.status, "revising");
+    assert.equal(st.reviews[FOLDER].gateway.sentBack, 1);
+    assert.equal(st.publish[FOLDER].revising, true);
+    await rejects(call("publish", { folder: FOLDER }), "conflict", /working on the comments/);
+    assert.equal(st.reviews[FOLDER].gateway.run.status, "running");
+    // What /revise does: answers, revise.md, and pr.md to history so /pr writes it again.
+    fs.writeFileSync(path.join(dir, "rev-1-response.json"), JSON.stringify([{ commentId: "c1", status: "answered", note: "The limiter sets it." }]));
+    fs.writeFileSync(path.join(ws.work, FOLDER, "revise.md"), "# Revise: 41610 revision 1\n\n- Status: READY\n");
+    const pr = fs.readFileSync(path.join(ws.work, FOLDER, "pr.md"), "utf8");
+    fs.mkdirSync(path.join(ws.work, FOLDER, "history"), { recursive: true });
+    fs.renameSync(path.join(ws.work, FOLDER, "pr.md"), path.join(ws.work, FOLDER, "history", "pr-2026-11-19-1.md"));
+    s = await call("review.session", { id: "41610", repo: "gateway" }); // pr.md gone: repos.md's branch is used
+    assert.equal(s.branch, "dev/bug/41610-rate-limit-headers");
+    await finish(sid);
+    const sid2 = await waitFor(async () => titles().includes("41610: /pr 41610") && (await live()).items[FOLDER].current !== sid, "/pr to run next").then(async () => (await live()).items[FOLDER].current);
+    fs.writeFileSync(path.join(ws.work, FOLDER, "pr.md"), pr);
+    await finish(sid2);
+    await waitFor(async () => (await call("state")).reviews[FOLDER].gateway.status === "awaiting_review", "the next revision");
+    st = await call("state");
+    assert.equal(st.reviews[FOLDER].gateway.revision, 2);
+    assert.equal(st.liveMode.live.autopilot[FOLDER].status, "done");
+    s = await call("review.session", { id: "41610", repo: "gateway" });
+    assert.deepEqual(s.previousResponses, [{ commentId: "c1", status: "answered", note: "The limiter sets it." }]);
+  });
+
+  test("a held Send back waits for you with revise.md's Needs you line; review.revise starts it again", async () => {
+    const s = await call("review.session", { id: "41610", repo: "gateway" });
+    await call("review.submit", { id: "41610", repo: "gateway", feedback: feedback(s, [{ id: "c2", path: "headers.txt", side: "new", startLine: 1, endLine: 1, quotedCode: "x", type: "must_fix", body: "Use the new limiter package" }]) });
+    const before = titles().filter((t) => t === "41610: /revise 41610 auto").length;
+    await waitFor(() => titles().filter((t) => t === "41610: /revise 41610 auto").length === before + 1 || before === 2, "/revise to run again");
+    const sid = (await live()).items[FOLDER].current;
+    fs.writeFileSync(path.join(ws.work, FOLDER, "revise.md"), "# Revise: 41610 revision 2\n\n- Status: HOLD\n\n## Needs you\n\n- gateway/c2: it needs a new package.\n");
+    await finish(sid);
+    await waitFor(async () => (await live()).autopilot[FOLDER].status === "waiting", "autopilot to wait");
+    const a = (await live()).autopilot[FOLDER];
+    assert.match(a.message, /^Needs you: gateway\/c2: it needs a new package\./);
+    assert.equal((await call("state")).reviews[FOLDER].gateway.run.status, "failed");
+    const n = titles().length;
+    await call("review.revise", { id: "41610" });
+    await waitFor(() => titles().length > n && titles().at(-1) === "41610: /revise 41610 auto", "/revise to start again");
+    await rejects(call("review.revise", { id: "41610" }), "conflict", /already working/);
+    await call("autopilot", { folder: FOLDER, action: "stop" });
+  });
+});

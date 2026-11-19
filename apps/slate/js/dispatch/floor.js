@@ -80,7 +80,12 @@ function activityOf(it) {
   const s = it && itemSession(it);
   return String((s && s.activity) || '');
 }
-const STEP_FITS = { build: ['build', 'test', 'fix'], review: ['review', 'test', 'ui', 'fix'] };
+const STEP_FITS = { build: ['build', 'test', 'ui', 'fix'], review: ['review', 'test', 'ui', 'fix'] };
+/** Comments you sent back from the code review that Tandem is working on (connector 1.27.0), or 0. */
+export function sentBackOf(it) {
+  const r = it && S.D && S.D.reviews && S.D.reviews[it.folder];
+  return r ? Object.values(r).filter(x => x && x.status === 'revising').reduce((n, x) => n + (x.sentBack || 0), 0) || (Object.values(r).some(x => x && x.status === 'revising') ? 1 : 0) : 0;
+}
 /** The station Tandem's step.md names (Core 4.12.0), or '' when there is none or it does not fit the item's stage. */
 export function toldStep(it) {
   const st = it && it.step && it.step.name;
@@ -100,6 +105,8 @@ export function stationOf(c) {
     if (!it) return 'build';
     // Core 4.12.0: Tandem says where the build is (step.md), when it fits the stage the item is at.
     const told = toldStep(it);
+    // A Send back (connector 1.27.0): its fix tasks are built in the Fix shop, whatever step.md says.
+    if (it.stage === 'build' && sentBackOf(it) && (!told || told === 'build')) return 'fix';
     if (told) return told;
     const act = activityOf(it);
     if (it.stage === 'review') {
@@ -179,10 +186,11 @@ function chipHtml(c, sel) {
   const key = keyOf(c);
   const on = sel && sel === key;
   const tb = testsBadge(c.it);
-  const label = `${TYPE(c)}: ${c.title}. ${c.status}${tb ? '. ' + tb.text : ''}${c.mine ? '. Your turn: ' + c.action : ''}`;
+  const sb = sentBackOf(c.it);
+  const label = `${TYPE(c)}: ${c.title}. ${c.status}${tb ? '. ' + tb.text : ''}${sb ? `. Your comments: ${sb}` : ''}${c.mine ? '. Your turn: ' + c.action : ''}`;
   return `<button type="button" class="fl-card k-${h(c.kind)}${c.it && c.it.story ? ' story' : ''}${c.mine ? ' mine' : ''}${on ? ' on' : ''}" data-lane-open="${h(key)}" aria-pressed="${!!on}" aria-label="${h(label)}" title="${h(c.title + ' · ' + c.status)}">` +
     `<span class="fl-ctop">${projSw(c)}<span class="fl-id">${c.id ? '#' + h(c.id) : h(TYPE(c))}</span>${c.id ? `<span class="fl-type">${h(TYPE(c))}</span>` : ''}</span>` +
-    `<span class="fl-title">${h(c.title)}</span>${tb ? `<span class="fl-tst ${tb.cls}" aria-hidden="true">${h(tb.text)}</span>` : ''}${c.mine && c.action ? `<span class="fl-act">${h(c.action)}</span>` : ''}</button>`;
+    `<span class="fl-title">${h(c.title)}</span>${tb ? `<span class="fl-tst ${tb.cls}" aria-hidden="true">${h(tb.text)}</span>` : ''}${sb ? `<span class="fl-tst sb" aria-hidden="true">Your comments: ${h(String(sb))}</span>` : ''}${c.mine && c.action ? `<span class="fl-act">${h(c.action)}</span>` : ''}</button>`;
 }
 function stackHtml(line, s, sel) {
   const key = line + ':' + s.id;

@@ -87,6 +87,13 @@ export function orderTax(order: Order, rate: number): number {
         { path: 'src/orders/totals.ts', status: 'modified', additions: 3, deletions: 2, binary: false },
       ],
       since: [{ path: 'src/orders/totals.ts', status: 'modified', additions: 1, deletions: 2, binary: false }],
+      // Tandem's own review (connector 1.27.0): one finding it fixed in an earlier round, one Nit left open.
+      notes: [
+        { id: 'review-2026-11-19-1#1', path: 'src/orders/rounding.ts', line: 4, kind: 'finding', severity: 'blocker', category: 'correctness', text: 'Negative amounts rounded toward zero. Fix: Round the absolute value', state: 'fixed', round: 1 },
+        { id: 'review#1', path: 'src/orders/totals.ts', line: 14, kind: 'finding', severity: 'nit', category: 'consistency', text: 'orderTax rounds inline. Fix: Use roundMoney', state: 'open', round: 2 },
+      ],
+      // A teammate's comment on the published PR (after Publish).
+      threads: [{ id: 't1', path: 'src/orders/totals.ts', line: 9, author: 'Sam', text: 'Should the total use roundMoney before tax too?', resolved: false }],
     },
     'shop-web': {
       branch: 'dev/feature/L1-round-order-totals',

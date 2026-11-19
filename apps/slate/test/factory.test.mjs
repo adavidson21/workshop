@@ -102,3 +102,32 @@ test('Publish: the regression suite shows passed, new tests and the criteria the
   p.tests = [];
   assert.doesNotMatch(publishHtml(item(READY)), /Regression tests/);
 });
+
+test('Publish: the code per repo (connector 1.27.0): its size, Review the code, and what keeps it out of Publish all ready', () => {
+  const p = S.D.publish[READY];
+  const it = item(READY);
+  const was = S.conn;
+  S.conn = 'on';
+  p.published = null;
+  p.questions = [];
+  p.diff = [{ repo: 'gateway', files: 8, additions: 214, deletions: 37 }];
+  p.review = { gateway: { status: 'awaiting_review', revision: 2, sentBack: 0, openMustFix: 0 } };
+  let html = publishHtml(it);
+  assert.match(html, /<span class="mono">gateway<\/span> 8 files, <span class="add">\+214<\/span> <span class="del">-37<\/span> <span class="dim">revision 2<\/span><a class="btn small" href="review\.html\?id=41610&amp;repo=gateway" data-review/);
+  assert.match(html, /Optional: Publish works without opening it\./);
+  assert.equal(readyClean(it), true);
+  p.openMustFix = 1;
+  assert.match(publishHtml(it), /Tandem declined 1 must fix comment\./);
+  assert.equal(readyClean(it), false, 'a declined must fix keeps it out of Publish all ready');
+  p.openMustFix = 0;
+  p.revising = true;
+  assert.equal(readyClean(it), false, 'comments waiting on Tandem');
+  p.revising = false;
+  p.diff = [{ repo: 'gateway', files: null, additions: null, deletions: null }];
+  assert.match(publishHtml(it), /counting the change/);
+  S.conn = 'off';
+  assert.doesNotMatch(publishHtml(it), /Review the code/, 'the code review needs the connector');
+  S.conn = was;
+  delete p.diff;
+  delete p.review;
+});

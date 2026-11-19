@@ -6,7 +6,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { current, httpError, later, log, opt, stateDir } from "./context.mjs";
+import { current, httpError, later, log, opt, stateDir, workRoot } from "./context.mjs";
 import { runModel, setModel } from "./model.mjs";
 import { currentSession, linkSessionsFromModel } from "./links.mjs";
 import { sessions } from "./opencode-state.mjs";
@@ -47,6 +47,13 @@ import { holdingGap } from "./gaps.mjs";
 //     resumes the build.
 //   - A restart keeps queued and running builds queued; they start again once opencode is connected.
 //   - Review rounds come from the factory settings.
+//
+// 1.27.0 (eng-agents Core 4.15.0, Workshop project docs claude/publish-review-v1-plan.md and claude/after-publish-v1-plan.md):
+//   - A build can start with one command of Workshop's own before the usual steps (`pending`, startPending): /revise
+//     after a Send back from the code review, /pr-fix after Publish. Then the next-step rules carry on as always
+//     (the fix tasks, a review round, the PR text) until the item is ready to publish again.
+//   - /revise that wrote `Status: HOLD` in revise.md waits for you with its Needs you lines.
+//   - onAutoChange(fn) hears every status change (the code review follows a Send back with it).
 
 const autoFile = () => path.join(stateDir, "autopilot.json");
 const AUTO_STEPS = new Set(["quick", "approve", "tasks", "do-task", "review", "pr"]);
@@ -171,6 +178,16 @@ export function resumeQueued() {
   later(startQueued, 0);
 }
 
+const changeHooks = new Set();
+/** fn(folder, status, message) after every status change. Returns a function that removes it. */
+export function onAutoChange(fn) {
+  changeHooks.add(fn);
+  return () => changeHooks.delete(fn);
+}
+function changed(folder, status, message) {
+  for (const fn of changeHooks) setImmediate(() => { try { fn(folder, status, message); } catch (e) { log(`autopilot hook: ${e.message}`); } });
+}
+
 function autoSet(folder, status, message) {
   const a = autopilot[folder];
   if (!a) return;
@@ -182,7 +199,22 @@ function autoSet(folder, status, message) {
   saveAuto();
   emitAutopilot(folder, status, a.message);
   broadcastLive();
+  changed(folder, status, a.message);
   if (wasRunning && status !== "running") later(startQueued, 0);
+}
+
+/** revise.md's status and Needs you lines (eng-agents Core 4.15.0 /revise), or null when there is none. */
+export function reviseStatus(folder) {
+  let t;
+  try {
+    t = fs.readFileSync(path.join(workRoot, folder, "revise.md"), "utf8");
+  } catch {
+    return null;
+  }
+  const st = (/^\s*-\s*Status:\s*(READY|HOLD)\b/im.exec(t) || [])[1] || null;
+  const sec = /^##\s+Needs you\s*$([\s\S]*?)(?=^##\s|(?![\s\S]))/im.exec(t);
+  const needs = sec ? sec[1].split(/\r?\n/).map((l) => (/^\s*[-*]\s+(.+?)\s*$/.exec(l) || [])[1]).filter((l) => l && !/^none\.?$/i.test(l) && !/^</.test(l)) : [];
+  return { status: st ? st.toUpperCase() : null, needs };
 }
 
 // Why the item needs you, in one line, from the page's own next step.
@@ -217,6 +249,28 @@ async function autoStep(folder, finished = false) {
     // How did the last step end?
     const last = a.session ? sessions.get(a.session) : null;
     if (finished && last && last.error) return autoSet(folder, "waiting", `${a.command} stopped: ${last.error}`);
+    // /revise put something on hold (a new dependency, a migration, auth code, another repo): wait for you.
+    if (finished && a.command && /^\/revise\b/.test(a.command)) {
+      const rv = reviseStatus(folder);
+      if (rv && rv.status === "HOLD") return autoSet(folder, "waiting", `Needs you: ${rv.needs.join(" ") || "some comments need you; read revise.md"} Answer in the code review or fix it, then click Resume.`);
+    }
+    // Workshop's own first command (1.27.0): /revise after a Send back, /pr-fix after Publish.
+    if (a.pending && !finished) {
+      const full = a.pending;
+      a.lastCommand = full;
+      a.retried = null;
+      a.gap = null;
+      a.command = full;
+      a.inFlight = true;
+      a.sawBusy = false;
+      const run = await runCommand({ folder, command: full }, { fresh: true, fromAuto: true });
+      a.pending = null;
+      a.session = run.session;
+      autoLog(folder, `Running ${full}`);
+      saveAuto();
+      broadcastLive();
+      return;
+    }
     // A review that turned Blockers into fix tasks starts a fix round.
     if (finished && a.command && /^\/review\b.*\sauto$/.test(a.command) && it.gates.review && it.gates.review !== "READY") a.fixRounds = (a.fixRounds || 0) + 1;
     // The step stopped on a knowledge gap it could not work around: wait for your answer (gap.answer resumes).
@@ -402,10 +456,44 @@ export async function autopilotAction({ folder, action, after }) {
   return { ok: true };
 }
 
+/**
+ * Starts (or queues) a build whose first step is Workshop's own command: `/revise <id> auto` after a Send back, or
+ * `/pr-fix <id> ci|conflict auto` after Publish. The item's plan is approved already, so no gate is checked here;
+ * the usual next-step rules run after it. `why` goes in the log.
+ */
+export async function startPending(folder, command, why) {
+  const it = findItem(folder);
+  if (!it || it.kind !== "item") throw httpError(404, `No work item folder "${folder}". Refresh the page.`);
+  needOpencode();
+  const a0 = autopilot[folder];
+  if (a0 && (a0.status === "running" || a0.status === "queued")) throw httpError(409, "Tandem is already working on this item. Wait for it, or stop it first.");
+  if (it.paused) throw httpError(409, `The item is paused. Run /resume ${it.id} first.`);
+  const s = sessions.get(currentSession(folder));
+  if (s && s.status !== "idle") throw httpError(409, "This item's agent is still working. Wait for it, or stop it first.");
+  const full = runningCount() >= autoOptions().maxRuns;
+  const now = new Date().toISOString();
+  autopilot[folder] = { status: full ? "queued" : "running", queued: full ? now : null, message: null, command: null, lastCommand: null, retried: null, gap: null, after: null, session: null, inFlight: false, sawBusy: false, approveFirst: false, fixRounds: 0, pending: command, started: now, log: (a0 && a0.log) || [] };
+  autoLog(folder, why || `Started with ${command}`);
+  if (full) {
+    autopilot[folder].message = `Queued: ${autoOptions().maxRuns} builds are running. It starts when one finishes.`;
+    saveAuto();
+    emitAutopilot(folder, "queued", autopilot[folder].message);
+    changed(folder, "queued", autopilot[folder].message);
+    broadcastLive();
+    return { ok: true, queued: true };
+  }
+  saveAuto();
+  emitAutopilot(folder, "running", null);
+  changed(folder, "running", null);
+  broadcastLive();
+  await autoStep(folder);
+  return { ok: true };
+}
+
 export function autoData() {
   const out = {};
   for (const [folder, a] of Object.entries(autopilot)) {
-    out[folder] = { status: a.status, queued: a.queued || null, message: a.message, command: a.command, session: a.session, fixRounds: a.fixRounds || 0, maxFixRounds: maxFixRounds(), after: a.after || null, gap: a.gap || null, started: a.started, updated: a.updated, log: (a.log || []).slice(-8) };
+    out[folder] = { status: a.status, queued: a.queued || null, message: a.message, command: a.command, pending: a.pending || null, session: a.session, fixRounds: a.fixRounds || 0, maxFixRounds: maxFixRounds(), after: a.after || null, gap: a.gap || null, started: a.started, updated: a.updated, log: (a.log || []).slice(-8) };
   }
   return out;
 }

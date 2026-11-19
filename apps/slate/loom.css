@@ -245,6 +245,7 @@ body[data-loom-tab=lanes] #runs-root .page:has(.fl-body) { max-width: none; }
 #runs-root .fl-tst.ok { color: var(--muted); }
 #runs-root .fl-tst.warn { color: var(--gate); background: var(--gate-soft); }
 #runs-root .fl-tst.bad { color: var(--stop); background: var(--stop-soft); }
+#runs-root .fl-tst.sb { color: var(--accent); background: var(--accent-soft, transparent); }
 #runs-root .fl-act { align-self: flex-start; font: 700 11px/1 var(--sans); color: var(--merlot-ink); background: var(--merlot); border-radius: 5px; padding: 3px 6px; margin-top: 2px; }
 #runs-root .fl-more { font: 600 12px/1 var(--sans); color: var(--accent); background: none; border: 1px dashed var(--line); border-radius: 7px; padding: 6px; cursor: pointer; }
 #runs-root .fl-express { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px; align-items: center; margin-bottom: 8px; }

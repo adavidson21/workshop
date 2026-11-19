@@ -13,14 +13,15 @@ import { loadMonaco } from './review-monaco.js';
 import { reviewApi, mockReviewApi } from './review-api.js';
 import {
   parseHash, formatHash, select, draftKey, loadDraft, saveDraft, emptyDraft, nextCommentId, upsertComment, removeComment,
-  quoteLines, buildFeedback, visibleFiles, sidesFor, languageFor, canRequestChanges,
+  quoteLines, buildFeedback, visibleFiles, sidesFor, languageFor, canRequestChanges, notesByLine, NOTE_LABEL, commentFromThread,
 } from './review-state.js';
 import { confirmOutside } from '../../../../shared/outside.js';
 import { esc, topBar, banner, filesPane, fileBar, placeholder, commentBox, panel } from './review-view.js';
 
-// Approve only records the verdict, on this computer. Pushing the branch changes the git remote, so it is its own
-// button, Push to origin, with the shared outside confirm (shared/outside.js). Nothing is pushed before Approve.
-const APPROVE_LABEL = 'Approve';
+// Since connector 1.27.0 the code review is the depth behind Publish: Approve records the verdict, then publishes the
+// whole build (Loom's Publish: every branch, never force), after the shared outside confirm (shared/outside.js).
+// Send back saves the comments and Tandem's /revise turns them into fixes; the build comes back as the next revision.
+const APPROVE_LABEL = 'Approve and publish';
 
 const params = new URLSearchParams(location.search);
 const MOCK = params.get('mock') === '1';
@@ -41,7 +42,7 @@ const R = {
   draft: emptyDraft(),
   key: null,
   // Side by side needs room; small screens start inline.
-  ui: { pushed: false, pushing: false, sideBySide: window.innerWidth > 900, sinceLast: false, panelOpen: true, file: null, error: null, submitting: false, confirmApprove: false, saveFailed: false, backHref: '', approveLabel: APPROVE_LABEL },
+  ui: { published: false, publishing: false, publishError: null, canPublish: false, revising: false, showFolded: false, sideBySide: window.innerWidth > 900, sinceLast: false, panelOpen: true, file: null, error: null, submitting: false, confirmApprove: false, saveFailed: false, backHref: '', approveLabel: APPROVE_LABEL },
   sel: null, // { file, side, anchor, start, end }
   editing: null, // { comment, isNew }
   expanded: new Set(),
@@ -240,6 +241,16 @@ function paintDecorations() {
       list.push({ range: new monaco.Range(sel.start, 1, sel.end, 1), options: { isWholeLine: true, className: 'rv-sel', linesDecorationsClassName: 'rv-selbar' } });
     }
     if (hover && hover.side === side) list.push({ range: new monaco.Range(hover.line, 1, hover.line, 1), options: { glyphMarginClassName: 'rv-plus' } });
+    // Tandem's own findings (connector 1.27.0), on the new side: a mark in the gutter, the note on hover.
+    if (side === 'new' && !R.ui.sinceLast) {
+      const lines = sides.new.getModel() ? sides.new.getModel().getLineCount() : 0;
+      for (const [line, notes] of notesByLine(R.session, R.ui.file)) {
+        if (line > lines || R.draft.comments.some(c => c.path === R.ui.file && c.side === 'new' && c.startLine === line)) continue;
+        const open = notes.some(n => n.state === 'open');
+        const text = notes.map(n => `**${NOTE_LABEL[n.severity] || n.severity}${n.state === 'fixed' ? ', fixed' : ''}:** ${n.text}`).join('\n\n');
+        list.push({ range: new monaco.Range(line, 1, line, 1), options: { glyphMarginClassName: open ? 'rv-nglyph' : 'rv-nglyph fixed', glyphMarginHoverMessage: { value: `Tandem's review\n\n${text}` } } });
+      }
+    }
     decos[side].set(list);
   }
   writeHash();
@@ -261,6 +272,7 @@ function openForm() {
     id: prev ? prev.id : nextCommentId(R.draft.comments),
     path: R.sel.file, side: R.sel.side, startLine: R.sel.start, endLine: R.sel.end,
     type: prev ? prev.type : 'must_fix', body: prev ? prev.body : '',
+    ...(prev && prev.rule ? { rule: true } : {}),
   };
   if (prev && prev.suggestedCode !== undefined) comment.suggestedCode = selectedText(comment);
   R.editing = { comment, isNew: true };
@@ -279,6 +291,9 @@ function syncForm() {
   R.editing.comment.body = f.querySelector('[name=body]').value;
   const code = f.querySelector('[name=suggested]');
   if (code) R.editing.comment.suggestedCode = code.value;
+  const rule = f.querySelector('[name=rule]');
+  if (rule && rule.checked) R.editing.comment.rule = true;
+  else delete R.editing.comment.rule;
 }
 
 function saveForm() {
@@ -497,15 +512,17 @@ async function submit(verdict) {
       if (c) jumpTo(c);
       return;
     }
+    // Approve and publish: the outside confirm comes first, so a No sends nothing at all.
+    if (verdict === 'approve' && !(await confirmPublish())) { R.ui.confirmApprove = false; return; }
     await R.api.submit(R.id, R.repo, built.feedback);
     R.draft = emptyDraft();
     persist();
     R.ui.confirmApprove = false;
     if (verdict === 'approve') {
       await loadSession();
-      ws.toast('Approved. Nothing is pushed until you click Push to origin.', { kind: 'info' });
+      await publishNow();
     } else {
-      ws.toast('Sent to the agent. It is revising now.', { kind: 'info' });
+      ws.toast('Sent back. Tandem is turning your comments into fixes; it comes back here when it is done.', { kind: 'info' });
       await loadSession();
     }
   } catch (e) {
@@ -517,30 +534,55 @@ async function submit(verdict) {
   }
 }
 
-// Push the reviewed branch (the connector's Push: git push -u origin <pr.md branch>, never --force), after Approve,
-// only once the shared confirm says yes. Only that click sends confirm: true.
-async function pushBranch() {
-  if (R.ui.pushing) return;
-  const branch = R.session && R.session.branch;
-  const ok = await confirmOutside({
+// Publish the build (Loom's Publish: every branch in pr.md, never force) once the shared confirm says yes.
+function confirmPublish() {
+  return confirmOutside({
     system: 'git',
-    title: `Push ${branch || 'this branch'} to origin?`,
-    body: 'Sends the approved branch to the remote, where your team can see it. It never force-pushes.',
-    items: [`${R.repo || ''}: ${branch || ''}`.replace(/^: |: $/, '')],
-    ok: 'Push'
+    title: `Publish ${R.item.id ? '#' + R.item.id + ' ' : ''}${R.item.title || ''}?`,
+    body: 'Approves this review, pushes each branch of the build to its remote (never force), then opens the PR pages with the text filled in.',
+    items: R.item.prItems && R.item.prItems.length ? R.item.prItems : [`${R.repo || ''}: ${R.session ? R.session.branch : ''}`],
+    ok: 'Publish'
   });
-  if (!ok) return;
-  R.ui.pushing = true;
+}
+
+async function publishNow() {
+  if (R.ui.publishing) return;
+  R.ui.publishing = true;
+  R.ui.publishError = null;
+  paintChrome();
+  try {
+    const r = await R.api.publish(R.item.folder);
+    R.ui.published = true;
+    for (const p of (r && r.repos) || []) if (p.pr) window.open(p.pr, '_blank', 'noopener');
+    ws.toast('Approved and published. Create each PR on the page that opened.', { kind: 'info' });
+  } catch (e) {
+    R.ui.publishError = errText(e);
+  } finally {
+    R.ui.publishing = false;
+    paintChrome();
+  }
+}
+
+// Publish after a failed try (the review is approved already).
+async function publishAgain() {
+  if (!(await confirmPublish())) return;
+  await publishNow();
+}
+
+// Start Tandem on comments it is not working on (opencode was down, or it stopped).
+async function reviseAgain() {
+  if (R.ui.revising) return;
+  R.ui.revising = true;
   R.ui.error = null;
   paintChrome();
   try {
-    const r = await R.api.push(R.item.folder, R.repo);
-    R.ui.pushed = true;
-    ws.toast((r && r.message) || 'Pushed.', { kind: 'info' });
+    await R.api.revise(R.id);
+    ws.toast('Tandem is working on your comments.', { kind: 'info' });
+    await loadSession();
   } catch (e) {
-    R.ui.error = `Approved, but the push did not go through: ${errText(e)} Fix it, then click Push to origin.`;
+    R.ui.error = errText(e);
   } finally {
-    R.ui.pushing = false;
+    R.ui.revising = false;
     paintChrome();
   }
 }
@@ -596,7 +638,26 @@ document.addEventListener('click', async e => {
   if (act === 'approve-cancel') { R.ui.confirmApprove = false; paintPanel(); return; }
   if (act === 'approve-confirm') return submit('approve');
   if (act === 'request') return submit('request_changes');
-  if (act === 'push') return pushBranch();
+  if (act === 'publish') return publishAgain();
+  if (act === 'revise') return reviseAgain();
+  if (act === 'folded') { R.ui.showFolded = !R.ui.showFolded; paintChrome(); return; }
+  if (act === 'jump-note') {
+    const path = el.dataset.path, line = +el.dataset.line;
+    if (R.ui.sinceLast) { R.ui.sinceLast = false; paintChrome(); }
+    if (!visibleFiles(R.session, false).some(f => f.path === path)) { R.ui.error = `${path} is not in this review.`; paintChrome(); return; }
+    if (R.ui.file !== path) await openFile(path);
+    if (sides && line >= 1) { const ed = sides.new; ed.revealLineInCenter(line); ed.setSelection(new monaco.Range(line, 1, line, 1)); }
+    return;
+  }
+  if (act === 'thread-add') {
+    const t = (R.session.threads || []).find(x => x.id === id);
+    if (!t || readOnly()) return;
+    const c = commentFromThread(R.draft, t);
+    R.draft = upsertComment(R.draft, c);
+    persist();
+    paintChrome();
+    return jumpTo(c);
+  }
 });
 
 document.addEventListener('change', e => {
@@ -608,6 +669,7 @@ document.addEventListener('change', e => {
     location.assign(url.toString());
     return;
   }
+  if (el.dataset.act === 'c-rule' && R.editing) { syncForm(); return; }
   if (el.dataset.act === 'c-suggest' && R.editing) {
     syncForm();
     if (el.checked) R.editing.comment.suggestedCode = selectedText(R.editing.comment);
@@ -662,13 +724,16 @@ if (!MOCK && ws.backend !== 'agent') {
   try {
     R.item = await R.api.item(R.id);
     if (!R.repo) R.repo = R.item.repos[0] || null;
-    R.ui.pushed = !!(R.item.pushed && R.item.pushed[R.repo]);
+    R.ui.published = !!R.item.published;
+    R.ui.canPublish = !!R.item.ready && !R.item.published;
     if (!R.repo) throw new Error(`Work item ${R.id} has no PR text for any repo yet. Run the step that writes pr.md first.`);
     R.ui.backHref = MOCK ? 'index.html' : `index.html#${encodeURIComponent(R.id)}`;
     document.title = `Review: ${R.item.title}`;
     await loadSession({ keepFile: false });
-    R.api.onChange(R.id, R.repo, () => loadSession().catch(err => { R.ui.error = errText(err); paintChrome(); }));
-    ws.on('visible', p => { if (p && p.visible) loadSession().catch(() => {}); });
+    // A new revision means the build is back at Publish: read the item again for Approve and publish.
+    const reload = async () => { R.item = await R.api.item(R.id); R.ui.canPublish = !!R.item.ready && !R.item.published; await loadSession(); };
+    R.api.onChange(R.id, R.repo, () => reload().catch(err => { R.ui.error = errText(err); paintChrome(); }));
+    ws.on('visible', p => { if (p && p.visible) reload().catch(() => {}); });
   } catch (e) {
     fatal(errText(e));
   }

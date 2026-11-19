@@ -195,19 +195,24 @@ test('view: top bar, files, panel and banners say the right things', () => {
   assert.match(empty, /Click a line number to comment/);
   const full = panel(s, { comments: [comment()], summary: '' }, ui);
   assert.doesNotMatch(full, /data-act="request" disabled/);
-  assert.match(panel(s, { comments: [comment()], summary: '' }, { ...ui, confirmApprove: true }), /Discard 1 draft comment and approve\?/);
+  assert.match(panel(s, { comments: [comment()], summary: '' }, { ...ui, confirmApprove: true }), /Discard 1 draft comment and publish\?/);
+  assert.match(full, />Send back</);
+  assert.match(panel(s, { comments: [], summary: '' }, ui), /data-act="approve" data-out disabled title="Not ready to publish/, 'Approve and publish needs the build at Publish');
+  assert.match(panel(s, { comments: [], summary: '' }, { ...ui, canPublish: true }), /data-act="approve" data-out title="Pushes every branch[^"]*">Approve <span class="out-mark" data-out="git"/);
   assert.doesNotMatch(panel(session({ status: 'approved' }), { comments: [], summary: '' }, ui), /data-act="approve"/);
   assert.equal(panel(s, { comments: [], summary: '' }, { ...ui, panelOpen: false }), '');
 
   assert.equal(banner(s, {}), '');
-  assert.match(banner(session({ status: 'approved' }), {}), /Approved\. The branch is not pushed yet: Push to origin sends it to the git remote, after a confirm\./);
-  assert.match(banner(session({ status: 'approved' }), { pushed: true }), /Approved and pushed/);
-  assert.match(panel(session({ status: 'approved' }), { comments: [], summary: '' }, ui), /data-act="push" data-out>Push to origin <span class="out-mark" data-out="git"/);
-  assert.match(panel(session({ status: 'approved' }), { comments: [], summary: '' }, { ...ui, pushing: true }), /data-act="push" data-out disabled>Pushing\.\.\.</);
-  assert.doesNotMatch(panel(session({ status: 'approved' }), { comments: [], summary: '' }, { ...ui, pushed: true }), /data-act="push"/);
-  assert.doesNotMatch(panel(s, { comments: [], summary: '' }, ui), /data-act="push"/, 'no Push before Approve');
-  assert.match(banner(session({ status: 'revising' }), {}), /agent is revising/);
-  assert.match(banner(session({ status: 'revising', revisionRun: { status: 'failed', message: 'No response file.' } }), {}), /needs you.*No response file\./s);
+  assert.match(banner(session({ status: 'approved' }), {}), /Approved\. Publish from Loom when you are ready\./);
+  assert.match(banner(session({ status: 'approved' }), { publishError: 'Push failed.' }), /Publishing did not go through: Push failed\./);
+  assert.match(banner(session({ status: 'approved' }), { published: true }), /Approved and published/);
+  const approved = { ...ui, canPublish: true };
+  assert.match(panel(session({ status: 'approved' }), { comments: [], summary: '' }, approved), /data-act="publish" data-out>Publish <span class="out-mark" data-out="git"/, 'publish again after a failed try');
+  assert.match(panel(session({ status: 'approved' }), { comments: [], summary: '' }, { ...approved, publishing: true }), /data-act="publish" data-out disabled>Publishing\.\.\.</);
+  assert.doesNotMatch(panel(session({ status: 'approved' }), { comments: [], summary: '' }, { ...approved, published: true }), /data-act="publish"/);
+  assert.doesNotMatch(panel(s, { comments: [], summary: '' }, approved), /data-act="publish"/, 'Approve publishes; no separate button before it');
+  assert.match(banner(session({ status: 'revising', revision: 1 }), {}), /Tandem is working on your comments.*revision 2/s);
+  assert.match(banner(session({ status: 'revising', revisionRun: { status: 'failed', message: 'opencode is not connected.' } }), {}), /not working on your comments.*opencode is not connected\..*data-act="revise"/s);
   assert.match(banner(s, { error: 'Nope.' }), /role="alert">Nope\./);
 });
 
@@ -215,11 +220,12 @@ test('mock API: request changes comes back as revision 2 with answers; stale hea
   const api = mockReviewApi({ agentDelayMs: 10 });
   const item = await api.item('L1');
   assert.deepEqual(item.repos, ['shop-api', 'shop-web']);
-  assert.deepEqual(item.pushed, { 'shop-api': false, 'shop-web': false });
-  api.failNextPush();
-  await assert.rejects(api.push(item.folder, 'shop-web'), e => e.code === 'unavailable');
-  assert.match((await api.push(item.folder, 'shop-web')).message, /Pushed dev\/feature\/L1-round-order-totals in shop-web/);
-  assert.equal((await api.item('L1')).pushed['shop-web'], true);
+  assert.equal(item.ready, true);
+  assert.deepEqual(item.prItems, ['shop-api: dev/feature/L1-round-order-totals → main', 'shop-web: dev/feature/L1-round-order-totals → main']);
+  api.failNextPublish();
+  await assert.rejects(api.publish(item.folder), e => e.code === 'unavailable');
+  assert.deepEqual((await api.publish(item.folder)).repos.map(r => r.repo), ['shop-api', 'shop-web']);
+  assert.equal((await api.item('L1')).published, true);
   const s1 = await api.session('L1', 'shop-api');
   assert.equal(s1.files.length, 3);
   assert.deepEqual((await api.file('L1', 'shop-api', 'docs/notes.md', 'old')).kind, 'text');
@@ -244,4 +250,46 @@ test('mock API: request changes comes back as revision 2 with answers; stale hea
 
   api.moveHead('shop-api');
   await assert.rejects(api.submit('L1', 'shop-api', { ...fb, revision: 2, headSha: s2.headSha }), e => e.code === 'conflict' && /changed since/.test(e.message));
+});
+
+test('reading order, Tandem\'s notes, teammates\' threads and Make it a rule (connector 1.27.0)', async () => {
+  const { readingGroups, notesByLine, threadRows, commentFromThread, hasDraft, buildFeedback: build } = await import('../js/dispatch/review-state.js');
+  const files = [
+    { path: 'src/a.ts', status: 'modified', additions: 1, deletions: 0, binary: false, task: { n: 1, title: 'Add it' }, folded: false },
+    { path: 'src/a.test.ts', status: 'added', additions: 3, deletions: 0, binary: false, task: { n: 1, title: 'Add it' }, folded: false },
+    { path: 'src/b.ts', status: 'modified', additions: 1, deletions: 1, binary: false, task: null, folded: false },
+    { path: 'package-lock.json', status: 'modified', additions: 90, deletions: 2, binary: false, task: null, folded: true },
+  ];
+  assert.deepEqual(readingGroups(files).map(g => [g.label, g.files.length, g.folded]), [['Task 1: Add it', 2, false], ['Not in a task', 1, false], ['Generated and lock files', 1, true]]);
+  assert.equal(readingGroups([{ path: 'x', status: 'added' }]), null, 'no labels: the folder tree');
+  const s = session({ files, notes: [{ id: 'r#1', path: 'src/a.ts', line: 3, severity: 'nit', text: 'Name', state: 'open', round: 2 }, { id: 'h#1', path: 'src/a.ts', line: 3, severity: 'blocker', text: 'Bug', state: 'fixed', round: 1 }],
+    threads: [{ id: 't2', path: 'src/b.ts', line: 1, author: 'Ana', text: 'Done', resolved: true }, { id: 't1', path: 'src/a.ts', line: 2, author: 'Sam', text: 'Use the helper' }] });
+  assert.deepEqual([...notesByLine(s, 'src/a.ts').keys()], [3]);
+  assert.equal(notesByLine(s, 'src/a.ts').get(3).length, 2);
+  assert.deepEqual(threadRows(s).map(t => t.id), ['t1', 't2'], 'open threads first');
+  const ui = { sideBySide: true, sinceLast: false, panelOpen: true, file: 'src/a.ts', backHref: 'index.html', approveLabel: 'Approve', canPublish: true };
+  const pane = filesPane(s, { comments: [], summary: '' }, ui);
+  assert.match(pane, /Task 1: Add it/);
+  assert.match(pane, /data-act="folded" aria-expanded="false">Generated and lock files \(1\)/);
+  assert.doesNotMatch(pane, /package-lock\.json/, 'folded until opened');
+  assert.match(filesPane(s, { comments: [], summary: '' }, { ...ui, showFolded: true }), /package-lock\.json/);
+  assert.match(pane, /rv-ncount[^>]*>1</, 'one open note on src/a.ts');
+  const p = panel(s, { comments: [], summary: '' }, ui);
+  assert.match(p, /Tandem's review \(2\)/);
+  assert.match(p, /data-act="jump-note" data-path="src\/a.ts" data-line="3"/);
+  assert.match(p, /Fixed<\/span> in review round 1/);
+  assert.match(p, /On the PR \(2\)/);
+  assert.match(p, /data-act="thread-add" data-id="t1"/);
+  const c = commentFromThread({ comments: [comment({ id: 'c1' })], summary: '' }, s.threads[1]);
+  assert.deepEqual(c, { id: 'c2', path: 'src/a.ts', side: 'new', startLine: 2, endLine: 2, type: 'must_fix', body: 'Sam on the PR: Use the helper', from: 't1' });
+  assert.match(panel(s, { comments: [c], summary: '' }, ui), /data-act="thread-add" data-id="t1" disabled>In your comments/);
+  assert.match(commentBox({ ...comment(), rule: true }, { editing: false, expanded: false }), /class="rv-rule"/);
+  assert.match(commentBox(comment(), { editing: true }), /name="rule" data-act="c-rule"> Make it a rule/);
+  const fb = build(session({}), { comments: [{ ...comment({ path: 'a.ts', startLine: 1, endLine: 1, body: 'x' }), rule: true, from: 't1' }], summary: '' }, 'request_changes', () => 'line\n');
+  assert.equal(fb.feedback.comments[0].rule, true);
+  assert.equal(fb.feedback.comments[0].from, undefined, 'only the contract\'s fields go to the connector');
+  const store = new Map([['dispatch.review.L1.shop-api.r1', JSON.stringify({ comments: [comment()], summary: '' })], ['other', 'x']]);
+  const ls = { get length() { return store.size; }, key: i => [...store.keys()][i], getItem: k => store.get(k) ?? null };
+  assert.equal(hasDraft(ls, 'L1'), true);
+  assert.equal(hasDraft(ls, 'L2'), false);
 });

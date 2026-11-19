@@ -20,7 +20,7 @@ import { createCaptureStore } from '../../../../shared/capture-box.js';
 import { slateLinks, summaryCards } from './summary.js';
 import { sendWork, workOffer } from './slate-handoff.js';
 import { noticedList, observationTask, startArgsOf } from './noticed.js';
-import { publishItems, readyClean } from './factory.js';
+import { publishItems, readyClean, hasDrafts } from './factory.js';
 import { confirmOutside } from '../../../../shared/outside.js';
 import { useApps } from '../../../../shared/capture.js';
 import { loadView, saveView, pruneView } from './local.js';
@@ -1109,7 +1109,9 @@ listen('click', ev => {
     if (!list.length) return;
     confirmOutside({ system: 'git', title: `Publish ${list.length} ready build${list.length === 1 ? '' : 's'}?`, body: 'Each has passing checks and no review questions. Pushes every branch (never force), then opens the PR pages.', items: list.map(it => (it.id ? '#' + it.id + ' ' : '') + (it.title || it.folder)), ok: 'Publish all' }).then(ok => {
       if (!ok) return;
-      act(() => write('publish.all', {}), r => {
+      // Builds with draft code review comments in this browser stay out (connector 1.27.0 `skip`).
+      const skip = ((S.D && S.D.items) || []).filter(it => it.kind === 'item' && hasDrafts(it)).map(it => it.folder);
+      act(() => write('publish.all', skip.length ? { skip } : {}), r => {
         for (const p of (r && r.published) || []) openPrs(p);
         toast(r && r.failed && r.failed.length ? `Published ${r.published.length}; ${r.failed.length} did not go through: ${r.failed.map(f => f.message).join(' ')}` : `Published ${(r && r.published.length) || 0}.`, !!(r && r.failed && r.failed.length));
       }, 'pub:all');
