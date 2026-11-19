@@ -215,7 +215,6 @@ function setPhase(p, msg = null) {
   try { ctxRef && ctxRef.statusChanged(); } catch {}
 }
 
-let startingWaiting = false;
 function resetAll() {
   shutdown();
   resetWorkspace();
@@ -1399,9 +1398,8 @@ export default {
     // 1.23.0: an epic you asked to build, and a product's trial run, get autopilot as soon as their items exist.
     loadEpics();
     onModel((m) => {
-      if (!m || !oc.connected || startingWaiting) return;
-      startingWaiting = true;
-      return startWaiting(m.items).finally(() => { startingWaiting = false; });
+      if (!m || !oc.connected) return;
+      return startWaiting(m.items); // passes run one at a time (epics.mjs)
     });
     onConnected(() => resumeQueued());
     loadProjects();
