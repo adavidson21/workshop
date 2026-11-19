@@ -371,6 +371,19 @@ async function idbMoved() {
 
 function newChannel() { return typeof BroadcastChannel === 'function' ? new BroadcastChannel('workshop-data') : null; }
 
+/* Start over (docs/agent-api.md, Reset): once the agent says a reset started, this page writes nothing more, and
+   when it ends every page reloads, so no window puts deleted data back from what it holds in memory. */
+let resetFrozen = false;
+const RESET_MSG = 'Workshop is starting over. This window reloads in a moment.';
+function onReset(p) {
+  if (!p) return;
+  if (p.state === 'started') { resetFrozen = true; return; }
+  if (typeof location === 'undefined') return;
+  let page = window;
+  try { if (window.top && window.top.location.origin === location.origin) page = window.top; } catch (e) { /* another origin above */ }
+  try { page.location.reload(); } catch (e) { location.reload(); }
+}
+
 /* ---------- agent data backend ---------- */
 function makeAgentBackend(ctx) {
   const base = ctx.agentUrl;
@@ -391,6 +404,7 @@ function makeAgentBackend(ctx) {
   }
   async function put(app, collection, envelope) {
     const segs = checkCollection(collection);
+    if (resetFrozen) throw new WorkshopError('unavailable', RESET_MSG, 503);
     const { res, body } = await fetchJson(`${base}/api/data/${checkApp(app)}/${enc(segs)}`, Object.assign({
       method: 'PUT',
       headers: headers({ 'Content-Type': 'application/json', 'X-Workshop-Client': ctx.clientId }),
@@ -424,6 +438,7 @@ function makeAgentBackend(ctx) {
     async write(app, path, content, opts) {
       const segs = checkFile(path);
       const o = checkWriteOpts(opts);
+      if (resetFrozen) throw new WorkshopError('unavailable', RESET_MSG, 503);
       const { data } = await prepareFile(app, path, content);
       const wire = typeof data === 'string' ? { content: data } : { content: toBase64(data), encoding: 'base64' };
       const { res, body } = await fetchJson(`${base}/api/files/${checkApp(app)}/${enc(segs)}`, Object.assign({
@@ -438,6 +453,7 @@ function makeAgentBackend(ctx) {
     async trash(app, path, opts) {
       const segs = checkFile(path);
       const m = opts && typeof opts.mtime === 'number' ? `?mtime=${opts.mtime}` : '';
+      if (resetFrozen) throw new WorkshopError('unavailable', RESET_MSG, 503);
       const { res, body } = await fetchJson(`${base}/api/files/${checkApp(app)}/${enc(segs)}${m}`, Object.assign({
         method: 'DELETE', headers: headers({ 'X-Workshop-Client': ctx.clientId })
       }, common));
@@ -1106,7 +1122,7 @@ function eventHub(ctx) {
       if (ctx.mode === 'hosted' && ctx.token) u.searchParams.set('token', ctx.token);
       try { source = new EventSource(u.toString(), { withCredentials: ctx.mode === 'local' }); } catch (e) { announce(false); return later(); }
       source.addEventListener('open', () => announce(true));
-      for (const name of ['data', 'file', 'connector', 'connector-status', 'config', 'approvals']) {
+      for (const name of ['data', 'file', 'connector', 'connector-status', 'config', 'approvals', 'reset']) {
         source.addEventListener(name, (e) => { const p = parse(e.data); if (p) { deliver(name, p); relay({ name, payload: p }); } });
       }
       source.addEventListener('error', () => { announce(false); try { source.close(); } catch (e) { /* closed */ } later(); });
@@ -1133,6 +1149,8 @@ function eventHub(ctx) {
       channel.postMessage({ agent: ctx.agentUrl, hello: true }); // ask the holder whether the agent is online
     } else hold();
   }
+
+  listeners.add((name, p) => { if (name === 'reset') onReset(p); });
 
   const hub = {
     get online() { return online; },

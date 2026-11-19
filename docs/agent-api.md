@@ -267,7 +267,17 @@ Makes the readable copy ([data-format.md](data-format.md), Readable without Work
 
 ### `POST /api/storage/delete`
 
-Body `{"id": "<id>"}`: one of the `leftovers` ids from `GET /api/storage`, `"trash"` or `"backups"`. Deletes that path and answers `{deleted: <path>}`; any other id is `400 bad_request`. Own origin only, so a hosted page cannot delete anything. Settings asks before calling it. This is the only way anything in the data folder or the Workshop home is deleted, apart from `.scratch` working files.
+Body `{"id": "<id>"}`: one of the `leftovers` ids from `GET /api/storage`, `"trash"` or `"backups"`. Deletes that path and answers `{deleted: <path>}`; any other id is `400 bad_request`. Own origin only, so a hosted page cannot delete anything. Settings asks before calling it. This and Start over (below) are the only ways anything in the data folder or the Workshop home is deleted, apart from `.scratch` working files.
+
+### `GET /api/reset` and `POST /api/reset` (Start over)
+
+Deletes some or all apps' data, and Tandem's work items if asked, after saving it all to a zip. Settings, Data (Start over) and `workshop reset` use it. Own origin only (`403 local_only` from a hosted page), never through `/api/tools`, and every step is there so it cannot happen by accident:
+
+- **`GET`** answers the plan and a ticket: `apps` (`[{id, name, folder, bytes, files}]`, every app with its data folder size), `tandem` (`{available, workspace, items}` when the opencode connector is on and ready, else `{available: false, why}`), `dataDir`, `backupDir` (beside the data folder, or the home folder when that is not writable), `running`, `last` (what the last reset did, or `null`), `phrases` (`everything`, `one`, `many` with `{n}`, `workOnly`), `ticket` and `waitMs` (10000). Each `GET` replaces the ticket.
+- **`POST`** body `{apps: [<id>] | "all", tandem: boolean, phrase, ticket}`. `phrase` must be exactly what the pick asks for: `"delete everything"` (every app), `"delete 1 app"`, `"delete <n> apps"`, or `"delete work items"` (only Tandem). The ticket must be at least `waitMs` old, under 15 minutes old and unused. Anything else is `400 bad_request` and deletes nothing; `tandem: true` without the connector is `503 unavailable`; a second reset while one runs is `409 conflict`.
+- **What goes.** For each picked app: its folder (and its folder under an old name), its trash, its backups and its readable copy folder. For every app: those whole, plus `.scratch`. Never the data folder's README, top-level files, or folders that are not apps. With `tandem`: the connector's `work.reset` action (`connectors/opencode/README.md`).
+- **Order.** Sends `reset` `{state: "started"}` (pages stop writing; data and file writes get `503 unavailable` until it ends). Writes `Workshop backup <yyyy-mm-dd hhmm>.zip` (600, with a `README.txt` saying how to put it back) in `backupDir`, reads every entry back and checks its CRC, and stops with nothing deleted if that fails. Then Tandem's items, then the app data. Sends `reset` `{state: "done"}` or `{state: "failed"}`; every page reloads.
+- **Answer** (also `last` afterwards): `{at, everything, apps: [{id, name, folder}], backup: {path, bytes, files}, tandem: {workspace, removed, kept, failed, stopped} | null, failed: [<path: why>]}`.
 
 ### `GET /api/connectors` and `GET /api/connectors/<id>`
 
@@ -363,6 +373,7 @@ Server-sent events (`Content-Type: text/event-stream`, `Cache-Control: no-store`
 | `connector` | `{"id", "event", "payload"}` | A connector called `ctx.emit(event, payload)` |
 | `connector-status` | `{"id", "status"}` | A connector's status changed (enabled, disabled, started, stopped, error, `ctx.statusChanged()`) |
 | `config` | `{"changed": ["features", "allowedOrigins", "connectors", "port", "dataDir"]}` | After `PUT /api/config` or a connector config change (`"connector:<id>"`) |
+| `reset` | `{"state": "started" \| "done" \| "failed"}` | Start over (`POST /api/reset`). On `started` the SDK stops this page's writes; on `done` or `failed` every page reloads. |
 
 Wire format:
 

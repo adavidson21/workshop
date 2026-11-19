@@ -7,6 +7,7 @@
 // Run it:            node agent/start.mjs
 import http from 'node:http';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
@@ -24,7 +25,8 @@ import { rawApiSegments, decodeSegment, appId, collectionName, folderName, fileP
 import { defaultDataDir, dataDirProblem, prepareDataDir, removeDataTmpFiles, moveOldData, looseDataDir, cleanScratch, SCRATCH_DAYS, renameAppFolders } from './lib/datadir.mjs';
 import { APP_FOLDERS } from '../shared/app-folders.js';
 import { writeReadme, makeReadableCopy } from './lib/readable.mjs';
-import { storageReport } from './lib/storage.mjs';
+import { storageReport, sizeOf } from './lib/storage.mjs';
+import { ResetTickets, expectedPhrase, resetTargets, listFiles, writeZip, readZip, backupPath, readmeText, deleteTargets } from './lib/reset.mjs';
 import { EventHub } from './lib/events.mjs';
 import { ConnectorHost } from './lib/connectors.mjs';
 import { LOCAL_PAGE, serveStatic } from './lib/static.mjs';
@@ -238,6 +240,32 @@ export async function createAgent(o) {
     const w = await writeReadme(dataDir, folderApps());
     if (w === 'written') log.for('data').info(`Wrote ${path.join(dataDir, 'README.md')}, which says what each folder is.`);
   } catch (e) { log.warn(`Could not write README.md in the data folder (${e.code || e.message}).`); }
+  // Start over (docs/agent-api.md, Reset). One at a time; data writes wait it out (503) so no open window puts
+  // deleted data back while it runs. `lastReset` is what Settings shows after the reload the reset event causes.
+  const resetTickets = new ResetTickets({ waitMs: o.resetWaitMs }); // resetWaitMs: tests only
+  let resetting = false, lastReset = null;
+  const WORK_RESET_PHRASE = 'remove every work item'; // connectors/opencode/lib/reset.mjs
+  /** The opencode connector's workspace and how many items its .work holds, when it is on and ready. */
+  const tandemInfo = () => {
+    if (!connectors.has('opencode')) return { available: false, why: 'There is no opencode connector.' };
+    const c = connectors.info('opencode');
+    const ws = c.status?.details?.workspace;
+    if (!c.enabled || c.status?.state !== 'ready' || !ws) return { available: false, why: 'Turn on the opencode connector (Connections) to remove Tandem\'s work items too.' };
+    let items = 0;
+    try { items = fs.readdirSync(path.join(ws, '.work'), { withFileTypes: true }).filter(d => d.isDirectory() && !d.name.startsWith('_') && !d.name.startsWith('.')).length; } catch { /* no .work yet */ }
+    return { available: true, workspace: ws, items };
+  };
+  /** Where the backup zip goes: beside the data folder, else the home folder when that is not writable. */
+  const backupDir = () => {
+    const beside = path.dirname(dataDir);
+    try { fs.accessSync(beside, fs.constants.W_OK); return beside; } catch { return os.homedir(); }
+  };
+  const resetApps = () => listApps().apps.map(a => {
+    const id = a.manifest.id, folder = dataRoot.folderOf(id);
+    const size = sizeOf(path.join(dataDir, folder));
+    return { id, name: a.manifest.name, folder, bytes: size ? size.bytes : 0, files: size ? size.files : 0 };
+  });
+
   // "Keep a readable copy up to date" (features.readableCopy, off by default): on start and once a day.
   const refreshCopy = () => { if (config.features?.readableCopy === true) readableCopy().catch(e => log.warn(`Could not make the readable copy (${e.code || e.message}).`)); };
   const copyTimer = setInterval(refreshCopy, 24 * 3600 * 1000);
@@ -470,6 +498,20 @@ document.getElementById('allow').addEventListener('click', function () {
       ok({ deleted: target });
       return;
     }
+    // Start over (docs/agent-api.md, Reset). Local only. GET is the plan and a ticket; POST runs it with the ticket
+    // (at least 10 seconds old) and the typed phrase. Saves a zip of everything that goes, reads it back, then deletes.
+    if (parts[0] === 'reset' && parts.length === 1) {
+      only('GET', 'POST');
+      if (!own) fail('local_only', 'Start over from Workshop on this computer, or run workshop reset.');
+      if (m === 'GET') {
+        // The phrases, so pages ask for exactly what this agent checks ({n} is the number of apps).
+        const phrases = { everything: expectedPhrase({ everything: true }), one: expectedPhrase({ count: 1 }), many: expectedPhrase({ count: 2 }).replace('2', '{n}'), workOnly: expectedPhrase({ count: 0, tandem: true }) };
+        ok({ apps: resetApps(), tandem: tandemInfo(), dataDir, backupDir: backupDir(), running: resetting, last: lastReset, phrases, ...resetTickets.issue() });
+        return;
+      }
+      ok(await runReset(await readJsonBody(req)));
+      return;
+    }
     if (parts[0] === 'storage' && parts[1] === 'readable' && parts.length === 2) {
       only('POST');
       try { ok(await readableCopy()); } catch (e) { fail('internal', `Workshop could not make the readable copy (${e.code || e.message}).`); }
@@ -696,6 +738,73 @@ document.getElementById('allow').addEventListener('click', function () {
     fail('not_found', 'Not found.');
   }
 
+  /** POST /api/reset. Body: {apps: [id] | 'all', tandem: boolean, phrase, ticket}. */
+  async function runReset(body) {
+    if (resetting) fail('conflict', 'Workshop is already starting over.');
+    const b = body && typeof body === 'object' ? body : {};
+    const all = resetApps();
+    const ids = b.apps === 'all' ? all.map(a => a.id) : b.apps;
+    if (!Array.isArray(ids) || ids.some(id => typeof id !== 'string')) fail('bad_request', 'Send apps as a list of app ids, or "all".');
+    const unknown = ids.filter(id => !all.some(a => a.id === id));
+    if (unknown.length) fail('bad_request', `There is no ${unknown[0]} app.`);
+    const apps = all.filter(a => ids.includes(a.id));
+    const everything = apps.length === all.length && all.length > 0;
+    const tandem = b.tandem === true;
+    const want = expectedPhrase({ everything, count: apps.length, tandem });
+    if (!want) fail('bad_request', 'Pick at least one app, or Tandem\'s work items.');
+    if (typeof b.phrase !== 'string' || b.phrase.trim() !== want) fail('bad_request', `Type "${want}" to confirm.`);
+    const t = tandem ? tandemInfo() : null;
+    if (t && !t.available) fail('unavailable', t.why);
+    const why = resetTickets.take(b.ticket);
+    if (why) fail('bad_request', why);
+
+    resetting = true;
+    const at = new Date();
+    const dlog = log.for('reset');
+    events.send('reset', { state: 'started' });
+    let done = false;
+    try {
+      const targets = resetTargets({ dataDir, apps, everything });
+      const work = t ? [{ abs: path.join(t.workspace, '.work'), zip: 'Tandem work items/.work' }] : [];
+      const list = listFiles([...targets, ...work]);
+      const readme = readmeText({ dataDir, workspace: t && t.workspace, apps, everything, when: at });
+      let zip, zipPath = null;
+      try {
+        zipPath = backupPath(backupDir(), at);
+        zip = writeZip(zipPath, [{ name: 'README.txt', data: Buffer.from(readme, 'utf8'), mtime: at }, ...list]);
+        const back = readZip(zipPath);
+        if (back.length !== list.length + 1) throw new Error('The backup zip is missing files.');
+      } catch (e) {
+        if (zip && zipPath) { try { fs.rmSync(zipPath, { force: true }); } catch { /* leave it */ } } // a zip that does not read back is no backup
+        fail('internal', `Nothing was deleted: the backup could not be saved (${e.code || e.message}).`);
+      }
+      dlog.info(`Saved a backup before starting over: ${zipPath} (${list.length} files, ${zip.bytes} bytes).`);
+      let tandemResult = null;
+      if (t) {
+        try { tandemResult = await connectors.call('opencode', 'work.reset', { args: { confirm: WORK_RESET_PHRASE }, confirm: true }); }
+        catch (e) { fail(e instanceof HttpError ? e.code : 'internal', `The backup is saved (${zipPath}) and no app data was deleted, but Tandem's work items could not be removed: ${e.message}`); }
+      }
+      const failed = deleteTargets(targets);
+      try { await writeReadme(dataDir, folderApps()); } catch { /* written on the next start */ }
+      lastReset = {
+        at: at.toISOString(), everything, apps: apps.map(a => ({ id: a.id, name: a.name, folder: a.folder })),
+        backup: { path: zipPath, bytes: zip.bytes, files: list.length },
+        tandem: tandemResult ? { workspace: t.workspace, removed: tandemResult.removed.length, kept: tandemResult.kept, failed: tandemResult.failed, stopped: tandemResult.stopped } : null,
+        failed
+      };
+      dlog.info(`Started over: ${everything ? 'every app' : apps.map(a => a.name).join(', ') || 'no apps'}${tandemResult ? `, ${tandemResult.removed.length} work items` : ''}. ${failed.length ? `Could not delete ${failed.length}: ${failed.join('; ')}` : 'All deleted.'}`);
+      done = true;
+      return lastReset;
+    } catch (e) {
+      lastReset = { at: at.toISOString(), error: e.message };
+      dlog.warn(`Start over stopped: ${e.message}`);
+      throw e;
+    } finally {
+      resetting = false;
+      events.send('reset', { state: done ? 'done' : 'failed' });
+    }
+  }
+
   /** The value, or null when it is a not_found error (a collection or file that was never written). */
   const orNull = p => p.catch(e => { if (e instanceof HttpError && e.code === 'not_found') return null; throw e; });
 
@@ -710,6 +819,7 @@ document.getElementById('allow').addEventListener('click', function () {
     // does not show a failed request for every feature someone has not used.
     if (req.method === 'GET') { ok(await orNull(store.get(app, collection))); return; }
     only('GET', 'PUT');
+    if (resetting) fail('unavailable', 'Workshop is starting over. This window reloads in a moment.');
     const body = await readJsonBody(req, 10 * MB);
     const saved = await store.put(app, collection, body);
     events.send('data', { app, collection, rev: saved.rev, updatedAt: saved.updatedAt, client: clientOf(req) });
@@ -728,6 +838,7 @@ document.getElementById('allow').addEventListener('click', function () {
     }
     const fpath = filePath(rest);
     if (req.method === 'GET') { ok(await orNull(files.read(app, fpath))); return; }
+    if (resetting && (req.method === 'PUT' || req.method === 'DELETE')) fail('unavailable', 'Workshop is starting over. This window reloads in a moment.');
     if (req.method === 'PUT') {
       const body = await readJsonBody(req, 64 * MB);
       const saved = await files.put(app, fpath, body);

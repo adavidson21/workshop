@@ -883,6 +883,49 @@ describe("remove", { skip }, () => {
   });
 });
 
+describe("work.reset", { skip }, () => {
+  test("[P-reset] work.reset needs its phrase, then removes every item folder and the item state, keeping settings and repos", async () => {
+    const ws = makeWorkspace({ repos: hasGit });
+    const fake = await startFakeOpencode({ kind: "v1" });
+    try {
+      await startConnector(configFor(ws.dir, { url: fake.url }));
+      await waitFor(() => oc.status().details.opencode.connected, "opencode");
+      const r = await call("run", { folder: "41610-rate-limit-headers", command: "/pr 41610" });
+      fake.send(busyEvent("v1", r.session));
+      await waitFor(async () => (await call("state")).liveMode.live.sessions[r.session]?.status === "busy", "busy");
+      const dash = path.join(ws.work, "_dashboard");
+      fs.writeFileSync(path.join(dash, "projects.json"), JSON.stringify({ projects: [], runs: {} }));
+      fs.writeFileSync(path.join(dash, "observations.json"), JSON.stringify({ decided: { x: "dismissed" } }));
+      fs.mkdirSync(path.join(ws.work, "_onboarding"), { recursive: true });
+      fs.writeFileSync(path.join(ws.work, "_onboarding", "gateway.md"), "# gateway\n");
+      const before = (await call("status")).items.length;
+      assert.ok(before > 1, "the example has items");
+
+      await rejects(call("work.reset", { confirm: "yes" }), "bad_request", /remove every work item/);
+      assert.equal((await call("status")).items.length, before, "nothing removed without the phrase");
+
+      const out = await call("work.reset", { confirm: "remove every work item" });
+      assert.equal(out.stopped, 1, "the busy session was stopped first");
+      assert.deepEqual(out.failed, []);
+      assert.ok(out.removed.includes("41610-rate-limit-headers") && out.removed.includes("spike-cache-options"));
+      const left = fs.readdirSync(ws.work).filter((n) => !n.startsWith("_") && !n.startsWith(".") && fs.statSync(path.join(ws.work, n)).isDirectory());
+      assert.deepEqual(left, [], "no item folders left");
+      assert.equal((await call("status")).items.length, 0);
+      for (const f of ["sessions.json", "observations.json", "autopilot.json"]) {
+        const p = path.join(dash, f);
+        if (fs.existsSync(p)) assert.deepEqual(Object.keys(JSON.parse(fs.readFileSync(p, "utf8")).decided || {}), [], `${f} holds no items`);
+      }
+      assert.ok(fs.existsSync(path.join(dash, "projects.json")), "projects are kept");
+      assert.equal(fs.existsSync(path.join(ws.work, "_onboarding")), false);
+      if (hasGit) assert.ok(fs.existsSync(path.join(ws.dir, "gateway", ".git")), "repos are left alone");
+    } finally {
+      await oc.stop();
+      await fake.close();
+      ws.remove();
+    }
+  });
+});
+
 describe("push", { skip: skip || (!hasGit && "git is not installed") }, () => {
   let ws;
   const prFile = () => path.join(ws.work, "41610-rate-limit-headers", "pr.md");
