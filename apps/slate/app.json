@@ -2,8 +2,8 @@
   "manifestVersion": 1,
   "id": "slate",
   "name": "Loom",
-  "version": "6.6.1",
-  "description": "Your backlog and Tandem's runs as cards in four lanes (Clarify, Plan, Work, Ready), plus Health. Drop in a story, an error log, a question or a hand-off; a card stops only when it needs you.",
+  "version": "6.7.0",
+  "description": "Tandem's runs on a floor: a code line and a research line of stations, or a list, plus Health. Drop in a story, an error log, a question or a hand-off; a card stops only when it needs you.",
   "icon": "icon.svg",
   "entry": "index.html",
   "order": 15,
@@ -92,7 +92,7 @@
     },
     {
       "path": "lanes",
-      "title": "Lanes: start work, and what waits on you"
+      "title": "Floor: start work, and what waits on you"
     },
     {
       "path": "chat",
@@ -104,7 +104,7 @@
     },
     {
       "path": "reviews",
-      "title": "PR reviews (Lanes' Review card)"
+      "title": "PR reviews (the floor's Review card)"
     },
     {
       "path": "start/:flow",

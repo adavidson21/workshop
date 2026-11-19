@@ -26,7 +26,7 @@ beforeEach(() => {
   S.copyStore = []; S.files = {}; S.slate = new Map();
   resetUi();
   S.ui.tab = 'lanes';
-  S.view = { project: 'all', lanes: 'list' }; // these tests read the List view; floor.test.mjs reads the Floor
+  S.view = { project: 'all', lanes: 'list' }; // these tests read the List view (rows since 6.7.0); floor.test.mjs reads the Floor
 });
 
 test('Noticed: a chip with the count, and the list in place of the lanes, escaped, with Start, To Docket and Dismiss', () => {
@@ -34,10 +34,10 @@ test('Noticed: a chip with the count, and the list in place of the lanes, escape
   assert.equal(noticedCount(), 2);
   let html = lanesHtml();
   assert.match(html, /data-lane-filter="noticed"[^>]*>Noticed<span class="n">2<\/span>/);
-  assert.match(html, /class="ln-lanes"/, 'the lanes show until the chip is on');
+  assert.match(html, /class="fl-list"/, 'the list shows until the chip is on');
   S.ui.laneFilter = 'noticed';
   html = lanesHtml();
-  assert.doesNotMatch(html, /class="ln-lanes"/);
+  assert.doesNotMatch(html, /class="fl-list"/);
   assert.match(html, /README still says &lt;Node 18&gt;/);
   assert.match(html, /gateway · from 41207 · 2026-11-18/);
   for (const a of ['data-obs-start="O1"', 'data-obs-docket="O1"', 'data-obs-dismiss="O2"']) assert.ok(html.includes(a), a);

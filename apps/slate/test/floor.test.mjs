@@ -105,10 +105,11 @@ test(`a station shows ${STACK_MAX} cards, then +N more; opening it shows them al
   assert.match(all, /aria-expanded="true">Show fewer</);
 });
 
-test('Floor is the default; List shows the four lanes; a card opens the same panel either way', () => {
+test('Floor is the default; List is the other view (no lanes since 6.7.0); a card opens the same panel either way', () => {
   assert.equal(laneView(), 'floor');
   let html = lanesHtml();
   assert.match(html, /data-lane-view="floor" aria-pressed="true"/);
+  assert.equal([...html.matchAll(/data-lane-view="(\w+)"/g)].map(m => m[1]).join(','), 'floor,list');
   assert.match(html, /class="fl-floor"/);
   assert.doesNotMatch(html, /class="ln-lanes"/);
   assert.match(html, /<button type="button" class="fl-card k-build mine" data-lane-open="41610-rate-limit-headers"[^>]*>.*?<span class="fl-act">Publish<\/span>/);
@@ -119,8 +120,20 @@ test('Floor is the default; List shows the four lanes; a card opens the same pan
   S.view.lanes = 'list';
   assert.equal(laneView(), 'list');
   html = lanesHtml();
-  assert.match(html, /class="ln-lanes"/);
-  assert.match(html, /data-lane-view="list" aria-pressed="true"/);
+  assert.match(html, /class="fl-list"/);
+  assert.match(html, /<aside class="ln-panel"/);
+  S.view.lanes = 'rows';
+  assert.equal(laneView(), 'list', "6.6's List value still opens List");
+});
+
+test('Publish all ready sits by the code line on the floor, and atop Needs you in List', () => {
+  S.D.publish = { '41610-rate-limit-headers': { ready: true, questions: [], published: null, pushed: false, ui: [] } };
+  const pub = /data-publish-all="1"[^>]*>Publish all ready \(1\)</;
+  const html = floorHtml(lanesData('all'), '', '');
+  assert.match(html.slice(html.indexOf('fl-code'), html.indexOf('fl-stations')), pub);
+  S.view.lanes = 'list';
+  const list = lanesHtml();
+  assert.match(list.slice(list.indexOf('aria-label="Needs you"'), list.indexOf('fl-rows')), pub);
 });
 
 test('the research line always shows, even with nothing on it; requests, hand-offs and reviews sit under the lines', () => {
@@ -210,7 +223,7 @@ test('cards carry their project color once you have projects', () => {
   assert.match(html, /data-lane-open="41300-export-retry-fails"[^>]*><span class="fl-ctop"><span class="fl-id">/, 'a run in no project has none');
 });
 
-test('List is rows grouped Needs you, Running and Also waiting, each with its station track; Lanes keeps the four lanes', () => {
+test('List is rows grouped Needs you, Running and Also waiting, each with its station track', () => {
   const groups = rowsData(lanesData('all'));
   assert.deepEqual(groups.map(g => g.id), ['mine', 'running']);
   const pub = groups[0].rows.find(r => r.c.folder === '41610-rate-limit-headers');
@@ -221,15 +234,11 @@ test('List is rows grouped Needs you, Running and Also waiting, each with its st
   assert.ok(stuck.track.some(t => t.st === 'stuck'), 'the station it stopped at is marked');
   const spike = groups[0].rows.find(r => r.c.folder === 'spike-cache-options');
   assert.equal(spike.track.length, 5, 'paper runs use the research line');
-  S.view.lanes = 'rows';
-  let html = lanesHtml();
-  assert.match(html, /data-lane-view="rows" aria-pressed="true">List</);
-  assert.match(html, /<section class="fl-rgroup" aria-label="Needs you"><h2>Needs you <span class="fl-ln">\d+<\/span><\/h2>/);
-  assert.match(html, /class="fl-rowb" data-lane-open="41610-rate-limit-headers"[^>]*>.*?<span class="fl-rwhere">Loading dock<\/span>/);
   S.view.lanes = 'list';
-  html = lanesHtml();
-  assert.match(html, /data-lane-view="list" aria-pressed="true">Lanes</);
-  assert.match(html, /class="ln-lanes"/);
+  let html = lanesHtml();
+  assert.match(html, /data-lane-view="list" aria-pressed="true">List</);
+  assert.match(html, /<section class="fl-rgroup" aria-label="Needs you"><h2>Needs you <span class="fl-ln">\d+<\/span><\/h2>/);
+  assert.match(html, /class="fl-rowb mine" data-lane-open="41610-rate-limit-headers" data-lane="ready"[^>]*>.*?<span class="fl-rwhere">Loading dock<\/span>/);
 });
 
 test('Onboard a product lists your products with repos that are not onboarding yet; a pick starts it', () => {

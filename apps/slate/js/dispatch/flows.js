@@ -436,5 +436,5 @@ export function flowCardHtml(f) {
   return `<button type="button" class="fcard" data-flow="${h(f.id)}" aria-label="${h(f.name + '. ' + f.when + ' Steps: ' + stepsLine(steps))}">` +
     `<span class="fc-t">${h(f.name)}</span><span class="fc-w">${h(f.when)}</span>` +
     `<span class="fc-s">${dotsHtml(steps)}<span class="fc-n">${h(extra)}</span></span>` +
-    (f.handsOff ? '<span class="fc-h">Hands-off after you approve</span>' : f.board ? '<span class="fc-h">A card in Lanes, worked in its panel</span>' : '') + '</button>';
+    (f.handsOff ? '<span class="fc-h">Hands-off after you approve</span>' : f.board ? '<span class="fc-h">A card on the floor, worked in its panel</span>' : '') + '</button>';
 }

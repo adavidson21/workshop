@@ -386,7 +386,7 @@ test('3.0 start work: pick a flow card, then fill it in; each flow sends its own
   html = render();
   assert.match(html, /<h3 id="start-h">Other flows<\/h3>/);
   assert.deepEqual([...html.matchAll(/class="fcard" data-flow="(\w+)"/g)].map(m => m[1]), ['request', 'epic', 'docs'], 'Loom 6.0.0: the drop box starts a build, a fix, a question or a hand-off');
-  assert.match(html, /data-flow="request"[^>]*>.*3 steps, 3 stops for you.*A card in Lanes, worked in its panel/s);
+  assert.match(html, /data-flow="request"[^>]*>.*3 steps, 3 stops for you.*A card on the floor, worked in its panel/s);
   // Feature: no ADO set up, so it is described.
   S.ui.start.flow = 'feature';
   html = render();

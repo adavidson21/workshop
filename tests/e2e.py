@@ -322,12 +322,12 @@ def browser_mode_checks(ctx, pg, frame, watch):
         slf.click('.fcard[data-flow=request]'); pg.wait_for_timeout(300)
         slf.fill('[data-draft="start:title"]', 'Export orders to CSV'); slf.fill('[data-draft="start:desc"]', 'Finance asked for it')
         slf.click('[data-start-go]'); pg.wait_for_timeout(1000)
-        # Loom 6.4.0: on the floor, a request is under the lines ("Also on the floor"); the List view has the lanes.
+        # Loom 6.4.0: on the floor, a request is under the lines ("Also on the floor"); List has a row per card.
         check('on the floor (the default view), a request sits under the lines, waiting on you', seen(slf, '.fl-other .fl-card.mine[data-lane-open^="board:"]', 5000))
         slf.click('[data-lane-view=list]'); pg.wait_for_timeout(300)
-        check('a request is a card in Clarify, waiting on you', seen(slf, '.ln-clarify .ln-card.mine[data-lane-open^="board:"]', 5000)
-              and 'Export orders to CSV' in slf.inner_text('.ln-clarify'))
-        slf.click('.ln-clarify [data-lane-open^="board:"]'); pg.wait_for_timeout(700)
+        check('a request is a card in Clarify, waiting on you', seen(slf, '.fl-rowb.mine[data-lane=clarify][data-lane-open^="board:"]', 5000)
+              and 'Export orders to CSV' in slf.inner_text('.fl-rowb[data-lane=clarify][data-lane-open^="board:"]'))
+        slf.click('.fl-rowb[data-lane=clarify][data-lane-open^="board:"]'); pg.wait_for_timeout(700)
         check('it opens the board\'s own panel as a drawer over Lanes; without Tandem it offers Write it myself', not slf.locator('#board-root').evaluate('el => el.hidden')
               and not slf.locator('#main').is_visible() and 'Export orders to CSV' in slf.input_value('#ptitle') and slf.locator('.panel .next [data-act=write-myself]').count() == 1)
         shown = slf.eval_on_selector_all('.panel .next .acts button', 'bs => bs.map(b => b.dataset.act)')
@@ -344,22 +344,22 @@ def browser_mode_checks(ctx, pg, frame, watch):
         check('a new card can only skip ahead (to Who builds it? or Define), from More', skip_opts == ['decide', 'defining'] and slf.locator('#backTo optgroup[label="Move back"]').count() == 0)
         slf.select_option('#backTo', 'decide'); slf.click('.panel [data-act=back]'); slf.wait_for_selector('dialog form[data-form=confirm]')
         slf.click('dialog button[type=submit]'); pg.wait_for_timeout(700)
-        check('Skip ahead moves it to Who builds it?: its card is in Plan, the drawer still open', slf.locator('.ln-plan .ln-card.mine[data-lane-open^="board:"]').count() == 1
+        check('Skip ahead moves it to Who builds it?: its card is in Plan, the drawer still open', slf.locator('.fl-rowb.mine[data-lane=plan][data-lane-open^="board:"]').count() == 1
               and slf.locator('.panel .next [data-act=delegate]').count() == 1)
         slf.click('.panel details.more > summary'); pg.wait_for_timeout(200)
         slf.click('.panel .more [data-act=done]'); pg.wait_for_timeout(600)
-        check('Done takes it off the lanes', slf.locator('.ln-card[data-lane-open^="board:"]').count() == 0)
+        check('Done takes it off the lanes', slf.locator('.fl-rowb[data-lane-open^="board:"]').count() == 0)
         slf.click('.panel details.more > summary'); pg.wait_for_timeout(200)
         slf.select_option('#backTo', 'new'); slf.click('.panel [data-act=back]'); slf.wait_for_selector('dialog form[data-form=confirm]')
         slf.click('dialog button[type=submit]'); pg.wait_for_timeout(600)
         moved = slf.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'slate'}); const e = await ws.data.get('items'); const it = e.items[0]; return [it.stage, it.reopened, it.history.map(h => h.stage)]; }""")
-        check('Move back takes a done card back to new and holds it there: in Clarify again', moved == ['new', 'new', ['new', 'decide', 'done', 'new']] and slf.locator('.ln-clarify .ln-card[data-lane-open^="board:"]').count() == 1)
+        check('Move back takes a done card back to new and holds it there: in Clarify again', moved == ['new', 'new', ['new', 'decide', 'done', 'new']] and slf.locator('.fl-rowb[data-lane=clarify][data-lane-open^="board:"]').count() == 1)
         details = slf.locator('.panel details.fold[data-fold=details]')
         check('Details starts closed', details.count() == 1 and details.get_attribute('open') is None)
         slf.click('.panel details.fold[data-fold=details] > summary'); pg.wait_for_timeout(200)
         check('opening Details is remembered in this browser', slf.evaluate("localStorage.getItem('slate.fold.details')") == '1')
         slf.click('#board-root .panel [data-act=close]'); pg.wait_for_timeout(500)
-        check('the drawer\'s Close closes it', slf.locator('#board-root').evaluate('el => el.hidden') and slf.locator('.ln-card.on').count() == 0)
+        check('the drawer\'s Close closes it', slf.locator('#board-root').evaluate('el => el.hidden') and slf.locator('.fl-rowb.on').count() == 0)
         slf.click('#app .tabs [data-tab=health]'); pg.wait_for_timeout(1500)
         hrows = slf.eval_on_selector_all('.htable tbody th', 'ts => ts.map(t => t.textContent)')
         check('Health lists the four lanes, with Sprints inside it', hrows == ['Shape', 'Decide', 'Build', 'Done'] and slf.locator('#sprints #sprintsBox').count() == 1)
@@ -1287,16 +1287,16 @@ def agents_checks(b, watch):
         check('a card on the floor opens the same panel as the lanes', af.locator('.fl-body .ln-panel .icard.gate').count() == 1)
         af.click('.ln-panel [data-lane-close]'); pg.wait_for_timeout(200)
         af.click('[data-lane-view=list]'); pg.wait_for_timeout(300)
-        check('List shows the four lanes, and the choice is kept in this browser', af.locator('.ln-lanes').count() == 1
+        check('List shows rows (no lanes since 6.7.0), and the choice is kept in this browser', af.locator('.fl-list').count() == 1 and af.locator('.ln-lanes').count() == 0
               and 'list' in (af.evaluate("localStorage.getItem('dispatch.view')") or ''))
 
-        # Lanes (Loom 5.0.0): the drop box, four lanes, a card per run in its lane, and the run's own card in the panel.
+        # The List (Loom 6.7.0; the four lanes before): the drop box, a row per run with its lane, and the run's own card in the panel.
         af.click('#app .tabs [data-tab=lanes]'); pg.wait_for_timeout(400)
-        check('Lanes has the drop box and four lanes in order', af.locator('#ln-drop').count() == 1
-              and af.eval_on_selector_all('.ln-lane h2', 'els => els.map(e => e.innerText)') == ['Clarify', 'Plan', 'Work', 'Ready'])
-        check('a run at Ship is a card in Ready, a root cause to approve in Plan', seen(af, '.ln-ready [data-lane-open="41610-rate-limit-headers"]', 5000)
-              and af.locator('.ln-plan [data-lane-open="41300-export-retry-fails"]').count() == 1)
-        af.click('.ln-plan [data-lane-open="41300-export-retry-fails"]'); pg.wait_for_timeout(300)
+        check('List has the drop box and its groups in order', af.locator('#ln-drop').count() == 1
+              and af.eval_on_selector_all('.fl-rgroup h2', 'els => els.map(e => e.firstChild.textContent.trim())')[:2] == ['Needs you', 'Running'])
+        check('a run at Ship is a card in Ready, a root cause to approve in Plan', seen(af, '.fl-rowb[data-lane=ready][data-lane-open="41610-rate-limit-headers"]', 5000)
+              and af.locator('.fl-rowb[data-lane=plan][data-lane-open="41300-export-retry-fails"]').count() == 1)
+        af.click('.fl-rowb[data-lane=plan][data-lane-open="41300-export-retry-fails"]'); pg.wait_for_timeout(300)
         check('a card opens its run in the panel, with the same gate card as the Inbox and an X to close it', af.locator('.ln-panel .icard.gate').count() == 1
               and af.locator('.ln-panel [data-lane-close][aria-label="Close panel"]').count() == 1)
         af.click('.ln-panel [data-lane-close]'); pg.wait_for_timeout(200)
@@ -1313,11 +1313,11 @@ def agents_checks(b, watch):
 
         # Loom 6.0.0: every run is a card in the lanes, and a card's panel holds its run (its step and buttons).
         af.click('#app .tabs [data-tab=lanes]'); pg.wait_for_timeout(600)
-        keys = af.eval_on_selector_all('.ln-card[data-lane-open]', 'els => els.map(e => e.dataset.laneOpen)')
+        keys = af.eval_on_selector_all('.fl-rowb[data-lane-open]', 'els => els.map(e => e.dataset.laneOpen)')
         folders = sorted(k for k in keys if not k.startswith(('board:', 'session:', 'reviews')))
         check('every open .work folder is one card in the lanes (a finished one is under Done today)', folders == sorted(['41207-fix-login-timeout', '41300-export-retry-fails', '41455-audit-log-filter', '41502-csv-export', '41610-rate-limit-headers', '41720-show-item-count', 'spike-cache-options']))
         if folders != sorted(['41207-fix-login-timeout', '41300-export-retry-fails', '41455-audit-log-filter', '41502-csv-export', '41610-rate-limit-headers', '41720-show-item-count', 'spike-cache-options']): print('    lanes have:', folders)
-        af.click('.ln-card[data-lane-open="41300-export-retry-fails"]'); pg.wait_for_timeout(800)
+        af.click('.fl-rowb[data-lane-open="41300-export-retry-fails"]'); pg.wait_for_timeout(800)
         check('the card\'s panel holds its run: the step to read and its buttons', seen(af, '.ln-panel .loom-run .icard.gate') and af.locator('.ln-panel [data-act=approve-start]').count() == 1)
         check('the panel keeps the draft closed until Read', af.locator('.ln-panel .finline').count() == 0)
         af.click('.ln-panel [data-peek="card:41300-export-retry-fails"]'); pg.wait_for_timeout(400)
@@ -1327,10 +1327,10 @@ def agents_checks(b, watch):
         check('the run\'s buttons work inside the panel (Send back opens its note box there)', af.locator('.ln-panel [data-sb-toggle][aria-expanded=true]').count() == 1
               and af.locator('.ln-panel textarea').count() == 1)
         af.click('.ln-panel [data-sb-toggle]'); pg.wait_for_timeout(300)
-        check('a run at Ship is a card in Ready that says Publish (Loom 6.2.0)', af.locator('.ln-ready .ln-card.mine[data-lane-open="41610-rate-limit-headers"] .ln-act').inner_text() == 'Publish')
-        af.click('.ln-ready .ln-card[data-lane-open="41610-rate-limit-headers"]'); pg.wait_for_timeout(500)
-        check('its panel has the Publish gate and Publish all ready shows in Ready', af.locator('.ln-panel [data-publish="41610-rate-limit-headers"]').count() == 1
-              and af.locator('.ln-ready [data-publish-all]').count() == 1)
+        check('a run at Ship is a card in Ready that says Publish (Loom 6.2.0)', af.locator('.fl-rowb.mine[data-lane=ready][data-lane-open="41610-rate-limit-headers"] .fl-act').inner_text() == 'Publish')
+        af.click('.fl-rowb[data-lane=ready][data-lane-open="41610-rate-limit-headers"]'); pg.wait_for_timeout(500)
+        check('its panel has the Publish gate and Publish all ready shows atop Needs you (6.7.0)', af.locator('.ln-panel [data-publish="41610-rate-limit-headers"]').count() == 1
+              and af.locator('.fl-rgroup[aria-label="Needs you"] h2 [data-publish-all]').count() == 1)
         af.click('.ln-panel [data-lane-close]'); pg.wait_for_timeout(300)
         if os.environ.get('LOOM_SHOTS'): pg.screenshot(path='/tmp/loom-lanes.png')
 
@@ -1347,7 +1347,7 @@ def agents_checks(b, watch):
         af.click('#app .tabs [data-tab=lanes]'); pg.wait_for_timeout(300)
 
         # The run page: the flow track, the main button, and a write action sent with confirm from the click.
-        if af.locator('.ln-panel').count() == 0: af.click('.ln-card[data-lane-open="41300-export-retry-fails"]'); pg.wait_for_timeout(400)
+        if af.locator('.ln-panel').count() == 0: af.click('.fl-rowb[data-lane-open="41300-export-retry-fails"]'); pg.wait_for_timeout(400)
         af.click('.ln-panel .ln-foot [data-open-run="41300-export-retry-fails"]')
         run = af.locator('.run-page')
         seen(af, '.run-page#item-41300')
@@ -1376,9 +1376,9 @@ def agents_checks(b, watch):
         # Prompts: a card in Clarify waiting on you, counted on the rail badge, answered in its panel (Loom 6.0.0).
         before = int(pg.inner_text('.app-btn[data-app=slate] .badge') or 0)
         ask({'ask': {'id': 'per_e2e', 'session': None, 'title': 'npm test'}}); pg.wait_for_timeout(1500)
-        check('a prompt from opencode is a card in Clarify, waiting on you', seen(af, '.ln-clarify .ln-card.mine[data-lane-open="session:ses_tui0"]', 5000))
+        check('a prompt from opencode is a card in Clarify, waiting on you', seen(af, '.fl-rowb.mine[data-lane=clarify][data-lane-open="session:ses_tui0"]', 5000))
         check('the rail badge counts it', pg.inner_text('.app-btn[data-app=slate] .badge') == str(before + 1))
-        af.click('.ln-clarify .ln-card[data-lane-open="session:ses_tui0"]'); pg.wait_for_timeout(500)
+        af.click('.fl-rowb[data-lane=clarify][data-lane-open="session:ses_tui0"]'); pg.wait_for_timeout(500)
         check('its panel shows the prompt with its answers', 'npm test' in af.inner_text('.ln-panel .ln-asks'))
         af.click('.ln-panel [data-perm=per_e2e][data-answer=once]'); pg.wait_for_timeout(1200)
         r = ask({'requests': True})
@@ -1402,7 +1402,7 @@ def agents_checks(b, watch):
         # (review.html) reads the diff from git through the connector. Approve pushes nothing; Push to origin, after the
         # shared git confirm, pushes the pr.md branch.
         af.click('#app .tabs [data-tab=lanes]'); pg.wait_for_timeout(300)
-        if af.locator('.ln-panel [data-open-run="41610-rate-limit-headers"]').count() == 0: af.click('.ln-card[data-lane-open="41610-rate-limit-headers"]'); pg.wait_for_timeout(400)
+        if af.locator('.ln-panel [data-open-run="41610-rate-limit-headers"]').count() == 0: af.click('.fl-rowb[data-lane-open="41610-rate-limit-headers"]'); pg.wait_for_timeout(400)
         af.click('.ln-panel .ln-foot [data-open-run="41610-rate-limit-headers"]'); pg.wait_for_timeout(300)
         ship = af.locator('.run-page#item-41610')
         branch = 'dev/bug/41610-rate-limit-headers'
@@ -1437,8 +1437,8 @@ def agents_checks(b, watch):
         # Remove: the dialog, typing the name, and the folder gone (from the spike's page: at its findings fork, the
         # spike waits in the Inbox since flow cards v1).
         af.click('#app .tabs [data-tab=lanes]'); pg.wait_for_timeout(300)
-        if af.locator('.ln-card.on[data-lane-open="spike-cache-options"]').count() == 0: af.click('.ln-card[data-lane-open="spike-cache-options"]'); pg.wait_for_timeout(500)
-        check('a spike at its findings is a card in Ready with its path cards in its panel', af.locator('.ln-ready .ln-card[data-lane-open="spike-cache-options"]').count() == 1
+        if af.locator('.fl-rowb.on[data-lane-open="spike-cache-options"]').count() == 0: af.click('.fl-rowb[data-lane-open="spike-cache-options"]'); pg.wait_for_timeout(500)
+        check('a spike at its findings is a card in Ready with its path cards in its panel', af.locator('.fl-rowb[data-lane=ready][data-lane-open="spike-cache-options"]').count() == 1
               and seen(af, '.ln-panel .forks [data-spike-close]'))
         af.click('.ln-panel .ln-foot [data-open-run="spike-cache-options"]'); pg.wait_for_timeout(300)
         af.locator('.run-page#item-spike-cache-options .item-head [data-remove]').click(); pg.wait_for_timeout(300)
@@ -1491,12 +1491,12 @@ def agents_checks(b, watch):
         sp.fill('[data-draft="proj:name"]', 'Orders API'); sp.click('[data-proj-save]'); sp.wait_for_timeout(800)
         sp.click('#app .tabs [data-tab=lanes]'); sp.wait_for_timeout(300)
         check('New project saves through the connector and Lanes shows only its runs (none yet)', seen(sp, '.fchip.on[data-filter-project]') and 'Orders API' in sp.inner_text('.fchip.on[data-filter-project]')
-              and sp.locator('.ln-card[data-lane-open="41207-fix-login-timeout"]').count() == 0)
+              and sp.locator('.fl-rowb[data-lane-open="41207-fix-login-timeout"]').count() == 0)
         sp.click('[data-filter-project=all]'); sp.wait_for_timeout(300)
-        sp.click('.ln-card[data-lane-open="41207-fix-login-timeout"]'); sp.wait_for_timeout(400)
+        sp.click('.fl-rowb[data-lane-open="41207-fix-login-timeout"]'); sp.wait_for_timeout(400)
         sp.click('.ln-panel [data-move="41207-fix-login-timeout"] >> nth=0'); sp.click('[data-move-to]:has-text("Orders API")'); sp.wait_for_timeout(800)
         sp.click('.fchip:has-text("Orders API")'); sp.wait_for_timeout(300)
-        runs = [k for k in sp.eval_on_selector_all('.ln-card[data-lane-open]', 'els => els.map(e => e.dataset.laneOpen)') if not k.startswith(('board:', 'session:', 'reviews'))]
+        runs = [k for k in sp.eval_on_selector_all('.fl-rowb[data-lane-open]', 'els => els.map(e => e.dataset.laneOpen)') if not k.startswith(('board:', 'session:', 'reviews'))]
         check('a run moves to a project from its panel, and the filter shows only it', runs == ['41207-fix-login-timeout'])
         sp.click('.ln-drop [data-start-open]')
         check('Other flows opens on the flows the drop box does not start', seen(sp, '.fcards') and sp.eval_on_selector_all('.fcard', 'els => els.map(e => e.dataset.flow)') == ['request', 'epic', 'docs'])
