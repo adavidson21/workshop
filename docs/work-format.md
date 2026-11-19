@@ -28,6 +28,7 @@ To find an item by id, list `.work/` and match the one folder that starts with `
 | File | Written by | What is read from it |
 | --- | --- | --- |
 | `workitem.md` | `/start` (from `Get-WorkItem.ps1` or pasted); the `ADO item` line by the opencode connector (1.22.0) | Title line, `Type`, `State`, `Link`, `ADO`, `Fetched`; `ADO item` (`<n>`, `unlinked` or `unlinked (was <n>)`: whether the item is linked to ADO, eng-agents pipeline guide "Who links to ADO"); a story from an approved breakdown (Core 4.10.0, `/backlog <scope> local`): `Epic`, `Story`, `Depends on`, `Repos`, `Areas`, `Breakdown` (the item's `story`, only when `Epic` is there); a product's trial run: `Trial` (the item's `trial`) |
+| `step.md` | Tandem's `Set-Step.ps1` (`/do-task`, `/review`, Core 4.11.0) | `- Step: <build \| test \| ui \| review \| fix> \| <ISO time>`: the item's `step` (`{name, at}`), only when the file is there |
 | `_onboarding/<product>.md` | Tandem's `Set-Onboarding.ps1` (`/onboard-product`, Core 4.10.0) | `Product`, `Scan` (`done <date> \| <repos>`), `Trial` (local id), `Live` (date): the model's `onboarding` list, only when there is one |
 | `repos.md` | `/start` | `Lane`, the repo table |
 | `brief.md` | `/start` (skipped with `--cold`) | Nothing is parsed: shown as Markdown for the person (Tandem Core 2.7.0 and later) |

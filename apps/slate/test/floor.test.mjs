@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { S, resetUi } from '../js/dispatch/state.js';
 import { lanesData, lanesHtml, laneView } from '../js/dispatch/lanes.js';
-import { CODE, PAPER, STACK_MAX, lineOf, stationOf, floorData, floorHtml, epicPanelHtml } from '../js/dispatch/floor.js';
+import { CODE, PAPER, STACK_MAX, lineOf, stationOf, floorData, floorHtml, epicPanelHtml, rowsData, rowsHtml, onboardPickHtml, toldStep } from '../js/dispatch/floor.js';
 import { setBoardFeed } from '../js/loom.js';
 
 const FIXTURE = JSON.parse(fs.readFileSync(new URL('./fixtures/state.json', import.meta.url), 'utf8'));
@@ -184,4 +184,64 @@ test('products being onboarded are new lines on top, their five steps lit, gaps 
   assert.match(html, /data-lane-filter="teach">2 gaps to answer</);
   assert.match(html, /data-lane-open="41207-fix-login-timeout">Trial run L52</);
   assert.match(html, /<span class="fl-live">Live<\/span><button type="button" class="lnk plain" data-onboard-dismiss="Billing">Hide</);
+});
+
+// Loom 6.6.0 (eng-agents Core 4.11.0, connector 1.24.0).
+test("Tandem's step.md places a build at its station, when it fits the item's stage", () => {
+  const it = S.D.items.find(i => i.folder === '41207-fix-login-timeout');
+  S.L.sessions.ses_0001abc.activity = 'Reading files';
+  it.step = { name: 'test', at: '2026-10-21T11:50:00Z' };
+  assert.equal(stationOf(card(it.folder)), 'test', 'no guessing: step.md says test');
+  it.step = { name: 'ui', at: '2026-10-21T11:50:00Z' };
+  assert.equal(toldStep(it), '', 'UI checks only happen in review');
+  assert.equal(stationOf(card(it.folder)), 'build');
+  it.stage = 'review';
+  assert.equal(stationOf(card(it.folder)), 'ui');
+  it.step = { name: 'fix', at: '2026-10-21T11:50:00Z' };
+  assert.equal(stationOf(card(it.folder)), 'fix');
+});
+
+test('cards carry their project color once you have projects', () => {
+  let html = floorHtml(lanesData('all'), '', '');
+  assert.doesNotMatch(html, /class="fl-proj"/, 'no projects: no swatch');
+  S.D.projects = { projects: [{ id: 'inbox', name: 'Inbox', color: 'slate', builtIn: true }, { id: 'atlas', name: 'Atlas', color: 'teal' }], runs: { '41207-fix-login-timeout': 'atlas' }, colors: ['slate', 'teal'] };
+  html = floorHtml(lanesData('all'), '', '');
+  assert.match(html, /data-lane-open="41207-fix-login-timeout"[^>]*><span class="fl-ctop"><span class="fl-proj" title="Atlas"><span class="sw" data-c="teal"/);
+  assert.match(html, /data-lane-open="41300-export-retry-fails"[^>]*><span class="fl-ctop"><span class="fl-id">/, 'a run in no project has none');
+});
+
+test('List is rows grouped Needs you, Running and Also waiting, each with its station track; Lanes keeps the four lanes', () => {
+  const groups = rowsData(lanesData('all'));
+  assert.deepEqual(groups.map(g => g.id), ['mine', 'running']);
+  const pub = groups[0].rows.find(r => r.c.folder === '41610-rate-limit-headers');
+  assert.equal(pub.where, 'Loading dock');
+  assert.deepEqual(pub.track.map(t => t.st), ['done', 'done', 'done', 'done', 'done', 'done', 'now']);
+  const stuck = groups[0].rows.find(r => r.c.folder === '41502-csv-export');
+  assert.equal(stuck.where, 'Pulled off the line');
+  assert.ok(stuck.track.some(t => t.st === 'stuck'), 'the station it stopped at is marked');
+  const spike = groups[0].rows.find(r => r.c.folder === 'spike-cache-options');
+  assert.equal(spike.track.length, 5, 'paper runs use the paper line');
+  S.view.lanes = 'rows';
+  let html = lanesHtml();
+  assert.match(html, /data-lane-view="rows" aria-pressed="true">List</);
+  assert.match(html, /<section class="fl-rgroup" aria-label="Needs you"><h2>Needs you <span class="fl-ln">\d+<\/span><\/h2>/);
+  assert.match(html, /class="fl-rowb" data-lane-open="41610-rate-limit-headers"[^>]*>.*?<span class="fl-rwhere">Loading dock<\/span>/);
+  S.view.lanes = 'list';
+  html = lanesHtml();
+  assert.match(html, /data-lane-view="list" aria-pressed="true">Lanes</);
+  assert.match(html, /class="ln-lanes"/);
+});
+
+test('Onboard a product lists your products with repos that are not onboarding yet; a pick starts it', () => {
+  let html = lanesHtml();
+  assert.match(html, /data-onboard-toggle="1" aria-expanded="false"[^>]*>Onboard a product</);
+  assert.equal(onboardPickHtml(), '', 'closed until opened');
+  S.ui.onboardPick = true;
+  S.products = [{ name: 'Sample Portal', repos: ['api'] }, { name: 'No repos', repos: [] }, { name: 'Old', repos: ['x'], archived: true }, { name: 'Billing', repos: ['b', 'c'] }];
+  S.D.onboarding = [{ product: 'billing', steps: [] }];
+  html = onboardPickHtml();
+  assert.match(html, /data-onboard-go="Sample Portal"><span class="ln-ptitle">Sample Portal<\/span><span class="ln-ptype">1 repo<\/span>/);
+  assert.doesNotMatch(html, /No repos|Old|Billing/);
+  S.products = [];
+  assert.match(onboardPickHtml(), /Add one in Settings, Products/);
 });

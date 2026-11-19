@@ -15,7 +15,7 @@ import { pickable, boardFeed } from '../loom.js';
 import { projectFilterHtml, inProject, projectFilter, projectChip } from './projects.js';
 import { reviewsHtml } from './pr-reviews.js';
 import { noticedHtml, noticedCount } from './noticed.js';
-import { floorHtml, epicPanelHtml } from './floor.js';
+import { floorHtml, epicPanelHtml, rowsHtml, onboardPickHtml } from './floor.js';
 import { teachHtml, teachCount, teachBlocking, publishAllHtml, publishOf, adoLinkOf, adoLinkHtml, adoNoticeHtml } from './factory.js';
 // Set by pages.js (it imports this module): the onboarding guide and an ask's source, for Loom 6.0.0's Lanes.
 // var, no initializer: pages.js may run this setter before this module's body (they import each other).
@@ -296,10 +296,11 @@ export function dropHtml() {
   const ado = list.length ? `<button type="button" class="lnk plain ln-adobtn" data-ado-toggle="1" aria-expanded="${!!S.ui.dropPick}">From ADO</button>` : '';
   return `<section class="ln-drop" aria-label="Start something"><label for="ln-drop" class="ln-dl">Drop anything: a user story or ADO number, an error log, or a question</label>` +
     `<textarea id="ln-drop" rows="3" data-draft="lanes:drop" placeholder="Paste a story, a stack trace or a question. Enter starts it; Shift+Enter for a new line.">${h(text)}</textarea>` +
-    `<div class="ln-drow">${ado}<button type="button" class="lnk plain" data-start-open="1" title="Plan an epic, write docs, handle a request">Other flows</button><span class="grow"></span>${pick}` +
+    `<div class="ln-drow">${ado}<button type="button" class="lnk plain" data-start-open="1" title="Plan an epic, write docs, handle a request">Other flows</button>` +
+    `<button type="button" class="lnk plain" data-onboard-toggle="1" aria-expanded="${!!S.ui.onboardPick}" title="Get a product ready for its first build">Onboard a product</button><span class="grow"></span>${pick}` +
     `<button type="button" class="btn primary" data-lane-start="1"${ready ? '' : ' disabled title="Connect opencode to start work"'}${S.ui.dropBusy ? ' disabled' : ''}>${S.ui.dropBusy ? 'Starting…' : 'Start'}</button></div>` +
     (S.ui.dropAdo && text.trim() ? `<label class="ln-keep"><input type="checkbox" data-drop-keep="1"${S.ui.dropKeep ? ' checked' : ''}> Keep it linked to ADO #${h(S.ui.dropAdo.id)} (otherwise it starts as a local item)</label>` : '') +
-    (S.ui.dropPick && list.length ? pickerHtml(list) : '') + '</section>';
+    (S.ui.dropPick && list.length ? pickerHtml(list) : '') + onboardPickHtml() + '</section>';
 }
 /** The From ADO picker: your team's backlog items nobody has started, newest change first, with a search. */
 function pickerHtml(list) {
@@ -328,16 +329,17 @@ export function lanesHtml() {
   const top = (S.digestHtml ? S.digestHtml(h) : '') + (onboardTop ? onboardTop() : '') + adoNoticeHtml();
   if (noticed) return `<div class="ln-page">${top}${dropHtml()}${chips}${noticedHtml()}</div>`;
   if (teach) return `<div class="ln-page">${top}${dropHtml()}${chips}${teachHtml()}</div>`;
-  // Loom 6.4.0: Floor (default) or List. Floor draws the same cards as stations on a line (floor.js).
-  const list = laneView() === 'list';
-  const views = `<div class="seg ln-views" role="group" aria-label="View">${[['floor', 'Floor'], ['list', 'List']].map(([k, label]) =>
-    `<button type="button" class="seg-b${(k === 'list') === list ? ' on' : ''}" data-lane-view="${k}" aria-pressed="${(k === 'list') === list}">${label}</button>`).join('')}</div>`;
-  const body = list ? `<div class="ln-body${panel ? ' has-panel' : ''}"><div class="ln-lanes">${data.lanes.map(l => laneHtml(l, sel, data.doneList)).join('')}</div>${panel}</div>`
-    : floorHtml(data, sel, panel);
+  // Loom 6.4.0: Floor (default) draws the same cards as stations on a line (floor.js). Loom 6.6.0: List is rows with a
+  // station track (floor.js rowsHtml); Lanes keeps the four lanes (stored as 'list', its value before 6.6.0).
+  const view = laneView();
+  const views = `<div class="seg ln-views" role="group" aria-label="View">${[['floor', 'Floor'], ['rows', 'List'], ['list', 'Lanes']].map(([k, label]) =>
+    `<button type="button" class="seg-b${k === view ? ' on' : ''}" data-lane-view="${k}" aria-pressed="${k === view}">${label}</button>`).join('')}</div>`;
+  const body = view === 'list' ? `<div class="ln-body${panel ? ' has-panel' : ''}"><div class="ln-lanes">${data.lanes.map(l => laneHtml(l, sel, data.doneList)).join('')}</div>${panel}</div>`
+    : view === 'rows' ? rowsHtml(data, sel, panel) : floorHtml(data, sel, panel);
   return `<div class="ln-page">${top}${dropHtml()}<div class="ln-bar">${chips}${views}</div>${projectFilterHtml(workItems())}${body}</div>`;
 }
-/** Floor or List (Loom 6.4.0), kept in this browser with the project filter. Floor is the default. */
-export const laneView = () => (S.view && S.view.lanes === 'list' ? 'list' : 'floor');
+/** Floor, List (rows) or Lanes ('list'), kept in this browser with the project filter. Floor is the default. */
+export const laneView = () => (S.view && ['list', 'rows'].includes(S.view.lanes) ? S.view.lanes : 'floor');
 /** The tab bar's count on Lanes: cards waiting on you. */
 export function lanesCount() { return lanesData('all').counts.mine + teachBlocking(); }
 /** The run open in the lanes' panel, for wantedFiles (its gate's file is read inline). */

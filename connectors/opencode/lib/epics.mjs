@@ -80,11 +80,20 @@ export async function buildEpic({ folder }, { items = [], run, start = autopilot
     const r = await run("backlog", `${scope} local`, null);
     return { ok: true, split: true, session: r && r.session ? r.session : null, started: [] };
   }
-  return { ok: true, split: false, started: await startWaiting(items, start) };
+  await startWaiting(items, start);
+  // The stories building now: started here, or a moment earlier by the model hook (the .work watcher saw them first).
+  return { ok: true, split: false, started: stories.filter((it) => autopilot[it.folder]).map((it) => it.folder) };
 }
 
+// One pass at a time: the model hook and epic.build can both ask, and a second pass must see what the first started.
+let pass = Promise.resolve();
 /** Starts autopilot for every story of an epic you asked to build, and every trial run, that has none yet. */
-export async function startWaiting(items, start = autopilotAction) {
+export function startWaiting(items, start = autopilotAction) {
+  const next = pass.then(() => startNow(items, start));
+  pass = next.catch(() => {});
+  return next;
+}
+async function startNow(items, start) {
   const started = [];
   const want = (it) => (it.story && it.story.breakdown && state.epics[it.story.epic]) || (it.trial && state.onboarding[onboardKey(it.trial)]);
   const list = (items || []).filter((it) => handsOffItem(it) && want(it) && !autopilot[it.folder] && it.stage !== "ship" && it.bucket !== "done" && !it.paused);

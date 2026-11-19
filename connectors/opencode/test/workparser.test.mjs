@@ -6,6 +6,7 @@ import assert from "node:assert/strict";
 import { spawnSync, execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import os from "node:os";
 import { readWork, isoLocal, remoteWeb, branchLinks, field, section, hiddenSet } from "../lib/workparser.mjs";
 import { hasGit, hasPowerShell, makeWorkspace, REPO } from "./harness.mjs";
 
@@ -285,4 +286,24 @@ test("observations.md lines parse; other lines are skipped", async () => {
   assert.equal(a.lane, "quick");
   assert.equal(a.title, "Two retry helpers do the same thing");
   assert.match(a.description, /Noticed by Tandem \(O3, 2026-11-18, while working on L2\)\.\nRepo: api/);
+});
+
+test("Core 4.10.0 and 4.11.0: story, trial, step and onboarding are read only when present", async () => {
+  const { storyOf, stepOf, onboardingOf } = await import("../lib/workparser.mjs");
+  assert.equal(storyOf("# Work item L1: x\n\n- Type: Feature\n"), null);
+  assert.deepEqual(storyOf("- Epic: scope-ws\r\n- Story: 1.2\r\n- Depends on: L1, L2\r\n- Repos: `api`, web\r\n- Areas: api/src\r\n- Breakdown: approved 2026-11-19\r\n"),
+    { epic: "scope-ws", story: "1.2", dependsOn: ["L1", "L2"], repos: ["api", "web"], areas: ["api/src"], breakdown: true });
+  assert.deepEqual(storyOf("- Epic: scope-ws\n- Depends on: none\n").dependsOn, []);
+  assert.equal(storyOf("- Epic: scope-ws\n").breakdown, false);
+  assert.deepEqual(stepOf("- Step: test | 2026-11-19T16:00:00Z\r\n"), { name: "test", at: "2026-11-19T16:00:00Z" });
+  assert.equal(stepOf("- Step: deploy | 2026-11-19T16:00:00Z\n"), null);
+  assert.equal(stepOf(""), null);
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "onb-"));
+  try {
+    fs.mkdirSync(path.join(dir, "_onboarding"));
+    fs.writeFileSync(path.join(dir, "_onboarding", "sample-portal.md"), "# Onboarding: Sample Portal\n\n- Product: Sample Portal\n- Scan: done 2026-11-19 | api, web\n- Trial: L3\n");
+    fs.writeFileSync(path.join(dir, "_onboarding", "Bad Name.md"), "- Product: x\n");
+    assert.deepEqual(onboardingOf(dir), [{ product: "Sample Portal", file: "sample-portal.md", scan: { date: "2026-11-19", repos: ["api", "web"] }, trial: "L3", live: null }]);
+    assert.deepEqual(onboardingOf(path.join(dir, "missing")), []);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
