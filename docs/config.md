@@ -13,6 +13,8 @@ Workshop keeps two folders apart:
 | --- | --- |
 | `~/.workshop/config.json` | This file. |
 | `~/.workshop/token` | The per-install token. User-only permissions. Never shown in the UI or logs. |
+| `~/.workshop/agent-token` | The agent token: Tandem's scripts use it for `/api/tools` (read actions marked for agents) and nothing else. User-only permissions. Never logged. |
+| `~/.workshop/secrets.json` | Names of the secrets `workshop secret set` saved in this computer's secret store, with dates. Never values ([security.md](security.md), Secrets). |
 | `~/.workshop/data/_connectors/<id>/<key>.json` | A connector's private state (settings it saved, sync cursors), see [connector.md](connector.md). Never something you wrote: that goes in the data folder. |
 | `~/.workshop/data/<app>/...` | App data from before the data folder. Copied to `dataDir` once and kept, never deleted (see [data-format.md](data-format.md), Moving from `~/.workshop/data`). |
 | `~/.workshop/logs/` | Agent logs. Never contain tokens, PATs or data contents. |

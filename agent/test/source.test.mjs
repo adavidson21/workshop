@@ -52,9 +52,10 @@ test('the agent itself makes no outbound requests', () => {
   const banned = [/\bfetch\s*\(/, /node:https/, /\bhttp\.(request|get)\s*\(/, /node:net/, /node:tls/, /node:dns/, /node:dgram/, /node:child_process/, /\bWebSocket\b/, /\bEventSource\b/];
   for (const f of runtime) {
     const text = fs.readFileSync(f, 'utf8').split('\n').filter(l => !l.trim().startsWith('//')).join('\n');
-    // Two exceptions (docs/security.md): lib/userenv.mjs reads saved user variables with "reg query", and
-    // lib/terminal.mjs opens a visible terminal for Settings' Update button (checked below).
-    const mayRun = ['agent/lib/userenv.mjs', 'agent/lib/terminal.mjs'];
+    // Three exceptions (docs/security.md): lib/userenv.mjs reads saved user variables with "reg query",
+    // lib/terminal.mjs opens a visible terminal for Settings' Update button, and lib/secrets.mjs reads a secret
+    // from this computer's store (all checked below).
+    const mayRun = ['agent/lib/userenv.mjs', 'agent/lib/terminal.mjs', 'agent/lib/secrets.mjs'];
     for (const re of banned) if (!(re.source === 'node:child_process' && mayRun.includes(rel(f)))) assert.ok(!re.test(text), `${rel(f)} matches ${re}`);
   }
 });
@@ -82,6 +83,19 @@ test('the only other program is a visible terminal running the fixed "workshop u
   assert.match(seen[1][1][1], /workshop\.mjs.*'update' '--restart'/);
   await assert.rejects(openUpdateTerminal({ execPath: 'node', repo: '/w', platform: 'linux', run }), e => e.status === 501);
   assert.equal(seen.length, 2, 'nothing runs on other platforms');
+});
+
+test('lib/secrets.mjs only reads a secret, with one fixed program per platform and no shell', async () => {
+  const text = fs.readFileSync(path.join(AGENT, 'lib', 'secrets.mjs'), 'utf8');
+  const code = text.split('\n').filter(l => !/^\s*(\/\/|\*|\/\*)/.test(l)).join('\n');
+  assert.equal((code.match(/\bexecFile\(/g) || []).length, 1, 'one launch');
+  assert.doesNotMatch(code, /spawn|execSync|exec\(|shell:\s*true|EncodedCommand/);
+  // Nothing that saves, changes or removes a secret: that is the workshop command's job.
+  assert.doesNotMatch(code, /add-generic-password|delete-generic-password|CredWrite|CredDelete|'store'|'clear'|cmdkey/);
+  const { readCommand } = await import('../lib/secrets.mjs');
+  assert.deepEqual(readCommand('x', 'darwin').args.slice(0, 1), ['find-generic-password']);
+  assert.deepEqual(readCommand('x', 'linux').args.slice(0, 1), ['lookup']);
+  assert.match(readCommand('x', 'win32').args.at(-1), /CredRead\(/);
 });
 
 test('the agent binds 127.0.0.1 only', () => {

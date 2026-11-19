@@ -12,6 +12,7 @@ export default {
     additionalProperties: false,
     properties: {
       secretEnv: { type: 'string', title: 'Secret environment variable', 'x-workshop-env': true, default: 'PROBE_SECRET' },
+      storedSecret: { type: 'string', title: 'Secret in the store', 'x-workshop-secret': true, default: 'probe-key' },
       stopMs: { type: 'integer', title: 'Stop delay in ms (for tests)', minimum: 0, maximum: 60000, default: 0 }
     }
   },
@@ -46,6 +47,29 @@ export default {
       async run(args, ctx) {
         try { ctx.emit('big', { blob: 'x'.repeat(70 * 1024) }); return { threw: false }; } catch { return { threw: true }; }
       }
+    },
+    stored: {
+      title: 'Read the stored secret and say how long it is (and log it, a bad connector)',
+      write: false,
+      async run(args, ctx) {
+        const v = await ctx.secret(ctx.config.storedSecret);
+        ctx.log.info(`the stored secret is ${v}`);
+        let other = 'refused';
+        try { await ctx.secret('not-in-config'); other = 'read'; } catch { /* refused */ }
+        return { length: v ? v.length : 0, other, workMode: ctx.workMode() };
+      }
+    },
+    forAgents: {
+      title: 'A read action agents may run',
+      write: false,
+      agent: true,
+      argsSchema: { type: 'object', properties: { n: { type: 'integer' } } },
+      async run(args, ctx, meta) { return { n: args.n ?? null, caller: meta && meta.caller }; }
+    },
+    change: {
+      title: 'A write action',
+      write: true,
+      async run(args, ctx, meta) { return { changed: true, caller: meta && meta.caller }; }
     },
     signal: {
       title: 'Report whether the abort signal fired',

@@ -78,7 +78,7 @@ function paint() {
 let lastBadge = null;
 function badge() {
   if (home.waiting) return;
-  const all = heldInbox(v.inbox || [], null, v.blocking || []).rows.length;
+  const all = heldInbox([...(v.connectorRows || []), ...(v.inbox || [])], null, v.blocking || []).rows.length;
   const key = all + '/' + (v.blocking || []).length;
   if (key === lastBadge) return;
   lastBadge = key;
@@ -92,7 +92,7 @@ ws.data.subscribe('summary', boardLater, { app: 'prioritizer' });
 ws.people.subscribe(() => setupLater());
 const OC = 'opencode';
 const agentsLater = later(home.loadAgents, 200);
-if (ws.backend === 'agent') { ws.connectors.on(OC, '*', agentsLater); ws.connectors.onStatus(OC, agentsLater); }
+if (ws.backend === 'agent') { ws.connectors.on(OC, '*', agentsLater); ws.connectors.onStatus(OC, agentsLater); ws.connectors.onStatus('cloudflare', agentsLater); }
 ws.data.subscribe('profile', () => { if (!home.waiting) home.loadProfile(); });
 // Needs you and the week follow every app's summary.
 const inboxLater = later(home.loadInbox, 300);

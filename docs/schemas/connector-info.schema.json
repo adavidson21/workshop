@@ -54,6 +54,10 @@
           "setup": {
             "type": "boolean",
             "description": "Runs while the connector reports an error, to help fix its settings. Only present when true."
+          },
+          "agent": {
+            "type": "boolean",
+            "description": "Agents may run it through /api/tools (docs/agent-api.md, Tools for agents). Always a read action. Only present when true."
           }
         }
       }

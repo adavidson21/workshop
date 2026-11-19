@@ -23,6 +23,8 @@ export function checkConnectorModule(m, folder, schemas) {
     if (typeof a.write !== 'boolean') return `Action ${name} must say write: true or false.`;
     if (a.setup !== undefined && typeof a.setup !== 'boolean') return `Action ${name} setup must be true or false.`;
     if (a.setup === true && a.write) return `Action ${name} is a setup action, so it must be a read action.`;
+    if (a.agent !== undefined && typeof a.agent !== 'boolean') return `Action ${name} agent must be true or false.`;
+    if (a.agent === true && a.write) return `Action ${name} is for agents, so it must be a read action.`;
     if (a.argsSchema !== undefined && (typeof a.argsSchema !== 'object' || a.argsSchema === null)) return `Action ${name} argsSchema must be a schema object.`;
   }
   if (m.test !== undefined) {

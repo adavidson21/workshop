@@ -7,7 +7,7 @@ What Workshop stores, where it sends data (almost nowhere), and the checks that 
 - Everything you create stays on your computer. There is no Workshop account, and no server holds your data.
 - Where the code comes from: outside work mode, the hub and its apps load from Workshop's site (https://workshop.alexisdavidson.org, a Cloudflare Worker deployed from this repo's `main`; Docket from https://docket.alexisdavidson.org), and a paired site can use the agent. In work mode they load from a pinned copy on your disk and no site can use the agent. See Hosted mode and Work mode below.
 - The agent binds `127.0.0.1` only and answers no one else on the network.
-- The agent makes no outbound request of its own. Only a connector you turned on talks to the one system it is for (for example your Azure DevOps server), from your computer, using a token you keep in an environment variable.
+- The agent makes no outbound request of its own. Only a connector you turned on talks to the one system it is for (for example your Azure DevOps server), from your computer, using a token you keep in an environment variable or in this computer's own secret store (Keychain, Credential Manager). See Secrets.
 - Dispatch is the one part that sends your work somewhere else: its coding agents (opencode) send prompts and the files they read to the AI provider opencode is set up with. It is optional, and the installer leaves it out in work mode unless you ask for it. See Outbound hosts.
 - There is no telemetry, no analytics, no crash reporting, no update ping. Nothing phones home.
 - On a computer where the code must not change by itself (a work laptop), work mode runs Workshop from a pinned copy on your disk, checked file by file, and no site can use the agent. See Work mode below.
@@ -39,8 +39,10 @@ In browser-only mode there is no agent: the UI is static files, and Chrome reads
 
 | What | Where | Notes |
 | --- | --- | --- |
-| Settings | `~/.workshop/config.json` | No secrets. Holds the names of environment variables that hold secrets, never the values. |
+| Settings | `~/.workshop/config.json` | No secrets. Holds the names of environment variables and stored secrets, never the values. |
 | The per-install token | `~/.workshop/token` | Readable by your user only (`0600`). Never shown in the UI or written to a log. |
+| The agent token | `~/.workshop/agent-token` | Readable by your user only (`0600`). For Tandem's scripts to call read actions marked for agents (`/api/tools`), and nothing else. Never logged. See Tools for agents. |
+| The list of saved secrets | `~/.workshop/secrets.json` | Names, which store, when saved and expiry dates. Never values: those are in this computer's secret store. See Secrets. |
 | App data | Your data folder, `~/Workshop` by default (`dataDir` in settings): `<app>/...` | Your tasks, notes and so on. A folder you own: Workshop is a view over it, and deleting Workshop leaves it. Workshop never syncs or uploads it. |
 | Trash and backups | `.trash/` and `.backups/` in your data folder | Files you deleted in Workshop, and copies kept before a format upgrade. Workshop never empties them. |
 | App data from before the data folder | `~/.workshop/data/<app>/` | Copied into the data folder once, then left as a backup. Never deleted by Workshop. |
@@ -54,12 +56,32 @@ Set `WORKSHOP_HOME` to keep the `~/.workshop` items somewhere else. The data fol
 Secrets (Azure DevOps PATs and the like) live in environment variables, never in `config.json`. A connector's config names the variable (for example `"patEnv": "ADO_PAT"`); the agent reads the value from the environment and never stores, logs or returns it.
 
 - **Saving a PAT.** `workshop pat ADO_PAT` asks for the token without showing it and, on Windows, saves it as a user environment variable (as the Windows settings dialog does), passing it to PowerShell on stdin. It never appears on a command line, in shell history (`setx ADO_PAT "<token>"` leaves it in PowerShell's history file), in `config.json` or in a log. On macOS and Linux it only explains where to put the variable.
-- **No restart for a new PAT on Windows.** When a connector asks for a variable, the agent looks it up in the user's saved variables (`reg query HKCU\Environment /v <name>`, cached for a few seconds) before its own environment. The agent's only other use of `child_process` is Settings' Update button (`agent/lib/terminal.mjs`): it opens a terminal window you can see (PowerShell on Windows, Terminal on macOS) running the fixed command `workshop update --restart`. It runs no other program, and `agent/test/source.test.mjs` checks both.
+- **Tokens in the secret store instead.** A connector field marked `x-workshop-secret` names a secret in this computer's own store instead of a variable. See Secrets below. The Cloudflare connector uses only this.
+- **No restart for a new PAT on Windows.** When a connector asks for a variable, the agent looks it up in the user's saved variables (`reg query HKCU\Environment /v <name>`, cached for a few seconds) before its own environment. The agent's only other uses of `child_process` are reading a secret from this computer's store for a connector (`agent/lib/secrets.mjs`, Secrets below) and Settings' Update button (`agent/lib/terminal.mjs`): it opens a terminal window you can see (PowerShell on Windows, Terminal on macOS) running the fixed command `workshop update --restart`. It runs no other program, and `agent/test/source.test.mjs` checks all three.
+
+## Secrets
+
+Environment variables are easy but leaky: every program you start inherits them (Tandem's agents included), and on macOS and Linux they usually sit in plain text in a shell profile. So a connector can name a secret in this computer's own secret store instead (`x-workshop-secret`, [connector.md](connector.md), `ctx.secret`):
+
+| Computer | Store | Saved by `workshop secret set <name>` | Read by the agent |
+| --- | --- | --- | --- |
+| macOS | the login Keychain, service `workshop`, account `<name>` | `security -i` with the add command on stdin, the value hex-encoded | `security find-generic-password -s workshop -a <name> -w` |
+| Windows | Credential Manager, generic credential `workshop:<name>`, this computer only | `powershell.exe` with `CredWrite`, the value on stdin | `powershell.exe` with `CredRead`, the target in an environment variable |
+| Linux | the Secret Service (GNOME Keyring, KWallet) | `secret-tool store`, the value on stdin | `secret-tool lookup service workshop account <name>` |
+
+- **Saving is yours.** `workshop secret set <name> [--expires YYYY-MM-DD]` asks for the value without showing it and reads it back from the store before recording the name. The value is never on a command line, in shell history, in a file Workshop writes or in a log. `workshop secret list` shows names, store and expiry; `check` says whether it is there (never what it is); `remove` deletes it.
+- **The agent only reads** (`agent/lib/secrets.mjs`, checked by `agent/test/source.test.mjs`): one fixed program per computer, the name as its own argument and never through a shell, nothing that can save, change or delete a secret. A connector reads only names its own config holds in `x-workshop-secret` fields; the value is cached for a minute and added to the log's redaction list.
+- **Expiry.** Give each secret its token's expiry date. Settings shows "expires in N days" from 14 days out, and `workshop secret list` marks it.
+- **What it does not protect against.** Any program running as you can ask your Keychain or Credential Manager for a secret the same way Workshop does. The store keeps secrets off disk in plain text, out of backups and sync, and out of every program's environment; it does not stop code running as you that sets out to read it. Keep tokens narrow (one service, the fewest permissions, specific zones or repos), give them an end date, and where the service offers it, restrict them to your IP address. Tandem's guard rules ask before any shell command that reads a secret store or Workshop's tokens.
+
+## Tools for agents
+
+Tandem's agents never get a connector's token. When they need an outside system, they call Workshop: `/api/tools` runs read actions a connector marks `agent: true` ([agent-api.md](agent-api.md), Tools for agents), with the agent token in `~/.workshop/agent-token`. That token opens nothing else: no data folder, no settings, no write action, no `confirm`. A request from a web page (any `Origin`) is refused. The connector sees the call as from an agent and can say no (Cloudflare's **Let Tandem read and propose changes**). Changes go the other way: an agent proposes, and a person applies with a click in Workshop.
 
 ## Outbound hosts
 
-- The agent itself: none. It never makes an outbound request, and the only programs it runs are `reg query` on Windows to read a saved variable, and a visible terminal for Settings' Update button (above). The update in that window is `workshop update`, the same as typing it. Turning an app on in Settings never downloads it: that is `workshop apps on <app>`, run by you, which clones the app's repo from GitHub ([apps.md](apps.md)). Its source is checked for this (`agent/test/source.test.mjs`).
-- A connector you turned on: the servers in that connector's own config, and no others. The ADO connector reaches the Azure DevOps server URLs you set, over HTTPS, with your PAT.
+- The agent itself: none. It never makes an outbound request, and the only programs it runs are `reg query` on Windows to read a saved variable, the secret store's own reader when a connector asks for a secret (Secrets, above), and a visible terminal for Settings' Update button (above). The update in that window is `workshop update`, the same as typing it. Turning an app on in Settings never downloads it: that is `workshop apps on <app>`, run by you, which clones the app's repo from GitHub ([apps.md](apps.md)). Its source is checked for this (`agent/test/source.test.mjs`).
+- A connector you turned on: the servers in that connector's own config, and no others. The ADO connector reaches the Azure DevOps server URLs you set, over HTTPS, with your PAT. The Cloudflare connector reaches `https://api.cloudflare.com/client/v4` (its **API address**) with the token from your secret store, and is off in work mode.
 - The opencode connector (Dispatch), when on: it reaches only the opencode server on this computer, but opencode itself sends prompts and the contents of files its agents read to the AI provider it is set up with, and agents run git against your repos' remotes (clone, fetch, push). Set **Approved AI providers** so `workshop doctor` checks opencode can use no other provider (connectors/opencode/README.md, Approved AI providers). Agents read pull requests and work items written by other people; treat that text as untrusted input to an agent that can run commands in your workspace.
 - The browser: this site's own files only, plus the local agent on `127.0.0.1`. Fonts and libraries are served from the site (`shared/fonts/`, `shared/vendor/`), not a CDN. `tests/e2e.py` fails if any request goes anywhere else.
 
@@ -153,6 +175,6 @@ Each one runs this computer's Node on `agent/start.mjs` quietly. Turning it off 
 Nothing leaves the computer unless the person turned it on, and Settings, Data lists every way out with its state:
 
 - **The data folder** stays on this computer. If the person puts it in a folder a sync tool uploads (OneDrive, Dropbox, iCloud Drive, Google Drive), that tool uploads it; Workshop says so and never uploads it itself. Installers keep it in `~/Workshop` unless told otherwise (`WORKSHOP_DATA_DIR`, or `WORKSHOP_ONEDRIVE=1` for the company OneDrive).
-- **Connectors** (Azure DevOps, GitHub, opencode) are off until turned on, call only hosts from their config, and change outside systems only from a button with `confirm: true`.
+- **Connectors** (Azure DevOps, GitHub, opencode, Cloudflare) are off until turned on, call only hosts from their config, and change outside systems only from a button with `confirm: true`. Agents can run only read actions marked for them (`/api/tools`), never a write.
 - **AI**: with the opencode connector on, what the person sends in Chat and Loom goes to the AI provider opencode is set up with (its approved providers are listed).
 - **Pages** can reach only their own site and `127.0.0.1` (CSP `connect-src`, checked by `shared/test/page-csp.test.mjs`), and the agent itself makes no outbound requests (`agent/test/source.test.mjs`).

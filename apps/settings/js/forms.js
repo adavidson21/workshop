@@ -5,6 +5,8 @@
      string                      text field (format: uri -> url; x-workshop-multiline -> textarea)
      string + enum               select (x-workshop-labels for option labels)
      string + x-workshop-env     environment variable name field (shows whether it is set; no value field)
+     string + x-workshop-secret  secret name field (shows whether `workshop secret set` saved it, and its expiry;
+                                 no value field: values are only ever typed into the terminal)
      integer / number            number field (minimum, maximum)
      boolean                     checkbox
      array of strings            list of text fields with add and remove
@@ -42,7 +44,7 @@ function control(schema, value, env, o) {
 
 // A field has a working default when it, or every field inside it, has one.
 // Environment variable names (where a PAT lives) always stay in view.
-const hasDefault = x => !x['x-workshop-env'] && ('default' in x) || (x.type === 'object' && Object.keys(x.properties || {}).length > 0 && Object.values(x.properties).every(hasDefault));
+const hasDefault = x => !x['x-workshop-env'] && !x['x-workshop-secret'] && ('default' in x) || (x.type === 'object' && Object.keys(x.properties || {}).length > 0 && Object.values(x.properties).every(hasDefault));
 const titleOf = (schema, fallback) => schema.title || fallback || '';
 function help(text) { const p = document.createElement('p'); p.className = 'cfg-help'; p.textContent = text; return p; }
 
@@ -152,6 +154,33 @@ function leafField(schema, value, env, o) {
     holder.appendChild(status);
     holder.readValue = () => input.value.trim();
     return holder; // secrets are never entered here, only the variable name
+  }
+
+  if (schema['x-workshop-secret']) {
+    const name = value != null ? String(value) : (schema.default || '');
+    const input = document.createElement('input');
+    input.type = 'text'; input.value = name; input.className = 'cfg-input mono'; input.placeholder = 'secret-name';
+    if (ro) input.disabled = true;
+    holder.appendChild(input);
+    const status = document.createElement('span');
+    status.className = 'cfg-env-status';
+    const how = document.createElement('code');
+    how.className = 'cfg-secret-cmd';
+    // The agent reports on names already saved in the config (GET connector config, `secrets`); never a value.
+    const render = () => {
+      const n = input.value.trim();
+      const s = o.secrets && Object.prototype.hasOwnProperty.call(o.secrets, n) ? o.secrets[n] : null;
+      const d = s && typeof s.daysLeft === 'number' ? s.daysLeft : null;
+      status.textContent = !n ? '' : !s ? 'save to check' : !s.set ? 'not saved on this computer'
+        : d !== null && d < 0 ? `expired ${s.expires}` : d !== null && d <= 14 ? `saved, expires in ${d} days` : `saved in ${s.store || 'your secret store'}`;
+      status.className = 'cfg-env-status ' + (!s ? '' : s.set && !(d !== null && d <= 14) ? 'ok' : 'warn');
+      how.textContent = n && (!s || !s.set || (d !== null && d <= 14)) ? `workshop secret set ${n} --expires YYYY-MM-DD` : '';
+    };
+    input.addEventListener('input', render); render();
+    holder.appendChild(status);
+    holder.appendChild(how);
+    holder.readValue = () => input.value.trim();
+    return holder; // secrets are never entered here, only the name; the value goes in with `workshop secret set`
   }
 
   if (schema.type === 'boolean') {

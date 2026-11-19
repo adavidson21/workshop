@@ -210,6 +210,10 @@
         "x-workshop-env": {
           "type": "boolean"
         },
+        "x-workshop-secret": {
+          "type": "boolean",
+          "description": "The value names a secret in this computer's secret store (docs/connector.md, ctx.secret)."
+        },
         "x-workshop-labels": {
           "type": "array",
           "items": {

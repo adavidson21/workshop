@@ -101,3 +101,17 @@ test('dashboard: Coming up from every app\'s upcoming card, soonest first, two w
   assert.match(html, /class="ud num late"/);
   assert.equal(upcomingCard([], today), '');
 });
+
+test('connectorRows: one row for Cloudflare change sets waiting, from the connector status only', async () => {
+  const { connectorRows } = await import('../js/view.js');
+  const cf = n => ({ id: 'cloudflare', enabled: true, status: { state: 'ready', details: { waiting: n } } });
+  assert.deepEqual(connectorRows([cf(2)]), [{ app: 'settings', appName: 'Cloudflare', id: 'cloudflare-changes', title: '2 change sets to review', note: 'Proposed by Tandem. Apply or reject.', route: 'c-cloudflare', flag: '' }]);
+  assert.equal(connectorRows([cf(1)])[0].title, '1 change set to review');
+  assert.deepEqual(connectorRows([cf(0)]), []);
+  assert.deepEqual(connectorRows([{ ...cf(3), enabled: false }]), []);
+  assert.deepEqual(connectorRows([{ id: 'opencode', enabled: true, status: { details: { waiting: 4 } } }]), []);
+  assert.deepEqual(connectorRows(null), []);
+  const html = render({ now: new Date(2026, 10, 19, 9), inbox: [], connectorRows: connectorRows([cf(1)]), blocking: [], upcoming: [], week: [] });
+  assert.match(html, /data-open="settings" data-path="c-cloudflare"/);
+  assert.match(html, /1 change set to review/);
+});

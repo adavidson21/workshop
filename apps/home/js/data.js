@@ -5,14 +5,14 @@
    data folder (a bar in the shell has the Allow button). Reads then fail with code `unavailable`. Like
    Docket, Home then shows a message instead of an empty panel, saves nothing, and loads again once
    `online` turns true. */
-import { agentCounts, blockingRows, boardFromSummary, dateStr, inboxRows, upcomingRows, weekRows } from './view.js';
+import { agentCounts, blockingRows, boardFromSummary, connectorRows, dateStr, inboxRows, upcomingRows, weekRows } from './view.js';
 import { readCards } from '../../../shared/summary.js';
 
 const P = { app: 'prioritizer' };
 const OC = 'opencode';
 
 export function createHome(ws, { onChange = () => {}, now = () => new Date() } = {}) {
-  const v = { now: now(), profile: {}, inbox: [], blocking: [], focus: null, week: [], upcoming: [], apps: [], board: null, agents: { state: 'loading' }, waiting: false, embedded: !!ws.embedded };
+  const v = { now: now(), profile: {}, inbox: [], connectorRows: [], blocking: [], focus: null, week: [], upcoming: [], apps: [], board: null, agents: { state: 'loading' }, waiting: false, embedded: !!ws.embedded };
 
   const changed = () => { v.now = now(); onChange(v); };
   // True (and Home waits) when the error means the browser's folder store needs Allow.
@@ -37,7 +37,9 @@ export function createHome(ws, { onChange = () => {}, now = () => new Date() } =
   async function loadAgents() {
     if (ws.backend !== 'agent') { v.agents = { state: 'browser' }; return changed(); }
     try {
-      const c = (await ws.connectors.list()).find(x => x.id === OC);
+      const list = await ws.connectors.list();
+      v.connectorRows = connectorRows(list);
+      const c = list.find(x => x.id === OC);
       if (!c || c.status.state !== 'ready') {
         v.agents = { state: 'off', message: !c ? 'The opencode connector is not installed.' : c.status.state === 'disabled' ? 'The opencode connector is off. Turn it on in Settings.' : c.status.message || 'The opencode connector is not ready yet.' };
       } else {

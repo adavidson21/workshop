@@ -94,6 +94,8 @@ Writers may send `X-Workshop-Client: <id>` (letters, digits, `_` and `-`, up to 
 | `GET /api/config` | token | Public view of `config.json` |
 | `PUT /api/config` | header token, own origin only | Change features, origins, connector on/off, port |
 | `GET /api/events` | token (cookie, header or query) | Server-sent event stream |
+| `GET /api/tools` | agent token, no `Origin` | Read actions agents may run (Tools for agents) |
+| `POST /api/tools/<id>/<action>` | agent token, no `Origin` | Run one of them |
 
 Names in paths: `<app>` and connector `<id>` match `^[a-z][a-z0-9-]{0,39}$`. Action names match `^[a-z][a-zA-Z0-9]*(\.[a-z][a-zA-Z0-9]*)*$` (for example `sync`, `workitem.get`). Anything else gets `400 bad_request`, except an unknown well-formed name, which gets `404 not_found`.
 
@@ -303,6 +305,7 @@ Schema [connector-config](schemas/connector-config.schema.json), example [connec
 - `schema` is the connector's `configSchema`, enough to build its settings form ([connector.md](connector.md)).
 - `config` is the stored config with schema defaults filled in.
 - `env` has one entry per environment variable *named* in `config` (every value of a field marked `x-workshop-env`). It says only whether the variable is set and not empty. **The value is never returned, logged, or written anywhere.**
+- `secrets` has one entry per secret *named* in `config` (every value of a field marked `x-workshop-secret`): `{set, store, expires, daysLeft}` from `~/.workshop/secrets.json`, the list `workshop secret set` keeps. The store is not read for this, and **the value is never returned.**
 - Works whether or not the connector is enabled.
 
 ### `PUT /api/connectors/<id>/config`
@@ -380,6 +383,23 @@ A removed `.json` file is reported as whichever it was last known to be. Rules:
 - **Not for its own writes.** Changes the agent made itself (puts, trash moves, backups, the copy from `~/.workshop/data`) do not cause a `client: null` event; they already sent their own.
 - **Only what Workshop sees.** Paths it ignores ([data-format.md](data-format.md), What Workshop ignores), including `.trash/`, `.backups/` and `*.tmp`, send nothing.
 - **Best effort.** If the operating system drops watch notifications (for example on some network drives), events can be missed. Clients still refetch after a reconnect, and the folder backend's 5-second check covers browser mode.
+
+## Tools for agents
+
+Programs on this computer (Tandem's scripts) reach outside systems through Workshop instead of holding tokens themselves. They can run the read actions a connector marks `agent: true` ([connector.md](connector.md), Actions), and nothing else.
+
+- **Key.** The agent token, in `~/.workshop/agent-token` (64 hex characters, `0600`, made on first start), sent as `X-Workshop-Agent-Token`. The per-install token and the sign-in cookie are not accepted here, and the agent token is accepted nowhere else.
+- **Not for pages.** A request with any `Origin` header answers `403 forbidden`.
+- **Reads only.** A write action, a setup action or an action not marked for agents answers `404 not_found`, as if it did not exist. A body with `confirm` answers `400 bad_request`: agents never confirm.
+- The connector's `run` gets `{caller: "agent"}` as its third argument, so it can refuse agents (Cloudflare's **Let Tandem read and propose changes**). Every call is logged with the connector and action, never the arguments.
+
+### `GET /api/tools`
+
+`{"tools": [{"connector": "cloudflare", "action": "dns.list", "title": "List DNS records in a zone", "argsSchema": {...}}]}`: the agent actions of every connector that is on and ready.
+
+### `POST /api/tools/<id>/<action>`
+
+Body `{"args": {...}}`, as for `POST /api/connectors/<id>/<action>`. Response `{"result": ...}`. Errors as for connector actions.
 
 ## Static files
 

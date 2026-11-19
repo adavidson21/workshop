@@ -6,8 +6,9 @@
 // connector asks, and falls back to its own environment. macOS and Linux have no such store: there the
 // value comes from the environment Workshop started in, as before.
 //
-// Values are never logged or printed here. This is the agent's one use of child_process, and it only ever
-// runs "reg query HKCU\Environment /v <name>" (agent/test/source.test.mjs checks that). Saving a variable is
+// Values are never logged or printed here. This file's one use of child_process only ever runs
+// "reg query HKCU\Environment /v <name>" (agent/test/source.test.mjs checks that; lib/secrets.mjs and
+// lib/terminal.mjs are the agent's other two, checked there too). Saving a variable is
 // the workshop command's job (scripts/lib/control.mjs), never the agent's.
 import { spawnSync } from 'node:child_process';
 
