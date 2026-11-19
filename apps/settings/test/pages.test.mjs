@@ -102,10 +102,13 @@ test('Products sits in You & your team and works with no connector', () => {
   assert.deepEqual(P.routeToPage('products'), { page: 'products' });
 });
 
-test('Settings v3: three groups and twelve nav items (Factory since 1.21.0), some holding pages as tabs', () => {
+test('Settings v3: three groups and fourteen nav items (Factory since 1.21.0; Routines and Manager since 1.12.0), some holding pages as tabs', () => {
   assert.deepEqual(P.GROUPS.map(g => g.id), ['workshop', 'you', 'connections']);
   const items = [...new Set(P.ORDER.filter(id => !P.PAGES[id].hidden).map(P.navOf))];
-  assert.deepEqual(items, ['overview', 'apps', 'computer', 'data', 'factory', 'people-teams', 'knowledge', 'focus', 'writing', 'ado', 'agents', 'repos']);
+  assert.deepEqual(items, ['overview', 'apps', 'computer', 'data', 'factory', 'routines', 'people-teams', 'knowledge', 'focus', 'writing', 'manager', 'ado', 'agents', 'repos']);
+  assert.deepEqual(P.tabsOf('manager'), ['outside', 'approvals', 'activity']);
+  assert.deepEqual(P.routeToPage('approvals'), { page: 'approvals' });
+  assert.equal(P.PAGES.routines.owner, 'opencode');
   assert.deepEqual(P.tabsOf('knowledge'), ['products', 'glossary', 'repo-map', 'checks']);
   assert.deepEqual(P.routeToPage('knowledge'), { page: 'products' });
   assert.deepEqual(P.tabsOf('people-teams'), ['people', 'team']);

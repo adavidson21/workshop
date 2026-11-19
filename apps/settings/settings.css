@@ -509,3 +509,28 @@ label.check input{accent-color:var(--accent);width:1rem;height:1rem;margin:0}
 .cf-done summary{cursor:pointer}
 .cf-status{font-size:.75rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
 .cf-status[data-status=failed]{color:var(--warn)}
+/* Connections manager and Routines (js/connections-page.js, js/routines-page.js) */
+.cx-list{list-style:none;margin:.4rem 0;padding:0}
+.cx-row{display:flex;gap:.75rem;align-items:flex-start;justify-content:space-between;padding:.6rem 0;border-top:1px solid var(--line)}
+.cx-row:first-child{border-top:0}
+.cx-row.off{opacity:.65}
+.cx-main{min-width:0;flex:1}
+.cx-meta{font-size:.82rem;color:var(--muted);margin-top:.15rem;overflow-wrap:anywhere}
+.cx-meta .warn,.sub.warn,.warn{color:var(--warn)}
+.cx-state{font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+.cx-state[data-state=error]{color:var(--warn)}
+.cx-h{font-size:.9rem;margin:1.1rem 0 .3rem}
+.cx-filter select{max-width:14rem}
+.cx-table{width:100%;border-collapse:collapse;font-size:.84rem}
+.cx-table th{text-align:left;font-weight:600;color:var(--muted);padding:.3rem .4rem;border-bottom:1px solid var(--line)}
+.cx-table td{padding:.35rem .4rem;border-bottom:1px solid var(--line);vertical-align:top}
+.cx-table tr.bad td{color:var(--warn)}
+.ap-set{border:1px solid var(--line);border-radius:var(--r-sm);padding:.75rem .9rem;margin:.6rem 0}
+.ap-head{display:flex;flex-wrap:wrap;gap:.25rem .6rem;align-items:baseline}
+.ap-lines{margin:.5rem 0;padding-left:1.1rem;font-size:.88rem;line-height:1.45;overflow-wrap:anywhere}
+.ap-always{display:flex;gap:.4rem;align-items:center;font-size:.85rem;margin:.3rem 0}
+.rt-form{border-top:1px solid var(--line);margin-top:.8rem;padding-top:.4rem;display:grid;gap:.5rem}
+.rt-form label{display:grid;gap:.2rem;font-size:.85rem}
+.rt-form input,.rt-form textarea,.rt-form select{font:inherit}
+.rt-when{display:flex;flex-wrap:wrap;gap:.6rem;align-items:end}
+.rt-when .rt-on{display:flex;gap:.35rem;align-items:center}

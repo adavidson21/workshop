@@ -1106,7 +1106,7 @@ function eventHub(ctx) {
       if (ctx.mode === 'hosted' && ctx.token) u.searchParams.set('token', ctx.token);
       try { source = new EventSource(u.toString(), { withCredentials: ctx.mode === 'local' }); } catch (e) { announce(false); return later(); }
       source.addEventListener('open', () => announce(true));
-      for (const name of ['data', 'file', 'connector', 'connector-status', 'config']) {
+      for (const name of ['data', 'file', 'connector', 'connector-status', 'config', 'approvals']) {
         source.addEventListener(name, (e) => { const p = parse(e.data); if (p) { deliver(name, p); relay({ name, payload: p }); } });
       }
       source.addEventListener('error', () => { announce(false); try { source.close(); } catch (e) { /* closed */ } later(); });
@@ -1157,6 +1157,8 @@ function makeEventStream(ctx) {
     },
     onConnector(id, event, fn) { return on((name, p) => { if (name === 'connector' && p.id === id && (event === '*' || p.event === event)) fn(p); }); },
     onStatus(id, fn) { return on((name, p) => { if (name === 'connector-status' && p.id === id) fn(p.status); }); },
+    onApprovals(fn) { return on((name, p) => { if (name === 'approvals') fn(p); }); },
+    onConfig(fn) { return on((name, p) => { if (name === 'config') fn(p); }); },
     onOnline(fn) { return hub.onOnline(fn); }
   };
 }
@@ -1328,7 +1330,7 @@ export async function connect(options) {
     token: picked.token,
     clientId: randomId('w-')
   };
-  const noEvents = { get online() { return false; }, onData() { return () => {}; }, onFile() { return () => {}; }, onConnector() { return () => {}; }, onStatus() { return () => {}; }, onOnline() { return () => {}; } };
+  const noEvents = { get online() { return false; }, onData() { return () => {}; }, onFile() { return () => {}; }, onConnector() { return () => {}; }, onStatus() { return () => {}; }, onApprovals() { return () => {}; }, onConfig() { return () => {}; }, onOnline() { return () => {}; } };
   ctx.events = (picked.backend === 'agent') ? makeEventStream(ctx) : noEvents;
   const data = (picked.backend === 'agent') ? makeAgentBackend(ctx) : await openBrowserStore(ctx);
   // ws.online and online events: the agent's event stream, or the folder's access.
@@ -1548,6 +1550,37 @@ export async function connect(options) {
       getConfig(id) { return agentCall(ctx, 'GET', `/api/connectors/${id}/config`); },
       // Change them. The agent refuses this from a hosted page (code local_only).
       putConfig(id, config) { return agentCall(ctx, 'PUT', `/api/connectors/${id}/config`, { config }); }
+    },
+
+    /* Approvals (docs/sdk.md, Approvals): changes agents asked for, waiting for a person. Agent backend only. */
+    approvals: {
+      // {approvals: [...], waiting}. status: waiting, approved, failed or rejected.
+      list(opts) { const q = opts && opts.status ? `?status=${encodeURIComponent(opts.status)}` : ''; return agentCall(ctx, 'GET', `/api/approvals${q}`); },
+      get(id) { return agentCall(ctx, 'GET', `/api/approvals/${encodeURIComponent(id)}`); },
+      // Approve with the digest of what was shown ({approve: true, digest, always}) or reject ({approve: false, note}).
+      decide(id, decision) { return agentCall(ctx, 'POST', `/api/approvals/${encodeURIComponent(id)}`, decision); },
+      rules() { return agentCall(ctx, 'GET', '/api/approvals/rules'); },
+      removeRule(id) { return agentCall(ctx, 'DELETE', `/api/approvals/rules/${encodeURIComponent(id)}`); },
+      on(handler) { return ctx.events.onApprovals(handler); }
+    },
+
+    /* The activity log (docs/sdk.md, Activity). Agent backend only. */
+    activity: {
+      // {entries, lastUsed}. opts: limit, connector, by (you, agent, rule, routine).
+      recent(opts) {
+        const q = new URLSearchParams();
+        for (const k of ['limit', 'connector', 'by']) if (opts && opts[k] !== undefined && opts[k] !== null && opts[k] !== '') q.set(k, String(opts[k]));
+        const s = q.toString();
+        return agentCall(ctx, 'GET', `/api/activity${s ? `?${s}` : ''}`);
+      }
+    },
+
+    /* Routines (docs/sdk.md, Routines): Tandem runs on a schedule on this computer. Agent backend only. */
+    routines: {
+      get() { return agentCall(ctx, 'GET', '/api/routines'); },
+      put(list) { return agentCall(ctx, 'PUT', '/api/routines', { routines: list }); },
+      run(id) { return agentCall(ctx, 'POST', `/api/routines/${encodeURIComponent(id)}/run`); },
+      on(handler) { return ctx.events.onConfig(p => { if (p && Array.isArray(p.changed) && p.changed.includes('routines')) handler(p); }); }
     },
 
     /* Workshop settings (docs/config.md). Agent backend only; browser mode rejects with code unavailable. */

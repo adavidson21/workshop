@@ -8,7 +8,13 @@ export const WARN_DAYS = 14;
 const DAY = 24 * 60 * 60 * 1000;
 export const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
+/** Where a token comes from, in words: "Secret github" or "Environment variable GITHUB_PAT". */
+export const sourceLabel = name => (String(name).startsWith('secret:') ? `Secret "${String(name).slice(7)}"` : `Environment variable ${name}`);
+/** The short form after "the token in": GITHUB_PAT, or secret "github". */
+export const shortSource = name => (String(name).startsWith('secret:') ? `secret "${String(name).slice(7)}"` : String(name));
+
 export function tokenHint(name, platform = process.platform) {
+  if (String(name).startsWith('secret:')) return `Save it with: workshop secret set ${String(name).slice(7)} --expires YYYY-MM-DD`;
   return platform === 'win32'
     ? `Save it with: workshop pat ${name}`
     : `Set ${name} in your shell profile ("workshop pat ${name}" shows how), then run: workshop restart`;
@@ -86,7 +92,8 @@ export function tokenStatus(cfg, read, tracker, { now = new Date(), platform = p
   if (missing.length) {
     details.tokensMissing = missing;
     const hint = missing.length === 1 ? ` ${tokenHint(missing[0], platform)}` : ` ${tokenHint('<NAME>', platform)} for each.`;
-    return { state: 'error', message: `${missing.join(', ')} ${missing.length > 1 ? 'are' : 'is'} not set.${hint}`, details };
+    const words = missing.map(n => (String(n).startsWith('secret:') ? `Secret "${String(n).slice(7)}"` : n));
+    return { state: 'error', message: `${words.join(', ')} ${missing.length > 1 ? 'are' : 'is'} not set.${hint}`, details };
   }
   const rejections = tracker ? tracker.active(read) : [];
   if (expiring.length) details.tokensExpiring = expiring;
@@ -95,11 +102,11 @@ export function tokenStatus(cfg, read, tracker, { now = new Date(), platform = p
   let message = null;
   if (rejections.length) {
     const r = rejections[0];
-    message = `GitHub rejected the token in ${r.tokenEnv}. It may have expired or been revoked. Make a new one on GitHub, then ${fix(r.tokenEnv)}.`;
+    message = `GitHub rejected the token in ${shortSource(r.tokenEnv)}. It may have expired or been revoked. Make a new one on GitHub, then ${fix(r.tokenEnv)}.`;
   } else if (expiring.length) {
     const e = [...expiring].sort((a, b) => a.days - b.days)[0];
     const when = e.days < 0 ? `expired on ${e.expires}` : e.days === 0 ? 'expires today' : `expires in ${e.days} day${e.days === 1 ? '' : 's'} (${e.expires})`;
-    message = `The token in ${e.tokenEnv} ${when}. Make a new one on GitHub and ${fix(e.tokenEnv)}.`;
+    message = `The token in ${shortSource(e.tokenEnv)} ${when}. Make a new one on GitHub and ${fix(e.tokenEnv)}.`;
   }
   return { state: 'ready', message, details };
 }

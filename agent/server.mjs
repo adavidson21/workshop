@@ -33,6 +33,10 @@ import { appSwitches, readOff, writeOff, pinApps, readBuild } from './lib/apps.m
 import { applyStartAtLogin, startAtLoginStatus } from './lib/login.mjs';
 import { liveEnv } from './lib/userenv.mjs';
 import { secretReader } from './lib/secrets.mjs';
+import { Approvals } from './lib/approvals.mjs';
+import { Activity } from './lib/activity.mjs';
+import { Routines } from './lib/routines.mjs';
+import { handleMcp } from './lib/mcp-server.mjs';
 import { openUpdateTerminal, updateArgv } from './lib/terminal.mjs';
 
 export const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -172,10 +176,19 @@ export async function createAgent(o) {
   const store = new Store({ root: dataRoot, schemas, log: log.for('data'), lock: dataLock, tracker });
   const files = new Files({ root: dataRoot, schemas, log: log.for('files'), lock: dataLock, tracker });
   const watch = new FolderWatch({ root: dataRoot, tracker, events, log: log.for('watch') });
+  // Approvals and activity (docs/security.md): what agents asked to change, always-allow rules, and the log.
+  const activity = new Activity({ dataDir });
+  const approvals = new Approvals({
+    dataDir, log: log.for('approvals'),
+    rules: () => (config.approvals && Array.isArray(config.approvals.rules) ? config.approvals.rules : []),
+    saveRules: fn => commitConfig(() => { config.approvals = { ...(config.approvals || {}), rules: fn(config.approvals && Array.isArray(config.approvals.rules) ? config.approvals.rules : []) }; })
+  });
   const connectors = new ConnectorHost({
     dir: connectorsDir, schemas, env: o.env || liveEnv(process.env), home, storageDir: path.join(paths.data, '_connectors'), dataDir, log, events, config: () => config,
-    secrets: o.secrets || secretReader(), workMode
+    secrets: o.secrets || secretReader(), workMode, approvals, activity
   });
+
+  const routines = new Routines({ config: () => config, connectors, dataDir, log: log.for('routines'), events, now: o.now });
 
   let port = 0;
   const ownOrigins = () => [`http://127.0.0.1:${port}`, `http://localhost:${port}`];
@@ -263,6 +276,7 @@ export async function createAgent(o) {
 
       // Tools for agents (docs/agent-api.md): programs on this computer, never pages, with the agent token only.
       if (p === '/api/tools' || p.startsWith('/api/tools/')) { await handleTools(req, res, url); return; }
+      if (p === '/api/mcp') { await handleMcpRequest(req, res); return; }
 
       if (p === '/api/health') {
         if (req.method !== 'GET') fail('method_not_allowed', 'Use GET.');
@@ -382,6 +396,14 @@ document.getElementById('allow').addEventListener('click', function () {
       sendJson(res, 200, { tools: connectors.agentTools() }, {});
       return;
     }
+    // An agent checks on a request it made: status, and the result once approved. Never the arguments.
+    if (parts[0] === 'approvals' && parts.length === 2) {
+      if (req.method !== 'GET') fail('method_not_allowed', 'Use GET.');
+      const r = approvals.get(parts[1]);
+      if (!r) fail('not_found', `There is no approval ${parts[1]}.`);
+      sendJson(res, 200, { id: r.id, status: r.status, title: r.title, ...(r.result !== undefined ? { result: r.result } : {}), ...(r.error ? { error: r.error } : {}), ...(r.note ? { note: r.note } : {}) }, {});
+      return;
+    }
     if (parts.length !== 2) fail('not_found', 'Not found.');
     if (req.method !== 'POST') fail('method_not_allowed', 'Use POST.');
     const [id, action] = parts;
@@ -391,6 +413,22 @@ document.getElementById('allow').addEventListener('click', function () {
     const result = await connectors.callForAgent(id, action, body);
     log.for('tools').info(`An agent ran ${id} ${action}.`);
     sendJson(res, 200, { result }, {});
+  }
+
+  /**
+   * /api/mcp: Workshop as an MCP server for opencode (docs/agent-api.md, MCP for agents). The same key and rules as
+   * /api/tools: the agent token (as X-Workshop-Agent-Token, or Authorization: Bearer), never from a web page.
+   */
+  async function handleMcpRequest(req, res) {
+    if (req.headers.origin !== undefined) fail('forbidden', 'MCP is for programs on this computer, not web pages.');
+    const bearer = /^Bearer\s+(\S+)$/i.exec(String(req.headers.authorization || ''));
+    if (!same(req.headers['x-workshop-agent-token'], agentToken) && !(bearer && same(bearer[1], agentToken))) fail('unauthorized', 'Send the agent token (the agent-token file in the Workshop home) as X-Workshop-Agent-Token.');
+    if (req.method !== 'POST') { res.writeHead(405, { Allow: 'POST', 'Content-Type': 'application/json' }); res.end(JSON.stringify({ code: 'method_not_allowed', error: 'Use POST. Workshop answers in JSON; it has no event stream.' })); return; }
+    let body;
+    try { body = await readJsonBody(req, MB); } catch { sendJson(res, 400, { jsonrpc: '2.0', id: null, error: { code: -32700, message: 'Not valid JSON.' } }, {}); return; }
+    const r = await handleMcp(body, { connectors, approvals, version: VERSION });
+    if (r.body === null) { res.writeHead(202); res.end(); return; }
+    sendJson(res, r.status, r.body, {});
   }
 
   async function handleApi(req, res, url, { own, cors }) {
@@ -542,6 +580,73 @@ document.getElementById('allow').addEventListener('click', function () {
       fail('not_found', 'Not found.');
     }
 
+    // Approvals (docs/agent-api.md, Approvals): what agents asked to change, waiting for you; your decisions; and
+    // always-allow rules. Rules are a security setting: added or removed only from Workshop on this computer.
+    if (parts[0] === 'approvals') {
+      if (parts.length === 1) {
+        only('GET');
+        const status = url.searchParams.get('status');
+        if (status && !['waiting', 'approved', 'failed', 'rejected'].includes(status)) fail('bad_request', 'status is waiting, approved, failed or rejected.');
+        const list = approvals.list({ status: status || undefined, limit: 50 });
+        ok({ approvals: await Promise.all(list.map(r => connectors.viewApproval(r))), waiting: approvals.waiting() });
+        return;
+      }
+      if (parts[1] === 'rules') {
+        if (parts.length === 2) { only('GET'); ok({ rules: approvals.rules() || [] }); return; }
+        if (parts.length === 3) {
+          only('DELETE');
+          if (!own) fail('local_only', 'Remove always-allow rules from Workshop on this computer.');
+          if (!(await approvals.removeRule(parts[2]))) fail('not_found', 'There is no such rule.');
+          ok({ rules: approvals.rules() || [] });
+          return;
+        }
+      }
+      if (parts.length === 2) {
+        const r = approvals.get(parts[1]);
+        if (!r) fail('not_found', `There is no approval ${parts[1]}.`);
+        if (m === 'GET') { ok(await connectors.viewApproval(r)); return; }
+        only('POST');
+        const body = (await readJsonBody(req, MB)) ?? {};
+        if (typeof body.approve !== 'boolean') fail('bad_request', 'Send {"approve": true, "digest": "..."} or {"approve": false}.');
+        if (body.always === true && !own) fail('local_only', 'Add always-allow rules from Workshop on this computer.');
+        ok(await connectors.decideApproval(parts[1], { approve: body.approve, digest: body.digest, always: body.always === true, note: typeof body.note === 'string' ? body.note : '' }));
+        return;
+      }
+      fail('not_found', 'Not found.');
+    }
+
+    // Activity (docs/agent-api.md, Activity): the activity log, newest first, and when each connector was last used.
+    if (parts[0] === 'activity' && parts.length === 1) {
+      only('GET');
+      const limit = Math.min(500, Math.max(1, Number(url.searchParams.get('limit')) || 100));
+      const conn = url.searchParams.get('connector') || undefined;
+      const by = url.searchParams.get('by') || undefined;
+      ok({ entries: activity.recent({ limit, connector: conn, by }), lastUsed: activity.lastUsed() });
+      return;
+    }
+
+    // Routines (docs/agent-api.md, Routines): what runs on a schedule on this computer, and recent runs.
+    if (parts[0] === 'routines') {
+      if (parts.length === 1) {
+        if (m === 'GET') { ok(routines.view()); return; }
+        only('PUT');
+        if (!own) fail('local_only', 'Change routines from Workshop on this computer.');
+        const body = (await readJsonBody(req, MB)) ?? {};
+        const list = routines.check(body.routines);
+        await commitConfig(() => { config.routines = list; });
+        events.send('config', { changed: ['routines'] });
+        ok(routines.view());
+        return;
+      }
+      if (parts.length === 3 && parts[2] === 'run') {
+        only('POST');
+        if (!own) fail('local_only', 'Run routines from Workshop on this computer.');
+        ok(await routines.runNow(parts[1]));
+        return;
+      }
+      fail('not_found', 'Not found.');
+    }
+
     if (parts[0] === 'config' && parts.length === 1) {
       if (m === 'GET') { ok(publicConfig()); return; }
       only('GET', 'PUT');
@@ -661,6 +766,7 @@ document.getElementById('allow').addEventListener('click', function () {
   log.info(`Workshop agent ${VERSION} listening on http://127.0.0.1:${port} (home ${home}, data folder ${dataDir}).`);
   watch.start();
   await connectors.startAll();
+  if (o.routines !== false) routines.start();
 
   // Keep the start-at-login launcher in step with the flag, in case config.json was edited by hand or the
   // repo moved since last run. Only acts when the two disagree, so a normal start writes nothing. Gated on
@@ -692,6 +798,7 @@ document.getElementById('allow').addEventListener('click', function () {
     pinned,
     stop() {
       stopping ??= (async () => {
+        routines.stop();
         clearInterval(scratchTimer);
         clearInterval(copyTimer);
         watch.stop();

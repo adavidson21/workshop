@@ -66,6 +66,16 @@ export default {
       argsSchema: { type: 'object', properties: { n: { type: 'integer' } } },
       async run(args, ctx, meta) { return { n: args.n ?? null, caller: meta && meta.caller }; }
     },
+    askChange: {
+      title: 'A change agents may ask for',
+      write: true,
+      agent: 'ask',
+      argsSchema: { type: 'object', required: ['target'], properties: { target: { type: 'string', maxLength: 40 } } },
+      describe(args) { return [`Change ${args.target}`]; },
+      scope(args) { return [args.target]; },
+      onReject(args, ctx, note) { ctx.log.info(`rejected ${args.target}: ${note}`); },
+      async run(args, ctx, meta) { return { changed: args.target, caller: meta.caller, approval: meta.approval || null, rule: meta.rule || null }; }
+    },
     change: {
       title: 'A write action',
       write: true,

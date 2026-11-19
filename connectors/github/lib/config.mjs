@@ -35,7 +35,9 @@ export function normalize(raw = {}) {
     if (!a) { problems.push(`Connection "${name}" has an API URL that is not a web address.`); continue; }
     connections.push({
       name, apiUrl: a.api, webUrl: a.web, graphqlUrl: a.graphql,
-      tokenEnv: String(c.tokenEnv || 'GITHUB_PAT').trim() || 'GITHUB_PAT',
+      // A secret in this computer's store (tokenSecret) wins over the variable. Internally both are a "token name";
+      // a secret's is "secret:<name>" (index.mjs reads it from the store, lib/token.mjs says it in words).
+      tokenEnv: /^[a-z][a-z0-9-]{0,39}$/.test(String(c.tokenSecret || '')) ? `secret:${c.tokenSecret}` : (String(c.tokenEnv || 'GITHUB_PAT').trim() || 'GITHUB_PAT'),
       tokenExpires: /^\d{4}-\d{2}-\d{2}$/.test(String(c.tokenExpires || '')) ? c.tokenExpires : ''
     });
   }

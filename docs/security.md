@@ -76,7 +76,26 @@ Environment variables are easy but leaky: every program you start inherits them 
 
 ## Tools for agents
 
-Tandem's agents never get a connector's token. When they need an outside system, they call Workshop: `/api/tools` runs read actions a connector marks `agent: true` ([agent-api.md](agent-api.md), Tools for agents), with the agent token in `~/.workshop/agent-token`. That token opens nothing else: no data folder, no settings, no write action, no `confirm`. A request from a web page (any `Origin`) is refused. The connector sees the call as from an agent and can say no (Cloudflare's **Let Tandem read and propose changes**). Changes go the other way: an agent proposes, and a person applies with a click in Workshop.
+Tandem's agents never get a connector's token. When they need an outside system, they call Workshop: `/api/tools` (for scripts) and `/api/mcp` (as an MCP server, for opencode) run read actions a connector marks `agent: true` ([agent-api.md](agent-api.md), Tools for agents), with the agent token in `~/.workshop/agent-token`. That token opens nothing else: no data folder, no settings, no `confirm`, and no write that skips Approvals. A request from a web page (any `Origin`) is refused. The connector sees the call as from an agent and can say no (Cloudflare's **Let Tandem read and propose changes**).
+
+The same goes for **MCP servers** you add (the MCP servers connector): their tokens live in the secret store, Workshop makes the calls, and Tandem sees each server's tools as `<server>__<tool>`. Tools a server marks read-only run at once (turn **Run tools the server marks read-only without asking** off to be asked for every one); every other tool call is a change, below.
+
+## Approvals
+
+A change outside this computer that an agent wants (a write marked `agent: "ask"`, such as Cloudflare's change sets or an MCP tool call) is never run on the agent's word. It becomes a request in **Settings, Manager, Approvals** (Needs you shows how many):
+
+- **What you read is worked out from the request**, by the connector, each time you look (the steps of a Cloudflare change set, an MCP tool and its arguments), never from text the agent wrote. Approve sends back a digest of exactly those arguments; if anything edited the request after you read it, nothing runs.
+- **Approve** runs it as yours, confirmed by that click, and records the result. **Reject** runs nothing (and tells the connector, so a Cloudflare set is marked rejected). The agent checks back (`workshop__approval_status`, or `GET /api/tools/approvals/<id>`) and gets the status, the result once approved, or your note.
+- **Always allow.** When you approve, you can tick "Always allow" to add a rule for that connector, action and scope (the zones a Cloudflare set touches, or one MCP tool). A later request the rule covers runs at once, recorded as by "rule". Rules live in `config.json` (`approvals.rules`), which only Workshop on this computer writes, and are added or removed only from Workshop on this computer, never from a hosted page.
+- Requests are files in `<data folder>/connections/approvals/`, never removed by Workshop.
+
+## Activity
+
+Every change made outside this computer through a connector, every call an agent, a rule or a routine made, and every approval decision is a line in `<data folder>/connections/activity/<YYYY-MM>.jsonl`: when, who (you, Tandem, a rule, a routine), which connector and action, whether it worked, how long it took, and the approval it came from. Never arguments or results. Settings, Manager, Activity shows the newest; All connections shows when each connection was last used.
+
+## Routines
+
+Routines (Settings, Routines; [config.md](config.md)) start a Tandem command or prompt on a schedule through the opencode connector, as a new chat, recorded in Activity as by "routine". A routine's agent works under the same rules as any agent: reads through Workshop, changes through Approvals.
 
 ## Outbound hosts
 

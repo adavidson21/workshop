@@ -176,6 +176,21 @@ import { folderState, allowFolder } from '../shared/workshop-sdk.js';
 | `ws.connectors.getConfig(id)` | That connector's settings, form schema and environment variable status, from `GET /api/connectors/<id>/config`. Works whether or not the connector is on. In browser mode rejects with `unavailable`. |
 | `ws.connectors.putConfig(id, config)` | Saves that connector's settings (`PUT /api/connectors/<id>/config`). Resolves the same shape as `getConfig`. From a hosted page it rejects with `local_only` if it changes a field the connector does not mark `x-workshop-hosted`; a config that fails the connector's `configSchema` rejects with `invalid_config`. |
 
+### Approvals, activity and routines
+
+For the Settings app and Needs you. Agent backend only; browser mode rejects with `unavailable`. See [agent-api.md](agent-api.md), Approvals, Activity and Routines.
+
+| Method | Meaning |
+| --- | --- |
+| `ws.approvals.list({status?})` | `{approvals, waiting}`: requests, waiting ones worked out from their arguments now, with the digest to approve. |
+| `ws.approvals.get(id)` | One request. |
+| `ws.approvals.decide(id, {approve, digest, always?, note?})` | Approve (only from a click on a button that says what happens) or reject. `always` adds an always-allow rule and rejects with `local_only` from a hosted page. |
+| `ws.approvals.rules()`, `ws.approvals.removeRule(id)` | Always-allow rules. Removing rejects with `local_only` from a hosted page. |
+| `ws.approvals.on(handler)` | Listens to `approvals` events (`{waiting}`). |
+| `ws.activity.recent({limit?, connector?, by?})` | `{entries, lastUsed}`. |
+| `ws.routines.get()`, `ws.routines.put(list)`, `ws.routines.run(id)` | Routines, with their last and next run. `put` and `run` reject with `local_only` from a hosted page. |
+| `ws.routines.on(handler)` | Listens for changes to routines and new runs. |
+
 ### Settings
 
 For the Settings app. Other apps keep their own settings in their own data.
