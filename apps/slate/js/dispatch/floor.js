@@ -154,20 +154,30 @@ export function floorData(data) {
 }
 
 // ------------------------------------------------------------------ drawing
-const TYPE = c => (c.it && c.it.story) ? 'Story ' + (c.it.story.story || '') : (c.it && c.it.trial) ? 'Trial' : c.quick ? 'Quick' : c.kind === 'build' ? (c.it && c.it.lane === 'bug' ? 'Bug' : 'Feature') : KINDS[c.kind] ? KINDS[c.kind].name : 'Run';
+const TYPE = c => (c.it && c.it.story) ? 'Story ' + (c.it.story.story || '') : (c.it && c.it.trial) ? 'Trial' : (c.it && c.it.coverage) ? 'Tests' : c.quick ? 'Quick' : c.kind === 'build' ? (c.it && c.it.lane === 'bug' ? 'Bug' : 'Feature') : KINDS[c.kind] ? KINDS[c.kind].name : 'Run';
 /** The card's project color (Loom 6.6.0), once you have projects: the same swatch as the project filter. */
 function projSw(c) {
   if (!c.it || !hasProjects()) return '';
   const p = projectById(projectOf(c.it));
   return p && !p.builtIn ? `<span class="fl-proj" title="${h(projectName(p))}">${sw(p.color)}</span>` : '';
 }
+/** The card's regression suite result (Loom 6.7.0, eng-agents Core 4.13.0): failing, flaky, or the tests it added. */
+export function testsBadge(it) {
+  const t = it && it.tests;
+  if (!t || t.verdict === 'skipped') return null;
+  if (t.verdict === 'fail') return { cls: 'bad', text: t.failed === 1 ? '1 test failing' : `${t.failed} tests failing` };
+  if (t.flaky) return { cls: 'warn', text: `${t.flaky} flaky` };
+  if (t.newTests) return { cls: 'ok', text: `+${t.newTests} test${t.newTests === 1 ? '' : 's'}` };
+  return { cls: 'ok', text: 'Tests pass' };
+}
 function chipHtml(c, sel) {
   const key = keyOf(c);
   const on = sel && sel === key;
-  const label = `${TYPE(c)}: ${c.title}. ${c.status}${c.mine ? '. Your turn: ' + c.action : ''}`;
+  const tb = testsBadge(c.it);
+  const label = `${TYPE(c)}: ${c.title}. ${c.status}${tb ? '. ' + tb.text : ''}${c.mine ? '. Your turn: ' + c.action : ''}`;
   return `<button type="button" class="fl-card k-${h(c.kind)}${c.it && c.it.story ? ' story' : ''}${c.mine ? ' mine' : ''}${on ? ' on' : ''}" data-lane-open="${h(key)}" aria-pressed="${!!on}" aria-label="${h(label)}" title="${h(c.title + ' · ' + c.status)}">` +
     `<span class="fl-ctop">${projSw(c)}<span class="fl-id">${c.id ? '#' + h(c.id) : h(TYPE(c))}</span>${c.id ? `<span class="fl-type">${h(TYPE(c))}</span>` : ''}</span>` +
-    `<span class="fl-title">${h(c.title)}</span>${c.mine && c.action ? `<span class="fl-act">${h(c.action)}</span>` : ''}</button>`;
+    `<span class="fl-title">${h(c.title)}</span>${tb ? `<span class="fl-tst ${tb.cls}" aria-hidden="true">${h(tb.text)}</span>` : ''}${c.mine && c.action ? `<span class="fl-act">${h(c.action)}</span>` : ''}</button>`;
 }
 function stackHtml(line, s, sel) {
   const key = line + ':' + s.id;
@@ -289,6 +299,19 @@ export function rowsHtml(data, sel, panel) {
   const body = groups.length ? groups.map(g => `<section class="fl-rgroup" aria-label="${h(g.name)}"><h2>${h(g.name)} <span class="fl-ln">${g.rows.length}</span></h2><ul class="fl-rows" role="list">${g.rows.map(r => rowHtml(r, sel)).join('')}</ul></section>`).join('')
     : '<p class="ln-empty">Nothing running. Drop something in above.</p>';
   return `<div class="ln-body fl-body${panel ? ' has-panel' : ''}"><div class="fl-list">${body}</div>${panel || ''}</div>`;
+}
+
+// ------------------------------------------------------------------ Add regression tests (Loom 6.7.0)
+/** The Add regression tests picker under the drop box: a product (from Settings, with repos) and an optional area.
+    A pick runs the connector's tests.cover (Tandem's /cover): one hands-off Quick change per UI repo, cards marked Tests. */
+export function coverPickHtml() {
+  if (!S.ui.coverPick) return '';
+  const list = (S.products || []).filter(p => p && !p.archived && (p.repos || []).length);
+  const busy = S.ui.busy && S.ui.busy.cover;
+  const rows = list.length ? `<ul role="list">${list.map(p => `<li><button type="button" class="ln-prow" data-cover-go="${h(p.name)}"${busy ? ' disabled' : ''}><span class="ln-ptitle">${h(p.name)}</span><span class="ln-ptype">${h(plural(p.repos.length, 'repo'))}</span></button></li>`).join('')}</ul>`
+    : '<p class="dim">No product with repos yet. Add one in Settings, Products.</p>';
+  return `<div class="ln-pick ln-cover"><p class="ln-pnote">Tandem writes end-to-end tests for what a product's pages do today, with every API mocked and no product code changed: one Quick change per UI repo, built hands-off. You publish each PR, and every build after that runs them.</p>` +
+    `<label class="ln-dl" for="ln-cover-area">Area or pages (optional)</label><input type="text" id="ln-cover-area" data-draft="lanes:cover" maxlength="200" placeholder="Leave empty for the main pages" value="${h((S.ui.drafts && S.ui.drafts['lanes:cover']) || '')}">${rows}</div>`;
 }
 
 // ------------------------------------------------------------------ Onboard a product (Loom 6.6.0)

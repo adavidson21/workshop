@@ -13,6 +13,7 @@ export const FACTORY_DEFAULTS = Object.freeze({
   autoFix: "should-fix",
   reviewRounds: 2,
   uiChecks: true,
+  regression: true,
   worktrees: "always",
 });
 
@@ -29,6 +30,7 @@ export function factoryOptions(cfg) {
     autoFix: f.autoFix === "blockers" ? "blockers" : d.autoFix,
     reviewRounds: int(f.reviewRounds, 1, 4, d.reviewRounds),
     uiChecks: f.uiChecks !== false,
+    regression: f.regression !== false,
     worktrees: f.worktrees === "busy" ? "busy" : d.worktrees,
   };
 }

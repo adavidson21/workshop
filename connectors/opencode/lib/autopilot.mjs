@@ -55,7 +55,9 @@ const AUTO_STEPS = new Set(["quick", "approve", "tasks", "do-task", "review", "p
 // which holds it for you only when it drifts from the breakdown.
 const HANDS_OFF_STEPS = new Set(["start", "spec"]);
 const isStory = (it) => !!(it && it.story && it.story.breakdown);
-const isHandsOff = (it) => isStory(it) || !!(it && it.trial);
+// A trial run, or a product's backfilled regression tests (/cover, Core 4.13.0): a quick change built hands-off.
+const isQuickRun = (it) => !!(it && (it.trial || it.coverage));
+const isHandsOff = (it) => isStory(it) || isQuickRun(it);
 // Review rounds before a not-READY review waits for you: the factory's reviewRounds (default 2).
 const maxFixRounds = () => (opt && opt.factory && opt.factory.reviewRounds) || 2;
 
@@ -229,16 +231,16 @@ async function autoStep(folder, finished = false) {
 
     let cmd = n.command;
     const approving = cmd && /^\/approve\b/.test(cmd) && (n.stage === "plan" || n.stage === "bug" || n.stage === "quick");
-    // A trial run is a quick change: hands-off like one, even with hands-off Quick changes off.
-    const handsOff = it.lane === "quick" && (autoOptions().quickHandsOff || !!it.trial);
+    // A trial run or a coverage item is a quick change: hands-off like one, even with hands-off Quick changes off.
+    const handsOff = it.lane === "quick" && (autoOptions().quickHandsOff || isQuickRun(it));
     const story = isStory(it) && it.lane === "feature";
     let autoApprove = false;
     if (approving && a.approveFirst) cmd = `/approve ${it.id} ${n.stage}`;
     else if (approving && n.stage === "quick" && handsOff) { cmd = `/approve ${it.id} quick`; autoApprove = true; }
     else if (approving && n.stage === "plan" && story) { cmd = `/approve ${it.id} spec`; autoApprove = true; }
     else if (n.needsYou || !cmd) return autoSet(folder, "waiting", needsYouText(it));
-    // A trial run starts in the quick lane.
-    if (n.stage === "start" && it.trial) cmd = `/start ${it.id} quick`;
+    // A trial run or a coverage item starts in the quick lane.
+    if (n.stage === "start" && isQuickRun(it)) cmd = `/start ${it.id} quick`;
 
     const parsed = parseCommand(cmd);
     const allowed = parsed && (AUTO_STEPS.has(parsed.name) || (isHandsOff(it) && HANDS_OFF_STEPS.has(parsed.name)));

@@ -15,7 +15,7 @@ import { pickable, boardFeed } from '../loom.js';
 import { projectFilterHtml, inProject, projectFilter, projectChip } from './projects.js';
 import { reviewsHtml } from './pr-reviews.js';
 import { noticedHtml, noticedCount } from './noticed.js';
-import { floorHtml, epicPanelHtml, rowsHtml, onboardPickHtml } from './floor.js';
+import { floorHtml, epicPanelHtml, rowsHtml, onboardPickHtml, coverPickHtml } from './floor.js';
 import { teachHtml, teachCount, teachBlocking, publishAllHtml, publishOf, adoLinkOf, adoLinkHtml, adoNoticeHtml } from './factory.js';
 // Set by pages.js (it imports this module): the onboarding guide and an ask's source, for Loom 6.0.0's Lanes.
 // var, no initializer: pages.js may run this setter before this module's body (they import each other).
@@ -297,10 +297,10 @@ export function dropHtml() {
   return `<section class="ln-drop" aria-label="Start something"><label for="ln-drop" class="ln-dl">Drop anything: a user story or ADO number, an error log, or a question</label>` +
     `<textarea id="ln-drop" rows="3" data-draft="lanes:drop" placeholder="Paste a story, a stack trace or a question. Enter starts it; Shift+Enter for a new line.">${h(text)}</textarea>` +
     `<div class="ln-drow">${ado}<button type="button" class="lnk plain" data-start-open="1" title="Plan an epic, write docs, handle a request">Other flows</button>` +
-    `<button type="button" class="lnk plain" data-onboard-toggle="1" aria-expanded="${!!S.ui.onboardPick}" title="Get a product ready for its first build">Onboard a product</button><span class="grow"></span>${pick}` +
+    `<button type="button" class="lnk plain" data-onboard-toggle="1" aria-expanded="${!!S.ui.onboardPick}" title="Get a product ready for its first build">Onboard a product</button><button type="button" class="lnk plain" data-cover-toggle="1" aria-expanded="${!!S.ui.coverPick}" title="End-to-end tests for what a product already does, built hands-off">Add regression tests</button><span class="grow"></span>${pick}` +
     `<button type="button" class="btn primary" data-lane-start="1"${ready ? '' : ' disabled title="Connect opencode to start work"'}${S.ui.dropBusy ? ' disabled' : ''}>${S.ui.dropBusy ? 'Starting…' : 'Start'}</button></div>` +
     (S.ui.dropAdo && text.trim() ? `<label class="ln-keep"><input type="checkbox" data-drop-keep="1"${S.ui.dropKeep ? ' checked' : ''}> Keep it linked to ADO #${h(S.ui.dropAdo.id)} (otherwise it starts as a local item)</label>` : '') +
-    (S.ui.dropPick && list.length ? pickerHtml(list) : '') + onboardPickHtml() + '</section>';
+    (S.ui.dropPick && list.length ? pickerHtml(list) : '') + onboardPickHtml() + coverPickHtml() + '</section>';
 }
 /** The From ADO picker: your team's backlog items nobody has started, newest change first, with a search. */
 function pickerHtml(list) {

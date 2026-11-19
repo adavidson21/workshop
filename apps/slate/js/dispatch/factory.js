@@ -52,7 +52,7 @@ export const publishOf = it => (it && S.D && S.D.publish && S.D.publish[it.folde
 /** Ready to publish with nothing to answer and no failed UI check: what Publish all ready would send. */
 export function readyClean(it) {
   const p = publishOf(it);
-  return !!p && p.ready && !p.published && !p.questions.length && !p.ui.some(u => u.name !== 'before' && u.verdict === 'fail');
+  return !!p && p.ready && !p.published && !p.questions.length && !p.ui.some(u => u.name !== 'before' && u.verdict === 'fail') && !(p.tests || []).some(t => t.name !== 'before' && t.verdict === 'fail');
 }
 export const readyCleanCount = (items) => (items || []).filter(readyClean).length;
 
@@ -75,6 +75,23 @@ function uiHtml(it, p) {
     return `<div class="pub-ui"><p><span class="flag ${cls}">${h(word)}</span>${u.reason ? ' ' + h(u.reason) : ''}</p>${probs}${shots ? `<ul class="pub-shots" role="list">${shots}</ul>` : ''}</div>`;
   }).join('');
 }
+/** The regression suite on the Publish block (eng-agents Core 4.13.0): counts, the new tests and the criteria they
+    cover, and any failures. The latest run after the change wins (after, or pr). */
+export function testsHtml(p) {
+  const runs = (p && p.tests || []).filter(t => t.name !== 'before');
+  if (!runs.length) return '';
+  const t = runs[runs.length - 1];
+  const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+  if (t.verdict === 'skipped') return `<div class="pub-tests"><p><span class="flag warn">Regression tests skipped</span>${t.reason ? ' ' + h(t.reason) : ''}</p></div>`;
+  const bits = [`${t.passed} passed`];
+  if (t.newTests.length) bits.push(`${plural(t.newTests.length, 'new test')}${t.acceptance.length ? ' covering ' + t.acceptance.join(', ') : ''}`);
+  if (t.flaky) bits.push(`${t.flaky} flaky`);
+  if (t.preExisting.length) bits.push(`${t.preExisting.length} failing before this change`);
+  const [cls, word] = t.verdict === 'fail' ? ['bad', `${plural(t.failed, 'test')} failing`] : ['ok', 'Regression tests passed'];
+  const list = (rows, label) => rows.length ? `<p class="dim">${h(label)}</p><ul class="gone">${rows.map(x => `<li>${h(x.title)} <span class="dim">${h(x.file)}</span>${x.error ? `<br><span class="dim">${h(x.error)}</span>` : ''}</li>`).join('')}</ul>` : '';
+  return `<div class="pub-tests"><p><span class="flag ${cls}">${h(word)}</span> ${h(bits.join(', '))}.</p>${list(t.failures, 'Failing')}${list(t.flakyTests, 'Flaky (passed on a retry)')}</div>`;
+}
+
 function shotImgs(it, before, after, diff) {
   const src = f => (S.ui.shots || {})[`${it.folder}|${f}`];
   const one = (f, label) => !f ? '' : src(f) ? `<figure><img src="${h(src(f))}" alt="${h(label)}" loading="lazy"><figcaption>${h(label)}</figcaption></figure>` : `<figure class="dim">Loading ${h(label.toLowerCase())}</figure>`;
@@ -92,7 +109,7 @@ export function publishHtml(it) {
   if (!p.ready) return '';
   const q = p.questions.length ? `<div class="pub-q"><p class="sub-h">Questions from the review</p><ul>${p.questions.map(x => `<li>${md(x)}</li>`).join('')}</ul><p class="dim">Answer them in your head or send it back; they do not block Publish.</p></div>` : '';
   const busy = S.ui.busy && S.ui.busy['pub:' + it.folder];
-  return `<div class="pub"><p class="sub-h">Ready to publish</p>${uiHtml(it, p)}${q}` +
+  return `<div class="pub"><p class="sub-h">Ready to publish</p>${testsHtml(p)}${uiHtml(it, p)}${q}` +
     `<div class="row"><button type="button" class="btn primary" data-publish="${h(it.folder)}"${busy ? ' disabled' : ''} title="Pushes every branch in pr.md (never force), then opens each PR page with the text filled in">${busy ? 'Publishing…' : 'Publish ' + outsideMark('git')}</button>` +
     `<span class="dim">Pushes ${h(String((it.pr || []).length))} branch${(it.pr || []).length === 1 ? '' : 'es'} and opens the PRs.</span></div></div>`;
 }
@@ -102,7 +119,7 @@ export function publishAllHtml(items) {
   const n = readyCleanCount(items);
   if (!n) return '';
   const busy = S.ui.busy && S.ui.busy['pub:all'];
-  return `<button type="button" class="btn primary small ln-puball" data-publish-all="1"${busy ? ' disabled' : ''} title="Publishes every ready build whose review has no questions and whose UI checks passed">${busy ? 'Publishing…' : `Publish all ready (${n})`}</button>`;
+  return `<button type="button" class="btn primary small ln-puball" data-publish-all="1"${busy ? ' disabled' : ''} title="Publishes every ready build whose review has no questions and whose tests and UI checks passed">${busy ? 'Publishing…' : `Publish all ready (${n})`}</button>`;
 }
 
 /** The confirm text for Publish: each repo and branch. */

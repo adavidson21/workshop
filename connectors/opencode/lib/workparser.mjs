@@ -101,6 +101,31 @@ export function stepOf(text) {
   return m ? { name: m[1].toLowerCase(), at: m[2] } : null;
 }
 
+// The regression suite's latest run after the change (eng-agents Core 4.13.0, Test-Suite.ps1 writes tests/results-*.json),
+// as a short summary for cards: { verdict, passed, failed, flaky, newTests, acceptance, at }, or null. "before" runs are
+// the baseline, never shown. The newest by its "at" wins (after from /review, again after a rebase at /pr).
+export function testsOf(folder) {
+  let best = null;
+  for (const d of entries(path.join(folder, "tests")).filter((x) => x.isFile() && /^results-[a-z0-9-]{1,30}\.json$/.test(x.name) && x.name !== "results-before.json")) {
+    let r;
+    try {
+      r = JSON.parse(readText(path.join(folder, "tests", d.name)).replace(/^\uFEFF/, ""));
+    } catch {
+      continue;
+    }
+    if (!r || !["pass", "fail", "skipped"].includes(r.verdict)) continue;
+    const n = (v) => (Number.isInteger(v) && v >= 0 ? v : 0);
+    const t = {
+      verdict: r.verdict, passed: n(r.passed), failed: n(r.failed), flaky: n(r.flaky),
+      newTests: Array.isArray(r.newTests) ? r.newTests.length : 0,
+      acceptance: (Array.isArray(r.acceptance) ? r.acceptance : []).map(String).filter((x) => /^AC-\d+$/.test(x)).slice(0, 40),
+      at: typeof r.at === "string" ? r.at : "",
+    };
+    if (!best || t.at > best.at) best = t;
+  }
+  return best;
+}
+
 // Products being onboarded (Core 4.10.0 /onboard-product): .work/_onboarding/<product>.md, written by Tandem's
 // Set-Onboarding.ps1: "- Product:", "- Scan: done <date> | <repos>", "- Trial: <local id>", "- Live: <date>".
 export function onboardingOf(workRootFull) {
@@ -788,6 +813,12 @@ export async function readWork({ workRoot, configPath, recent = 80, gitOk, hide 
     // Core 4.12.0: the station the build is at now (Set-Step.ps1 writes step.md), only when present.
     const st = stepOf(readText(path.join(folder, "step.md")));
     if (st) item.step = st;
+    // Core 4.13.0: regression tests backfilled for a product (/cover), built hands-off like a trial run.
+    const coverage = field(wi, "Coverage");
+    if (coverage) item.coverage = coverage;
+    // Core 4.13.0: the regression suite's latest result, only when the item has run it.
+    const tests = testsOf(folder);
+    if (tests) item.tests = tests;
 
     // PR text per repo, with the ADO "create PR" link and whether the branch is pushed.
     const prList = [];

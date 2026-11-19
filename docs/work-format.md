@@ -27,7 +27,7 @@ To find an item by id, list `.work/` and match the one folder that starts with `
 
 | File | Written by | What is read from it |
 | --- | --- | --- |
-| `workitem.md` | `/start` (from `Get-WorkItem.ps1` or pasted); the `ADO item` line by the opencode connector (1.22.0) | Title line, `Type`, `State`, `Link`, `ADO`, `Fetched`; `ADO item` (`<n>`, `unlinked` or `unlinked (was <n>)`: whether the item is linked to ADO, eng-agents pipeline guide "Who links to ADO"); a story from an approved breakdown (Core 4.10.0, `/backlog <scope> local`): `Epic`, `Story`, `Depends on`, `Repos`, `Areas`, `Breakdown` (the item's `story`, only when `Epic` is there); a product's trial run: `Trial` (the item's `trial`) |
+| `workitem.md` | `/start` (from `Get-WorkItem.ps1` or pasted); the `ADO item` line by the opencode connector (1.22.0) | Title line, `Type`, `State`, `Link`, `ADO`, `Fetched`; `ADO item` (`<n>`, `unlinked` or `unlinked (was <n>)`: whether the item is linked to ADO, eng-agents pipeline guide "Who links to ADO"); a story from an approved breakdown (Core 4.10.0, `/backlog <scope> local`): `Epic`, `Story`, `Depends on`, `Repos`, `Areas`, `Breakdown` (the item's `story`, only when `Epic` is there); a product's trial run: `Trial` (the item's `trial`); a product's backfilled regression tests (Core 4.13.0, `/cover`): `Coverage` (the item's `coverage`) |
 | `step.md` | Tandem's `Set-Step.ps1` (`/do-task`, `/review`, Core 4.12.0) | `- Step: <build \| test \| ui \| review \| fix> \| <ISO time>`: the item's `step` (`{name, at}`), only when the file is there |
 | `_onboarding/<product>.md` | Tandem's `Set-Onboarding.ps1` (`/onboard-product`, Core 4.10.0) | `Product`, `Scan` (`done <date> \| <repos>`), `Trial` (local id), `Live` (date): the model's `onboarding` list, only when there is one |
 | `repos.md` | `/start` | `Lane`, the repo table |
@@ -237,11 +237,13 @@ Since eng-agents Core 4.9.0, `.work/gaps.md` holds what agents needed to know an
 
 `kind` is `fact`, `term`, `repo` or `process` (anything else reads as `fact`). `assumed` is `-` when the agent had no safe assumption and stopped the step; `source` is then the work item id. Ids are never reused (`.work/.gap-ids`). The opencode connector shows open ones as Teach cards; answering runs `/teach`.
 
-## Factory settings (`factory.json`) and UI checks (`ui/`)
+## Factory settings (`factory.json`), UI checks (`ui/`) and regression tests (`tests/`)
 
-Since connector 1.21.0, the opencode connector writes `.work/factory.json` (Settings, Factory) on every start: `{version: 1, taskFileCap, quickTasks, retries, autoFix, reviewRounds, uiChecks, worktrees}`. eng-agents commands read it (Core 4.9.0) and never write it.
+Since connector 1.21.0, the opencode connector writes `.work/factory.json` (Settings, Factory) on every start: `{version: 1, taskFileCap, quickTasks, retries, autoFix, reviewRounds, uiChecks, regression, worktrees}` (`regression` since 1.25.0). eng-agents commands read it (Core 4.9.0) and never write it.
 
 An item folder's `ui/` holds UI check results, written only by eng-agents' `Test-Ui.ps1`: `results-<name>.json` (`before` from `/start`, `after` from `/review`: `{version: 1, name, at, url, verdict: pass|fail|skipped, reason, pages: [{path, width, file, status, error, consoleErrors, failedRequests, a11y, diff}], problems, changed}`), the screenshots in `<name>/` and changed-pixel images in `diff/`.
+
+An item folder's `tests/` holds regression suite results (Core 4.13.0), written only by eng-agents' `Test-Suite.ps1`: `results-<name>.json` (`before` from `/start`, `after` from `/review` and `/pr`: `{version: 1, name, at, runner, command, verdict: pass|fail|skipped, reason, passed, failed, flaky, skipped, failures: [{file, title, error}], preExisting: [...], flakyTests: [{file, title}], newTests: [{file, title, status}], acceptance: ["AC-1", ...]}`), The model's item gets `tests` from the newest run that is not `before` (by `at`): `{verdict, passed, failed, flaky, newTests (a count), acceptance, at}` (connector 1.25.0), only when there is one. Also there: the runner's raw `playwright-<name>.json` and `log-<name>.txt`, which Workshop does not read. `failed` counts only tests that did not fail before the change; those that did are in `preExisting`.
 
 ## Connector-owned files
 

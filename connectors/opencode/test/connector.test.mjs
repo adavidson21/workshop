@@ -475,7 +475,7 @@ for (const kind of ["v1", "v2"]) {
     test("[P-autopilot] builds over the limit queue, and a hands-off Quick change approves itself only with auto", async () => {
       const titles = () => fake.bodiesFor(kind === "v1" ? "POST /session" : "POST /api/session").map((b) => b.title);
       const st0 = await call("state", {}, ctx());
-      assert.deepEqual(st0.autopilotOptions, { maxRuns: 2, quickHandsOff: true, fairSlots: true, factory: { taskFileCap: 6, quickTasks: 3, retries: 3, autoFix: "should-fix", reviewRounds: 2, uiChecks: true, worktrees: "always" } });
+      assert.deepEqual(st0.autopilotOptions, { maxRuns: 2, quickHandsOff: true, fairSlots: true, factory: { taskFileCap: 6, quickTasks: 3, retries: 3, autoFix: "should-fix", reviewRounds: 2, uiChecks: true, regression: true, worktrees: "always" } });
       // A second buildable item: a copy of 41207 (the example's only one that is not blocked).
       fs.cpSync(path.join(ws.work, "41207-fix-login-timeout"), path.join(ws.work, "41208-copy-of-login"), { recursive: true });
       await call("refresh", {}, ctx());
@@ -550,6 +550,16 @@ for (const kind of ["v1", "v2"]) {
       assert.deepEqual(ob.repos, ["gateway"]);
       await call("onboarding.dismiss", { product: "Portal" }, ctx());
       assert.equal((await call("state", {}, ctx())).onboarding.length, 0);
+      // Regression tests (1.25.0): /cover, then its coverage item builds hands-off in the quick lane.
+      await call("tests.cover", { product: "Portal", area: "orders" }, ctx());
+      await waitFor(() => titles().includes("/cover Portal -- orders"), "/cover to run");
+      fs.mkdirSync(path.join(ws.work, "L53-regression-tests-gateway"), { recursive: true });
+      fs.writeFileSync(path.join(ws.work, "L53-regression-tests-gateway", "workitem.md"), "# Work item L53: Regression tests for gateway\n\n- Type: Feature\n- Source: Local (no tracker item)\n- Repos: gateway\n- Coverage: Portal\n\n## Description\n\nx\n");
+      await call("refresh", {}, ctx());
+      assert.equal((await call("state", {}, ctx())).items.find((i) => i.id === "L53").coverage, "Portal");
+      await waitFor(() => titles().includes("L53: /start L53 quick auto"), "the coverage item to start on its own");
+      await call("autopilot", { folder: "L53-regression-tests-gateway", action: "stop" }, ctx());
+      fs.rmSync(path.join(ws.work, "L53-regression-tests-gateway"), { recursive: true });
       for (const f of ["L50-create-workspace", "L51-invite-members", "scope-ws", "_onboarding"]) fs.rmSync(path.join(ws.work, f), { recursive: true });
       fs.rmSync(path.join(ws.work, "gaps.md"));
       await call("refresh", {}, ctx());

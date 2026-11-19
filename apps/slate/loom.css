@@ -266,6 +266,10 @@ body[data-loom-tab=lanes] #runs-root .page:has(.fl-body) { max-width: none; }
 #runs-root .fl-id { font: 600 11px/1.2 var(--mono, monospace); color: var(--muted); }
 #runs-root .fl-type { font: 700 10px/1 var(--sans); padding: 2px 5px; border-radius: 4px; background: color-mix(in srgb, var(--ink) 9%, var(--surface)); }
 #runs-root .fl-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#runs-root .fl-tst { align-self: flex-start; font: 600 11px/1 var(--sans); border-radius: 5px; padding: 2px 5px; margin-top: 2px; border: 1px solid currentColor; }
+#runs-root .fl-tst.ok { color: var(--muted); }
+#runs-root .fl-tst.warn { color: var(--gate); background: var(--gate-soft); }
+#runs-root .fl-tst.bad { color: var(--stop); background: var(--stop-soft); }
 #runs-root .fl-act { align-self: flex-start; font: 700 11px/1 var(--sans); color: var(--merlot-ink); background: var(--merlot); border-radius: 5px; padding: 3px 6px; margin-top: 2px; }
 #runs-root .fl-more { font: 600 12px/1 var(--sans); color: var(--accent); background: none; border: 1px dashed var(--line); border-radius: 7px; padding: 6px; cursor: pointer; }
 #runs-root .fl-express { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px; align-items: center; margin-bottom: 8px; }
@@ -349,6 +353,8 @@ body[data-loom-tab=lanes] #runs-root .page:has(.fl-body) { max-width: none; }
 #runs-root .fl-rwhere, #runs-root .fl-rtime { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #runs-root .fl-rowb .fl-act { justify-self: start; margin: 0; }
 #runs-root .ln-onboard .ln-pnote { margin: 0 0 6px; }
+#runs-root .ln-cover .ln-pnote { margin: 0 0 6px; }
+#runs-root .ln-cover input[type=text] { display: block; width: 100%; max-width: 28rem; margin: 2px 0 8px; }
 @media (max-width: 760px) {
   #runs-root .fl-rowb { grid-template-columns: 60px minmax(0, 1fr); }
   #runs-root .fl-rowb .fl-track, #runs-root .fl-rowb .fl-rtime { display: none; }

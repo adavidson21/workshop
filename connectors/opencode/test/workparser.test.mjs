@@ -307,3 +307,23 @@ test("Core 4.10.0 and 4.12.0: story, trial, step and onboarding are read only wh
     assert.deepEqual(onboardingOf(path.join(dir, "missing")), []);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
+
+test("tests/results-*.json (eng-agents Core 4.13.0): the newest run after the change becomes the item's tests", async () => {
+  const { testsOf } = await import("../lib/workparser.mjs");
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "tests-of-"));
+  try {
+    assert.equal(testsOf(dir), null, "no tests folder");
+    fs.mkdirSync(path.join(dir, "tests"));
+    const w = (name, r) => fs.writeFileSync(path.join(dir, "tests", `results-${name}.json`), "\uFEFF" + JSON.stringify({ version: 1, name, ...r }));
+    w("before", { verdict: "fail", failed: 3, at: "2026-11-19T18:00:00Z" });
+    assert.equal(testsOf(dir), null, "the before run is only the baseline");
+    w("after", { verdict: "fail", passed: 40, failed: 1, flaky: 0, newTests: [{}, {}], acceptance: ["AC-1", "x"], at: "2026-11-19T17:00:00Z" });
+    assert.deepEqual(testsOf(dir), { verdict: "fail", passed: 40, failed: 1, flaky: 0, newTests: 2, acceptance: ["AC-1"], at: "2026-11-19T17:00:00Z" });
+    w("pr", { verdict: "pass", passed: 41, failed: 0, flaky: 1, at: "2026-11-19T17:30:00Z" });
+    assert.equal(testsOf(dir).verdict, "pass", "the newest run wins");
+    fs.writeFileSync(path.join(dir, "tests", "results-broken.json"), "{");
+    assert.equal(testsOf(dir).verdict, "pass", "an unreadable file is skipped");
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});

@@ -83,3 +83,22 @@ test('Overlap: at approval, Approve and build after the other run', () => {
   assert.match(html, /web-app\/src\/renew.ts/);
   assert.equal(overlapHtml(other), '', 'only at an approval');
 });
+
+test('Publish: the regression suite shows passed, new tests and the criteria they cover; a failure keeps it out of Publish all ready (Loom 6.7.0)', () => {
+  const p = S.D.publish[READY];
+  const run = (over) => ({ name: 'after', verdict: 'pass', reason: null, passed: 48, failed: 0, flaky: 1, skipped: 0, failures: [], preExisting: [], flakyTests: [{ file: 'orders.spec.ts', title: 'Orders > lists' }], newTests: [{ file: 'refund.spec.ts', title: 'saves [AC-1]' }, { file: 'refund.spec.ts', title: 'shows [AC-2]' }], acceptance: ['AC-1', 'AC-2'], ...over });
+  p.tests = [run({ name: 'before', verdict: 'fail' }), run()];
+  let html = publishHtml(item(READY));
+  assert.match(html, /Regression tests passed<\/span> 48 passed, 2 new tests covering AC-1, AC-2, 1 flaky\./);
+  assert.match(html, /Flaky \(passed on a retry\)/);
+  assert.ok(readyClean(item(READY)), 'a failing before run does not hold Publish all ready');
+  p.tests = [run({ verdict: 'fail', failed: 1, failures: [{ file: 'orders.spec.ts', title: 'Orders > exports csv', error: 'Expected 3 rows' }] })];
+  html = publishHtml(item(READY));
+  assert.match(html, /1 test failing/);
+  assert.match(html, /Orders &gt; exports csv/);
+  assert.equal(readyClean(item(READY)), false);
+  p.tests = [run({ verdict: 'skipped', reason: 'no Playwright report' })];
+  assert.match(publishHtml(item(READY)), /Regression tests skipped<\/span> no Playwright report/);
+  p.tests = [];
+  assert.doesNotMatch(publishHtml(item(READY)), /Regression tests/);
+});

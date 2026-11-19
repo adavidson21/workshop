@@ -16,7 +16,7 @@ import { abort, answerPermission, answerQuestion, openTerminal, pushBranch, remo
 import { autopilot, autopilotAction, loadAuto, resumeAfterGap, resumeQueued } from "./lib/autopilot.mjs";
 import { decideObservation, findObservation, loadObservations, resetObservations, startArgs } from "./lib/observations.mjs";
 import { answerGap, loadGaps, MAX_ANSWER, onGapClosed, resetGaps } from "./lib/gaps.mjs";
-import { buildEpic, dismissOnboarding, loadEpics, onboardProduct, resetEpics, startWaiting } from "./lib/epics.mjs";
+import { buildEpic, coverProduct, dismissOnboarding, loadEpics, onboardProduct, resetEpics, startWaiting } from "./lib/epics.mjs";
 import { forgetPublished, loadPublished, publishItem, readyToPublish, resetPublished } from "./lib/publish.mjs";
 import { adoNoticeSeen, linkItem, loadAdoLinks, resetAdoLinks, unlinkAllOnce, unlinkItem } from "./lib/ado-link.mjs";
 import { pageData, resetLive } from "./lib/live.mjs";
@@ -176,6 +176,7 @@ export const configSchema = {
         autoFix: { type: "string", title: "Review findings fixed on their own", description: "Which review findings become fix tasks without asking you. Nits never do.", enum: ["should-fix", "blockers"], "x-workshop-labels": ["Blockers and Should fix", "Blockers only"], default: "should-fix", "x-workshop-hosted": true },
         reviewRounds: { type: "integer", title: "Review rounds", description: "Reviews autopilot runs before a review that is still not ready waits for you. Default 2.", minimum: 1, maximum: 4, default: 2, "x-workshop-hosted": true },
         uiChecks: { type: "boolean", title: "UI checks with screenshots", description: "When a change touches UI files, start the app, screenshot its pages and check them (needs a UI checks table in the repo guide and Playwright in the repo). Skipped, never a stop, when the app cannot start on this computer.", default: true, "x-workshop-hosted": true },
+        regression: { type: "boolean", title: "Regression tests", description: "Run each repo's whole end-to-end suite before and after every build, and write a test for every acceptance criterion people can see (needs a Regression tests table in the repo guide). A test that passed before and fails now is fixed before the PR.", default: true, "x-workshop-hosted": true },
         worktrees: { type: "string", title: "Worktrees", description: "Every build in its own git worktree, or only when the repo folder is busy.", enum: ["always", "busy"], "x-workshop-labels": ["Every build", "Only when busy"], default: "always", "x-workshop-hosted": true },
       },
     },
@@ -1164,6 +1165,17 @@ const actions = {
     async run(args) {
       needReady();
       const r = await onboardProduct(args, { run: runLoose });
+      broadcastLive();
+      return r;
+    },
+  },
+  "tests.cover": {
+    title: "Add regression tests: Tandem's /cover makes hands-off Quick changes that test what already works",
+    write: true,
+    argsSchema: obj(["product"], { product: str("Product name", { minLength: 1, maxLength: 120 }), area: str("Area or pages to cover (optional)", { maxLength: 200 }) }),
+    async run(args) {
+      needReady();
+      const r = await coverProduct(args, { run: runLoose });
       broadcastLive();
       return r;
     },
