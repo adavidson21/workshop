@@ -26,6 +26,7 @@ beforeEach(() => {
   S.copyStore = []; S.files = {}; S.slate = new Map();
   resetUi();
   S.ui.tab = 'lanes';
+  S.view = { project: 'all', lanes: 'list' }; // these tests read the List view; floor.test.mjs reads the Floor
 });
 
 test('Noticed: a chip with the count, and the list in place of the lanes, escaped, with Start, To Docket and Dismiss', () => {

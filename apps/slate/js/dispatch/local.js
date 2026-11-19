@@ -1,19 +1,20 @@
 /* Dispatch: view prefs kept in this browser only. Today that is the project filter on Work. Projects and
    which run is in which live in the opencode connector (.work/_dashboard/projects.json), because agents need them.
 
-   Shape (localStorage "dispatch.view"): { project: "all" | "<project id>" }
+   Shape (localStorage "dispatch.view"): { project: "all" | "<project id>", lanes: "floor" | "list" } (lanes: Loom 6.4.0)
 
    Loom 1.x kept sidebar folders, pins and collapsed groups under "dispatch.sidebar". Loom 2.0 has no
    sidebar, so loadView removes that key once. Pure functions take and return the prefs; main.js loads and saves. */
 export const VIEW_KEY = 'dispatch.view';
 export const OLD_KEY = 'dispatch.sidebar';
 
-export function emptyView() { return { project: 'all' }; }
+export function emptyView() { return { project: 'all', lanes: 'floor' }; }
 
 /** Clean whatever was stored (another version, a hand edit) into the current shape. */
 export function cleanView(raw) {
   const out = emptyView();
   if (raw && typeof raw === 'object' && typeof raw.project === 'string' && /^[\w-]{1,64}$/.test(raw.project)) out.project = raw.project;
+  if (raw && typeof raw === 'object' && raw.lanes === 'list') out.lanes = 'list';
   return out;
 }
 

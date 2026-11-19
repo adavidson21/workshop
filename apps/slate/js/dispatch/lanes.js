@@ -15,6 +15,7 @@ import { pickable, boardFeed } from '../loom.js';
 import { projectFilterHtml, inProject, projectFilter, projectChip } from './projects.js';
 import { reviewsHtml } from './pr-reviews.js';
 import { noticedHtml, noticedCount } from './noticed.js';
+import { floorHtml } from './floor.js';
 import { teachHtml, teachCount, teachBlocking, publishAllHtml, publishOf, adoLinkOf, adoLinkHtml, adoNoticeHtml } from './factory.js';
 // Set by pages.js (it imports this module): the onboarding guide and an ask's source, for Loom 6.0.0's Lanes.
 // var, no initializer: pages.js may run this setter before this module's body (they import each other).
@@ -327,8 +328,16 @@ export function lanesHtml() {
   const top = (S.digestHtml ? S.digestHtml(h) : '') + (onboardTop ? onboardTop() : '') + adoNoticeHtml();
   if (noticed) return `<div class="ln-page">${top}${dropHtml()}${chips}${noticedHtml()}</div>`;
   if (teach) return `<div class="ln-page">${top}${dropHtml()}${chips}${teachHtml()}</div>`;
-  return `<div class="ln-page">${top}${dropHtml()}${chips}${projectFilterHtml(workItems())}<div class="ln-body${panel ? ' has-panel' : ''}"><div class="ln-lanes">${data.lanes.map(l => laneHtml(l, sel, data.doneList)).join('')}</div>${panel}</div></div>`;
+  // Loom 6.4.0: Floor (default) or List. Floor draws the same cards as stations on a line (floor.js).
+  const list = laneView() === 'list';
+  const views = `<div class="seg ln-views" role="group" aria-label="View">${[['floor', 'Floor'], ['list', 'List']].map(([k, label]) =>
+    `<button type="button" class="seg-b${(k === 'list') === list ? ' on' : ''}" data-lane-view="${k}" aria-pressed="${(k === 'list') === list}">${label}</button>`).join('')}</div>`;
+  const body = list ? `<div class="ln-body${panel ? ' has-panel' : ''}"><div class="ln-lanes">${data.lanes.map(l => laneHtml(l, sel, data.doneList)).join('')}</div>${panel}</div>`
+    : floorHtml(data, sel, panel);
+  return `<div class="ln-page">${top}${dropHtml()}<div class="ln-bar">${chips}${views}</div>${projectFilterHtml(workItems())}${body}</div>`;
 }
+/** Floor or List (Loom 6.4.0), kept in this browser with the project filter. Floor is the default. */
+export const laneView = () => (S.view && S.view.lanes === 'list' ? 'list' : 'floor');
 /** The tab bar's count on Lanes: cards waiting on you. */
 export function lanesCount() { return lanesData('all').counts.mine + teachBlocking(); }
 /** The run open in the lanes' panel, for wantedFiles (its gate's file is read inline). */

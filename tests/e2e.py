@@ -322,6 +322,9 @@ def browser_mode_checks(ctx, pg, frame, watch):
         slf.click('.fcard[data-flow=request]'); pg.wait_for_timeout(300)
         slf.fill('[data-draft="start:title"]', 'Export orders to CSV'); slf.fill('[data-draft="start:desc"]', 'Finance asked for it')
         slf.click('[data-start-go]'); pg.wait_for_timeout(1000)
+        # Loom 6.4.0: on the floor, a request is under the lines ("Also on the floor"); the List view has the lanes.
+        check('on the floor (the default view), a request sits under the lines, waiting on you', seen(slf, '.fl-other .fl-card.mine[data-lane-open^="board:"]', 5000))
+        slf.click('[data-lane-view=list]'); pg.wait_for_timeout(300)
         check('a request is a card in Clarify, waiting on you', seen(slf, '.ln-clarify .ln-card.mine[data-lane-open^="board:"]', 5000)
               and 'Export orders to CSV' in slf.inner_text('.ln-clarify'))
         slf.click('.ln-clarify [data-lane-open^="board:"]'); pg.wait_for_timeout(700)
@@ -1267,9 +1270,25 @@ def agents_checks(b, watch):
         check('Agents is a same-origin app on the SDK, no frame from another origin', af is not None and all(f.url.startswith(HOSTED) or f.url == 'about:blank' for f in pg.frames))
         check('Agents reads the opencode connector and shows Live', af is not None and af.inner_text('.pill') == 'Live')
         check('Loom has two tabs, Lanes and Health, and no sidebar (Loom 6.0.0)', af.eval_on_selector_all('#app .tabs .tab', 'els => els.map(e => e.dataset.tab)') == ['lanes', 'health']
-              and af.locator('#app .side, #app aside').count() == 0)
-        check('#/slate/<id> opens that run on its own page, under Lanes', seen(af, '.run-page#item-41610') and af.get_attribute('#app .tab.on', 'data-tab') == 'lanes')
+              and af.locator('#app .side, #app aside:not(.ln-panel)').count() == 0)
+        # Loom 6.4.0: an id or folder (Docket's agent queue, notifications) opens the run's panel beside the floor.
+        check('#/slate/<id> opens that run\'s panel beside the floor, under Lanes', seen(af, '.fl-body .ln-panel [data-open-run="41610-rate-limit-headers"]')
+              and af.locator('.fl-card.on[data-lane-open="41610-rate-limit-headers"]').count() == 1 and af.get_attribute('#app .tab.on', 'data-tab') == 'lanes')
         check('the shell keeps the address, and the name and theme are the shell\'s', pg.url.endswith('#/slate') and af.locator('#app .brand').count() == 0 and af.locator('[data-theme-menu]').count() == 0)
+
+        # Loom 6.4.0: the floor is the default view: a code line and a paper line of stations, stuck runs in a bin.
+        af.click('.ln-panel [data-lane-close]'); pg.wait_for_timeout(200)
+        check('the floor is the default: Floor is pressed, the code line has its seven stations in order', af.get_attribute('[data-lane-view=floor]', 'aria-pressed') == 'true'
+              and af.eval_on_selector_all('.fl-code .fl-name', 'els => els.map(e => e.innerText)') == ['Plan desk', 'Build bay', 'Test bench', 'UI check', 'Review', 'Fix shop', 'Loading dock'])
+        check('a run at Ship is at the Loading dock, a root cause at the Plan desk, a stopped run pulled off the line', af.locator('.fl-code .st-dock [data-lane-open="41610-rate-limit-headers"]').count() == 1
+              and af.locator('.fl-code .st-plan [data-lane-open="41300-export-retry-fails"]').count() == 1 and af.locator('.fl-stuck [data-lane-open="41502-csv-export"]').count() == 1)
+        check('a spike at its findings is in the paper line\'s Out tray', af.locator('.fl-paper .st-out [data-lane-open="spike-cache-options"]').count() == 1)
+        af.click('.fl-code .st-plan [data-lane-open="41300-export-retry-fails"]'); pg.wait_for_timeout(300)
+        check('a card on the floor opens the same panel as the lanes', af.locator('.fl-body .ln-panel .icard.gate').count() == 1)
+        af.click('.ln-panel [data-lane-close]'); pg.wait_for_timeout(200)
+        af.click('[data-lane-view=list]'); pg.wait_for_timeout(300)
+        check('List shows the four lanes, and the choice is kept in this browser', af.locator('.ln-lanes').count() == 1
+              and 'list' in (af.evaluate("localStorage.getItem('dispatch.view')") or ''))
 
         # Lanes (Loom 5.0.0): the drop box, four lanes, a card per run in its lane, and the run's own card in the panel.
         af.click('#app .tabs [data-tab=lanes]'); pg.wait_for_timeout(400)
@@ -1412,8 +1431,8 @@ def agents_checks(b, watch):
         # The branch reaches origin before Push answers; wait for its toast so it cannot replace the next one.
         toast_has(pg, 'Pushed ')
         af.locator('[data-act=back]').click()
-        af.wait_for_selector('#item-41610', timeout=20000)
-        check('Back to Loom returns to the run', af.locator('.run-page#item-41610').count() == 1)
+        af.wait_for_selector('.ln-panel [data-open-run="41610-rate-limit-headers"]', timeout=20000)
+        check('Back to Loom returns to the run (its panel in Lanes, Loom 6.4.0)', af.locator('.ln-panel .ln-foot [data-open-run="41610-rate-limit-headers"]').count() == 1)
 
         # Remove: the dialog, typing the name, and the folder gone (from the spike's page: at its findings fork, the
         # spike waits in the Inbox since flow cards v1).
@@ -1438,7 +1457,7 @@ def agents_checks(b, watch):
         chip = pf.locator('.chip.eng')
         check('Prioritizer shows the stage from connectors.call(opencode, status)', chip.count() == 1 and 'Build 2/3' in chip.inner_text())
         chip.click(); pg.wait_for_timeout(1200)
-        check('the stage chip opens that run\'s page in Loom', pg.url.endswith('#/slate') and seen(af, '.run-page#item-41207'))
+        check('the stage chip opens that run\'s panel in Loom (6.4.0)', pg.url.endswith('#/slate') and seen(af, '.ln-panel [data-open-run="41207-fix-login-timeout"]'))
         pg.keyboard.press('Alt+1'); pg.wait_for_timeout(400)
         # Open its details directly: where a task's row sits depends on Docket's layout (Today's columns since 6.0).
         pf.evaluate("id => window.__prioritizer.openDrawer(id)", 'w2'); pg.wait_for_timeout(400)
@@ -1455,16 +1474,16 @@ def agents_checks(b, watch):
         check('with the connector off, Agents says how to turn it on', 'Turn on the opencode connector' in af.inner_text('#app'))
         check('and Prioritizer drops the stages', pf.locator('.chip.eng').count() == 0)
         sf.locator('.conn[data-connector=opencode] [data-enable]').check()
-        check('turned on again, Agents comes back by itself', seen(af, '#item-41207') and af.locator('.pill').count() == 1)
+        check('turned on again, Agents comes back by itself', seen(af, '[data-lane-open="41207-fix-login-timeout"]') and af.locator('.pill').count() == 1)
 
         # On its own, the page has the name and a theme menu.
         sp = ctx.new_page(); watch(sp)
-        sp.goto(HOSTED + '/apps/slate/#41502'); seen(sp, '#item-41502'); sp.wait_for_timeout(300)
-        check('Loom works on its own page, with the top bar (crumbs and light/dark toggle)', 'Loom' in sp.text_content('.ws-bar .here') and sp.locator('.ws-bar [data-theme-toggle]').count() == 1 and sp.locator('.run-page#item-41502').count() == 1)
+        sp.goto(HOSTED + '/apps/slate/#41502'); seen(sp, '.ln-panel [data-open-run="41502-csv-export"]'); sp.wait_for_timeout(300)
+        check('Loom works on its own page, with the top bar (crumbs and light/dark toggle)', 'Loom' in sp.text_content('.ws-bar .here') and sp.locator('.ws-bar [data-theme-toggle]').count() == 1 and sp.locator('.ln-panel .ln-foot [data-open-run="41502-csv-export"]').count() == 1)
 
         # Projects (through the connector) as a filter on Lanes (Loom 6.0.0); the filter stays in this browser.
         check('the Lanes tab counts what waits on you', int(sp.inner_text('#app .tabs [data-tab=lanes] .cnt') or 0) >= 1)
-        sp.click('[data-close-run]'); sp.wait_for_timeout(300)
+        sp.click('.ln-panel [data-lane-close]'); sp.wait_for_timeout(300)
         sp.evaluate("location.hash = '#reviews'"); sp.wait_for_timeout(600)
         check('the old Reviews address opens the Review panel in Lanes', seen(sp, '.ln-panel .ln-reviews') and 'Review a link' in sp.inner_text('.ln-panel'))
         sp.click('.ln-panel [data-lane-close]'); sp.wait_for_timeout(200)

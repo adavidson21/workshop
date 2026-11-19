@@ -23,6 +23,7 @@ function load() {
   S.copyStore = []; S.files = {}; S.slate = new Map();
   resetUi();
   S.ui.tab = 'lanes';
+  S.view = { project: 'all', lanes: 'list' }; // these tests read the List view; floor.test.mjs reads the Floor
 }
 const item = folder => S.D.items.find(i => i.folder === folder);
 const drafts = d => Object.fromEntries(Object.entries(d).map(([k, v]) => ['start:' + k, v]));
