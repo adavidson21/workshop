@@ -452,3 +452,22 @@ body[data-loom-tab=lanes] #runs-root .page:has(.fl-body) { max-width: none; }
   #runs-root .fl-stamp.m-gate .fl-sdot { animation: flPulse 2.4s ease-in-out infinite; }
 }
 @keyframes flPulse { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, currentColor 45%, transparent); } 50% { box-shadow: 0 0 0 5px transparent; } }
+
+/* ---------- Loom 6.15.0: needs you, calm but unmissable ----------
+   On top of 6.13.0's solid edge: every card waiting on you (at a gate, pulled off with a question, a fix to push in
+   transit) breathes a soft ring, and each line's header counts what needs you. No flashing, no bump.
+   With reduced motion the ring stays still. */
+#runs-root .fl-card.mine { --nr: var(--merlot); box-shadow: inset 3px 0 0 var(--nr), 0 0 0 3px color-mix(in srgb, var(--nr) 20%, transparent); }
+#runs-root .fl-card.mine.m-stuck { --nr: var(--stop); }
+#runs-root .fl-need { display: inline-flex; align-items: center; gap: 6px; font: 650 12px/1 var(--sans); color: var(--merlot); background: color-mix(in srgb, var(--merlot) 10%, var(--surface)); border: 1px solid color-mix(in srgb, var(--merlot) 35%, transparent); border-radius: 999px; padding: 4px 10px 4px 8px; }
+#runs-root .fl-ndot { width: 7px; height: 7px; border-radius: 50%; background: var(--merlot); }
+@media (prefers-reduced-motion: no-preference) {
+  #runs-root .fl-card.mine { animation: flBreathe 2.4s ease-in-out infinite; animation-delay: var(--ph); }
+  #runs-root .fl-card.mine.m-run { animation: flBob 1.2s ease-in-out infinite, flBreathe 2.4s ease-in-out infinite; animation-delay: var(--ph), var(--ph); }
+  #runs-root .fl-card.mine:hover { animation-play-state: paused; }
+  #runs-root .fl-ndot { animation: flPulse 2.4s ease-in-out infinite; animation-delay: var(--ph); color: var(--merlot); }
+}
+@keyframes flBreathe {
+  0%, 100% { box-shadow: inset 3px 0 0 var(--nr), 0 0 0 2px color-mix(in srgb, var(--nr) 14%, transparent); }
+  50% { box-shadow: inset 3px 0 0 var(--nr), 0 0 0 6px color-mix(in srgb, var(--nr) 26%, transparent); }
+}
