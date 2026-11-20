@@ -5,6 +5,7 @@
    - Other saved secrets: ones nothing uses now, to remove.
    Values never come back from Workshop: rows show only whether one is saved, where, and until when.
    The HTML builders are pure (test/secrets-page.test.mjs); mountSecrets draws them and keeps them current. */
+import { adoIsOn } from '../../../shared/ado.js';
 import { kindWords, openSecretDialog } from './secret-dialog.js';
 
 /** A saved secret's state in words: {text, tone: ok|warn|bad}. */
@@ -40,7 +41,7 @@ export function otherSecrets(data) {
 export function pageHtml(data, esc, { local = true } = {}) {
   const dis = local ? '' : ' disabled';
   const pill = st => `<span class="cx-state sd-state" data-tone="${esc(st.tone)}">${esc(st.text)}</span>`;
-  const rows = connectionRows(data);
+  const rows = connectionRows(data).filter(r => r.connector !== 'ado' || adoIsOn()); // ADO off: not named (shared/ado.js)
   const groups = [...new Set(rows.map(r => r.connector))];
   const conn = groups.length ? groups.map(id => {
     const list = rows.filter(r => r.connector === id);
@@ -52,7 +53,7 @@ export function pageHtml(data, esc, { local = true } = {}) {
         <span class="sd-acts">${r.saved ? `<button type="button" class="btn ghost" data-sd-remove="${esc(r.name)}"${dis}>Remove</button>` : ''}
         <button type="button" class="btn${r.saved ? '' : ' primary'}" data-sd-add data-sd-kind="${esc(r.secretKind)}" data-sd-${key} data-sd-connector="${esc(r.connector)}" data-sd-path="${esc(r.path)}" data-sd-replace="${r.saved ? '1' : ''}"${dis}>${esc(r.saved ? w.replace : w.add)}</button></span></li>`;
     }).join('')}</ul>`;
-  }).join('') : '<p class="sub">No connection needs a token yet. Turn on a connector (Azure DevOps, GitHub, Cloudflare, Google Play) and it shows here.</p>';
+  }).join('') : `<p class="sub">No connection needs a token yet. Turn on a connector (${adoIsOn() ? 'Azure DevOps, ' : ''}GitHub, Cloudflare, Google Play) and it shows here.</p>`;
 
   const si = (data.signins || []);
   const signins = si.length ? `<ul class="cx-list">${si.map(s => `<li class="cx-row"><div class="cx-main"><b>${esc(s.name)}</b> ${pill(s.signedIn ? { text: 'Signed in', tone: 'ok' } : { text: 'Not signed in', tone: 'bad' })}

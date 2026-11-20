@@ -26,9 +26,13 @@ paint(false);
 export const adoIsOn = () => on;
 export function setAdo(v) { on = !!v; paint(on); }
 
+// An agent that is busy (restarting, starting over) must not hold a page up: no answer in time counts as off, and
+// the connector's next status change asks again.
+const ASK_MS = 3000;
 async function ask(ws) {
   try {
-    const c = (await ws.connectors.list()).find(x => x.id === 'ado');
+    const list = await Promise.race([ws.connectors.list(), new Promise((_, no) => setTimeout(() => no(new Error('slow')), ASK_MS))]);
+    const c = list.find(x => x.id === 'ado');
     return !!(c && c.enabled);
   } catch (e) { return false; }
 }

@@ -612,7 +612,7 @@ async function appsCard() {
     areaBox.hidden = !list.length;
     areaBox.innerHTML = list.length ? `<h3 class="area-head">Areas</h3><p class="sub">Turn off a kind of work you don't do on this computer. Its apps, Settings pages and app parts leave Workshop until you turn it back on.</p>` + list.map(x => {
       const names = x.apps.map(id => (view.apps.find(a => a.id === id) || {}).name).filter(Boolean);
-      return `<label class="app-setting area-row" data-area="${esc(x.id)}"><span><b>${esc(x.label)}</b><span class="conn-about">${esc(x.about)}</span></span>
+      return `<label class="app-setting area-row" data-area="${esc(x.id)}"><span><b>${esc(x.label)}</b><span class="conn-about">${esc(adoIsOn() ? x.about : x.about.replace(/ and Azure DevOps\./, '.'))}</span></span>
         <input type="checkbox" class="toggle" role="switch" aria-label="${esc(x.label)} on"${x.on ? ' checked' : ''}${readOnly ? ' disabled' : ''}${names.length ? ` title="${esc(`Also turns off ${names.join(', ')}`)}"` : ''}></label>`;
     }).join('') : '';
     areaBox.querySelectorAll('[data-area] .toggle').forEach(el => el.addEventListener('change', e => flipArea(e.target.closest('[data-area]').dataset.area, e.target)));
