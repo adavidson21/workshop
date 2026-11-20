@@ -27,7 +27,7 @@ import { clearQueue, loadPrQueue, prReviews, resetPrQueue, reviewAll, saveInbox,
 import { COLORS, INBOX, assignRun, createProject, deleteProject, loadProjects, moveProject, projectOf, resetProjects, updateProject } from "./lib/projects.mjs";
 import { findItem } from "./lib/actions.mjs";
 import { broadcastLive, emitProjects } from "./lib/live.mjs";
-import { diffStats, loadReview, needReview, resetReview, reviewSummary, reviseAgain } from "./lib/review.mjs";
+import { diffStats, loadReview, needReview, resetReview, reviewGone, reviewSummary, reviseAgain } from "./lib/review.mjs";
 import { openPreview, resetPreviews, stopPreview, sweepIdle } from "./lib/preview.mjs";
 import { loadAfterPublish, recordStatus, resetAfterPublish, watchList } from "./lib/after-publish.mjs";
 
@@ -1637,6 +1637,7 @@ export default {
     phase = "stopped";
     problem = null;
     await parserGone(); // a parser still running holds the workspace folder open on Windows
+    await reviewGone(); // and so does the git behind Publish's change size
   },
   status() {
     const details = {

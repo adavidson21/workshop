@@ -227,6 +227,12 @@ export function reviewSummary() {
 
 const stats = new Map(); // "<folder>|<repo>" -> { head, files, additions, deletions }
 const busy = new Set();
+const pending = new Set(); // fills still running git: stop waits for them, since git holds the repo folder open on Windows
+
+/** Resolves once no background git for the change size is running (the connector's stop awaits it). */
+export async function reviewGone() {
+  while (pending.size) await Promise.allSettled([...pending]);
+}
 
 /** `8 files, +214 -37` per repo of a ready item, from git (cached by the branch head; filled in the background). */
 export function diffStats(it) {
@@ -234,7 +240,9 @@ export function diffStats(it) {
   for (const row of (it && it.pr) || []) {
     const s = stats.get(`${it.folder}|${row.repo}`);
     out.push(s ? { repo: row.repo, files: s.files, additions: s.additions, deletions: s.deletions } : { repo: row.repo, files: null, additions: null, deletions: null });
-    fill(it, row).catch(() => {});
+    const p = fill(it, row).catch(() => {});
+    pending.add(p);
+    p.then(() => pending.delete(p));
   }
   return out;
 }
