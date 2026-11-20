@@ -1,3 +1,4 @@
+import { adoIsOn } from '../../../shared/ado.js';
 import { TRACKERS, prMatchKey, reachNote, shouldAutoConnect, trackerName, trackersNote } from './tracker-status.js';
 import { focusNow, heldNow, holdCount } from './focus-hours.js';
 import { PAIR_KEY } from '../../../shared/pair.js';
@@ -414,7 +415,7 @@ function setTracker(){
   const warn = ui.tracker.on && !ui.tracker.error ? trackerNoteNow.warn : '';
   b.dataset.ado = trackerBusy ? 'busy' : !ui.tracker.on ? 'off' : ui.tracker.error ? 'error' : warn ? 'warn' : 'on';
   const label = trackerIds.length ? namesOf(trackerIds) : 'Work items';
-  b.dataset.tip = !ui.tracker.on ? 'Connect Azure DevOps or GitHub' : trackerBusy ? `Syncing with ${label}` : ui.tracker.error ? `${label}: ${ui.tracker.error}`
+  b.dataset.tip = !ui.tracker.on ? (adoIsOn() ? 'Connect Azure DevOps or GitHub' : 'Connect work items') : trackerBusy ? `Syncing with ${label}` : ui.tracker.error ? `${label}: ${ui.tracker.error}`
     : warn ? `${label}: ${warn}` : ago == null ? `${label} sync on` : `${label} synced ${ago < 1 ? 'just now' : plural(ago, 'minute') + ' ago'}`;
   if (tipFor === b) placeTip(b);
 }
@@ -432,7 +433,7 @@ async function trackerSetup(){
       <td><select data-tier-value="${k}" aria-label="${d.label}: starting value">${valueOpts(t.value)}</select></td>
       <td><label class="chk"><input type="checkbox" data-tier-urgent="${k}"${t.urgent ? ' checked' : ''}> Urgent</label></td></tr>`; }).join('');
   showModal(`<div class="sheet" role="dialog" aria-modal="true" aria-label="Connect work items"><h3>Connect work items</h3>
-    <p>Work items assigned to you and PRs waiting on your review, from Azure DevOps and GitHub, become tasks in a <b>Work items</b> list. Sync runs through Workshop's ADO and GitHub connectors on this computer. Their connections and tokens are in Workshop <b>Settings</b>; your tokens never reach this page.</p>
+    <p>Work items assigned to you and PRs waiting on your review, from ${adoIsOn() ? 'Azure DevOps and GitHub' : 'GitHub'}, become tasks in a <b>Work items</b> list. Sync runs through Workshop's ${adoIsOn() ? 'ADO and GitHub connectors' : 'GitHub connector'} on this computer. Their connections and tokens are in Workshop <b>Settings</b>; your tokens never reach this page.</p>
     <div class="opts" role="radiogroup" aria-label="New work items"><span class="lbl">New work items assigned to you</span>
       <label><input type="radio" name="adoChoose" value="1"${state.tracker.choose ? ' checked' : ''}> Let me choose which to add</label>
       <label><input type="radio" name="adoChoose" value="0"${state.tracker.choose ? '' : ' checked'}> Add them automatically</label></div>
@@ -463,9 +464,9 @@ async function trackerSetup(){
         if (choose !== state.tracker.choose){ state.tracker.choose = choose; if (!choose){ trackerPick(state.tracker.pending.map(itemKey), []); normalizeRanks(state); } }
         commit();
       }
-      go.disabled = true; msg.textContent = 'Checking the ADO and GitHub connectors...';
+      go.disabled = true; msg.textContent = adoIsOn() ? 'Checking the ADO and GitHub connectors...' : 'Checking the GitHub connector...';
       try {
-        if (!(await trackerDetect()) || trackerNoteNow.error) throw new Error(trackerNoteNow.error || 'Turn on the ADO or GitHub connector in Workshop Settings.');
+        if (!(await trackerDetect()) || trackerNoteNow.error) throw new Error(trackerNoteNow.error || 'Turn on a work item connector in Workshop Settings.');
         ui.tracker.on = true; ui.tracker.offByUser = false; ui.tracker.error = ''; ui.tracker.last = 0; saveUi();
         closeModal(); trackerSchedule(); trackerSync(true);
       } catch(err){

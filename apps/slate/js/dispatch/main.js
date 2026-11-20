@@ -6,6 +6,7 @@
    - shell: routes (#/agents/<id> focuses an item), the rail badge (open prompts), toasts and
      notifications. The theme comes from shared/theme.js and the SDK, with no messages of our own.
    view.js builds the HTML; this file paints it and handles input. */
+import { watchAdo } from '../../../../shared/ado.js';
 import { getWs, setBadge, setCards, setTab as loomTab, splitRoute, routeBoard, onTabRequest, setRunRenderer, runsPainted, onOpenRunPage, onPanelRun, boardCommand, onNudges, onPickable, pickable, onBoardFeed, onBoardDrawer, setBoardDrawer } from '../loom.js';
 import { mountBar } from '../../../../shared/standalone-bar.js';
 import { S } from './state.js';
@@ -13,7 +14,7 @@ import { render, prompts, itemForFolder, itemKey, isBusy, dayKey, fileDirty, fil
 import { INBOX, projectById, projectArgs, startProject } from './projects.js';
 import { TAB_IDS, OLD_TABS, inboxCount, sessionAsksHtml, wantedFiles, walkList, runCardHtml } from './pages.js';
 import { dropStart, guessKind, KINDS, kindOfAdoType, adoIdOf } from './lanes.js';
-import { FLOW_IDS, addOpenQuestion, sendBackCommand, gateFile } from './flows.js';
+import { FLOW_IDS, addOpenQuestion, sendBackCommand, gateFile, setFlowsAdo } from './flows.js';
 import { closedLine, closedWith, looksLikeLog, prefillFor, safeDecode } from './start-prefill.js';
 import { reviewUrlCheck, reviewAllList, prArg } from './pr-reviews.js';
 import { createCaptureStore } from '../../../../shared/capture-box.js';
@@ -34,6 +35,8 @@ import * as Products from '../../../../shared/products.js';
 const OC = 'opencode';
 const app = document.getElementById('app');
 const ws = await getWs();
+// Azure DevOps on or off (shared/ado.js): flows say it only while it is on, and every ADO control hides while off.
+watchAdo(ws, on => { setFlowsAdo(on); try { render(); } catch { /* first paint comes later */ } });
 // Your products from Settings (Loom 6.6.0's Onboard a product picker). Read when the picker opens.
 S.products = [];
 function readProducts() {

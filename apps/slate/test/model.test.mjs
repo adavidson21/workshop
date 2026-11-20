@@ -6,6 +6,9 @@ import {
   areaOptions, areaOf, inArea, underArea, NO_AREA, pmColumn, publishPlan, roadmapIdea, setStage, statusOf, waitingTask, cleanPrefs, cardFacts, detailRows, customRefs, fieldLabel, DEFAULT_PREFS,
   applyRequest, needsAdoTitle, needsAdoConnection, adoFromFind, mergeBacklogs, sameAdo, virtualAdoId, questionsText, repliesSince, sourceComment, suggestsScope, timeline
 } from '../js/model.js';
+import { setAdo } from '../../../shared/ado.js';
+// These checks are written for Azure DevOps on; no-ado.test.mjs covers it off.
+setAdo(true);
 
 const NOW = new Date('2026-11-05T15:00:00Z');
 

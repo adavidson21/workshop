@@ -46,6 +46,7 @@ Apps may use these. Each module's header comment says what it exports and how to
 | `shared/voice.js` | Writing voice, the pure parts: prompts, the check, samples, rules and the feedback Chat sends ([writing.md](writing.md)). |
 | `shared/focus.js` | Focus hours and lunch ([focus.md](focus.md)). |
 | `shared/outside.js` | The look for actions that change something outside this computer. |
+| `shared/ado.js` | Azure DevOps on or off: `watchAdo`, `adoIsOn`, `noAdo`, and the `data-ado-only` / `data-no-ado` marks. |
 | `shared/capture.js` | Quick capture rules ([hub.md](hub.md)). |
 | `shared/capture-box.js` | The capture box (Home's quick capture and the Dispatch hub). |
 | `shared/capture.css` | The capture box's styles. |
@@ -58,6 +59,16 @@ Apps may use these. Each module's header comment says what it exports and how to
 | `shared/standalone-bar.js` | The top bar for an app opened on its own page. Goes when apps no longer have sites of their own. |
 | `shared/pair.js` | Pairing a site with the agent. The shell uses it; apps with a site of their own too, until those sites go. |
 | `shared/app-sw.js` | The service worker for apps with a site of their own. Goes with those sites. |
+
+## With no Azure DevOps
+
+Azure DevOps is optional, and while it is off (switched off in Settings, not installed, or browser mode) Workshop names it nowhere: no ADO buttons, chips, hints, steps or sentences in any app. The one place it stays is its row on Settings, All connections, whose Settings button opens its switch, so it can be turned back on. Everything comes back as soon as it is on, without a reload.
+
+- `shared/ado.js` decides: `watchAdo(ws, onChange)` once at start (it follows the connector's status after that), then `adoIsOn()` where a string or control depends on it. `noAdo(text)` drops the sentences that name ADO from mixed text, such as an app's description.
+- In markup, `data-ado-only` hides while ADO is off and `data-no-ado` while it is on (`shared/ui.css`).
+- Items that came from ADO keep their data; while it is off they read as local ones (Loom's board, Docket's rows, Runway's roadmaps). GitHub items are unchanged.
+- Exported files keep their columns (Docket's Excel export, Settings' people template), so a file still imports the same either way.
+- `tests/no-ado-e2e.py` opens every app and tab with ADO off and with it not installed, and in browser mode, and fails on any visible mention. It also checks the way back on from All connections.
 
 ## Internal
 

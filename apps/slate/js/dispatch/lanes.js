@@ -7,6 +7,7 @@
    A card moves on its own as the run moves: the lane follows from the run's flow and step (flows.js), nothing is stored.
    The panel beside the lanes holds the run's own card (pages.js runCardHtml), so every button there is the one the
    Inbox and the board already use. No DOM: main.js paints what these return and handles the clicks. */
+import { adoIsOn } from '../../../../shared/ado.js';
 import { S } from './state.js';
 import { h, plural, asking, itemSession, isBusy, autoIs, itemForFolder, adoOn } from './view.js';
 import { flowOf, stepIndex, isFinished, turnHtml, stepLine } from './flows.js';
@@ -272,20 +273,20 @@ export function dropHtml() {
   const pick = text.trim() ? `<select class="ln-kindpick" data-lane-kind="1" aria-label="Kind of work (guessed from what you pasted)" title="Guessed from what you pasted. Change it if it is wrong.">` +
     DROP_KINDS.map(k => `<option value="${k}"${k === kind ? ' selected' : ''}>${h(KINDS[k].name)}</option>`).join('') + '</select>' : '';
   const list = pickable();
-  const ado = list.length ? `<button type="button" class="lnk plain ln-adobtn" data-ado-toggle="1" aria-expanded="${!!S.ui.dropPick}">From ADO</button>` : '';
-  return `<section class="ln-drop" aria-label="Start something"><label for="ln-drop" class="ln-dl">Drop anything: a user story or ADO number, an error log, or a question</label>` +
+  const ado = list.length ? `<button type="button" class="lnk plain ln-adobtn" data-ado-toggle="1" aria-expanded="${!!S.ui.dropPick}">${adoIsOn() ? 'From ADO' : 'From the backlog'}</button>` : '';
+  return `<section class="ln-drop" aria-label="Start something"><label for="ln-drop" class="ln-dl">Drop anything: a user story${adoIsOn() ? ' or ADO number' : ''}, an error log, or a question</label>` +
     `<textarea id="ln-drop" rows="1" data-draft="lanes:drop" placeholder="Paste a story, a stack trace or a question. Enter starts it; Shift+Enter for a new line.">${h(text)}</textarea>` +
     `<div class="ln-drow">${ado}<button type="button" class="lnk plain" data-start-open="1" title="Plan an epic, write docs, handle a request">Other flows</button>` +
     `<button type="button" class="lnk plain" data-onboard-toggle="1" aria-expanded="${!!S.ui.onboardPick}" title="Get a product ready for its first build">Onboard a product</button><button type="button" class="lnk plain" data-cover-toggle="1" aria-expanded="${!!S.ui.coverPick}" title="End-to-end tests for what a product already does, built hands-off">Add regression tests</button><span class="grow"></span>${pick}` +
     `<button type="button" class="btn primary" data-lane-start="1"${ready ? '' : ' disabled title="Connect opencode to start work"'}${S.ui.dropBusy ? ' disabled' : ''}>${S.ui.dropBusy ? 'Starting…' : 'Start'}</button></div>` +
-    (S.ui.dropAdo && text.trim() ? `<label class="ln-keep"><input type="checkbox" data-drop-keep="1"${S.ui.dropKeep ? ' checked' : ''}> Keep it linked to ADO #${h(S.ui.dropAdo.id)} (otherwise it starts as a local item)</label>` : '') +
+    (S.ui.dropAdo && adoIsOn() && text.trim() ? `<label class="ln-keep"><input type="checkbox" data-drop-keep="1"${S.ui.dropKeep ? ' checked' : ''}> Keep it linked to ADO #${h(S.ui.dropAdo.id)} (otherwise it starts as a local item)</label>` : '') +
     (S.ui.dropPick && list.length ? pickerHtml(list) : '') + onboardPickHtml() + coverPickHtml() + '</section>';
 }
 /** The From ADO picker: your team's backlog items nobody has started, newest change first, with a search. */
 function pickerHtml(list) {
   const q = S.ui.drafts['lanes:adoq'] || '';
   const rows = pickRows(list, q);
-  return `<div class="ln-pick"><input type="search" id="ln-adoq" data-draft="lanes:adoq" value="${h(q)}" placeholder="Search by number or title" aria-label="Search your ADO backlog">` +
+  return `<div class="ln-pick"><input type="search" id="ln-adoq" data-draft="lanes:adoq" value="${h(q)}" placeholder="Search by number or title" aria-label="Search your backlog">` +
     (rows.length ? `<ul role="list">${rows.map(r => `<li><button type="button" class="ln-prow" data-ado-pick="${h(r.id)}"><span class="ln-pid">#${h(r.id)}</span><span class="ln-ptitle">${h(r.title)}</span>` +
       `${r.type ? `<span class="ln-ptype">${h(r.type)}</span>` : ''}</button></li>`).join('')}</ul>` : '<p class="dim">Nothing matches.</p>') +
     `<p class="ln-pnote">Your team's open backlog, not started in Loom yet.</p></div>`;

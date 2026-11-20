@@ -4,6 +4,8 @@ A panel over the app you are in (Home 4.0.0, `"panel": true` in `app.json`, see 
 
 It shows and links; work happens in each app. The **Capture** button in the top bar (or Ctrl+. on any app) is the one place to capture or ask.
 
+**5.5.0.** With Azure DevOps off, not installed or in browser mode, Get started leaves out **Connect Azure DevOps** and **Set your team's area paths**, and no other step names it (`shared/ado.js`). Turn it on from Settings, All connections.
+
 **5.2.0 (Workshop UX v1).** Get started is its own place: Needs you opens on your day, with one line at the bottom for setup. Click it and the checklist takes the page; fold it to go back.
 
 What it shows:

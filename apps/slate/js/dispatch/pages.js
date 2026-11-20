@@ -7,6 +7,7 @@
    - Reviews: teammates' PRs and first-pass reviews (pr-reviews.js reviewsHtml).
    A run's page is driven by its flow (flows.js): the step track is the navigation, the current step shows its file
    and its buttons. No DOM: main.js paints what these return and handles the clicks. */
+import { adoIsOn } from '../../../../shared/ado.js';
 import { S } from './state.js';
 import { h, md, plural, ago, stamp, fileBtn, fileOf, asking, itemSession, isBusy, itemKey, itemForFolder, stateVar, track, nextHtml, nextBtns, autoHtml, agentHtml, leftOffHtml,
   permHtml, questionHtml, sessionBox, reposTable, tasksHtml, kitHtml, filesHtml, prHtml, removeBtn, briefText, slateChip, slateOf, idLink, safeUrl, link, runBtn, runFork, autoIs,
@@ -202,7 +203,8 @@ export function folderActs(it, inline) {
       { label: busy ? 'Saving' : 'Save to Folio', desc: 'A copy in Folio, under Tandem. Nothing is committed.', attrs: `data-docs-folio="${h(it.folder)}"`, disabled: busy }
     ], 'Where the doc goes'));
   } else if (id === 'epic' && i === 4) {
-    out.push(runBtn(it, `/backlog ${it.folder} ado`, 'Create in ADO'), runBtn(it, `/backlog ${it.folder} csv`, 'Make an import file instead', true));
+    if (adoIsOn()) out.push(runBtn(it, `/backlog ${it.folder} ado`, 'Create in ADO'), runBtn(it, `/backlog ${it.folder} csv`, 'Make an import file instead', true));
+    else out.push(runBtn(it, `/backlog ${it.folder} local`, 'Create the stories'));
   } else {
     const cmd = folderCommand(it);
     if (cmd && !isFinished(it)) out.push(runBtn(it, cmd, cmdLabel(cmd)));
@@ -491,7 +493,7 @@ export function runPageHtml(it) {
   const f = flowOf(it);
   const back = { inbox: ['inbox', 'Inbox'], work: ['work', 'All runs'], health: ['health', 'Health'] }[S.ui.back] || ['board', 'Board'];
   const meta = [`<span class="tag">${h(flowTag(it))}</span>`];
-  if (it.adoState) meta.push(`<span title="ADO state when the item was fetched">ADO: ${h(it.adoState)}</span>`);
+  if (it.adoState && adoIsOn()) meta.push(`<span title="ADO state when the item was fetched">ADO: ${h(it.adoState)}</span>`);
   meta.push(`<span title="${h(stamp(it.modifiedMs))}">Touched ${ago(it.modifiedMs)}</span>`, projectChip(it), slateChip(it), removeBtn(it));
   const title = safeUrl(it.url) ? link(it.url, it.title) : h(it.title);
   let main;

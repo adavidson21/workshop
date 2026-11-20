@@ -148,7 +148,10 @@ def stab(frame, tab):
     by page id or the old tab id: its nav item, then its tab when the nav item has a tab row."""
     pid = SETTINGS_PAGE.get(tab, tab)
     nav = frame.evaluate("id => { const p = document.getElementById('page-' + id); return p && p.closest('.navpanel').dataset.nav; }", pid) or pid
-    frame.click(f'.nav-item[data-nav="{nav}"]'); frame.wait_for_timeout(100)
+    if frame.locator(f'.nav-item[data-nav="{nav}"]').is_visible(): frame.click(f'.nav-item[data-nav="{nav}"]')
+    else:  # Azure DevOps while it is off: no nav item, its pages open the way All connections opens them (data-goto-page)
+        frame.evaluate("id => { const a = document.createElement('a'); a.dataset.gotoPage = id; document.querySelector('#content').appendChild(a); a.click(); a.remove(); }", pid)
+    frame.wait_for_timeout(100)
     tabbtn = frame.locator(f'.tabs:not([hidden]) .tab[data-page="{pid}"]')
     if tabbtn.count(): tabbtn.click()
     frame.wait_for_timeout(150)
@@ -400,7 +403,8 @@ def browser_mode_checks(ctx, pg, frame, watch):
         sf.wait_for_selector('[data-person-new]', timeout=5000)
         sf.click('[data-person-new]'); sf.fill('#pName', 'Engineer A'); sf.click('[data-person-form] button.primary'); sf.wait_for_timeout(500)
         sf.click('[data-person-new]'); sf.fill('#pName', '<b>Dev</b> One')
-        sf.select_option('#pRel', 'report'); sf.fill('#pAdo', 'dev.one@example.com')
+        sf.select_option('#pRel', 'report')
+        check('People: no Azure DevOps field while it is off (browser mode)', sf.locator('#pAdo').count() == 1 and not sf.locator('#pAdo').is_visible())
         sf.click('[data-person-form] button.primary'); sf.wait_for_timeout(500)
         names = sf.locator('.people .person b').all_inner_texts()
         check('People: add yourself and a report, you first', names == ['Engineer A', '<b>Dev</b> One'])
@@ -412,7 +416,7 @@ def browser_mode_checks(ctx, pg, frame, watch):
         rp = ctx.new_page(); watch(rp); rp.goto(HUB + '/apps/settings/'); rp.wait_for_timeout(500)
         stored = rp.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'notes'});
           const e = await ws.data.get('people', {app: 'settings'}); return e && [e.schema, e.version, e.items.map(p => [p.kind, p.handle, p.relation, p.team, p.adoIdentity])]; }""")
-        check('People: saved as settings.people v2 with handles', stored == ['settings.people', 2, [['person', 'engineer', 'self', True, ''], ['person', 'b-dev-b', 'report', True, 'dev.one@example.com'], ['person', 'boss', 'manager', False, '']]])
+        check('People: saved as settings.people v2 with handles', stored == ['settings.people', 2, [['person', 'engineer', 'self', True, ''], ['person', 'b-dev-b', 'report', True, ''], ['person', 'boss', 'manager', False, '']]])
         # A group, assigned like a person: Leadership with the report and the manager.
         sf.click('[data-group-new]'); sf.fill('#gName', 'Leadership')
         sf.check('[data-group-form] input[name=member] >> nth=1'); sf.check('[data-group-form] input[name=member] >> nth=2')
@@ -751,7 +755,8 @@ def agent_checks(b, watch):
         check('Status has no Needs you while nothing set up is broken', sf.locator('.needs-you:visible').count() == 0)
         check('rarely changed settings are on their own page, This computer, not on Overview', sf.locator('#page-computer #port').count() == 1 and sf.locator('#page-computer #feat-startAtLogin').count() == 1
               and sf.locator('#page-overview #port').count() == 0 and sf.locator('details.adv').count() == 0)
-        check('Overview says Azure DevOps is off, with Set up, and nothing in red', 'off' in sf.inner_text('[data-status-of=ado]').lower() and sf.locator('[data-status-of=ado] .state[data-state=error]').count() == 0)
+        check('with Azure DevOps off, Settings names it neither in the nav nor on Status (shared/ado.js)', not sf.locator('.nav-item[data-nav=ado]').is_visible()
+              and sf.locator('[data-status-of=ado]').count() == 0 and 'Azure DevOps' not in sf.inner_text('#page-overview'))
         stab(sf, 'work-items')
         check('with Azure DevOps off, Work items says so in one line and shows no form', 'Azure DevOps is off. Turn it on in Connections.' in sf.inner_text('#page-work-items')
               and sf.locator('#page-work-items form.cfg:visible').count() == 0)
@@ -1595,6 +1600,8 @@ def agents_checks(b, watch):
         pg.keyboard.press('Alt+1'); pg.wait_for_timeout(1500)
         pf = next(f for f in pg.frames if '/apps/prioritizer/' in f.url)
         docket_personal_on(pf, pg)
+        # These are ADO tasks: this agent has no ADO connector, so turn Azure DevOps on in Docket by hand (shared/ado.js).
+        pf.evaluate("() => import('/shared/ado.js').then(m => m.setAdo(true))")
         add_ado_task(pf, 'w1', 'Login timeout', '41207', 'User Story')
         add_ado_task(pf, 'w2', 'Brand new', '77777', 'User Story'); pg.wait_for_timeout(800)
         chip = pf.locator('.chip.eng')

@@ -3,6 +3,7 @@
 
    store.js saves through the SDK; outline.js, model.js, timeline.js and view.js are pure; this file owns the
    page: painting, the timeline's pointer and keyboard handling, dialogs, routes and commands. */
+import { watchAdo } from '../../../shared/ado.js';
 import { connect } from '../../../shared/workshop-sdk.js';
 import { mountBar } from '../../../shared/standalone-bar.js';
 import { PAIR_HELP, canPair, forgetPairing, isPaired, pairWith } from '../../../shared/pair.js';
@@ -151,6 +152,8 @@ const adoSystems = () => (ado && ado.state.systems) || [];
 const srcName = src => (src && src.system === 'github' ? 'GitHub' : 'ADO');
 const srcReady = src => !!(ado && (ado.readyFor ? ado.readyFor(src) : ado.state.ready));
 const adoMod = () => import('./ado/model.js');
+// Azure DevOps on or off (shared/ado.js): an ADO roadmap's bar, links and panel hide while it is off.
+watchAdo(ws, () => requestPaint());
 if (ws.backend === 'agent') {
   import('./ado/index.js').then(m => {
     ado = m.createAdo(ws, { onChange: () => { requestPaint(); autoRefresh(); } });

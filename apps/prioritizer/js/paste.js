@@ -1,3 +1,4 @@
+import { adoIsOn } from '../../../shared/ado.js';
 import { adoFromPaste } from './ado-link.js';
 import { drawerId } from './drawer.js';
 import { drawer } from './render.js';
@@ -24,7 +25,7 @@ function takePasted(el){
 function onPaste(e){
   const el = e.target;
   if (!el || !/^(INPUT|TEXTAREA)$/.test(el.tagName) || (el.type && !/^(text|search)$/.test(el.type) && el.tagName === 'INPUT')) return;
-  const cd = e.clipboardData; if (!cd) return;
+  const cd = e.clipboardData; if (!cd || !adoIsOn()) return;   // ADO off: a pasted link is just text
   const got = adoFromPaste(cd.getData('text/plain'), cd.getData('text/html'));
   if (!got) return;
   const f = el.dataset.f;

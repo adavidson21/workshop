@@ -6,6 +6,7 @@
      belongs and builds waiting on it carry on.
    - Overlap: at approval, a build that changes the same files as another offers Build after that one.
    No DOM: main.js paints what these return and handles the clicks. */
+import { adoIsOn } from '../../../../shared/ado.js';
 import { S } from './state.js';
 import { h, md, itemForFolder, reviewHref } from './view.js';
 import { hasDraft } from './review-state.js';
@@ -154,7 +155,7 @@ function afterHtml(it, p) {
   if (rec.merged) {
     const link = S.D && S.D.adoLinks && S.D.adoLinks[it.folder];
     const resolved = S.ui.resolved && S.ui.resolved[it.folder];
-    const res = link && link.linked && link.ado && !resolved ? `<button type="button" class="btn small" data-ado-resolve="${h(it.folder)}" data-ado="${h(String(link.ado))}" data-out>Resolve in ADO ${outsideMark('ado')}</button>` : '';
+    const res = adoIsOn() && link && link.linked && link.ado && !resolved ? `<button type="button" class="btn small" data-ado-resolve="${h(it.folder)}" data-ado="${h(String(link.ado))}" data-out>Resolve in ADO ${outsideMark('ado')}</button>` : '';
     // Merge without a PR (connector 1.29.0): each repo's merge commit, no PR to follow.
     const list = rec.mode === 'merge' ? repos.map(r => `<li><span class="mono">${h(r.repo)}</span> <span class="dim">${h(r.branch || '')} into ${h(r.target || 'main')}</span>${r.merged ? ` <span class="mono dim">${h(String(r.merged).slice(0, 8))}</span>` : ''}</li>`).join('') : repos.map(r => afterRepo(it, r)).join('');
     return `<div class="pub done"><p><span class="flag ok">Merged</span> ${h(new Date(rec.merged).toLocaleString())}${rec.mode === 'merge' ? ', no PR' : ''}. Done: Tandem ran its retro (suggestions in Folio's review list) and removed the worktrees. The work folder stays.</p><ul class="pub-repos">${list}</ul>${res ? `<div class="row">${res}</div>` : ''}</div>`;
@@ -249,6 +250,7 @@ export const adoLinkOf = it => (it && S.D && S.D.adoLinks && S.D.adoLinks[it.fol
 
 /** The link row in a run's panel: linked (with Unlink) or local (with Link to ADO and Create in ADO). */
 export function adoLinkHtml(it, adoReady) {
+  if (!adoIsOn()) return ''; // ADO off: no link row at all (shared/ado.js)
   const l = adoLinkOf(it);
   if (!l) return '';
   const busy = S.ui.busy && S.ui.busy['link:' + it.folder] ? ' disabled' : '';
@@ -267,6 +269,6 @@ export function adoLinkHtml(it, adoReady) {
 /** The one-time notice after every numbered item was made local (connector 1.22.0). */
 export function adoNoticeHtml() {
   const n = S.D && S.D.adoNotice;
-  if (!n || !n.count) return '';
+  if (!n || !n.count || !adoIsOn()) return '';
   return `<div class="banner ln-notice"><p>${h(String(n.count))} build${n.count === 1 ? ' is' : 's are'} now local: Workshop no longer updates ADO for ${n.count === 1 ? 'it' : 'them'}. Relink any that matter from its panel (Link to ADO).</p><button type="button" class="btn small" data-ado-notice="1">Got it</button></div>`;
 }

@@ -81,7 +81,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         if p == '/api/config': return self.send_json(200, {'dataDir': '/mock/Workshop'})
         if p == '/api/connectors':
             msg = {'ready': '', 'disabled': 'Off'}.get(STATE['connector'], '')
-            return self.send_json(200, {'connectors': [{'id': 'ado', 'status': {'state': STATE['connector'], 'message': msg}}]})
+            return self.send_json(200, {'connectors': [{'id': 'ado', 'enabled': STATE['connector'] != 'disabled', 'status': {'state': STATE['connector'], 'message': msg}}]})
         if p == '/api/events':
             self.send_response(200)
             self.send_header('Content-Type', 'text/event-stream')
@@ -353,8 +353,10 @@ def main():
         check('connector off: no From Azure DevOps on the list', pg.query_selector('[data-fromado]') is None)
         calls = len(STATE['calls'])
         pg.evaluate(f'() => {R}.route("{linked_id}")')
-        pg.wait_for_selector('.adobar', timeout=5000)
-        check('connector off: a linked roadmap shows the last copy', 'Showing the last copy' in pg.inner_text('.adobar'))
+        pg.wait_for_selector('[data-additem]', timeout=5000)
+        # Azure DevOps off (shared/ado.js): the roadmap keeps its items, but nothing on it names ADO.
+        check('connector off: a linked roadmap shows no ADO bar', pg.query_selector('.adobar') is None)
+        check('connector off: nothing on the page says ADO', not re.search(r'\bADO\b|Azure DevOps', pg.inner_text('body')))
         check('connector off: no refresh button and no calls', pg.query_selector('[data-adorefresh]') is None and len(STATE['calls']) == calls)
         check('connector off: the roadmap is still editable', pg.query_selector('[data-additem]') is not None)
 

@@ -3,10 +3,16 @@
 import { outsideBanner, outsideMark } from '../../../shared/outside.js';
 import { isGitHubConnection } from '../../../shared/teams.js';
 import { filterOptions } from '../../../shared/products.js';
+import { adoIsOn } from '../../../shared/ado.js';
 // A card on a GitHub team area (its item's connection is a repo) says GitHub where others say ADO.
 const ghCard = it => !!(it && it.ado && isGitHubConnection(it.ado.connection));
 const sysOut = it => (ghCard(it) ? 'github' : 'ado');
 const sysName = it => (ghCard(it) ? 'GitHub' : 'ADO');
+// Azure DevOps on or off (shared/ado.js). While off, an ADO item's link is not shown (the card reads as a local one),
+// and where a published item goes is GitHub (the only other tracker): nothing here names ADO.
+const TR = () => (adoIsOn() ? 'ADO' : 'GitHub');
+export const viewItem = it => (it && it.ado && !adoIsOn() && !ghCard(it) ? { ...it, ado: null } : it);
+const viewP = p => (p && p.item && viewItem(p.item) !== p.item ? { ...p, item: viewItem(p.item) } : p);
 import { BOARD_COLUMNS, CARD_FIELDS, DETAIL_FIELDS, LEVELS, LEVEL_NAME, STAGE_TITLE, areaOf, changedInAdo, detailRows, esc, parseBrief, parseRefine, parseTriage, releaseGroups } from './model.js';
 
 const chip = (text, cls = '') => `<span class="chip ${cls}">${esc(text)}</span>`;
@@ -31,8 +37,8 @@ export function topHtml(ui, notes, areas = [], products = []) {
     ${products.some(p => !p.archived) ? `<label class="sr" for="prod">Product</label><select id="prod" class="prod" title="Show one product's work: its area paths, its repos, or its name in the title">${filterOptions(products, ui.product, esc)}</select>` : ''}
     <span class="grow"></span>
     ${ui.canRuns ? btn('runs', 'All runs', { title: 'Every Tandem run in one list, with flow and project filters' }) : ''}
-    ${btn('fields', 'Fields', { title: 'Which ADO fields cards and the panel show' })}
-    ${btn('refresh', 'Refresh', { title: 'Read Azure DevOps and Tandem again' })}
+    ${adoIsOn() ? btn('fields', 'Fields', { title: 'Which ADO fields cards and the panel show' }) : ''}
+    ${btn('refresh', 'Refresh', { title: adoIsOn() ? 'Read Azure DevOps and Tandem again' : 'Read Tandem again' })}
     ${btn('new-idea', 'New idea', { title: 'Your own idea: an agent interviews you to shape it' })}
     ${btn('new', 'New request', { primary: true })}` : '<span class="grow"></span>'}
   </div>${notesHtml(notes, ui.notesOpen)}`;
@@ -59,6 +65,7 @@ function agentLine(a) {
 }
 
 function card(c, s) {
+  c = viewItem(c);
   const meta = [];
   if (c.fromRunway) meta.push('From Runway');
   if (c.ado) meta.push(`#${c.ado.id}`);
@@ -69,7 +76,7 @@ function card(c, s) {
   if (!c.virtual && c.age) meta.push(`${c.age}d`);
   const flags = [];
   if (c.step) flags.push(chip(c.step, c.step === 'Waiting on you' ? 'warn' : 'step'));
-  if (c.noAdo) flags.push(chip('No ADO item', 'warn'));
+  if (c.noAdo && adoIsOn()) flags.push(chip('No ADO item', 'warn'));
   if (c.ado && c.ado.choices && c.ado.choices.length > 1) flags.push(chip('Which collection?', 'warn'));
   if (c.fromLoom) flags.push(chip('From a run', 'soft'));
   if (c.stale) flags.push(chip('Stale', 'warn'));
@@ -110,7 +117,7 @@ export function boardHtml(columns, s) {
   }
   if (!total) {
     return `<div class="empty"><h2>Nothing on the board yet</h2>
-      <p>${esc(s.backlogNote || (s.noAdo ? 'Add an idea or a request. Ideas waiting in Runway, and requests you capture on Home with s, show here too.' : 'Add an idea or a request, or set your team\'s area paths in Settings, People and teams, so Slate can list your ADO backlog. Ideas waiting in Runway show here too.'))}</p>
+      <p>${esc(s.backlogNote || (s.noAdo ? 'Add an idea or a request. Ideas waiting in Runway, and requests you capture on Home with s, show here too.' : `Add an idea or a request, or set your team's area paths in Settings, People and teams, so Slate can list your ${adoIsOn() ? 'ADO ' : ''}backlog. Ideas waiting in Runway show here too.`))}</p>
       ${btn('new-idea', 'New idea')}${btn('new', 'New request', { primary: true })}</div>`;
   }
   // Every column the same width, so cards moving between them never reflow the board (Loom UX v1).
@@ -119,7 +126,7 @@ export function boardHtml(columns, s) {
   return `<div class="board" style="--cols:${BOARD_COLUMNS.length};grid-template-columns:${tracks};min-width:${minW}rem">${BOARD_COLUMNS.map(d => {
     const list = columns[d.key] || [];
     const body = d.key === 'done' ? resolvedGroups(list, s) : `<ul>${list.map(c => card(c, s)).join('')}</ul>`;
-    const hint = s.noAdo && NO_ADO_HINT[d.key] || d.hint;
+    const hint = (s.noAdo || !adoIsOn()) && NO_ADO_HINT[d.key] || d.hint;
     return `<section class="col${list.length ? '' : ' empty-col'}" aria-label="${esc(d.title)}" data-col="${esc(d.key)}"><header title="${esc(hint || '')}"><span class="col-ic" aria-hidden="true">${COL_ICON[d.key] || ''}</span><h2>${esc(d.title)}</h2><span class="count">${list.length}</span></header>
       ${d.sub ? `<p class="col-sub">${esc(d.sub)}</p>` : ''}${body}</section>`;
   }).join('')}</div>`;
@@ -130,9 +137,9 @@ function resolvedGroups(list, s) {
   if (!list.length) return '<ul></ul>';
   return releaseGroups(list).map(g => {
     const key = g.area.toLowerCase();
-    const linked = g.items.filter(it => it.ado).length;
+    const linked = g.items.filter(it => viewItem(it).ado).length;
     return `<div class="rgroup"><div class="rhead"><span class="rarea" title="${esc(g.area || 'No area path')}">${esc(g.area ? g.area.split('\\').pop() : g.label)}</span><span class="count">${g.items.length}</span></div>
-      <div class="racts">${btn('copy-notes', 'Copy release notes', { extra: ` data-area="${esc(key)}"`, title: 'Titles, ADO links and release notes, as Markdown' })}${linked ? btn('close-group', 'Close as released', { out: 'ado', extra: ` data-area="${esc(key)}"`, title: `Close the ${linked} ADO item${linked === 1 ? '' : 's'} here, after a confirm` }) : ''}</div>
+      <div class="racts">${btn('copy-notes', 'Copy release notes', { extra: ` data-area="${esc(key)}"`, title: adoIsOn() ? 'Titles, ADO links and release notes, as Markdown' : 'Titles and release notes, as Markdown' })}${linked ? btn('close-group', 'Close as released', { out: 'ado', extra: ` data-area="${esc(key)}"`, title: `Close the ${linked} ADO item${linked === 1 ? '' : 's'} here, after a confirm` }) : ''}</div>
       <ul>${g.items.map(c => card(c, s)).join('')}</ul></div>`;
   }).join('');
 }
@@ -349,6 +356,7 @@ const gate = (p, html) => {
 export const typeLabel = (c) => (c && c.ado && c.ado.type) ? String(c.ado.type).slice(0, 30) : (LEVEL_NAME[c && c.level] || 'Story');
 
 export function nextOf(p) {
+  p = viewP(p);
   const n = nextRaw(p);
   if (!p.tandemOff || n.html) return n;
   const shown = gate(p, n.shown || []);
@@ -409,7 +417,7 @@ function nextRaw(p) {
         [pathCard('build-it', 'Build it', `Define it (${to}), then you build it.`, { primary: !bug }),
           pathCard('fix-it', 'Fix it', 'Define it as a bug, then you fix it.', { primary: bug }),
           pathCard('investigate', 'Investigate', 'A spike on what the brief leaves open. No code changes.'),
-          pathCard('hand-off', 'Hand to a person', 'Define it, then pick who and assign it in ADO.'),
+          pathCard('hand-off', 'Hand to a person', adoIsOn() ? 'Define it, then pick who and assign it in ADO.' : 'Define it, then pick who builds it.'),
           pathCard('decline', 'Decline', 'Close it. Move back brings it back.')],
         [btn('keep-going', 'Keep going', { title: 'Another round of questions' }), ...build],
         '<details class="kg"><summary>Keep going instead</summary><label class="lbl" for="bnotes">Say what to dig into (optional), then Keep going under More</label><textarea id="bnotes" class="answers" rows="2" maxlength="8000"></textarea></details>');
@@ -427,11 +435,11 @@ function nextRaw(p) {
         return step(`Pick how to define it.${why}`, [btn('refine', 'One story: refine', { primary: !big }), btn('scope', 'Bigger: scope and slice', { primary: big })], [...build, btn('write-refine', 'Write one story myself'), btn('write-scope', 'Write an epic myself')]);
       }
       if (d.manual) {
-        if (d.ready) return step(p.canAdo ? 'Your draft is approved.' : 'Your draft is approved. Without Azure DevOps it stays here in Slate.', [btn('to-decide', 'Who builds it?', { primary: true }), btn('unapprove-manual', 'Edit again')]);
-        return step(`Your draft. Edit it until it is right, then approve it.${p.canAdo ? ' Approve and publish creates the ADO items (you confirm the list first).' : ''}`,
+        if (d.ready) return step(p.canAdo ? 'Your draft is approved.' : adoIsOn() ? 'Your draft is approved. Without Azure DevOps it stays here in Slate.' : 'Your draft is approved. It stays here in Loom.', [btn('to-decide', 'Who builds it?', { primary: true }), btn('unapprove-manual', 'Edit again')]);
+        return step(`Your draft. Edit it until it is right, then approve it.${p.canAdo ? ` Approve and publish creates the ${TR()} items (you confirm the list first).` : ''}`,
           p.canAdo ? [btn('approve-manual-publish', 'Approve and publish', { primary: true, out: 'ado' }), btn('edit-draft', 'Edit'), btn('approve-manual', 'Approve only')] : [btn('approve-manual', 'Approve', { primary: true }), btn('edit-draft', 'Edit')]);
       }
-      if (d.step === 'approve' || d.step === 'approve-milestones') return step('Read the draft. Approve and publish creates the ADO items as soon as it is approved (you confirm the list first). Or edit it and ask the agent to revise.',
+      if (d.step === 'approve' || d.step === 'approve-milestones') return step(`Read the draft. Approve and publish creates the ${TR()} items as soon as it is approved (you confirm the list first). Or edit it and ask the agent to revise.`,
         [btn('approve-publish', 'Approve and publish', { primary: true, out: 'ado' }), btn('revise', 'Revise with my edits')], [btn('approve-build', 'Approve, publish and build it myself', { out: 'ado' }), btn('approve', 'Approve only')]);
       if (d.step === 'approve-stories') return step('Read the stories. Approve them, then slice them into build order. Or edit them and ask the agent to revise.', [btn('approve', 'Approve', { primary: true }), btn('revise', 'Revise with my edits')]);
       if (d.ready) return step('Back in Define, and the draft is still approved. Edit it and ask the agent to revise, or send it on as it is.', [btn('revise', 'Revise with my edits', { primary: true }), btn('keep', 'Keep it approved')]);
@@ -439,11 +447,11 @@ function nextRaw(p) {
       return step('Waiting for the draft.', [btn('dispatch', 'Open the run')], build);
     }
     case 'publish':
-      if (!p.canAdo) return step('Approved. Without Azure DevOps it stays here in Slate.', [btn('to-decide', 'Who builds it?', { primary: true })]);
-      return step(`Approved, not in ADO yet. ${it.ado && p.draft.kind === 'refine' ? `Publish updates #${it.ado.id} with the description and acceptance criteria.` : 'Publish creates the work items.'}`,
-      [btn('publish', 'Publish to ADO', { primary: true, out: sysOut(it) }), btn('publish-build', 'Publish and build it myself', { out: sysOut(it) })], it.ado ? [] : [btn('build-local', 'Build it myself, skip ADO')]);
+      if (!p.canAdo) return step(adoIsOn() ? 'Approved. Without Azure DevOps it stays here in Slate.' : 'Approved. It stays here in Loom.', [btn('to-decide', 'Who builds it?', { primary: true })]);
+      return step(`Approved, not in ${TR()} yet. ${it.ado && p.draft.kind === 'refine' ? `Publish updates #${it.ado.id} with the description and acceptance criteria.` : 'Publish creates the work items.'}`,
+      [btn('publish', `Publish to ${it.ado ? sysName(it) : TR()}`, { primary: true, out: sysOut(it) }), btn('publish-build', 'Publish and build it myself', { out: sysOut(it) })], it.ado ? [] : [btn('build-local', adoIsOn() ? 'Build it myself, skip ADO' : 'Build it myself')]);
     case 'decide': return fork(`Who builds it?${p.owners && p.owners.length ? ` ${esc(p.owners[0].name)} owns ${esc(p.owners[0].hits.join(', '))}.` : ''}`,
-      [pathCard('delegate', 'Hand to a person', `Pick who and assign it${it.ado ? ' in ADO' : ''}, in one step. A brief and a Docket follow-up are options.`, { primary: p.item.route === 'delegate' }), decideBuild(p, true)]);
+      [pathCard('delegate', 'Hand to a person', `Pick who and assign it${it.ado ? ` in ${sysName(it)}` : ''}, in one step. A brief and a Docket follow-up are options.`, { primary: p.item.route === 'delegate' }), decideBuild(p, true)]);
     case 'delegated': {
       const stalled = p.stalled ? `No movement in ${esc(p.stalled.days)} working days. Check in with ${esc(p.assigneeName || 'them')}, then mark it followed up.` : '';
       return step(`With ${esc(p.assigneeName || 'a teammate')}.${it.work.handoff ? ' The brief is in the handoff folder.' : ''}${stalled ? ' ' + stalled : ' Merged, then Resolve finishes it.'}`,
@@ -459,8 +467,9 @@ function decideBuild(p, asCard) {
   const it = p.item;
   const primary = it.route !== 'delegate';
   const b = (act, label, desc, o) => asCard ? pathCard(act, label, desc, o) : btn(act, label, o);
-  if (it.ado || !p.canAdo) return b('myself', 'Build it myself', it.ado ? 'Tandem runs Build a feature or Fix a bug on the ADO item.' : 'Tandem runs it as local work.', { primary, title: it.ado ? 'Starts Tandem on the ADO item' : 'Starts local work in Tandem' });
-  if (p.draft && p.draft.ready) return b('myself', 'Publish and build it myself', 'Creates the ADO items (you confirm the list), then Tandem builds it.', { primary, out: 'ado', title: 'Creates the ADO items after you confirm the list, then starts Tandem' });
+  if (it.ado || !p.canAdo) return b('myself', 'Build it myself', it.ado ? `Tandem runs Build a feature or Fix a bug on the ${sysName(it)} item.` : 'Tandem runs it as local work.', { primary, title: it.ado ? `Starts Tandem on the ${sysName(it)} item` : 'Starts local work in Tandem' });
+  if (p.draft && p.draft.ready) return b('myself', 'Publish and build it myself', `Creates the ${TR()} items (you confirm the list), then Tandem builds it.`, { primary, out: adoIsOn() ? 'ado' : 'github', title: `Creates the ${TR()} items after you confirm the list, then starts Tandem` });
+  if (!adoIsOn()) return b('build-local', 'Build it myself', 'Tandem runs it as local work.', { primary, title: 'Starts local work in Tandem' });
   return b('build-local', 'Build it myself, skip ADO', 'Tandem runs it as local work. Link an ADO item later.', { primary, title: 'Starts local work in Tandem; link an ADO item later' });
 }
 
@@ -469,6 +478,7 @@ function buildBtns(p) {
   const it = p.item;
   if (!p.canLocal && !it.ado) return [];
   if (it.ado) return [btn('myself', 'Build it myself', { title: `Skip ahead: start Tandem on #${it.ado.id} now` })];
+  if (!adoIsOn()) return [btn('build-local', 'Build it myself', { title: 'Skip ahead: start local work in Tandem now.' })];
   return [btn('build-local', 'Build it myself, skip ADO', { title: 'Skip ahead: start local work in Tandem now. Link an ADO item later; the PR needs one.' })];
 }
 
@@ -484,13 +494,13 @@ function devNext(p) {
     case 'resolved': return step(`Resolved: merged to main and waiting for a release, under ${esc(areaOf(it) || 'No area path')}. Close it as released when it ships, or close its whole area from the Resolved column.`,
       [...(it.ado ? [btn('close-one', 'Close as released', { primary: true, out: sysOut(it) })] : [btn('done', 'Mark closed', { primary: true })]), ...adoBtn]);
     case 'merged':
-      if (!it.ado) return step(`${it.mergedHow === 'manual' ? 'Marked merged.' : 'Merged.'} Mark it resolved here, or link its ADO item below to resolve it there.`, [btn('mark-resolved', 'Mark resolved', { primary: true }), btn('unmerge', 'Not merged yet'), btn('done', 'Mark closed')]);
+      if (!it.ado) return step(`${it.mergedHow === 'manual' ? 'Marked merged.' : 'Merged.'} Mark it resolved here${adoIsOn() ? ', or link its ADO item below to resolve it there' : ''}.`, [btn('mark-resolved', 'Mark resolved', { primary: true }), btn('unmerge', 'Not merged yet'), btn('done', 'Mark closed')]);
       return step(`${it.mergedHow === 'manual' ? 'Marked merged.' : 'Every linked pull request is merged.'} Resolve in ${sysName(it)} finishes it: in main, waiting for the next release.`,
         [btn('mark-resolved', `Resolve in ${sysName(it)}`, { primary: true, out: sysOut(it), title: `Sets #${it.ado.id} to Resolved in ${ghCard(it) ? 'GitHub (a resolved label)' : 'Azure DevOps'}, after a confirm` }), btn('unmerge', 'Not merged yet')]);
     case 'review': {
       const prs = (it.prs && it.prs.list) || [];
       const done = prs.filter(x => x.status === 'completed').length;
-      const text = !it.ado ? 'Link an ADO item below so Slate can follow the pull request, or mark it merged yourself.'
+      const text = !it.ado ? (adoIsOn() ? 'Link an ADO item below so Slate can follow the pull request, or mark it merged yourself.' : 'Mark it merged yourself once its pull request merges.')
         : prs.length ? `${done} of ${prs.length} linked pull request${prs.length === 1 ? '' : 's'} merged. Slate checks again every 15 minutes.`
         : `${esc(n.text || 'Review the code, push and open the PR from the run.')} No pull request is linked to #${it.ado.id} yet.`;
       if (!it.ado) return step(text, [...nextBtn, btn('dispatch', 'Open the run', { primary: !nextBtn.length }), btn('mark-merged', 'Mark merged')]);
@@ -498,7 +508,7 @@ function devNext(p) {
     }
     default: {
       if (!run && it.run) return step('Starting in Tandem. It shows here when its folder is ready.', [btn('dispatch', 'Open the run')]);
-      if (!run) return step(it.ado ? 'Start runs Tandem on the ADO item: the spec and plan (one approval), then the build.' : 'Start runs Tandem as local work, from what Slate knows about it. Link an ADO item later; the PR needs one.',
+      if (!run) return step(it.ado ? `Start runs Tandem on the ${sysName(it)} item: the spec and plan (one approval), then the build.` : `Start runs Tandem as local work, from what Slate knows about it.${adoIsOn() ? ' Link an ADO item later; the PR needs one.' : ''}`,
         [btn('start', it.ado ? 'Start' : 'Start as local work', { primary: true })]);
       return step(esc(n.text || 'See where it is on the run.'), [...nextBtn, btn('dispatch', 'Open the run', { primary: !nextBtn.length })]);
     }
@@ -515,7 +525,7 @@ function nextHtml(n) {
 /** Link an ADO item to a card with none (In flight): the pull request needs one, and Merged and Resolved read it. */
 function linkSection(p) {
   const it = p.item;
-  if (it.ado || it.virtual || !p.dev || p.column === 'done') return '';
+  if (it.ado || it.virtual || !p.dev || p.column === 'done' || !adoIsOn()) return '';
   return section('Azure DevOps', `<p class="small">No ADO item yet. The pull request needs one, and Slate reads Merged and Resolved from it.</p>
     <div class="acts"><label class="sr" for="linkAdo">Work item number</label><input id="linkAdo" class="link-in" inputmode="numeric" placeholder="12345" maxlength="11" autocomplete="off">${btn('link-ado', 'Link ADO item', { primary: true, extra: p.canAdo ? '' : ' disabled title="Turn on the Azure DevOps connector"' })}</div>`);
 }
@@ -549,7 +559,7 @@ function moreHtml(p, extra, shown) {
     move = `<div class="move"><label for="backTo">Move to</label><select id="backTo"${off}>${fwd.length ? `<optgroup label="Skip ahead">${opts(fwd.slice().reverse())}</optgroup>` : ''}${back.length ? `<optgroup label="Move back">${opts(back.slice().reverse())}</optgroup>` : ''}</select>${btn('back', 'Move', { extra: off })}</div>`;
   }
   if (it.ado && !has('ado')) items.push(btn('ado', `Open in ${sysName(it)}`));
-  if (!it.virtual && it.stage !== 'done' && !has('done')) items.push(btn('done', 'Mark closed', { title: 'Off the board without changing ADO' }));
+  if (!it.virtual && it.stage !== 'done' && !has('done')) items.push(btn('done', 'Mark closed', { title: adoIsOn() ? 'Off the board without changing ADO' : 'Off the board' }));
   if (!it.virtual) items.push(btn('remove', 'Remove from Slate'));
   if (!items.length && !move) return '';
   return `<details class="more"><summary class="btn">More</summary><div class="menu" role="group" aria-label="More">${items.join('')}${move}</div></details>`;
@@ -563,6 +573,7 @@ function fold(key, title, body, open, remembered) {
 }
 
 export function panelHtml(p) {
+  p = viewP(p);
   const it = p.item;
   const links = [];
   if (it.ado) links.push(`<a href="${esc(it.ado.url)}" target="_blank" rel="noopener noreferrer">#${it.ado.id} in ${sysName(it)}</a>`);
@@ -660,9 +671,9 @@ export function delegateDialogHtml(people, { canBrief, canAssign, pick = '' }) {
     ${people.length ? '' : '<p class="soft">Add your team in People first.</p>'}
     <label class="check"><input type="checkbox" name="brief"${canBrief ? ' checked' : ' disabled'}> Write a brief for them (an agent drafts it; nothing is posted)</label>
     <label class="check"><input type="checkbox" name="task" checked> Add a "waiting on" task in Docket</label>
-    <label class="check"><input type="checkbox" name="assign"${canAssign ? '' : ' disabled'}> Also assign it to them in Azure DevOps ${outsideMark('ado')}</label>
-    ${canAssign ? outsideBanner('ado', 'Delegate will set Assigned To on the ADO item. Everything else here stays on this computer.', { cls: 'when-assign' }) : ''}
-    <div class="acts">${btn('cancel', 'Cancel')}<button class="btn primary" type="submit" value="ok">Delegate<span class="when-assign">and assign in ADO ${outsideMark('ado')}</span></button></div></form>`;
+    ${adoIsOn() ? `<label class="check"><input type="checkbox" name="assign"${canAssign ? '' : ' disabled'}> Also assign it to them in Azure DevOps ${outsideMark('ado')}</label>` : ''}
+    ${canAssign && adoIsOn() ? outsideBanner('ado', 'Delegate will set Assigned To on the ADO item. Everything else here stays on this computer.', { cls: 'when-assign' }) : ''}
+    <div class="acts">${btn('cancel', 'Cancel')}<button class="btn primary" type="submit" value="ok">Delegate${adoIsOn() ? `<span class="when-assign">and assign in ADO ${outsideMark('ado')}</span>` : ''}</button></div></form>`;
 }
 
 export function fieldsDialogHtml(prefs) {

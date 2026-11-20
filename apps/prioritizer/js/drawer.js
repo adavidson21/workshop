@@ -1,3 +1,6 @@
+import { adoIsOn } from '../../../shared/ado.js';
+// A work item or PR from Azure DevOps is not shown while ADO is off (shared/ado.js); GitHub's always are.
+const shownItem = it => !!it && (it.system === 'github' || adoIsOn());
 import { deleteTask, moveTask, quickSort, toggleDone, toggleFocus, wontDo } from './actions.js';
 import { PR_GONE, PR_TIER, goneText, itemRef } from './tracker.js';
 import { trackerName } from './tracker-status.js';
@@ -98,11 +101,11 @@ function renderDrawer(){
     <div class="dbody">
       <textarea class="d-title" rows="1" data-f="title" data-fk="title" aria-label="Task">${esc(t.title)}</textarea>
       ${t.done ? '' : `<input class="d-first" data-f="firstStep" data-fk="firstStep" maxlength="${FIRST_STEP_LEN}" autocomplete="off" placeholder="First step (optional)" aria-label="First step" value="${esc(t.firstStep || '')}">`}
-      ${t.item ? `<div class="dado"><a href="${esc(t.item.url)}" target="_blank" rel="noopener" data-fk="adolink">Open ${esc(t.item.type || 'item')} ${esc(itemRef(t.item))} in ${trackerName(t.item.system)}</a><span>${esc(t.item.state)}${t.item.project && t.item.system !== 'github' ? ' · ' + esc(t.item.project) : ''}</span>${t.item.gone ? `<span class="chip">${goneText(t.item.gone, t.item.system)}</span>` : ''}</div>` : ''}
-      ${t.item ? slateDrawer(t) : ''}
-      ${t.item ? engDrawer(t) : ''}
-      ${t.pr ? `<div class="dado"><a href="${esc(t.pr.url)}" target="_blank" rel="noopener" data-fk="prlink">Open PR #${t.pr.id} in ${trackerName(t.pr.system)}</a><span>${esc(t.pr.system === 'github' ? t.pr.project || t.pr.repo : t.pr.repo)}${t.pr.author ? ' · by ' + esc(t.pr.author) : ''}</span>${t.pr.gone ? `<span class="chip">${PR_GONE[t.pr.gone]}</span>` : `<span class="chip">${t.pr.waiting ? (t.pr.system === 'github' ? 'Changes requested' : 'Waiting for author') : PR_TIER[t.pr.tier].label}</span>`}</div>` : ''}
-      ${t.pr ? prAiDrawer(t) : ''}
+      ${shownItem(t.item) ? `<div class="dado"><a href="${esc(t.item.url)}" target="_blank" rel="noopener" data-fk="adolink">Open ${esc(t.item.type || 'item')} ${esc(itemRef(t.item))} in ${trackerName(t.item.system)}</a><span>${esc(t.item.state)}${t.item.project && t.item.system !== 'github' ? ' · ' + esc(t.item.project) : ''}</span>${t.item.gone ? `<span class="chip">${goneText(t.item.gone, t.item.system)}</span>` : ''}</div>` : ''}
+      ${shownItem(t.item) ? slateDrawer(t) : ''}
+      ${shownItem(t.item) ? engDrawer(t) : ''}
+      ${shownItem(t.pr) ? `<div class="dado"><a href="${esc(t.pr.url)}" target="_blank" rel="noopener" data-fk="prlink">Open PR #${t.pr.id} in ${trackerName(t.pr.system)}</a><span>${esc(t.pr.system === 'github' ? t.pr.project || t.pr.repo : t.pr.repo)}${t.pr.author ? ' · by ' + esc(t.pr.author) : ''}</span>${t.pr.gone ? `<span class="chip">${PR_GONE[t.pr.gone]}</span>` : `<span class="chip">${t.pr.waiting ? (t.pr.system === 'github' ? 'Changes requested' : 'Waiting for author') : PR_TIER[t.pr.tier].label}</span>`}</div>` : ''}
+      ${shownItem(t.pr) ? prAiDrawer(t) : ''}
       ${sortHtml(t)}${focusDrawerHtml(t)}
       <textarea class="d-notes" rows="3" data-f="notes" data-fk="notes" placeholder="Notes" aria-label="Notes">${esc(t.notes)}</textarea>
       ${aboutHtml(t)}

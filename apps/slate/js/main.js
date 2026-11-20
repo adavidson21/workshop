@@ -1,6 +1,7 @@
 /* Slate: your ADO backlog as one board, from request to resolved. model.js is pure, data.js talks to Workshop,
    view.js builds HTML; Health shows the team reports (js/reports/, loaded the first time). This file owns the page: state,
    refreshing from ADO and Tandem, and what each button does. */
+import { watchAdo, adoIsOn } from '../../../shared/ado.js';
 import { getWs, setBadge, setCards, setSummaryWriter, onTab, onBoardRoute, currentTab, requestTab, runHtml, onRunsPainted, openRunPage, setPanelRun, BOARD_TABS, onBoardCommand, setNudges, setPickable, setBoardFeed, setBoardDrawer, boardDrawer, onBoardDrawer } from './loom.js';
 import { readCards } from '../../../shared/summary.js';
 import { createHolder } from '../../../shared/focus.js';
@@ -27,6 +28,8 @@ const topEl = $('top'), mainEl = $('main'), panelEl = $('panel'), dlg = $('dlg')
 const boardRoot = $('board-root');
 
 const ws = await getWs();
+// Azure DevOps on or off (shared/ado.js): the board names it only while it is on.
+watchAdo(ws, () => { try { paint(); } catch { /* first paint comes later */ } });
 document.documentElement.classList.toggle('embed', ws.embedded);
 
 const remember = (k, v) => { try { if (v === undefined) return localStorage.getItem(`slate.${k}`); localStorage.setItem(`slate.${k}`, v); } catch { /* storage blocked */ } return null; };
@@ -115,7 +118,7 @@ const backlogOf = (it) => (it && it.ado ? s.backlog.find(b => sameAdo(it.ado, b)
 async function readBacklog() {
   s.backlogNote = '';
   if (s.conn.ado !== true) { s.backlog = []; return; }
-  if (!s.team.areas.length) { s.backlog = []; s.backlogNote = 'Set your team\'s area paths (Settings, People & teams, Team area paths) so Loom can list your ADO backlog. Home\'s Get started has a step for it.'; return; }
+  if (!s.team.areas.length) { s.backlog = []; s.backlogNote = `Set your team's area paths (Settings, People & teams, Team area paths) so Loom can list your ${adoIsOn() ? 'ADO ' : ''}backlog. Home's Get started has a step for it.`; return; }
   const reads = [];
   const notes = [];
   let complete = true;
@@ -124,6 +127,7 @@ async function readBacklog() {
     // A github: area is read by the GitHub connector, everything else by ADO's: skip a group whose connector is not ready.
     const gh = Teams.isGitHubConnection(g.connection);
     const ready = gh ? s.conn.github : (s.conn.adoOnly === undefined ? s.conn.ado : s.conn.adoOnly);
+    if (!gh && !adoIsOn()) { complete = false; continue; } // ADO off: its areas are skipped, unnamed (shared/ado.js)
     if (ready !== true) { complete = false; notes.push(`${gh ? 'GitHub' : 'Azure DevOps'}${where}: ${ready}`); continue; }
     try {
       const r = await ado(ws, 'backlog', { areas: g.areas, pointsFields: store.v.prefs.pointsFields, ...connArg(g.connection) });
@@ -375,7 +379,7 @@ function columns() {
     }
     const st = pmColumn(c, draftState(c, filesOf(c.work.define)), e.agent);
     e.stale = !c.virtual && isStale(c, st);
-    e.step = st === 'delegated' ? (e.assigneeName ? `With ${e.assigneeName}` : 'Delegated') : (STEP_CHIP[st] || '');
+    e.step = st === 'delegated' ? (e.assigneeName ? `With ${e.assigneeName}` : 'Delegated') : st === 'publish' && !adoIsOn() ? 'Not published' : (STEP_CHIP[st] || '');
     push(boardColumn(st), e);
   }
   // Build: waiting on you first.
@@ -508,7 +512,7 @@ let adoNoteSeen = remember('adoNoteSeen') === '1';
 
 function notes() {
   const n = [];
-  if (s.conn.ado !== true && s.conn.ado !== 'Checking…') {
+  if (adoIsOn() && s.conn.ado !== true && s.conn.ado !== 'Checking…') {
     if (!adoNotSetUp()) n.push(`Azure DevOps: ${s.conn.ado}`);
     else if (!adoNoteSeen) n.push({ text: 'Loom works without Azure DevOps: requests and ideas you add stay here. Connect it in Settings to see your team\'s backlog and publish to it.', acts: [{ act: 'ado-note-seen', label: 'Got it' }] });
   }
@@ -1023,9 +1027,9 @@ const ACT = {
     const lane = it.level === 'bug' || (brief && brief.level === 'bug') ? 'bug' : 'feature';
     const r = await tandem(ws, 'start.local', { title: it.title.slice(0, 200), lane, ...(text ? { description: text.slice(0, 20000) } : {}) }, { confirm: true });
     await store.update(it.id, x => { x.route = 'myself'; x.assignee = null; if (r && r.folder) x.run = { folder: r.folder, id: String(r.id || '') }; setStage(x, 'dev'); });
-    await logDecision(it, 'Building it myself (local work, no ADO item yet)');
+    await logDecision(it, adoIsOn() ? 'Building it myself (local work, no ADO item yet)' : 'Building it myself (local work)');
    
-    ws.toast(`Started ${r && r.id ? r.id : 'it'} as local work. Link an ADO item when you have one.`, { kind: 'success' });
+    ws.toast(`Started ${r && r.id ? r.id : 'it'} as local work.${adoIsOn() ? ' Link an ADO item when you have one.' : ''}`, { kind: 'success' });
   },
   async start(c) {
     const it = await ensureStored(c);
@@ -1208,10 +1212,10 @@ const ACT = {
     if (a && a.busy) return ws.toast('An agent is running on it. Move it when the run stops.', { kind: 'warn' });
     if (forwardTargets(c).includes(to)) {
       const skip = to === 'decide'
-        ? 'Loom skips the steps before it, so nothing is triaged, drafted or published from here. Use this when the stories already exist in ADO.'
+        ? 'Loom skips the steps before it, so nothing is triaged, drafted or published from here. Use this when the stories already exist' + (adoIsOn() ? ' in ADO.' : '.')
         : agentsOff() ? 'Loom skips the steps before it. In Define, write the story or stories yourself (Tandem is not set up, so no agent drafts them).' : 'Loom skips the steps before it. Start the draft from the panel when you are ready: an agent, or Write it myself.';
       const waiting = a && a.waiting ? ' The agent waiting on you is left as it is: answer or stop it from its run.' : '';
-      return showDialog(confirmHtml(`Skip ahead to ${STAGE_TITLE[to] || to}?`, `${skip}${waiting} Nothing changes in ADO.`, 'Skip ahead'), async () => {
+      return showDialog(confirmHtml(`Skip ahead to ${STAGE_TITLE[to] || to}?`, `${skip}${waiting}${adoIsOn() ? ' Nothing changes in ADO.' : ''}`, 'Skip ahead'), async () => {
         const it = await ensureStored(c);
         await store.update(it.id, x => (to === 'decide' ? skipToDecide(x) : setStage(x, to)));
         ui.open = it.id; ui.editing = false; ui.shapeEditing = null;
@@ -1220,9 +1224,9 @@ const ACT = {
       });
     }
     const notes = [];
-    if (c.stage === 'delegated') notes.push('It stays assigned in ADO, and any Docket task stays: change those yourself if needed.');
+    if (c.stage === 'delegated') notes.push(adoIsOn() ? 'It stays assigned in ADO, and any Docket task stays: change those yourself if needed.' : 'Any Docket task stays: change it yourself if needed.');
     if (c.stage === 'dev' || (c.stage === 'done' && c.route === 'myself')) notes.push('Its Tandem run is not changed: pause or stop it from its run.');
-    if (['ready', 'decide', 'delegated', 'dev', 'done'].includes(c.stage) && c.published && Object.keys(c.published).length && ['new', 'triaged', 'waiting', 'defining'].includes(to)) notes.push('What it published stays in ADO; publishing again updates or skips those items.');
+    if (['ready', 'decide', 'delegated', 'dev', 'done'].includes(c.stage) && c.published && Object.keys(c.published).length && ['new', 'triaged', 'waiting', 'defining'].includes(to)) notes.push(`What it published stays in ${adoIsOn() ? 'ADO' : 'its tracker'}; publishing again updates or skips those items.`);
     showDialog(confirmHtml(`Move back to ${STAGE_TITLE[to] || to}?`, ['Loom moves the card back and keeps its drafts, triage and history.', ...notes].join(' '), 'Move back'), async () => {
       await store.update(c.id, x => moveBack(x, to));
       ui.editing = false; ui.shapeEditing = null;
@@ -1231,7 +1235,7 @@ const ACT = {
     });
   },
   async keep(c) { await store.update(c.id, x => { delete x.reopened; }); },
-  remove: (c) => showDialog(confirmHtml('Remove from Loom?', 'Loom forgets this item. Nothing changes in ADO or in .work.', 'Remove'), async () => {
+  remove: (c) => showDialog(confirmHtml('Remove from Loom?', adoIsOn() ? 'Loom forgets this item. Nothing changes in ADO or in .work.' : 'Loom forgets this item. Nothing changes in .work.', 'Remove'), async () => {
     await store.change(list => { const i = list.findIndex(x => x.id === c.id); if (i >= 0) list.splice(i, 1); });
     ui.open = null; paint();
   })

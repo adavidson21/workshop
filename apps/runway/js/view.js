@@ -1,5 +1,6 @@
 /* Runway's HTML, as strings. Pure: no DOM, no state of its own. main.js paints these and wires events.
    Every piece of user text goes through esc(); only http(s) links are ever made clickable. */
+import { adoIsOn } from '../../../shared/ado.js';
 import { outsideBanner, outsideMark } from '../../../shared/outside.js';
 import { belongsTo, filterOptions } from '../../../shared/products.js';
 import { SCALES, fmt } from './dates.js';
@@ -7,6 +8,7 @@ import { COLORS, IDEA_COLOR, LEVELS, LEVEL_COLORS, STATUSES, itemColor, levels, 
 import { PALETTE, esc } from './timeline.js';
 import { summary } from './export.js';
 import { adoOwner, choices, mentionOf, namesOf } from './people.js';
+const isGitHubUrl = u => /^https:\/\/github\.com\//i.test(String(u || ''));
 
 const relTime = (ms, now = Date.now()) => {
   if (!ms) return '';
@@ -72,7 +74,8 @@ export function underOptions(doc, lane) {
 // per roadmap with what is coming up next on it, in a grid that fills the width.
 const fmtSoon = d => { const [y, m, dd] = d.split('-').map(Number); return `${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][m - 1]} ${dd}`; };
 export function listHtml(v, { canPair = false, paired = false, ado = false, pending = null, shaping = null, workItems = null, templates = [], products = [], product = null } = {}) {
-  const adoBtn = ado ? '<button class="tcard" data-fromado><b>From Azure DevOps</b><span>Epics and features from your team\'s area paths.</span></button>' : '';
+  const adoBtn = !ado ? '' : adoIsOn() ? '<button class="tcard" data-fromado><b>From Azure DevOps</b><span>Epics and features from your team\'s area paths.</span></button>'
+    : '<button class="tcard" data-fromado><b>From GitHub</b><span>Items from your team\'s repos and areas.</span></button>';
   // The product filter (Workshop UX v1): roadmaps that say the product's name, in the title or what is coming up.
   const mine = r => !product || belongsTo(product, { text: [r.title, ...(r.soon || []).map(x => x.title)].join(' ') });
   const shown = [...v.list].filter(mine);
@@ -234,8 +237,8 @@ export function detailsHtml(doc, range, open = true) {
         : `<p class="hint">No goals in these dates. Click a cell in the goals row above the lanes, or write <code>goal: ${doc.meta.scale === 'sprint' ? 'S1' : doc.meta.scale === 'quarter' ? 'Q1' : 'Jan'} | ...</code> in the outline.</p>`}
     </div>
     <div class="dcol"><h4 class="section-label">What's getting done</h4>
-      ${items.length ? `<ul class="dlist">${items.map(it => `<li>${it.url
-        ? `<a class="dname" href="${esc(it.url)}" target="_blank" rel="noopener noreferrer" title="Open in Azure DevOps">${esc(it.title)}</a>`
+      ${items.length ? `<ul class="dlist">${items.map(it => `<li>${it.url && (adoIsOn() || isGitHubUrl(it.url))
+        ? `<a class="dname" href="${esc(it.url)}" target="_blank" rel="noopener noreferrer" title="${isGitHubUrl(it.url) ? 'Open in GitHub' : 'Open in Azure DevOps'}">${esc(it.title)}</a>`
         : `<button class="dname" data-pick="${esc(it.id)}" title="Show on the timeline">${esc(it.title)}</button>`}<span class="hint">${esc([it.lane, it.milestone ? fmt(it.start) : `${fmt(it.start)} to ${fmt(it.end)}`, it.status !== 'planned' ? it.status : '', namesOf(ownersOf(doc, it.id)).join(', ')].filter(Boolean).join(' · '))}</span>${it.notes ? `<p>${esc(it.notes)}</p>` : ''}${it.releaseNotes ? `<div class="rnotes"><span class="eyebrow">Release notes</span><p>${esc(it.releaseNotes)}</p></div>` : ''}</li>`).join('')}</ul>`
         : '<p class="hint">Add a description to an item (its panel, or indented lines under it in the outline) to say what it delivers.</p>'}
     </div>`;
@@ -321,7 +324,7 @@ export function exportDialog(doc, { dark = false } = {}) {
       <label class="pc"><input type="checkbox" name="title" checked> Title</label>
       <label class="pc"><input type="checkbox" name="details" checked> Goals and descriptions</label>
       <label class="pc"><input type="checkbox" name="today" checked> Today line</label>
-      ${doc.items.some(i => i.ado) ? '<label class="pc"><input type="checkbox" name="ids"> ADO ids</label>' : ''}
+      ${doc.items.some(i => i.ado) && adoIsOn() ? '<label class="pc"><input type="checkbox" name="ids"> ADO ids</label>' : ''}
       <label class="pf inline"><span>Theme</span><select name="theme"><option value="light"${dark ? '' : ' selected'}>Light (for printing)</option><option value="dark"${dark ? ' selected' : ''}>Dark</option></select></label>
     </div>
     <div class="acts"><button type="button" class="btn primary" data-x="png">${ICON.down}PNG image</button><button type="button" class="btn" data-x="svg">${ICON.down}SVG image</button></div>
@@ -364,6 +367,8 @@ const httpOnly = u => (/^https?:\/\//i.test(String(u || '')) ? String(u) : '');
     to add an Assigned To that People does not have (also on a live roadmap, whose items can't be edited). */
 export function adoPanel(it, readOnly = false, { addPerson = !readOnly } = {}) {
   const a = it.ado;
+  const gh = isGitHubUrl(a.url), sys = gh ? 'GitHub' : 'ADO';
+  if (!adoIsOn() && !gh) return ''; // ADO off: its part of the panel is not shown (shared/ado.js)
   const url = httpOnly(a.url);
   const name = `${esc(a.type || 'Work item')} #${esc(a.id)}`;
   // Fields ADO's values differ in. A `remote` saved before owners came from ADO has no `who`.
@@ -374,12 +379,12 @@ export function adoPanel(it, readOnly = false, { addPerson = !readOnly } = {}) {
   const asg = a.assignee && (a.assignee.name || a.assignee.email) ? a.assignee : null;
   const unmatched = asg && !adoOwner(asg);
   return `<div class="adobox" data-adobox>
-    <p class="eyebrow">Azure DevOps</p>
+    <p class="eyebrow">${gh ? 'GitHub' : 'Azure DevOps'}</p>
     <p>${url ? `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${name}</a>` : name}${a.state ? ` <span class="muted">· ${esc(a.state)}</span>` : ''}</p>
-    ${unmatched ? `<p class="hint">Assigned to ${esc(asg.name || asg.email)} in ADO, who is not in People.${!addPerson ? '' : ' <button type="button" class="lnk" data-ado-person>Add to People</button>'}</p>` : ''}
+    ${unmatched ? `<p class="hint">Assigned to ${esc(asg.name || asg.email)} in ${sys}, who is not in People.${!addPerson ? '' : ' <button type="button" class="lnk" data-ado-person>Add to People</button>'}</p>` : ''}
     ${a.missing ? '<p class="hint warn">The last refresh did not find this work item (closed, moved or removed).</p>' : ''}
-    ${diff.length ? `<p class="hint warn">Differs from ADO:</p><ul class="adodiff">${diff.map(f => `<li><span class="muted">${ADO_FIELDS[f]}:</span> yours ${val(f, it[f])}, ADO ${val(f, a.remote[f])}</li>`).join('')}</ul>` : ''}
-    ${readOnly ? '' : `<div class="acts">${diff.length ? '<button type="button" class="btn" data-ado-use>Use ADO&#39;s</button><button type="button" class="btn ghost" data-ado-keep>Keep mine</button>' : ''}<button type="button" class="lnk" data-ado-unlink>Unlink</button></div>`}
+    ${diff.length ? `<p class="hint warn">Differs from ${sys}:</p><ul class="adodiff">${diff.map(f => `<li><span class="muted">${ADO_FIELDS[f]}:</span> yours ${val(f, it[f])}, ${sys} ${val(f, a.remote[f])}</li>`).join('')}</ul>` : ''}
+    ${readOnly ? '' : `<div class="acts">${diff.length ? '<button type="button" class="btn" data-ado-use>Use ${sys}&#39;s</button><button type="button" class="btn ghost" data-ado-keep>Keep mine</button>' : ''}<button type="button" class="lnk" data-ado-unlink>Unlink</button></div>`}
   </div>`;
 }
 
@@ -389,6 +394,7 @@ const trackersText = systems => (systems.length ? systems : ['ado']).map(s => TR
 
 export function adoBarHtml(doc, { ready = false, message = '', refreshing = false, readOnly = false, publish = 0, publishing = false, systems = [] } = {}) {
   const src = doc.meta.ado;
+  if (src && src.system !== 'github' && !adoIsOn()) return ''; // ADO off: nothing about the roadmap's ADO source
   if (!src) return ready && !readOnly ? `<div class="adobar"><span class="grow"></span><button class="btn ghost" data-addado>Add items from ${esc(trackersText(systems))}</button></div>` : '';
   const gh = src.system === 'github', name = gh ? 'GitHub' : 'ADO';
   // A GitHub source is read only for now: no Publish. Its connector being ready is what Refresh needs.

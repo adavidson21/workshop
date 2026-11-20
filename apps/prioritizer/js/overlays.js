@@ -1,3 +1,4 @@
+import { adoIsOn } from '../../../shared/ado.js';
 import { EMBEDDED, ICON, listColor } from './constants.js';
 import { applyOrder } from './actions.js';
 import { hideTip } from './events.js';
@@ -60,7 +61,7 @@ const LEGEND = [
 function showHelp(){
   const r = (k, d) => `<tr><td>${k}</td><td>${d}</td></tr>`;
   showModal(`<div class="sheet" role="dialog" aria-modal="true" aria-label="Symbols and shortcuts"><h3>Symbols and shortcuts</h3>
-    <div class="legend">${LEGEND.map(([ic, cls, d]) => `<span class="lg"><span class="sig${cls ? ' ' + cls : ''}" aria-hidden="true">${ICON[ic]}</span>${d}</span>`).join('')}</div>
+    <div class="legend">${LEGEND.map(([ic, cls, d]) => [ic, cls, adoIsOn() ? d : d.replace('ADO work item', 'Work item')]).map(([ic, cls, d]) => `<span class="lg"><span class="sig${cls ? ' ' + cls : ''}" aria-hidden="true">${ICON[ic]}</span>${d}</span>`).join('')}</div>
     <h4 class="legend-h">Keys</h4>
     <table class="keys"><tbody>
       ${r(EMBEDDED ? '<kbd>N</kbd> <kbd>/</kbd>' : '<kbd>N</kbd> <kbd>/</kbd> <kbd>Ctrl</kbd>+<kbd>K</kbd>', 'Add a task')}
