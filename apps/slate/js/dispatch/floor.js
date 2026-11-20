@@ -123,12 +123,30 @@ export function transitBadge(it) {
   return { cls: 'ok', text: 'Published' };
 }
 
+/** What a running autopilot is doing right now (Loom 6.14.0), from the command it runs: the item's .work stage only
+    catches up after a step writes its files, so a build approved and running read as still at the Plan desk.
+    /quick, /start and /spec are planning (''), /pr-fix after Publish keeps it in transit (''). */
+const AUTO_STATION = { approve: 'build', tasks: 'build', 'do-task': 'build', review: 'review', pr: 'review', revise: 'fix' };
+export function autoStation(it) {
+  const a = itemAuto(it);
+  if (!a || a.status !== 'running') return '';
+  const cmd = String(a.command || a.pending || '').trim().replace(/^\//, '').split(/\s+/)[0];
+  const st = AUTO_STATION[cmd] || '';
+  if (st === 'build' && a.fixRounds > 0) return 'fix';
+  if (st === 'build' && cmd === 'do-task') return toldStep(it) || (TEST_RE.test(activityOf(it)) ? 'test' : 'build');
+  if (st === 'review') return UI_RE.test(activityOf(it)) ? 'ui' : 'review';
+  return st;
+}
+
 /** The station a card is at: 'stuck', or a station id on its line. */
 export function stationOf(c) {
   const line = lineOf(c);
   const it = c && c.it;
   if (isStuck(it)) return 'stuck';
   if (line === 'code') {
+    // A running autopilot says where the build is before the item's files catch up (in transit stays in transit).
+    const auto = it && shippedState(it) !== 'transit' ? autoStation(it) : '';
+    if (auto) return auto;
     if (c.lane === 'clarify' || c.lane === 'plan') return 'plan';
     if (c.lane === 'ready') return it && shippedState(it) === 'transit' ? 'transit' : 'dock';
     if (!it) return 'build';

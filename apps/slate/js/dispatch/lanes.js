@@ -8,7 +8,7 @@
    The panel beside the lanes holds the run's own card (pages.js runCardHtml), so every button there is the one the
    Inbox and the board already use. No DOM: main.js paints what these return and handles the clicks. */
 import { S } from './state.js';
-import { h, plural, asking, itemSession, isBusy, autoIs, itemForFolder, adoOn, openAttr } from './view.js';
+import { h, plural, asking, itemSession, isBusy, autoIs, itemAuto, itemForFolder, adoOn, openAttr } from './view.js';
 import { flowOf, stepIndex, isFinished, turnHtml, stepLine } from './flows.js';
 import { workItems, startingSessions, inboxData, inboxFolders, isShip, runCardHtml, asksFor, fileInline } from './pages.js';
 import { pickable, boardFeed } from '../loom.js';
@@ -66,6 +66,10 @@ export function laneOf(it) {
     if (it.bucket === 'done') return 'done';
     if (isShip(it)) return 'ready';
     const st = it.stage;
+    // Loom 6.14.0: a running autopilot past the plan (approve, tasks, do-task, review, pr, revise) is Work, even
+    // before the item's files catch up (the floor reads the same command, floor.js autoStation).
+    const a = itemAuto(it);
+    if (a && a.status === 'running' && /^\/(approve|tasks|do-task|review|pr|revise)\b/.test(String(a.command || a.pending || '').trim())) return 'work';
     if (!st || st === 'start') return 'clarify';
     if (['spec', 'plan', 'tasks', 'quick', 'bug'].includes(st)) {
       // /spec asks its questions before it writes the spec: while it asks, the card is still clarifying.
