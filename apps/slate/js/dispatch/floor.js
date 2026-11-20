@@ -312,8 +312,11 @@ function shippedHtml(done, delivered = []) {
 function lineHtml(id, title, sub, stations, sel, extra, before, ready) {
   const n = stations.reduce((t, s) => t + s.cards.length, 0);
   const moving = stations.some(s => s.cards.some(c => motionOf(c) === 'run'));
+  // Loom 6.15.0: how many cards on this line wait on you, so it reads at a glance.
+  const need = stations.reduce((t, s) => t + s.cards.filter(c => c.mine).length, 0);
+  const needHtml = need ? `<span class="fl-need"><span class="fl-ndot" aria-hidden="true"></span>${h(need === 1 ? '1 needs you' : need + ' need you')}</span>` : '';
   const pubAll = ready ? publishAllHtml(ready) : '';
-  return `<section class="fl-line fl-${id}" aria-label="${h(title)}"><header class="fl-lh"><h2>${h(title)}</h2><span class="fl-ls">${h(sub)}</span><span class="fl-ln">${h(plural(n, 'item'))}</span>${pubAll}</header>` +
+  return `<section class="fl-line fl-${id}" aria-label="${h(title)}"><header class="fl-lh"><h2>${h(title)}</h2><span class="fl-ls">${h(sub)}</span>${needHtml}<span class="fl-ln">${h(plural(n, 'item'))}</span>${pubAll}</header>` +
     (before || '') + `<div class="fl-stations" style="--n:${stations.length}">${stations.map(s => stationHtml(id, s, sel, extra)).join('')}</div><div class="fl-belt${moving ? ' moving' : ''}" aria-hidden="true"><i class="fl-roll"></i><i class="fl-roll"></i></div></section>`;
 }
 const STEP_WORD = { done: 'done', now: 'now', next: 'next' };

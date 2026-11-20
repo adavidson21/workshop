@@ -378,3 +378,9 @@ test('motion (Loom 6.12.0): working cards bob on a moving belt, your turn waits 
   assert.doesNotMatch(html, /fl-gatebar|fl-arm/, 'no striped gate bars (6.13.0)');
   assert.match(html, /<div class="fl-plate you gated"><span class="fl-name">/);
 });
+
+test('needs you (Loom 6.15.0): each line says how many cards wait on you', () => {
+  const html = floorHtml(lanesData('all'), '', '');
+  assert.match(html, /<section class="fl-line fl-code"[^]*?<span class="fl-need"><span class="fl-ndot" aria-hidden="true"><\/span>\d+ needs? you<\/span>[^]*?<section class="fl-line fl-paper"/);
+  assert.match(html, /<section class="fl-line fl-paper"[^]*?<span class="fl-need">/);
+});
