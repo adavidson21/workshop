@@ -196,7 +196,7 @@ test('From ADO (5.1): the picker lists the board\'s unstarted backlog, searchabl
   setPickable([]);
   assert.doesNotMatch(lanesHtml(), /data-ado-toggle/, 'no backlog, no From ADO');
   setPickable(list);
-  assert.match(lanesHtml(), /data-ado-toggle="1" aria-expanded="false">From ADO/);
+  assert.match(lanesHtml(), /data-ado-toggle="1" aria-expanded="false"><span>From ADO/);
   S.ui.dropPick = true;
   S.ui.drafts['lanes:adoq'] = 'export';
   const html = lanesHtml();
@@ -278,4 +278,25 @@ test('Loom 6.0: a prompt from a session no card holds (a Chat, the terminal) is 
   assert.deepEqual([c.lane, c.mine, c.action], ['clarify', true, 'Answer']);
   S.ui.laneSel = 'session:ses_tui';
   assert.match(lanesHtml(), /class="ln-asks"><div class="asks inline">[^]*data-perm="per_2"/);
+});
+
+test('Right now (6.13.0): the popup shows the newest turn\'s thinking and tool calls; filters with nothing hide', async () => {
+  const { pickLive, liveHtml } = await import('../js/dispatch/live.js');
+  const r = { busy: true, activity: 'Running npm test', turns: [
+    { role: 'you', parts: [] },
+    { role: 'tandem', parts: [{ type: 'reasoning', text: 'old' }] },
+    { role: 'you', parts: [] },
+    { role: 'tandem', parts: [{ type: 'reasoning', text: 'The test fails because mapfile is missing.' }, { type: 'tool', tool: 'bash', title: 'npm run check', status: 'running' }] }
+  ] };
+  const f = pickLive(r);
+  assert.equal(f.think, 'The test fails because mapfile is missing.');
+  assert.deepEqual(f.tools, [{ name: 'npm run check', status: 'running' }]);
+  S.liveFeed = { s1: f };
+  const html = liveHtml('s1', true);
+  assert.match(html, /Right now<span class="ln-lact">Running npm test<\/span>/);
+  assert.match(html, /<li class="s-running"><span class="ln-lst" aria-hidden="true"><\/span>npm run check<\/li>/);
+  assert.equal(liveHtml(null, true), '');
+  delete S.liveFeed;
+  assert.doesNotMatch(lanesHtml(), /data-lane-filter="diagnose"/, 'an empty kind filter hides');
+  assert.match(lanesHtml(), /data-lane-filter="mine"/, 'Your turn always shows');
 });

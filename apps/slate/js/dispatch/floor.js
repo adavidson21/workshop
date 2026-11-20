@@ -253,7 +253,7 @@ function chipHtml(c, sel) {
   const m = motionOf(c);
   return `<button type="button" class="fl-card k-${h(c.kind)}${c.it && c.it.story ? ' story' : ''}${c.mine ? ' mine' : ''}${on ? ' on' : ''} m-${m}" data-lane-open="${h(key)}" aria-pressed="${!!on}" aria-label="${h(label)}" title="${h(c.title + ' · ' + c.status)}">` +
     `<span class="fl-ctop">${projSw(c)}<span class="fl-id">${m === 'run' ? GEAR : ''}${c.id ? '#' + h(c.id) : h(TYPE(c))}</span>${c.id ? `<span class="fl-type">${h(TYPE(c))}</span>` : ''}</span>` +
-    `<span class="fl-title">${h(c.title)}</span>${tb ? `<span class="fl-tst ${tb.cls}" aria-hidden="true">${h(tb.text)}</span>` : ''}${sb ? `<span class="fl-tst sb" aria-hidden="true">Your comments: ${h(String(sb))}</span>` : ''}${c.mine && c.action ? `<span class="fl-act">${h(c.action)}</span>` : ''}${m === 'run' ? '<span class="fl-prog" aria-hidden="true"></span>' : ''}${m === 'gate' ? '<span class="fl-gatebar" aria-hidden="true"></span>' : ''}</button>`;
+    `<span class="fl-title">${h(c.title)}</span>${tb ? `<span class="fl-tst ${tb.cls}" aria-hidden="true">${h(tb.text)}</span>` : ''}${sb ? `<span class="fl-tst sb" aria-hidden="true">Your comments: ${h(String(sb))}</span>` : ''}${c.mine && c.action ? `<span class="fl-act">${h(c.action)}</span>` : ''}${m === 'run' ? '<span class="fl-prog" aria-hidden="true"></span>' : ''}</button>`;
 }
 function stackHtml(line, s, sel) {
   const key = line + ':' + s.id;
@@ -268,7 +268,7 @@ function plateHtml(s, extra) {
   const ms = s.cards.map(motionOf);
   const cls = (s.you ? ' you' : busy ? ' busy' : '') + (ms.includes('run') ? ' whirr' : '') + (ms.includes('gate') ? ' gated' : '');
   const sub = extra && s.id === 'build' && (extra.running || extra.queued) ? `${extra.running} building${extra.queued ? `, ${extra.queued} queued` : ''}` : s.desc;
-  return `<div class="fl-plate${cls}">${ms.includes('gate') ? '<span class="fl-arm" aria-hidden="true"></span>' : ''}<span class="fl-name">${ms.includes('run') ? GEAR : ''}${h(s.name)}</span><span class="fl-sub">${h(sub)}</span><span class="fl-n" aria-label="${h(plural(s.cards.length, 'item'))}">${s.cards.length}</span></div>`;
+  return `<div class="fl-plate${cls}"><span class="fl-name">${ms.includes('run') ? GEAR : ''}${h(s.name)}</span><span class="fl-sub">${h(sub)}</span><span class="fl-n" aria-label="${h(plural(s.cards.length, 'item'))}">${s.cards.length}</span></div>`;
 }
 function stationHtml(line, s, sel, extra) {
   return `<section class="fl-station st-${h(s.id)}" aria-label="${h(s.name + ': ' + plural(s.cards.length, 'item'))}">${stackHtml(line, s, sel)}${plateHtml(s, extra)}</section>`;
@@ -340,7 +340,7 @@ function popHtml(fd, sel, panel) {
   if (!panel) return '';
   const w = whereOf(fd, sel);
   const stamp = w ? `<p class="fl-stamp m-${w.m}"><span class="fl-sdot" aria-hidden="true"></span>${h(w.name)}<span class="fl-sword">${h(MOTION_WORD[w.m])}</span></p>` : '';
-  return `<div class="fl-pop k-${h((w && w.kind) || 'other')}${w && w.story ? ' story' : ''}" role="dialog" aria-label="Details" data-pop-for="${h(sel)}"><span class="fl-tail" aria-hidden="true"></span><div class="fl-pin">${stamp}${panel}</div></div>`;
+  return `<div class="fl-pop k-${h((w && w.kind) || 'other')}${w && w.story ? ' story' : ''}" role="dialog" aria-label="Details" data-pop-for="${h(sel)}"><div class="fl-pin">${stamp}${panel}</div></div>`;
 }
 /** The floor: the two lines (and the hand-off belt between them) are the stage, the page's focal point; everything else
     sits under it, and the open card pops out of its box. */

@@ -317,7 +317,7 @@ def browser_mode_checks(ctx, pg, frame, watch):
         slf.wait_for_selector('#ln-drop', timeout=10000)
         check('Loom is Lanes and Health, no Start work button; without Tandem the setup folds into one line', slf.eval_on_selector_all('#app .tabs .tab', 'bs => bs.map(b => b.dataset.tab)') == ['lanes', 'health']
               and slf.locator('.ln-setup').count() == 1 and slf.locator('#app .top-start').count() == 0)
-        slf.click('#app .ln-drop [data-start-open]'); pg.wait_for_timeout(400)
+        slf.click('#app .ln-drop .ln-more summary'); slf.click('#app .ln-drop [data-start-open]'); pg.wait_for_timeout(400)
         check('Other flows offers only Handle a request, Plan an epic and Write docs', slf.eval_on_selector_all('.fcard', 'cs => cs.map(c => c.dataset.flow)') == ['request', 'epic', 'docs'])
         slf.click('.fcard[data-flow=request]'); pg.wait_for_timeout(300)
         slf.fill('[data-draft="start:title"]', 'Export orders to CSV'); slf.fill('[data-draft="start:desc"]', 'Finance asked for it')
@@ -1330,6 +1330,10 @@ def agents_checks(b, watch):
         check('a spike at its findings is in the research line\'s Out tray', af.locator('.fl-paper .st-out [data-lane-open="spike-cache-options"]').count() == 1)
         af.click('.fl-code .st-plan [data-lane-open="41300-export-retry-fails"]'); pg.wait_for_timeout(300)
         check('a card on the floor opens the same panel as the lanes', af.locator('.fl-body .ln-panel .icard.gate').count() == 1)
+        if os.environ.get('LOOM_SHOTS'):
+            pg.screenshot(path='/tmp/loom-pop.png')
+            af.click('.ln-panel [data-lane-close]'); af.click('.ln-drop .ln-more summary'); pg.wait_for_timeout(200); pg.screenshot(path='/tmp/loom-menu.png')
+            af.click('.ln-drop .ln-more summary'); af.click('.fl-code .st-plan [data-lane-open="41300-export-retry-fails"]'); pg.wait_for_timeout(300)
         af.click('.ln-panel [data-lane-close]'); pg.wait_for_timeout(200)
         af.click('[data-lane-view=list]'); pg.wait_for_timeout(300)
         check('List shows rows (no lanes since 6.7.0), and the choice is kept in this browser', af.locator('.fl-list').count() == 1 and af.locator('.ln-lanes').count() == 0
@@ -1641,7 +1645,7 @@ def agents_checks(b, watch):
         sp.click('.fchip:has-text("Orders API")'); sp.wait_for_timeout(300)
         runs = [k for k in sp.eval_on_selector_all('.fl-rowb[data-lane-open]', 'els => els.map(e => e.dataset.laneOpen)') if not k.startswith(('board:', 'session:', 'reviews'))]
         check('a run moves to a project from its panel, and the filter shows only it', runs == ['41207-fix-login-timeout'])
-        sp.click('.ln-drop [data-start-open]')
+        sp.click('.ln-drop .ln-more summary'); sp.click('.ln-drop [data-start-open]')
         check('Other flows opens on the flows the drop box does not start', seen(sp, '.fcards') and sp.eval_on_selector_all('.fcard', 'els => els.map(e => e.dataset.flow)') == ['request', 'epic', 'docs'])
         sp.click('.fcard[data-flow=epic]')
         check('a flow shows its steps', seen(sp, '.fline'))
