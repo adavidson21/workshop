@@ -73,6 +73,28 @@ test('what the session is doing picks Test bench, UI check and the Fix shop', ()
   assert.equal(stationOf(card(it.folder)), 'stuck', 'a stopped autopilot is pulled off the line');
 });
 
+test('a running autopilot moves the card with the command it runs, before the item files catch up (6.14.0)', async () => {
+  const { laneOf } = await import('../js/dispatch/lanes.js');
+  const it = S.D.items.find(i => i.folder === '41207-fix-login-timeout');
+  it.stage = 'plan';
+  S.L.sessions.ses_0001abc.activity = '';
+  S.L.autopilot = { [it.folder]: { status: 'running', command: '/spec 41207 auto', fixRounds: 0 } };
+  assert.equal(stationOf(card(it.folder)), 'plan', 'still planning');
+  for (const [cmd, st] of [['/approve 41207 plan', 'build'], ['/tasks 41207', 'build'], ['/do-task 41207 2', 'build'], ['/review 41207 auto', 'review'], ['/pr 41207', 'review'], ['/revise 41207 auto', 'fix']]) {
+    S.L.autopilot[it.folder].command = cmd;
+    assert.equal(stationOf(card(it.folder)), st, cmd);
+  }
+  S.L.autopilot[it.folder].command = '/approve 41207 plan';
+  assert.equal(laneOf(it), 'work', 'its lane is Work too');
+  S.L.sessions.ses_0001abc.activity = 'Running the tests (npm test)';
+  S.L.autopilot[it.folder].command = '/do-task 41207 2';
+  assert.equal(stationOf(card(it.folder)), 'test');
+  S.L.autopilot[it.folder].fixRounds = 1;
+  assert.equal(stationOf(card(it.folder)), 'fix', 'fix tasks after a review are the Fix shop');
+  S.L.autopilot[it.folder].status = 'queued';
+  assert.equal(stationOf(card(it.folder)), 'plan', 'queued waits where its files say');
+});
+
 test('express lane: a quick change autopilot is building rides above the line; at a gate it is back on the line', () => {
   const it = S.D.items.find(i => i.folder === '41207-fix-login-timeout');
   it.lane = 'quick';
