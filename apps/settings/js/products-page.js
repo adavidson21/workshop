@@ -5,6 +5,7 @@
    Settings' own collection, written with ws.data (shared/products.js does the rules). Owners come from People's
    "Owns" (ws.people), suggestions from the workspace repos (opencode connector's state) and your team's area paths
    (ws.teams). Whether a note exists is read from Folio's folder, read only. Nothing here writes another app's data. */
+import { adoIsOn } from '../../../shared/ado.js';
 import * as P from '../../../shared/products.js';
 import * as D from '../../../shared/people.js';
 
@@ -167,7 +168,7 @@ export async function mountProducts({ ws, toast, el, onSaved = async () => {} })
     if (unreadable) { b.innerHTML = `<p class="err">Products were saved by another Workshop version (version ${esc(unreadable)}). Update Workshop to change them.</p>`; return; }
     const live = all().filter(p => !p.archived), archived = all().filter(p => p.archived);
     b.innerHTML = `
-      ${live.length ? `<ul class="products">${live.map(row).join('')}</ul>` : `<div class="products-empty"><p><b>No products yet.</b> A product ties together its repos, ADO area paths, owners and a Folio note that Tandem reads before it works on it.</p></div>`}
+      ${live.length ? `<ul class="products">${live.map(row).join('')}</ul>` : `<div class="products-empty"><p><b>No products yet.</b> A product ties together its repos, ${adoIsOn() ? 'ADO area paths' : 'area paths'}, owners and a Folio note that Tandem reads before it works on it.</p></div>`}
       ${editing === 'new' ? `<div class="product editing">${form({})}</div>` : '<div class="acts left"><button class="btn primary" data-product-new>Add a product</button></div>'}
       ${archived.length ? `<details class="archived-list"><summary>Archived (${archived.length})</summary><ul class="products">${archived.map(row).join('')}</ul></details>` : ''}`;
     const first = b.querySelector('.editing input[name=name]');

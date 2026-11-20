@@ -33,6 +33,10 @@ export function adoFact(info, config) {
 }
 
 
+/** Azure DevOps off, not installed or browser mode (unknown keeps the steps) (shared/ado.js): Get started says nothing about it then,
+ *  so its step and the area paths step that needs it are left out. */
+export const adoGone = f => !!(f && f.ado && ['off', 'missing', 'browser'].includes(f.ado.state));
+
 /** Your own person in the people directory (relation You): its name, or '' when there is none. */
 export const selfName = dir => {
   const me = dir && Array.isArray(dir.people) ? dir.people.find(p => !p.archived && p.relation === 'self') : null;
@@ -99,7 +103,7 @@ export function appSuggestions(f = {}) {
   const agents = f.dispatch === 'ready';
   return [
     { id: 'prioritizer', name: 'Docket', why: 'your tasks, today and what you handed over.' },
-    { id: 'slate', name: 'Loom', why: agents ? 'requests from idea to shipped, with coding agents on each card.' : ado ? 'requests from idea to shipped. Coding agents are not set up on this computer.' : 'requests from idea to shipped. Without Azure DevOps or coding agents it is a local board you fill in by hand.', off: !ado && !agents },
+    { id: 'slate', name: 'Loom', why: agents ? 'requests from idea to shipped, with coding agents on each card.' : ado ? 'requests from idea to shipped. Coding agents are not set up on this computer.' : adoGone(f) ? 'requests from idea to shipped. Without coding agents it is a local board you fill in by hand.' : 'requests from idea to shipped. Without Azure DevOps or coding agents it is a local board you fill in by hand.', off: !ado && !agents },
     { id: 'receipts', name: 'Rapport', why: '1:1s and evidence for reviews.' },
     { id: 'notes', name: 'Folio', why: 'notes, kept as files.' },
     { id: 'runway', name: 'Runway', why: 'roadmaps you can share as an image.' }
@@ -154,7 +158,8 @@ export function stepsFor(facts, skipped = []) {
     else if (s.needs && state[s.needs] !== 'done') state[s.id] = 'blocked';
     else state[s.id] = 'todo';
   }
-  const steps = STEPS.map(s => ({ ...s, state: state[s.id], explicitSkip: skip.has(s.id) }));
+  const gone = adoGone(f);
+  const steps = STEPS.filter(s => !gone || (s.id !== 'ado' && s.needs !== 'ado')).map(s => ({ ...s, state: state[s.id], explicitSkip: skip.has(s.id) }));
   const core = steps.filter(s => s.core);
   const finished = core.filter(s => s.state === 'done' || s.state === 'skipped').length;
   const next = core.find(s => s.state === 'todo') || core.find(s => s.state === 'blocked')
@@ -205,7 +210,7 @@ function detail(s, ctx) {
         <p>It opens Workshop on your computer when it finishes, with this checklist. From then on, open it from the Start menu (<b>Workshop</b>) or with <code>workshop up</code>.</p>`;
       }
       const cmd = ctx.platform === 'win' ? `irm ${site}/install.ps1 | iex` : `curl -fsSL ${site}/install.sh | bash`;
-      return `${choose}<p>Workshop keeps your data in files on your computer and talks to Azure DevOps from there. Install it once, for your user only, with no admin rights:</p>
+      return `${choose}<p>Workshop keeps your data in files on your computer${adoGone(f) ? '' : ' and talks to Azure DevOps from there'}. Install it once, for your user only, with no admin rights:</p>
         ${copy(cmd)}
         <p class="su-fine">Run it in ${ctx.platform === 'win' ? 'PowerShell (not as admin)' : 'a terminal'}. Answer <b>n</b> to the AI model question unless you want Loom. If piping a script is blocked, follow "By hand" in docs/install.md.</p>
         <p>The installer opens Workshop on this computer once, which signs this browser in. Then click <b>Connect</b> on the rail and <b>Allow</b> in the small window.</p>
@@ -226,7 +231,7 @@ function detail(s, ctx) {
     case 'areas':
       return `<p>The Azure DevOps area paths your team works in. Slate lists your team's backlog from them (its Inbox is empty without them), and Runway's ADO roadmaps and the Loom hub use them too.</p><p>${btn('Open Team area paths', 'data-open="settings" data-path="team"', true)}</p>`;
     case 'name':
-      return `<p>Add yourself in People: your name, and the name Azure DevOps knows you by, so Docket, Slate and Rapport know what is yours. Home greets you by it too.</p><p>${btn('Add yourself', `data-open="settings" data-path="people/you${f.name ? '/' + esc(encodeURIComponent(f.name)) : ''}"`, true)}</p>`;
+      return `<p>Add yourself in People: your name${adoGone(f) ? '' : ', and the name Azure DevOps knows you by'}, so Docket, Slate and Rapport know what is yours. Home greets you by it too.</p><p>${btn('Add yourself', `data-open="settings" data-path="people/you${f.name ? '/' + esc(encodeURIComponent(f.name)) : ''}"`, true)}</p>`;
     case 'apps': {
       const sug = appSuggestions(f);
       const rows = sug.map(a => `<li><b>${esc(a.name)}</b>: ${esc(a.why)}${a.off ? ' <span class="su-off">Suggested: off</span>' : ''}</li>`).join('');
@@ -238,13 +243,7 @@ function detail(s, ctx) {
       if (a.state === 'ready') {
         return `<p>Connected.${a.message ? ' ' + esc(a.message) : ''}</p>${a.noExpiry ? `<p class="su-fine">Tip: set <b>PAT expires</b> on the connection in ${settingsWhere} to get a warning two weeks before it stops working.</p>` : ''}`;
       }
-      if (a.state === 'off' || a.state === 'missing') {
-        return `<p>Docket syncs your work items and the pull requests waiting on your review, and Slate and Runway read your backlog and publish to it, through the Azure DevOps connector.</p>
-          <ol class="su-list"><li>Make a personal access token in ADO with <b>Work Items (Read &amp; write)</b>, plus <b>Code (Read)</b> for pull requests. Note its expiry date. (Work Items (Read) is enough if you only use Docket: Slate and Runway then can't publish, comment or close items.)</li>
-          <li>In ${settingsWhere} turn on <b>Azure DevOps</b> and paste any link from Azure DevOps (a work item or board) to fill in your connection. Save.</li>
-          <li>Click <b>Add token</b> beside <b>PAT</b>, paste it and give its expiry date. It goes into this computer's secret store. Then try the Test field with a work item ID.</li></ol>
-          <p>${settingsBtn('Open Settings', 'connections')}</p>`;
-      }
+      // Off, not installed or browser mode: the step is left out (adoGone), so nothing here names ADO then.
       if (a.state === 'noConnection') {
         return `<p>The connector is on but has no connection yet. In ${settingsWhere} open Connections and paste any Azure DevOps link, or add your server, collection and project by hand.</p><p>${settingsBtn('Open Settings', 'connections')}</p>`;
       }
@@ -252,7 +251,6 @@ function detail(s, ctx) {
         return `<p>The connection is set up, but its token isn't saved on this computer yet. In ${settingsWhere}, Tokens &amp; sign-ins, click <b>Add token</b> beside ${esc(a.patEnv || 'ADO_PAT')} and paste it.</p>
           <p>${settingsBtn('Open Tokens & sign-ins', 'secrets')}</p><p class="su-fine">Workshop picks it up at once; this step ticks itself off.</p>`;
       }
-      if (a.state === 'browser') return '<p>Do <b>Connect Workshop on this computer</b> first.</p>';
       return `<p>${esc(a.message || 'The ADO connector is not ready yet.')}</p><p>${settingsBtn('Open Settings', 'connections')}</p>`;
     }
     case 'task':

@@ -1,3 +1,4 @@
+import { adoIsOn } from '../../../shared/ado.js';
 import { addTask, downgradeUrgent, moveTask, quickSort, toggleDone, toggleFocus } from './actions.js';
 import { trackerSetup, onAdoClick } from './tracker.js';
 import { openSettings as daySettings, stepDay } from './day-view.js';
@@ -272,7 +273,7 @@ document.addEventListener('mouseover', e => {
    keep their own icons beside it, since those also show when something needs you. */
 function openSettingsMenu(anchor){
   popMenu(`<div class="mhead">Settings</div><button data-set="day">Day and sprint</button><button data-set="rows">Row fields</button>`
-    + `<button data-set="ado">Azure DevOps</button><button data-set="files">Files and backups</button>`, anchor)
+    + `<button data-set="ado">${adoIsOn() ? 'Azure DevOps' : 'Work items'}</button><button data-set="files">Files and backups</button>`, anchor)
     .addEventListener('click', e => {
       const b = e.target.closest('[data-set]'); if (!b) return;
       closeMenu();

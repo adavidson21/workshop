@@ -8,6 +8,10 @@ import { S, resetUi } from '../js/dispatch/state.js';
 import { lanesData, lanesHtml, laneView } from '../js/dispatch/lanes.js';
 import { CODE, PAPER, STACK_MAX, motionOf, lineOf, stationOf, floorData, floorHtml, epicPanelHtml, rowsData, rowsHtml, onboardPickHtml, coverPickHtml, testsBadge, toldStep } from '../js/dispatch/floor.js';
 import { setBoardFeed } from '../js/loom.js';
+import { setAdo } from '../../../shared/ado.js';
+import { setFlowsAdo } from '../js/dispatch/flows.js';
+// These checks are written for Azure DevOps on; no-ado.test.mjs covers it off.
+setAdo(true); setFlowsAdo(true);
 
 const FIXTURE = JSON.parse(fs.readFileSync(new URL('./fixtures/state.json', import.meta.url), 'utf8'));
 const clone = v => JSON.parse(JSON.stringify(v));

@@ -3,9 +3,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { destinations, humanBytes } from '../js/storage-page.js';
 
-test('with nothing on, nothing leaves the computer', () => {
+test('with nothing on, nothing leaves the computer (and Azure DevOps, off, is not named)', () => {
   const rows = destinations({ backend: 'agent', conns: [{ id: 'ado', enabled: false }, { id: 'opencode', enabled: false }], st: { synced: null } });
-  assert.deepEqual(rows.map(r => [r.id, r.on]), [['folder', false], ['ado', false], ['opencode', false]]);
+  assert.deepEqual(rows.map(r => [r.id, r.on]), [['folder', false], ['opencode', false]]);
   assert.match(rows[0].text, /Stays on this computer/);
 });
 

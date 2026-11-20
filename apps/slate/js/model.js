@@ -22,6 +22,7 @@
    The .work files are read with the opencode connector's file.read: triage.md, questions.md, understanding.md,
    brief.md, refine.md, stories.md, milestones.md. Their shapes are eng-agents' templates (Core 2.12.0; shape 2.16.0); the parsers below follow them and
    eng-agents core/scripts/ado/Export-Backlog.ps1 for milestones.md. */
+import { adoIsOn } from '../../../shared/ado.js';
 import { belongsTo } from '../../../shared/products.js';
 
 export const APP = 'slate';
@@ -972,12 +973,12 @@ export function summaryCards(items, { columnOf, agentOf = () => null, now = new 
   const needs = [];
   for (const it of items) {
     if (it.stage === 'dev' && it.merged && it.ado) { needs.push(row(it, 'Merged: mark it resolved')); continue; }
-    if (it.stage === 'dev' && it.merged && !it.ado) { needs.push(row(it, 'Merged: link its ADO item', 'waiting')); continue; }
+    if (it.stage === 'dev' && it.merged && !it.ado) { needs.push(row(it, adoIsOn() ? 'Merged: link its ADO item' : 'Merged: mark it resolved', 'waiting')); continue; }
     if (['dev', 'done', 'delegated', 'resolved'].includes(it.stage)) continue;
     const a = agentOf(it), col = columnOf(it);
     if (a && a.waiting) needs.push(row(it, 'An agent is asking you something', 'urgent'));
     else if (col === 'decide') needs.push(row(it, 'Decide who builds it'));
-    else if (col === 'publish') needs.push(row(it, 'Approved: publish to ADO'));
+    else if (col === 'publish') needs.push(row(it, adoIsOn() ? 'Approved: publish to ADO' : 'Approved: publish it'));
     else if (col === 'define' && it.draftReady) needs.push(row(it, 'A draft is ready to approve'));
     else if (col === 'triage' && !(a && a.busy)) needs.push(row(it, 'Triage is done: ask, interview or define'));
     else if (col === 'interview' && it.shapeAsking) needs.push(row(it, 'Answer the interview questions'));
@@ -1177,9 +1178,9 @@ export function timeline(it, { run = null, assigneeName = '' } = {}) {
   const hist = it.history || [];
   hist.forEach((h, i) => {
     let text = STEP_TEXT[h.stage] || h.stage;
-    if (i === 0 && h.stage === 'new') text = it.kind === 'idea' ? 'Idea captured' : it.requester ? `Request from ${it.requester}` : it.ado ? `From ADO #${it.ado.id}` : 'Captured';
+    if (i === 0 && h.stage === 'new') text = it.kind === 'idea' ? 'Idea captured' : it.requester ? `Request from ${it.requester}` : it.ado && adoIsOn() ? `From ADO #${it.ado.id}` : 'Captured';
     if (h.from === 'dispatch') text = 'Started from Start work';
-    if (h.from === 'capture') text = it.ado ? `Captured on Home: ADO #${it.ado.id}` : 'Captured on Home';
+    if (h.from === 'capture') text = it.ado && adoIsOn() ? `Captured on Home: ADO #${it.ado.id}` : 'Captured on Home';
     if (h.skipped) text += ' (skipped shaping)';
     if (h.stage === 'delegated' && assigneeName) text = `Delegated to ${assigneeName}`;
     const prev = hist.slice(0, i).map(x => STAGES.indexOf(x.stage));
@@ -1187,7 +1188,7 @@ export function timeline(it, { run = null, assigneeName = '' } = {}) {
     out.push({ at: h.at, text });
   });
   const pub = Object.entries(it.published || {}).filter(([k]) => k !== 'source').map(([, v]) => v);
-  if (pub.length && it.ado) out.push({ at: '', text: `Published to ADO: ${pub.map(n => `#${n}`).join(', ')}`, url: it.ado.url || '' });
+  if (pub.length && it.ado && adoIsOn()) out.push({ at: '', text: `Published to ADO: ${pub.map(n => `#${n}`).join(', ')}`, url: it.ado.url || '' });
   if (it.source) out.push({ at: '', text: `Came from #${it.source.id}${it.source.type ? ` (${it.source.type})` : ''}, linked to the new items`, url: it.source.url || '' });
   if (run && it.stage === 'dev') out.push({ at: '', text: `Tandem: ${runStep(run)}${run.next && run.next.text ? `. ${run.next.text}` : ''}`, run: run.id || run.folder || '' });
   for (const p of (it.prs && it.prs.list) || []) out.push({ at: '', text: `Pull request ${p.id}${p.repository ? ` in ${p.repository}` : ''}: ${p.status === 'completed' ? 'merged' : p.status}`, url: p.url });
@@ -1202,7 +1203,7 @@ export function decisionNote(item, decision, now = new Date()) {
   const lines = [
     `Decision: ${decision}`,
     '',
-    `- Item: ${item.title}${item.ado ? ` (ADO #${item.ado.id})` : ''}`,
+    `- Item: ${item.title}${item.ado && adoIsOn() ? ` (ADO #${item.ado.id})` : ''}`,
     item.requester ? `- Asked by: ${item.requester}` : null,
     `- Date: ${today(now)}`,
     `- In Slate: [${item.title.replace(/[[\]]/g, '')}](ws:slate/item/${item.id})`

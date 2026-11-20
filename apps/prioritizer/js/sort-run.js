@@ -1,3 +1,4 @@
+import { adoIsOn } from '../../../shared/ado.js';
 import { quickSort, toggleFocus, wontDo } from './actions.js';
 import { delegateTo, handoffChoices } from './delegate.js';
 import { openDrawer } from './drawer.js';
@@ -25,7 +26,7 @@ const cur = () => run && findTask(run.ids[run.i]);
 function source(t){
   if (t.cameBack) return 'Came back to you';
   if (t.pr) return `Pull request ${t.pr.id}`;
-  if (t.item) return `From ${t.item.system === 'github' ? 'GitHub' : 'ADO'}, ${t.item.type || 'work item'} ${t.item.id}`;
+  if (t.item && (t.item.system === 'github' || adoIsOn())) return `From ${t.item.system === 'github' ? 'GitHub' : 'ADO'}, ${t.item.type || 'work item'} ${t.item.id}`;
   return t.createdAt ? `Added ${fmtDay(t.createdAt)}` : '';
 }
 

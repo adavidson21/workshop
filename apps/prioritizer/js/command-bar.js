@@ -1,3 +1,4 @@
+import { adoIsOn } from '../../../shared/ado.js';
 import { addTask } from './actions.js';
 import { NAV_KEYS, TOUCH, VALUE } from './constants.js';
 import { peoplePlaceOn } from './ws.js';
@@ -93,7 +94,7 @@ function cheatHtml(){
       ${KEYS.map(([k, what]) => `<div class="crow"><div class="ctags">${k.split(' ').map(x => `<kbd>${x}</kbd>`).join('')}</div><div class="cwhat">${what}</div></div>`).join('')}</div>
       <button type="button" class="cheat-all" data-allkeys>All shortcuts <kbd>?</kbd></button>
     </div>`}
-    <p class="cnote">Tags can go anywhere in the line. Anything not recognized stays in the title. Paste an ADO work item or its link to keep the link on the task.<br>
+    <p class="cnote">Tags can go anywhere in the line. Anything not recognized stays in the title.${adoIsOn() ? ' Paste an ADO work item or its link to keep the link on the task.' : ''}<br>
       Example: <span class="mono">Review design doc &gt;@sam !3 ~s ^fri${prods.length ? ' ' + esc(productTag(prods[0])) : ''}</span></p>`;
 }
 function setCheat(open, save = true){

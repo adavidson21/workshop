@@ -29,7 +29,7 @@ export function trackersNote(list) {
   const all = (Array.isArray(list) ? list : []).filter(c => c && Object.hasOwn(TRACKERS, c.id));
   if (!all.length) return { ids: [], error: 'This Workshop has no tracker connector. Update Workshop on this computer.', warn: '', by: {} };
   const on = all.filter(c => c.enabled && (c.status || {}).state !== 'disabled');
-  if (!on.length) return { ids: [], error: 'Turn on the ADO or GitHub connector in Workshop Settings.', warn: '', by: {} };
+  if (!on.length) return { ids: [], error: 'Turn on a work item connector in Workshop Settings.', warn: '', by: {} };
   const by = Object.fromEntries(on.map(c => [c.id, connectorNote(c)]));
   const ids = on.filter(c => !by[c.id].error).map(c => c.id);
   const errors = on.filter(c => by[c.id].error).map(c => by[c.id].error);
@@ -47,9 +47,9 @@ export function reachNote(w, { pairSaved = false, embedded = false } = {}) {
   if (w && w.backend === 'agent')
     return w.online === false ? 'Workshop on this computer stopped answering, so work item sync is paused. Start Workshop again (run: workshop open); Docket picks it up by itself.' : '';
   if (w && w.storage === 'device') return 'Work item sync runs through Workshop on a computer, so it is not available in the phone app.';
-  if (embedded) return 'Work items sync through Workshop on this computer. Install or start Workshop (run: workshop open), connect this page to it, then turn on the ADO or GitHub connector in Workshop Settings.';
+  if (embedded) return 'Work items sync through Workshop on this computer. Install or start Workshop (run: workshop open), connect this page to it, then turn on a work item connector in Workshop Settings.';
   if (pairSaved) return "Can't reach Workshop on this computer. Start it (run: workshop open), then reload this page. If it still can't connect, pair this site again from the folder menu.";
-  return 'Work items sync through Workshop on this computer. Install or start Workshop, pair this site (folder menu, Use Workshop on this computer), then turn on the ADO or GitHub connector in Workshop Settings.';
+  return 'Work items sync through Workshop on this computer. Install or start Workshop, pair this site (folder menu, Use Workshop on this computer), then turn on a work item connector in Workshop Settings.';
 }
 
 /**

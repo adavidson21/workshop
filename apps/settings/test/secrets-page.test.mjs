@@ -4,6 +4,9 @@ import assert from 'node:assert/strict';
 import { connectionRows, otherSecrets, pageHtml, stateOf } from '../js/secrets-page.js';
 import { dialogHtml, kindWords } from '../js/secret-dialog.js';
 import { secretButton, secretState } from '../js/forms.js';
+import { setAdo } from '../../../shared/ado.js';
+// Written for Azure DevOps on; the off case is its own test below.
+setAdo(true);
 
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -66,4 +69,13 @@ test('form fields: button words and states', () => {
   assert.equal(secretState(null, true).text, 'save to check');
   assert.equal(secretState({ set: false }).text, 'not added yet');
   assert.equal(secretState({ set: true, store: 'macOS Keychain' }).text, 'saved in macOS Keychain');
+});
+
+test('with Azure DevOps off, its token row is not named', async () => {
+  const { pageHtml } = await import('../js/secrets-page.js');
+  setAdo(false);
+  try {
+    const html = pageHtml({ uses: [{ connector: 'ado', connectorName: 'Azure DevOps', enabled: false, path: 'connections[0].patEnv', title: 'PAT', kind: 'env', secretKind: 'token', name: 'env-ado-pat', env: 'ADO_PAT' }], secrets: [], signins: [] }, s => String(s));
+    assert.doesNotMatch(JSON.stringify(html), /Azure DevOps|\bADO\b/);
+  } finally { setAdo(true); }
 });

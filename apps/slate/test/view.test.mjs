@@ -3,6 +3,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { MAX_SHOWN, MAX_FORK, boardHtml, closeGroupDialogHtml, delegateDialogHtml, linkAdoDialogHtml, linkPickDialogHtml, nextOf, panelHtml, publishDialogHtml, topHtml } from '../js/view.js';
 import { cleanItem, cleanPrefs, newItem, setStage, shapeState, timeline } from '../js/model.js';
+import { setAdo } from '../../../shared/ado.js';
+// These checks are written for Azure DevOps on; no-ado.test.mjs covers it off.
+setAdo(true);
 
 const base = (item, extra = {}) => ({
   item, dev: false, files: {}, draft: { kind: null }, editing: false, shapeEditing: null, shape: shapeState({}), back: [], triage: null,

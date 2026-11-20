@@ -7,6 +7,7 @@
    A card moves on its own as the run moves: the lane follows from the run's flow and step (flows.js), nothing is stored.
    The panel beside the lanes holds the run's own card (pages.js runCardHtml), so every button there is the one the
    Inbox and the board already use. No DOM: main.js paints what these return and handles the clicks. */
+import { adoIsOn } from '../../../../shared/ado.js';
 import { S } from './state.js';
 import { h, plural, asking, itemSession, isBusy, autoIs, itemAuto, itemForFolder, adoOn, openAttr } from './view.js';
 import { flowOf, stepIndex, isFinished, turnHtml, stepLine } from './flows.js';
@@ -281,20 +282,20 @@ export function dropHtml() {
   const item = (attr, label, hint) => `<button type="button" class="ln-mi" role="menuitem" ${attr}><span>${h(label)}</span><small>${h(hint)}</small></button>`;
   const menu = `<details class="ln-more"${openAttr('ln:more', false)}><summary class="ibtn" aria-label="More ways to start" title="More ways to start">${PLUS}</summary>` +
     `<div class="ln-menu" role="menu">` +
-    (list.length ? item(`data-ado-toggle="1" aria-expanded="${!!S.ui.dropPick}"`, 'From ADO', "Your team's backlog, not started yet") : '') +
+    (list.length ? item(`data-ado-toggle="1" aria-expanded="${!!S.ui.dropPick}"`, adoIsOn() ? 'From ADO' : 'From the backlog', "Your team's backlog, not started yet") : '') +
     item('data-start-open="1"', 'Other flows', 'Plan an epic, write docs, handle a request') +
     item(`data-onboard-toggle="1" aria-expanded="${!!S.ui.onboardPick}"`, 'Onboard a product', 'Get a product ready for its first build') +
     item(`data-cover-toggle="1" aria-expanded="${!!S.ui.coverPick}"`, 'Add regression tests', 'End-to-end tests for what a product already does') +
     '</div></details>';
   return `<section class="ln-drop" aria-label="Start something">` +
-    `<textarea id="ln-drop" rows="1" data-draft="lanes:drop" aria-label="Start something: a story or ADO number, an error log, or a question" placeholder="Paste a story, ADO #, error log or question…" title="Enter starts it; Shift+Enter for a new line">${h(text)}</textarea>` +
+    `<textarea id="ln-drop" rows="1" data-draft="lanes:drop" aria-label="Start something: a story${adoIsOn() ? ' or ADO number' : ''}, an error log, or a question" placeholder="Paste a story, ${adoIsOn() ? 'ADO #, ' : ''}error log or question…" title="Enter starts it; Shift+Enter for a new line">${h(text)}</textarea>` +
     `${pick}<button type="button" class="btn primary" data-lane-start="1"${ready ? '' : ' disabled title="Connect opencode to start work"'}${S.ui.dropBusy ? ' disabled' : ''}>${S.ui.dropBusy ? 'Starting…' : 'Start'}</button>${menu}</section>`;
 }
 /** What opens under the start bar: the ADO link choice and any picker. Empty when nothing is open. */
 function dropMoreHtml() {
   const text = S.ui.drafts['lanes:drop'] || '';
   const list = pickable();
-  const out = (S.ui.dropAdo && text.trim() ? `<label class="ln-keep"><input type="checkbox" data-drop-keep="1"${S.ui.dropKeep ? ' checked' : ''}> Keep it linked to ADO #${h(S.ui.dropAdo.id)} (otherwise it starts as a local item)</label>` : '') +
+  const out = (S.ui.dropAdo && adoIsOn() && text.trim() ? `<label class="ln-keep"><input type="checkbox" data-drop-keep="1"${S.ui.dropKeep ? ' checked' : ''}> Keep it linked to ADO #${h(S.ui.dropAdo.id)} (otherwise it starts as a local item)</label>` : '') +
     (S.ui.dropPick && list.length ? pickerHtml(list) : '') + onboardPickHtml() + coverPickHtml();
   return out ? `<div class="ln-drawer">${out}</div>` : '';
 }
@@ -303,7 +304,7 @@ const PLUS = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke
 function pickerHtml(list) {
   const q = S.ui.drafts['lanes:adoq'] || '';
   const rows = pickRows(list, q);
-  return `<div class="ln-pick"><input type="search" id="ln-adoq" data-draft="lanes:adoq" value="${h(q)}" placeholder="Search by number or title" aria-label="Search your ADO backlog">` +
+  return `<div class="ln-pick"><input type="search" id="ln-adoq" data-draft="lanes:adoq" value="${h(q)}" placeholder="Search by number or title" aria-label="Search your backlog">` +
     (rows.length ? `<ul role="list">${rows.map(r => `<li><button type="button" class="ln-prow" data-ado-pick="${h(r.id)}"><span class="ln-pid">#${h(r.id)}</span><span class="ln-ptitle">${h(r.title)}</span>` +
       `${r.type ? `<span class="ln-ptype">${h(r.type)}</span>` : ''}</button></li>`).join('')}</ul>` : '<p class="dim">Nothing matches.</p>') +
     `<p class="ln-pnote">Your team's open backlog, not started in Loom yet.</p></div>`;

@@ -32,3 +32,15 @@ test('search matches every word, in the ask, steps, app or other ways', () => {
   assert.ok(!matches(goal, 'stories nightly'));
   assert.ok(matches(GUIDE.find(s => s.id === 'simple-ask'), 'quick change'));
 });
+
+test('with Azure DevOps off, no scenario names it', async () => {
+  const { GUIDE, shown } = await import('../js/guide.js');
+  const ADO = /\bADO\b|Azure DevOps/;
+  for (const s of GUIDE) {
+    const v = shown(s, false);
+    const text = [v.ask, ...v.steps, v.why, v.needs, ...v.also.flatMap(a => [a.when, a.how])].join(' ');
+    assert.ok(!ADO.test(text), `${s.id}: ${text.match(ADO)}`);
+    assert.ok(v.steps.length >= 2, `${s.id} keeps its steps`);
+  }
+  assert.equal(shown(GUIDE[0], true), GUIDE[0]);
+});

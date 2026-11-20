@@ -4,6 +4,8 @@ Docket (formerly Prioritizer; code, data and URLs inside still say `prioritizer`
 
 A calm, keyboard-first task app for deciding what to work on. Add a task once and it shows up everywhere.
 
+**12.2.0: nothing about ADO while it is off.** With the Azure DevOps connector off, Docket names it nowhere: the sync button and its sheet speak of work items (or GitHub), ADO items' chips, links and In Slate lines are hidden, and pasting an ADO link is plain text. The palette command is now **Sync work items** (`shared/ado.js`).
+
 **12.0.0: the agent queue.** Inside Workshop, Docket is the queue of what Tandem's builds need from you, plus PR reviews (Workshop project doc `claude/workshop-vision-v2.md`). **Agents** on top of Today lists Loom's `agents` card: answer Tandem, teach a gap, approve a plan, publish a PR; click one to open it in Loom. Docket stores nothing for them. **Personal tasks** is a switch under Docket in Workshop Settings, Apps, off by default: off, only PR reviews show and your own tasks are hidden, never deleted (a line on Today says how many); on, everything shows as before. On Docket's own site there is no switch and everything shows. `js/agent-queue.js`.
 
 **11.2.0 (Workshop UX v1).** A **Products** filter in the list menu (under the page title) shows one product's tasks: the ones whose Product is set to it. **Week size** can follow your focus hours: pick **My focus hours**, and the week is your focus hours in Settings divided by hours per point (1 by default).

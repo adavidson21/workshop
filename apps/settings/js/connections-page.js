@@ -46,7 +46,8 @@ export function connectionRows(list, views, lastUsed) {
 }
 
 export function overviewHtml(rows, servers, esc, { now = Date.now() } = {}) {
-  const row = r => `<li class="cx-row${r.enabled ? '' : ' off'}">
+  // Azure DevOps's row is the one place it is named while it is off (shared/ado.js): Settings opens its switch.
+  const row = r => `<li class="cx-row${r.enabled ? '' : ' off'}"${r.id === 'ado' ? ' data-ado-switch' : ''}>
     <div class="cx-main"><b>${esc(r.name)}</b> <span class="cx-state" data-state="${esc(r.enabled ? r.state : 'off')}">${esc(r.enabled ? r.state : 'off')}</span>
       ${r.message ? `<div class="sub">${esc(r.message)}</div>` : ''}
       <div class="cx-meta">${r.hosts.length ? `Reaches ${r.hosts.map(h => `<code>${esc(h)}</code>`).join(', ')}` : 'Stays on this computer'}${r.tokens.length ? ` · ${r.tokens.map(t => `<span class="${t.ok ? '' : 'warn'}">${esc(t.label)}: ${esc(t.note)}</span>`).join(' · ')}` : ''}</div>

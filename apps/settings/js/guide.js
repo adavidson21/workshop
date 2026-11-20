@@ -3,6 +3,8 @@
    GUIDE and matches() are pure, so test/guide.test.mjs can import them; mountGuide() draws the page.
    Keep each scenario's steps in step with the apps' READMEs (Slate, Loom's js/flows.js). No em dashes. */
 
+import { adoIsOn, noAdo, ADO_WORDS } from '../../../shared/ado.js';
+
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 /** App ids to the names people see. */
@@ -20,7 +22,10 @@ export const SECTIONS = [
      steps                    the best way, in order
      why                      one line on why this way
      also                     [{when, how}] other ways, for a slightly different situation
-     needs                    what has to be set up (shown quietly) */
+     needs                    what has to be set up (shown quietly)
+     off                      what changes while Azure DevOps is off (shared/ado.js): any of steps, why, also, needs,
+                              or swap ({step as written: the step to show instead}).
+                              Whatever still names ADO after that is dropped (a step) or cut to its other sentences. */
 export const GUIDE = [
   {
     id: 'goal-to-stories',
@@ -37,7 +42,18 @@ export const GUIDE = [
     also: [
       { when: 'You already know what you want and want it fast', how: 'Loom, <b>Start work</b>, <b>Plan an epic</b>. One line in, at most 3 questions, then stories and a build order for you to approve. It ends with ADO items, an ADO import file, or local items.' }
     ],
-    needs: 'Tandem (Settings, opencode). Azure DevOps only to publish.'
+    needs: 'Tandem (Settings, opencode). Azure DevOps only to publish.',
+    off: {
+      steps: [
+        'In Loom, click <b>New idea</b> and write the goal in a sentence or two.',
+        'Click <b>Shape it</b>. An agent asks you a few questions at a time, each with a recommended answer. Pick one, write your own, or click <b>Use the recommendations</b>.',
+        'When the brief is ready, read it and click <b>Send to Define</b>. Tandem writes the epic, its features and light user stories.',
+        'Approve the stories. Tandem puts them in build order for you to read and approve.'
+      ],
+      also: [
+        { when: 'You already know what you want and want it fast', how: 'Loom, <b>Start work</b>, <b>Plan an epic</b>. One line in, at most 3 questions, then stories and a build order for you to approve.' }
+      ]
+    }
   },
   {
     id: 'simple-ask',
@@ -55,7 +71,20 @@ export const GUIDE = [
       { when: 'You do not need an ADO item at all', how: 'Loom, <b>Start work</b>, <b>Quick change</b>. Describe it and it runs as a feature or a bug. it gets a card on the board, and you can link an ADO item later from that card.' },
       { when: 'The ADO item already exists', how: 'Loom, <b>Start work</b>, <b>Build a feature</b> (or <b>Fix a bug</b>), and type its number.' }
     ],
-    needs: 'Tandem (Settings, opencode). Azure DevOps for the item.'
+    needs: 'Tandem (Settings, opencode). Azure DevOps for the item.',
+    off: {
+      steps: [
+        'In Loom, click <b>New request</b> and describe it.',
+        'Open <b>More</b> and pick <b>Define now</b>. This skips triage and the interview. Tandem writes one story with acceptance criteria.',
+        'Read it, then click <b>Build it myself</b>. Tandem starts building it as local work.',
+        'Follow it in Loom. Anything waiting on you shows in its <b>Inbox</b>. At the end you read the diff, approve and push, then create the PR.'
+      ],
+      why: 'You skip triage, the interview and delegation.',
+      also: [
+        { when: 'You want it even faster', how: 'Loom, <b>Start work</b>, <b>Quick change</b>. Describe it and it runs as a feature or a bug, with a card on the board.' }
+      ],
+      needs: 'Tandem (Settings, opencode).'
+    }
   },
   {
     id: 'bug',
@@ -68,6 +97,7 @@ export const GUIDE = [
       'Tandem finds the root cause and writes it up. Approve it, or send it back with a note.',
       'It writes a failing test, fixes it and reviews the fix. You read the diff and push.'
     ],
+    off: { swap: { 'Type the ADO item number, or describe the bug.': 'Describe the bug.' } },
     why: 'You agree on the cause before any code changes.',
     also: [],
     needs: 'Tandem (Settings, opencode).'
@@ -98,6 +128,7 @@ export const GUIDE = [
       'Click <b>Post on #1234</b> to ask on the ADO item, or <b>Copy questions and wait</b> to send them yourself.',
       'When they answer, click <b>Read replies</b> (or paste the answers), then <b>Save answers and triage again</b>.'
     ],
+    off: { swap: { 'Click <b>Post on #1234</b> to ask on the ADO item, or <b>Copy questions and wait</b> to send them yourself.': 'Click <b>Copy questions and wait</b> and send them to the requester yourself.' } },
     why: 'The questions go to the person who knows, and nothing is posted without your confirm.',
     also: [
       { when: 'You are the one who knows the answers', how: 'Click <b>Interview me</b> instead of Triage, and answer the questions yourself.' }
@@ -115,6 +146,7 @@ export const GUIDE = [
       'Leave the follow-up task on. Docket reminds you to check in.',
       'Tick <b>Also assign it to them in Azure DevOps</b> only if you want ADO changed too.'
     ],
+    off: { why: 'You keep track of what you handed off without chasing it.' },
     why: 'You keep track of what you handed off without chasing it in ADO.',
     also: [
       { when: 'It is a quick task, not a work item', how: 'Open Capture and start the line with <code>w</code> (waiting on someone). It becomes a Docket follow-up.' }
@@ -137,7 +169,8 @@ export const GUIDE = [
     also: [
       { when: 'You want them ready each morning', how: 'Set a nightly review time in Loom’s menu, opencode settings.' }
     ],
-    needs: 'Tandem, and Azure DevOps for the list of PRs.'
+    needs: 'Tandem, and Azure DevOps for the list of PRs.',
+    off: { needs: 'Tandem (Settings, opencode).' }
   },
   {
     id: 'docs',
@@ -216,17 +249,28 @@ export const GUIDE = [
   }
 ];
 
+/** The scenario as shown: with Azure DevOps off, its `off` changes, then nothing else that names ADO. */
+export function shown(s, adoOn = adoIsOn()) {
+  if (adoOn) return s;
+  const o = s.off || {}, swap = o.swap || {};
+  const steps = (o.steps || s.steps).map(x => swap[x] || x).filter(x => !ADO_WORDS.test(x));
+  const also = (o.also || s.also).filter(a => !ADO_WORDS.test(a.when + ' ' + a.how));
+  return { ...s, steps, also, why: noAdo(o.why !== undefined ? o.why : s.why, false), needs: noAdo(o.needs !== undefined ? o.needs : s.needs, false) };
+}
+
 const plain = s => String(s || '').replace(/<[^>]+>/g, ' ').toLowerCase();
 
 /** Whether a scenario matches the search box (every word, anywhere in it). */
 export function matches(s, query) {
   const words = plain(query).split(/\s+/).filter(Boolean);
   if (!words.length) return true;
+  s = shown(s);
   const text = plain([s.ask, APP_NAMES[s.app], ...s.steps, s.why, ...s.also.flatMap(a => [a.when, a.how])].join(' '));
   return words.every(w => text.includes(w));
 }
 
 function scenarioHtml(s) {
+  s = shown(s);
   const name = APP_NAMES[s.app];
   return `<details class="gd-item" data-guide="${esc(s.id)}">
     <summary><span class="gd-ask">${esc(s.ask)}</span>${name ? `<span class="gd-app">${esc(name)}</span>` : ''}</summary>
@@ -243,16 +287,18 @@ function scenarioHtml(s) {
 export function mountGuide({ ws, el }) {
   const sec = document.createElement('section');
   sec.className = 'card guide';
-  sec.innerHTML = `<p class="sub">Pick what you are trying to do. Each one shows the best way to do it in Workshop, and another way when there is one.</p>
+  const draw = () => { sec.innerHTML = `<p class="sub">Pick what you are trying to do. Each one shows the best way to do it in Workshop, and another way when there is one.</p>
     <label class="sr" for="guideFind">Search the guide</label>
     <input id="guideFind" class="cfg-input gd-find" type="search" placeholder="Search, for example: stories, bug, review" autocomplete="off">
     ${SECTIONS.map(x => `<div class="gd-section" data-section="${x.id}"><h3 class="gd-head">${esc(x.label)}</h3>${GUIDE.filter(s => s.section === x.id).map(scenarioHtml).join('')}</div>`).join('')}
     <p class="gd-none sub" hidden>Nothing matches. Try another word.</p>
-    <p class="gd-more sub">The full tour of every app is in the Workshop docs (docs/guide.md).</p>`;
+    <p class="gd-more sub">The full tour of every app is in the Workshop docs (docs/guide.md).</p>`; };
+  draw();
   el.appendChild(sec);
 
-  const find = sec.querySelector('.gd-find');
-  find.addEventListener('input', () => {
+  sec.addEventListener('input', e => {
+    const find = e.target.closest('.gd-find');
+    if (!find) return;
     const q = find.value;
     let any = false;
     for (const s of GUIDE) {
@@ -271,4 +317,5 @@ export function mountGuide({ ws, el }) {
     const s = GUIDE.find(x => x.id === b.dataset.guideOpen);
     if (s && s.app) ws.open(s.path ? { app: s.app, path: s.path } : { app: s.app });
   });
+  return { repaint: draw };
 }

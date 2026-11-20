@@ -35,8 +35,8 @@ export function createAdo(ws, { onChange = () => {} } = {}) {
       const c = list.find(x => x.id === ADO);
       const s = c && c.status ? c.status.state : 'missing';
       state.message = state.ready ? ''
-        : !c ? 'The ADO connector is not installed in Workshop.'
-          : s === 'disabled' ? 'The ADO and GitHub connectors are off. Turn one on in Workshop Settings.'
+        : !c ? 'No tracker connector is ready. Turn one on in Workshop Settings.'
+          : s === 'disabled' ? 'The tracker connectors are off. Turn one on in Workshop Settings.'
             : ((c.status && c.status.message) || 'The ADO connector is not ready yet.');
     } catch (e) {
       state.ready = false;

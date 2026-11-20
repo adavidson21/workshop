@@ -1,3 +1,4 @@
+import { adoIsOn } from '../../../shared/ado.js';
 import { PR_TIER, itemRef, prTip } from './tracker.js';
 import { trackerName } from './tracker-status.js';
 import { ICON, LENSES, NAV, NAV_OF, OLD_VIEWS, POINTS, PRI, PRI_ORDER, TOUCH, VALUE, VIEWS, initials, listColor } from './constants.js';
@@ -219,7 +220,7 @@ function row(t, o = {}){
   let meta = '';
   // Signals are icons with a tooltip (data-tip and aria-label say the words). Color only when it needs you.
   const sig = (icon, tip, cls = '', text = '') => `<span class="sig${cls ? ' ' + cls : ''}${text ? ' txt' : ''}" data-tip="${esc(tip)}" role="img" aria-label="${esc(tip)}">${icon}${text ? `<b>${esc(text)}</b>` : ''}</span>`;
-  if (t.item && on('ado')){
+  if (t.item && on('ado') && (t.item.system === 'github' || adoIsOn())){
     const tip = `${t.item.url ? 'Open ' : ''}${trackerName(t.item.system)} ${t.item.type || 'item'} ${itemRef(t.item)}${t.item.state ? ', ' + t.item.state : ''}`;
     const short = t.item.system === 'github' ? `#${String(t.item.id).split('#').pop()}` : String(t.item.id);
     meta += t.item.url
@@ -227,7 +228,7 @@ function row(t, o = {}){
       : sig(ICON.item, tip, 'ado', short);
   }
   // Also on Slate's board (slate-link.js): where it stands there. Inside Workshop only; the drawer opens it.
-  if (t.item && t.item.system !== 'github' && !t.done && on('ado') && embedded && !pv){ const sl = slateFor(t.item.id); if (sl) meta += sig(ICON.board, `${slateLabel(sl)}. Open the task to go there.`, 'slate'); }
+  if (t.item && t.item.system !== 'github' && adoIsOn() && !t.done && on('ado') && embedded && !pv){ const sl = slateFor(t.item.id); if (sl) meta += sig(ICON.board, `${slateLabel(sl)}. Open the task to go there.`, 'slate'); }
   if (t.item && !t.done && on('agent')) meta += pv ? (pv.agent || '') : engChip(t.item.id);
   if (t.recur && on('repeat')){
     const item = dp.recurring.find(r => r.id === t.recur.id);

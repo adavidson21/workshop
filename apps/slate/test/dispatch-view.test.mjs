@@ -6,6 +6,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { S, resetUi } from '../js/dispatch/state.js';
 import { render, briefHtml, briefOpen, guideDefaults, track, nextHtml, autoHtml, itemCard, pickupHtml, removeSheetHtml, setupHtml, prompts, pill, liveNote, removeKey, cfgBuild, startCheck, startRequest, repoUrlCheck, repoCategories, repoCategoryCheck, NEW_CATEGORY, onboardSteps, aiState, looseSessions } from '../js/dispatch/view.js';
+import { setAdo } from '../../../shared/ado.js';
+import { setFlowsAdo } from '../js/dispatch/flows.js';
+// These checks are written for Azure DevOps on; no-ado.test.mjs covers it off.
+setAdo(true); setFlowsAdo(true);
 
 const FIXTURE = JSON.parse(fs.readFileSync(new URL('./fixtures/state.json', import.meta.url), 'utf8'));
 const clone = v => JSON.parse(JSON.stringify(v));

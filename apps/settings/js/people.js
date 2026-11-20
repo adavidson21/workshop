@@ -8,6 +8,7 @@
 import * as D from '../../../shared/people.js';
 import * as T from '../../../shared/teams.js';
 import { saveFile } from '../../../shared/save-file.js';
+import { adoIsOn } from '../../../shared/ado.js';
 import * as PF from './people-forms.js';
 import * as S from './people-sheet.js';
 
@@ -59,7 +60,7 @@ export async function mountPeople({ ws, toast, peopleEl, teamEl }) {
         <p class="cfg-help">Contact is anyone outside your working circle: another team, a vendor.</p></div>
       <div class="cfg-row cfg-check"><input id="pTeam" name="team" type="checkbox"${D.onTeam(p) ? ' checked' : ''}><label for="pTeam">On my team</label>
         <p class="cfg-help">Shows in team reports.</p></div>
-      <div class="cfg-row"><label for="pAdo">Azure DevOps</label><input id="pAdo" name="adoIdentity" class="cfg-input" maxlength="200" value="${esc(p.adoIdentity || '')}" placeholder="name@example.com or display name">
+      <div class="cfg-row" data-ado-only><label for="pAdo">Azure DevOps</label><input id="pAdo" name="adoIdentity" class="cfg-input" maxlength="200" value="${esc(p.adoIdentity || '')}" placeholder="name@example.com or display name">
         <p class="cfg-help">Optional. Used once Azure DevOps is connected.</p></div>
       <div class="cfg-row"><label for="pRole">Role</label><input id="pRole" name="role" class="cfg-input" maxlength="200" value="${esc(p.role || '')}"></div>
       <div class="cfg-row"><label for="pOwns">Owns</label><input id="pOwns" name="owns" class="cfg-input" maxlength="2000" value="${esc((p.owns || []).join(', '))}" placeholder="Products, repos or area paths, separated by commas">
@@ -222,13 +223,13 @@ export async function mountPeople({ ws, toast, peopleEl, teamEl }) {
     const many = conns.length > 1;
     body.innerHTML = `<form class="cfg" data-team-form>
       <div class="cfg-row"><label for="tAreas">Area paths</label><textarea id="tAreas" name="areas" class="cfg-input mono" rows="3" placeholder="Project\\Team" spellcheck="false">${esc(team.areas.join('\n'))}</textarea>
-        <p class="cfg-help">One per line. Includes everything under each. For GitHub, write <span class="mono">github:owner/repo</span>, or <span class="mono">github:owner/repo/billing</span> for issues labeled <span class="mono">area: billing</span>; Loom reads those through the GitHub connector.</p>
-        <p class="acts left"><button type="button" class="btn" data-areas-suggest>Suggest from Azure DevOps</button><span class="msg" aria-live="polite" data-areas-msg></span></p>
+        <p class="cfg-help">One per line. Includes everything under each.<span data-no-ado> Write <span class="mono">github:owner/repo</span>, or <span class="mono">github:owner/repo/billing</span> for issues labeled <span class="mono">area: billing</span>; Loom reads those through the GitHub connector.</span><span data-ado-only> For GitHub, write <span class="mono">github:owner/repo</span>, or <span class="mono">github:owner/repo/billing</span> for issues labeled <span class="mono">area: billing</span>; Loom reads those through the GitHub connector.</span></p>
+        <p class="acts left" data-ado-only><button type="button" class="btn" data-areas-suggest>Suggest from Azure DevOps</button><span class="msg" aria-live="polite" data-areas-msg></span></p>
         <div class="areas-suggest" data-areas-list></div></div>
-      ${many ? `<div class="cfg-row"><label for="tConn">Connection</label><select id="tConn" name="connection" class="cfg-input">${connOptions(team.connection, 'Default')}</select>
+      ${many ? `<div class="cfg-row" data-ado-only><label for="tConn">Connection</label><select id="tConn" name="connection" class="cfg-input">${connOptions(team.connection, 'Default')}</select>
         <p class="cfg-help">The Azure DevOps connection for your area paths. Pick another for any path that is in a different collection.</p>
         <div data-area-conns></div></div>`
-      : `<div class="cfg-row"><label for="tConn">Connection</label><input id="tConn" name="connection" class="cfg-input" maxlength="120" value="${esc(team.connection)}" placeholder="Default">
+      : `<div class="cfg-row" data-ado-only><label for="tConn">Connection</label><input id="tConn" name="connection" class="cfg-input" maxlength="120" value="${esc(team.connection)}" placeholder="Default">
         <p class="cfg-help">The Azure DevOps connection to use, by its name in Connections. Empty uses the default.</p></div>`}
       <div class="acts"><span class="msg" aria-live="polite"></span><button class="btn primary">Save</button></div></form>`;
     if (many) paintAreaConns();
@@ -259,8 +260,8 @@ export async function mountPeople({ ws, toast, peopleEl, teamEl }) {
     </section>`);
   teamEl.insertAdjacentHTML('beforeend', `
     <section class="card" id="team">
-      <h2 class="dup">Team area paths${qh('people.areas', 'The Azure DevOps area paths your team works in. Slate lists your team\'s backlog from them; Runway\'s ADO roadmaps and the Loom hub use them too.')}</h2>
-      <p class="sub">Plain text, so you can fill them in before Azure DevOps is connected.</p>
+      <h2 class="dup">Team area paths${adoIsOn() ? qh('people.areas', 'The Azure DevOps area paths your team works in. Slate lists your team\'s backlog from them; Runway\'s ADO roadmaps and the Loom hub use them too.') : qh('people.areas', 'The areas your team works in. Loom lists your team\'s backlog from them.')}</h2>
+      <p class="sub" data-ado-only>Plain text, so you can fill them in before Azure DevOps is connected.</p>
       <div class="team-body"><p class="sub">Loading...</p></div>
     </section>`);
 
