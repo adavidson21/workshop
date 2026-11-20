@@ -435,3 +435,33 @@ body[data-loom-tab=lanes] #runs-root .page:has(.fl-body) { max-width: none; }
   #runs-root .fl-stamp.m-gate .fl-sdot { animation: flPulse 2.4s ease-in-out infinite; }
 }
 @keyframes flPulse { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, currentColor 45%, transparent); } 50% { box-shadow: 0 0 0 5px transparent; } }
+
+/* ---------- Loom 6.13.0: needs you is unmistakable ----------
+   Every card waiting on you (gate, stuck with a question, in transit with a fix to push) pulses a ring and its action
+   badge pops with a sheen; a gated station has a flashing beacon; each line's header counts what needs you.
+   With reduced motion the ring is a solid outline instead, so it still stands out. */
+#runs-root .fl-card.mine { box-shadow: 0 0 0 3px color-mix(in srgb, var(--merlot) 26%, transparent); }
+#runs-root .fl-card.mine.m-stuck { box-shadow: 0 0 0 3px color-mix(in srgb, var(--stop) 26%, transparent); }
+#runs-root .fl-card.mine .fl-act { position: relative; overflow: hidden; }
+#runs-root .fl-card.mine .fl-act::after { content: ""; position: absolute; top: 0; bottom: 0; width: 40%; left: -60%; background: linear-gradient(100deg, transparent, rgba(255,255,255,.55), transparent); }
+#runs-root .fl-beacon { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #fff 0 1.5px, var(--merlot) 2.5px); box-shadow: 0 0 0 0 color-mix(in srgb, var(--merlot) 60%, transparent); }
+#runs-root .fl-plate .fl-beacon { position: absolute; z-index: 2; top: -7px; right: -6px; width: 12px; height: 12px; background: radial-gradient(circle at 35% 35%, #fff 0 1.5px, var(--gate) 3px); border: 2px solid var(--surface); }
+#runs-root .fl-need { display: inline-flex; align-items: center; gap: 6px; font: 700 12px/1 var(--sans); color: var(--merlot-ink); background: var(--merlot); border-radius: 999px; padding: 4px 10px 4px 6px; }
+#runs-root .fl-need .fl-beacon { background: radial-gradient(circle at 35% 35%, #fff 0 1.5px, var(--gate) 3px); }
+@media (prefers-reduced-motion: no-preference) {
+  #runs-root .fl-card.mine { animation: flRing 2.4s ease-out infinite; animation-delay: var(--ph); }
+  #runs-root .fl-card.mine.m-gate { animation: flBump 2.4s ease-in-out infinite, flRing 2.4s ease-out infinite; animation-delay: var(--ph), var(--ph); }
+  #runs-root .fl-card.mine.m-stuck { animation: flRingStop 2.4s ease-out infinite; animation-delay: var(--ph); }
+  #runs-root .fl-card.mine:hover { animation-play-state: paused; }
+  #runs-root .fl-card.mine .fl-act { animation: flPop 2.4s ease-in-out infinite; animation-delay: var(--ph); transform-origin: left center; }
+  #runs-root .fl-card.mine .fl-act::after { animation: flSheen 2.4s ease-in-out infinite; animation-delay: var(--ph); }
+  #runs-root .fl-beacon { animation: flBeacon 1.2s ease-in-out infinite; animation-delay: var(--ph); }
+}
+@media (prefers-reduced-motion: reduce) {
+  #runs-root .fl-card.mine { outline: 2px solid var(--merlot); outline-offset: 2px; }
+}
+@keyframes flRing { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--merlot) 55%, transparent); } 70% { box-shadow: 0 0 0 9px transparent; } 100% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--merlot) 26%, transparent); } }
+@keyframes flRingStop { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--stop) 55%, transparent); } 70% { box-shadow: 0 0 0 9px transparent; } 100% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--stop) 26%, transparent); } }
+@keyframes flPop { 0%, 40%, 100% { transform: scale(1); } 46% { transform: scale(1.12) rotate(-2deg); } 52% { transform: scale(.97); } 58% { transform: scale(1.04); } 64% { transform: scale(1); } }
+@keyframes flSheen { 0%, 40% { left: -60%; } 70%, 100% { left: 130%; } }
+@keyframes flBeacon { 0%, 100% { opacity: 1; box-shadow: 0 0 0 0 color-mix(in srgb, var(--gate) 70%, transparent), 0 0 8px 1px color-mix(in srgb, var(--gate) 60%, transparent); } 50% { opacity: .45; box-shadow: 0 0 0 6px transparent, 0 0 0 0 transparent; } }

@@ -353,5 +353,6 @@ test('motion (Loom 6.12.0): working cards bob on a moving belt, your turn waits 
   assert.match(html, /<section class="fl-line fl-paper"[^]*?<div class="fl-belt" aria-hidden/, 'the research line stands still with nothing working');
   assert.match(html, /data-lane-open="41207-fix-login-timeout"[^>]*>[^]*?<span class="fl-prog" aria-hidden="true"><\/span><\/button>/);
   assert.match(html, /data-lane-open="41610-rate-limit-headers"[^>]*>[^]*?<span class="fl-gatebar" aria-hidden="true"><\/span><\/button>/);
-  assert.match(html, /<div class="fl-plate you gated"><span class="fl-arm"/);
+  assert.match(html, /<div class="fl-plate you gated"><span class="fl-arm" aria-hidden="true"><\/span><span class="fl-beacon"/);
+  assert.match(html, /<section class="fl-line fl-code"[^]*?<span class="fl-need"><span class="fl-beacon" aria-hidden="true"><\/span>\d+ needs? you<\/span>/, 'the line says how many need you (6.13.0)');
 });
