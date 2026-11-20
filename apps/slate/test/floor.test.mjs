@@ -117,7 +117,7 @@ test('Floor is the default; List is the other view (no lanes since 6.7.0); a car
   html = lanesHtml();
   // Loom 6.12.0: on the floor the panel pops out of the card, stamped with where it is and how it moves.
   assert.match(html, /class="ln-body fl-body"><div class="fl-floor">/);
-  assert.match(html, /<div class="fl-pop k-build" role="dialog" aria-label="Details" data-pop-for="41610-rate-limit-headers"><span class="fl-tail" aria-hidden="true"><\/span><div class="fl-pin"><p class="fl-stamp m-gate"><span class="fl-sdot" aria-hidden="true"><\/span>Code line, Loading dock<span class="fl-sword">Waiting at the gate for you<\/span><\/p><aside class="ln-panel"/);
+  assert.match(html, /<div class="fl-pop k-build" role="dialog" aria-label="Details" data-pop-for="41610-rate-limit-headers"><div class="fl-pin"><p class="fl-stamp m-gate"><span class="fl-sdot" aria-hidden="true"><\/span>Code line, Loading dock<span class="fl-sword">Waiting at the gate for you<\/span><\/p><aside class="ln-panel"/);
   S.view.lanes = 'list';
   assert.equal(laneView(), 'list');
   html = lanesHtml();
@@ -259,7 +259,7 @@ test('List is rows grouped Needs you, Running and Also waiting, each with its st
 
 test('Onboard a product lists your products with repos that are not onboarding yet; a pick starts it', () => {
   let html = lanesHtml();
-  assert.match(html, /data-onboard-toggle="1" aria-expanded="false"[^>]*>Onboard a product</);
+  assert.match(html, /data-onboard-toggle="1" aria-expanded="false"><span>Onboard a product</);
   assert.equal(onboardPickHtml(), '', 'closed until opened');
   S.ui.onboardPick = true;
   S.products = [{ name: 'Sample Portal', repos: ['api'] }, { name: 'No repos', repos: [] }, { name: 'Old', repos: ['x'], archived: true }, { name: 'Billing', repos: ['b', 'c'] }];
@@ -290,7 +290,7 @@ test('regression tests on the floor (Loom 6.8.0): cards show failing, flaky or a
 
 test('Add regression tests lists your products with repos; a pick runs tests.cover with the optional area', () => {
   let html = lanesHtml();
-  assert.match(html, /data-cover-toggle="1" aria-expanded="false"[^>]*>Add regression tests</);
+  assert.match(html, /data-cover-toggle="1" aria-expanded="false"><span>Add regression tests</);
   assert.equal(coverPickHtml(), '', 'closed until opened');
   S.ui.coverPick = true;
   S.products = [{ name: 'Sample Portal', repos: ['api'] }, { name: 'No repos', repos: [] }, { name: 'Old', repos: ['x'], archived: true }];
@@ -352,6 +352,7 @@ test('motion (Loom 6.12.0): working cards bob on a moving belt, your turn waits 
   assert.match(html, /<section class="fl-line fl-code"[^]*?<div class="fl-belt moving"/, 'the code line runs while a build works');
   assert.match(html, /<section class="fl-line fl-paper"[^]*?<div class="fl-belt" aria-hidden/, 'the research line stands still with nothing working');
   assert.match(html, /data-lane-open="41207-fix-login-timeout"[^>]*>[^]*?<span class="fl-prog" aria-hidden="true"><\/span><\/button>/);
-  assert.match(html, /data-lane-open="41610-rate-limit-headers"[^>]*>[^]*?<span class="fl-gatebar" aria-hidden="true"><\/span><\/button>/);
-  assert.match(html, /<div class="fl-plate you gated"><span class="fl-arm"/);
+  assert.match(html, /class="fl-card k-build mine m-gate" data-lane-open="41610-rate-limit-headers"/);
+  assert.doesNotMatch(html, /fl-gatebar|fl-arm/, 'no striped gate bars (6.13.0)');
+  assert.match(html, /<div class="fl-plate you gated"><span class="fl-name">/);
 });

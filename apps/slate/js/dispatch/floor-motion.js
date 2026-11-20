@@ -46,7 +46,7 @@ export function playFloor(root, before) {
   });
 }
 
-/** Put the popup beside its card, inside the window, with its tail pointing at the card. */
+/** Put the popup beside its card, inside the window, grown from the card. */
 export function placePop(root, focusNew) {
   const pop = root && root.querySelector('.fl-pop');
   if (!pop) return;
@@ -77,7 +77,6 @@ export function placePop(root, focusNew) {
   if (visible) {
     const cx = r.left + r.width / 2 - left, cy = r.top + r.height / 2 - top;
     pop.style.transformOrigin = `${Math.round(cx)}px ${Math.round(cy)}px`;
-    pop.style.setProperty('--tail', Math.round(side === 'left' || side === 'right' ? clamp(cy, 22, H - 22) : clamp(cx, 22, W - 22)) + 'px');
   } else {
     pop.style.transformOrigin = 'center';
   }

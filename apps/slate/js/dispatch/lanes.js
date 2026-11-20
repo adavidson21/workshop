@@ -8,7 +8,7 @@
    The panel beside the lanes holds the run's own card (pages.js runCardHtml), so every button there is the one the
    Inbox and the board already use. No DOM: main.js paints what these return and handles the clicks. */
 import { S } from './state.js';
-import { h, plural, asking, itemSession, isBusy, autoIs, itemForFolder, adoOn } from './view.js';
+import { h, plural, asking, itemSession, isBusy, autoIs, itemForFolder, adoOn, openAttr } from './view.js';
 import { flowOf, stepIndex, isFinished, turnHtml, stepLine } from './flows.js';
 import { workItems, startingSessions, inboxData, inboxFolders, isShip, runCardHtml, asksFor, fileInline } from './pages.js';
 import { pickable, boardFeed } from '../loom.js';
@@ -16,6 +16,7 @@ import { projectFilterHtml, inProject, projectFilter, projectChip } from './proj
 import { reviewsHtml } from './pr-reviews.js';
 import { noticedHtml, noticedCount } from './noticed.js';
 import { floorHtml, epicPanelHtml, rowsHtml, onboardPickHtml, coverPickHtml } from './floor.js';
+import { liveHtml } from './live.js';
 import { teachHtml, teachCount, teachBlocking, publishOf, adoLinkOf, adoLinkHtml, adoNoticeHtml } from './factory.js';
 // Set by pages.js (it imports this module): the onboarding guide and an ask's source, for Loom 6.0.0's Lanes.
 // var, no initializer: pages.js may run this setter before this module's body (they import each other).
@@ -260,10 +261,11 @@ function panelHtml(key, data) {
   }
   return `<aside class="ln-panel" aria-label="${h(c.title)}"><div class="ln-ph"><div class="ln-pt"><span class="ln-kind k-${c.kind}">${h(KINDS[c.kind].name)}</span>` +
     `<h3>${c.id ? `<span class="num">#${h(c.id)}</span> ` : ''}${h(c.title)}</h3></div><button type="button" class="ibtn" data-lane-close="1" aria-label="Close panel" title="Close">${X}</button></div>` +
-    `<div class="ln-pills">${pills}</div>${c.it ? `<p class="iturn">${turnHtml(c.it)}</p>` : ''}${body}</aside>`;
+    `<div class="ln-pills">${pills}</div>${c.it ? `<p class="iturn">${turnHtml(c.it)}</p>` : ''}${liveHtml(c.sid, !!(c.it && isBusy(itemSession(c.it))))}${body}</aside>`;
 }
 export const LANE_FILTERS = [['all', 'All'], ['mine', 'Your turn'], ['build', 'Build'], ['diagnose', 'Diagnose'], ['ask', 'Ask'], ['teach', 'Teach'], ['noticed', 'Noticed']];
-/** The drop box: one text box, the guessed kind (shown once there is text), Start, and Other flows. */
+/** The start bar (Loom 6.13.0): one line with the text box, the guessed kind (once there is text), Start, and a +
+ *  menu for the less common starts (From ADO, Other flows, Onboard a product, Add regression tests). */
 export function dropHtml() {
   const text = S.ui.drafts['lanes:drop'] || '';
   const kind = S.ui.dropKind || guessKind(text);
@@ -272,15 +274,27 @@ export function dropHtml() {
   const pick = text.trim() ? `<select class="ln-kindpick" data-lane-kind="1" aria-label="Kind of work (guessed from what you pasted)" title="Guessed from what you pasted. Change it if it is wrong.">` +
     DROP_KINDS.map(k => `<option value="${k}"${k === kind ? ' selected' : ''}>${h(KINDS[k].name)}</option>`).join('') + '</select>' : '';
   const list = pickable();
-  const ado = list.length ? `<button type="button" class="lnk plain ln-adobtn" data-ado-toggle="1" aria-expanded="${!!S.ui.dropPick}">From ADO</button>` : '';
-  return `<section class="ln-drop" aria-label="Start something"><label for="ln-drop" class="ln-dl">Drop anything: a user story or ADO number, an error log, or a question</label>` +
-    `<textarea id="ln-drop" rows="1" data-draft="lanes:drop" placeholder="Paste a story, a stack trace or a question. Enter starts it; Shift+Enter for a new line.">${h(text)}</textarea>` +
-    `<div class="ln-drow">${ado}<button type="button" class="lnk plain" data-start-open="1" title="Plan an epic, write docs, handle a request">Other flows</button>` +
-    `<button type="button" class="lnk plain" data-onboard-toggle="1" aria-expanded="${!!S.ui.onboardPick}" title="Get a product ready for its first build">Onboard a product</button><button type="button" class="lnk plain" data-cover-toggle="1" aria-expanded="${!!S.ui.coverPick}" title="End-to-end tests for what a product already does, built hands-off">Add regression tests</button><span class="grow"></span>${pick}` +
-    `<button type="button" class="btn primary" data-lane-start="1"${ready ? '' : ' disabled title="Connect opencode to start work"'}${S.ui.dropBusy ? ' disabled' : ''}>${S.ui.dropBusy ? 'Starting…' : 'Start'}</button></div>` +
-    (S.ui.dropAdo && text.trim() ? `<label class="ln-keep"><input type="checkbox" data-drop-keep="1"${S.ui.dropKeep ? ' checked' : ''}> Keep it linked to ADO #${h(S.ui.dropAdo.id)} (otherwise it starts as a local item)</label>` : '') +
-    (S.ui.dropPick && list.length ? pickerHtml(list) : '') + onboardPickHtml() + coverPickHtml() + '</section>';
+  const item = (attr, label, hint) => `<button type="button" class="ln-mi" role="menuitem" ${attr}><span>${h(label)}</span><small>${h(hint)}</small></button>`;
+  const menu = `<details class="ln-more"${openAttr('ln:more', false)}><summary class="ibtn" aria-label="More ways to start" title="More ways to start">${PLUS}</summary>` +
+    `<div class="ln-menu" role="menu">` +
+    (list.length ? item(`data-ado-toggle="1" aria-expanded="${!!S.ui.dropPick}"`, 'From ADO', "Your team's backlog, not started yet") : '') +
+    item('data-start-open="1"', 'Other flows', 'Plan an epic, write docs, handle a request') +
+    item(`data-onboard-toggle="1" aria-expanded="${!!S.ui.onboardPick}"`, 'Onboard a product', 'Get a product ready for its first build') +
+    item(`data-cover-toggle="1" aria-expanded="${!!S.ui.coverPick}"`, 'Add regression tests', 'End-to-end tests for what a product already does') +
+    '</div></details>';
+  return `<section class="ln-drop" aria-label="Start something">` +
+    `<textarea id="ln-drop" rows="1" data-draft="lanes:drop" aria-label="Start something: a story or ADO number, an error log, or a question" placeholder="Paste a story, ADO #, error log or question…" title="Enter starts it; Shift+Enter for a new line">${h(text)}</textarea>` +
+    `${pick}<button type="button" class="btn primary" data-lane-start="1"${ready ? '' : ' disabled title="Connect opencode to start work"'}${S.ui.dropBusy ? ' disabled' : ''}>${S.ui.dropBusy ? 'Starting…' : 'Start'}</button>${menu}</section>`;
 }
+/** What opens under the start bar: the ADO link choice and any picker. Empty when nothing is open. */
+function dropMoreHtml() {
+  const text = S.ui.drafts['lanes:drop'] || '';
+  const list = pickable();
+  const out = (S.ui.dropAdo && text.trim() ? `<label class="ln-keep"><input type="checkbox" data-drop-keep="1"${S.ui.dropKeep ? ' checked' : ''}> Keep it linked to ADO #${h(S.ui.dropAdo.id)} (otherwise it starts as a local item)</label>` : '') +
+    (S.ui.dropPick && list.length ? pickerHtml(list) : '') + onboardPickHtml() + coverPickHtml();
+  return out ? `<div class="ln-drawer">${out}</div>` : '';
+}
+const PLUS = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>';
 /** The From ADO picker: your team's backlog items nobody has started, newest change first, with a search. */
 function pickerHtml(list) {
   const q = S.ui.drafts['lanes:adoq'] || '';
@@ -301,20 +315,22 @@ export function lanesHtml() {
   data.counts.teach = teachCount();
   const sel = noticed || teach ? '' : S.ui.laneSel || '';
   const panel = sel ? panelHtml(sel, data) : '';
-  const chips = `<div class="chips ln-chips" role="group" aria-label="Show">${LANE_FILTERS.map(([k, label]) =>
-    `<button type="button" class="chip${filter === k ? ' on' : ''}" data-lane-filter="${k}" aria-pressed="${filter === k}">${h(label)}<span class="n">${data.counts[k] || 0}</span></button>`).join('')}` +
+  // Loom 6.13.0: a filter with nothing in it hides (All and Your turn always show); Your turn stands out when it has cards.
+  const shown = LANE_FILTERS.filter(([k]) => k === 'all' || k === 'mine' || k === filter || data.counts[k]);
+  const chips = `<div class="chips ln-chips" role="group" aria-label="Show">${shown.map(([k, label]) =>
+    `<button type="button" class="chip${filter === k ? ' on' : ''}${k === 'mine' && data.counts[k] ? ' hot' : ''}" data-lane-filter="${k}" aria-pressed="${filter === k}">${h(label)}<span class="n">${data.counts[k] || 0}</span></button>`).join('')}` +
     '</div>';
   // The afternoon digest and first-run onboarding sit on top (they were on the Inbox until Loom 6.0.0).
   const top = (S.digestHtml ? S.digestHtml(h) : '') + (onboardTop ? onboardTop() : '') + adoNoticeHtml();
-  if (noticed) return `<div class="ln-page">${top}${dropHtml()}${chips}${noticedHtml()}</div>`;
-  if (teach) return `<div class="ln-page">${top}${dropHtml()}${chips}${teachHtml()}</div>`;
+  if (noticed) return `<div class="ln-page">${top}<div class="ln-bar">${dropHtml()}${chips}</div>${dropMoreHtml()}${noticedHtml()}</div>`;
+  if (teach) return `<div class="ln-page">${top}<div class="ln-bar">${dropHtml()}${chips}</div>${dropMoreHtml()}${teachHtml()}</div>`;
   // Loom 6.4.0: Floor (default) draws the same cards as stations on a line (floor.js). Loom 6.7.0: List is rows with a
   // station track (floor.js rowsHtml); the four lanes are gone (one way to see the work).
   const view = laneView();
   const views = `<div class="seg ln-views" role="group" aria-label="View">${[['floor', 'Floor'], ['list', 'List']].map(([k, label]) =>
     `<button type="button" class="seg-b${k === view ? ' on' : ''}" data-lane-view="${k}" aria-pressed="${k === view}">${label}</button>`).join('')}</div>`;
   const body = view === 'list' ? rowsHtml(data, sel, panel) : floorHtml(data, sel, panel);
-  return `<div class="ln-page">${top}${dropHtml()}<div class="ln-bar">${chips}${views}</div>${projectFilterHtml(workItems())}${body}</div>`;
+  return `<div class="ln-page">${top}<div class="ln-bar">${dropHtml()}${chips}${views}</div>${dropMoreHtml()}${projectFilterHtml(workItems())}${body}</div>`;
 }
 /** Floor or List, kept in this browser with the project filter. Floor is the default. ('rows' was List in 6.6.) */
 export const laneView = () => (S.view && ['list', 'rows'].includes(S.view.lanes) ? 'list' : 'floor');

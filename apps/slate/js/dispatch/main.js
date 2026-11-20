@@ -9,7 +9,7 @@
 import { getWs, setBadge, setCards, setTab as loomTab, splitRoute, routeBoard, onTabRequest, setRunRenderer, runsPainted, onOpenRunPage, onPanelRun, boardCommand, onNudges, onPickable, pickable, onBoardFeed, onBoardDrawer, setBoardDrawer } from '../loom.js';
 import { mountBar } from '../../../../shared/standalone-bar.js';
 import { S } from './state.js';
-import { render, prompts, itemForFolder, itemKey, isBusy, dayKey, fileDirty, fileDraft, fileDraftKey, fileLock, guideDefaults, GUIDE_STEPS, cfgBuild, startRequest, repoUrlCheck, repoCategoryCheck, NEW_CATEGORY } from './view.js';
+import { render, prompts, itemSession, itemForFolder, itemKey, isBusy, dayKey, fileDirty, fileDraft, fileDraftKey, fileLock, guideDefaults, GUIDE_STEPS, cfgBuild, startRequest, repoUrlCheck, repoCategoryCheck, NEW_CATEGORY } from './view.js';
 import { INBOX, projectById, projectArgs, startProject } from './projects.js';
 import { TAB_IDS, OLD_TABS, inboxCount, sessionAsksHtml, wantedFiles, walkList, runCardHtml } from './pages.js';
 import { dropStart, guessKind, KINDS, kindOfAdoType, adoIdOf } from './lanes.js';
@@ -25,6 +25,7 @@ import { confirmOutside } from '../../../../shared/outside.js';
 import { useApps } from '../../../../shared/capture.js';
 import { loadView, saveView, pruneView } from './local.js';
 import { captureFloor, playFloor, placePop } from './floor-motion.js';
+import { pickLive } from './live.js';
 import { notebookRoute } from './doc.js';
 import { digestCard, digestHtml } from './digest.js';
 import { createHolder, heldFor, lastEndedFocusSpan, watchFocus, dateStr, toMin } from '../../../../shared/focus.js';
@@ -519,6 +520,7 @@ function paint() {
   // The floor (Loom 6.12.0): cards slide to their new station, loops stay in phase, the open card's popup sits by it.
   playFloor(app, flip);
   placePop(app, true);
+  pollLive();
   loadFiles();
   if (keyWanted) tryKey();
   if (focusWanted && (Date.now() > focusWanted.until || focusItem(focusWanted.id))) focusWanted = null;
@@ -987,6 +989,8 @@ listen('change', ev => {
   if (n >= 1024 && n <= 65535) { S.setup.port = n; S.setup.check = null; saveGuide(); schedule(); }
 });
 listen('click', ev => {
+  // The start bar's + menu closes on a pick or a click anywhere else (Loom 6.13.0).
+  if (ui().open['ln:more'] && (!ev.target.closest('.ln-more') || ev.target.closest('.ln-mi'))) { ui().open['ln:more'] = false; const m = app.querySelector('.ln-more'); if (m) m.open = false; }
   const dd = ev.target.closest('[data-digest-dismiss]');
   if (dd) { try { localStorage.setItem(DIGEST_KEY, dateStr(new Date())); } catch (e) { /* this page only */ } schedule(); return; }
   const dg = ev.target.closest('[data-digest-app]');
@@ -1514,6 +1518,31 @@ ws.on('command', ({ id }) => {
 
 /* ---------- start ---------- */
 document.addEventListener('visibilitychange', () => { if (!document.hidden) fetchSoon(); });
+// Loom 6.13.0: the open card's popup shows what opencode is doing right now (live.js). Every 2.5 s while that
+// session works; once when it is idle (what it did last).
+var liveBusy = false; // eslint-disable-line no-var -- paint() may call pollLive before this line runs
+function openLiveSession() {
+  const k = ui().laneSel || '';
+  if (!k || S.ui.tab !== 'lanes' || !app.querySelector('.fl-pop, .ln-panel')) return null;
+  if (k.startsWith('session:')) return { sid: k.slice(8), busy: true };
+  const it = itemForFolder(k);
+  const ses = it ? itemSession(it) : null;
+  return ses && ses.id ? { sid: ses.id, busy: isBusy(ses) } : null;
+}
+async function pollLive(force) {
+  const o = openLiveSession();
+  if (!o || liveBusy || document.hidden || !(S.connector && S.connector.state === 'ready')) return;
+  S.liveFeed = S.liveFeed || {};
+  const f = S.liveFeed[o.sid];
+  if (f && !force && (Date.now() - f.at < 2400 || (!o.busy && !f.busy))) return;
+  liveBusy = true;
+  try {
+    const r = await read('chat.messages', { session: o.sid });
+    const next = pickLive(r);
+    if (next) { S.liveFeed[o.sid] = next; schedule(); }
+  } catch { S.liveFeed[o.sid] = { busy: false, activity: '', think: '', tools: [], text: '', at: Date.now() }; } finally { liveBusy = false; }
+}
+setInterval(() => { pollLive(); }, 2500);
 setInterval(() => { if (!document.hidden) schedule(); }, 30000); // keep "x min ago" fresh
 schedule();
 await loadStatus();
