@@ -52,10 +52,10 @@ test('the agent itself makes no outbound requests', () => {
   const banned = [/\bfetch\s*\(/, /node:https/, /\bhttp\.(request|get)\s*\(/, /node:net/, /node:tls/, /node:dns/, /node:dgram/, /node:child_process/, /\bWebSocket\b/, /\bEventSource\b/];
   for (const f of runtime) {
     const text = fs.readFileSync(f, 'utf8').split('\n').filter(l => !l.trim().startsWith('//')).join('\n');
-    // Three exceptions (docs/security.md): lib/userenv.mjs reads saved user variables with "reg query",
-    // lib/terminal.mjs opens a visible terminal for Settings' Update button, and lib/secrets.mjs reads a secret
-    // from this computer's store (all checked below).
-    const mayRun = ['agent/lib/userenv.mjs', 'agent/lib/terminal.mjs', 'agent/lib/secrets.mjs'];
+    // Four exceptions (docs/security.md): lib/userenv.mjs reads saved user variables with "reg query",
+    // lib/terminal.mjs opens a visible terminal for Settings' Update button, lib/secrets.mjs reads a secret
+    // from this computer's store, and lib/secret-write.mjs saves or removes one for Settings (all checked below).
+    const mayRun = ['agent/lib/userenv.mjs', 'agent/lib/terminal.mjs', 'agent/lib/secrets.mjs', 'agent/lib/secret-write.mjs'];
     for (const re of banned) if (!(re.source === 'node:child_process' && mayRun.includes(rel(f)))) assert.ok(!re.test(text), `${rel(f)} matches ${re}`);
   }
 });
@@ -96,6 +96,27 @@ test('lib/secrets.mjs only reads a secret, with one fixed program per platform a
   assert.deepEqual(readCommand('x', 'darwin').args.slice(0, 1), ['find-generic-password']);
   assert.deepEqual(readCommand('x', 'linux').args.slice(0, 1), ['lookup']);
   assert.match(readCommand('x', 'win32').args.at(-1), /CredRead\(/);
+});
+
+test('lib/secret-write.mjs runs only the store\'s own save and remove programs, the value on stdin, never a shell', async () => {
+  const text = fs.readFileSync(path.join(AGENT, 'lib', 'secret-write.mjs'), 'utf8');
+  const code = text.split('\n').filter(l => !/^\s*(\/\/|\*|\/\*)/.test(l)).join('\n');
+  assert.equal((code.match(/\bspawn\(/g) || []).length, 1, 'one launch');
+  assert.doesNotMatch(code, /spawnSync|execSync|\{ exec\b|execFile|shell:\s*true|EncodedCommand|find-generic-password|CredRead|'lookup'/);
+  // It never hands output back: stdout and stderr are ignored.
+  assert.match(code, /stdio: \['pipe', 'ignore', 'ignore'\]/);
+  const { saveCommand, removeCommand } = await import('../lib/secret-write.mjs');
+  const v = 'ghp_abcdefghijklmnopqrstuvwxyz0123456789';
+  for (const p of ['darwin', 'win32', 'linux']) {
+    const c = saveCommand('x', v, p);
+    assert.ok(['security', 'powershell.exe', 'secret-tool'].includes(c.cmd));
+    assert.ok(!c.args.join(' ').includes(v), `${p}: the value is not an argument`);
+    assert.ok(['security', 'powershell.exe', 'secret-tool'].includes(removeCommand('x', p).cmd));
+  }
+  // Settings reaches it only through lib/credentials.mjs, whose routes are local only.
+  const creds = fs.readFileSync(path.join(AGENT, 'lib', 'credentials.mjs'), 'utf8');
+  assert.match(creds, /local\('Save tokens'\)/);
+  assert.match(creds, /local\('Remove tokens'\)/);
 });
 
 test('the agent binds 127.0.0.1 only', () => {

@@ -125,7 +125,7 @@ export class Ado {
       const scopeName = need || (url.includes('/git/') ? 'Code (Read)' : url.includes('/teams') ? 'Project and Team (Read)' : 'Work Items (Read)');
       try { this.o.onAuth?.rejected?.(this.o.patEnv, res.status); } catch { /* status only */ }
       // A 403 is a missing scope (the message matches ado_helper.py); a 401 means the PAT itself is bad.
-      const fix = this.o.patEnv && res.status === 401 ? ` If you made a new one, ${patHint(this.o.patEnv).replace(/^Save/, 'save').replace(/^Set/, 'set')}.` : '';
+      const fix = this.o.patEnv && res.status === 401 ? ` If you made a new one, ${patHint(this.o.patEnv).replace(/^Save/, 'save').replace(/^Set/, 'set').replace(/^Add/, 'add').replace(/\.$/, '')}.` : '';
       throw new AdoError(`ADO rejected the PAT (HTTP ${res.status}) for ${this.base}. It may be expired or missing the ${scopeName} scope.${fix}`, res.status);
     }
     if (res.status === 404) {

@@ -1,4 +1,5 @@
-// MCP sign-in (connector 1.1.0): discovery, registration, PKCE, tokens at rest, refresh, and `workshop mcp login`,
+// MCP sign-in (connector 1.1.0, Settings since 1.2.0): discovery, registration, PKCE, tokens at rest, refresh,
+// `workshop mcp login` and signin.begin / signin.finish,
 // against a fake MCP server with an OAuth server (a fetch function). Nothing reaches the network. Synthetic data only.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -119,7 +120,7 @@ test('the connector sends the access token, refreshes it when it runs out or is 
   const key = newKey();
   // Not signed in yet: says how.
   const empty = oauthCtx(s, { key });
-  await assert.rejects(connector.actions['tools.list'].run({ server: 'linear' }, empty.ctx), /Not signed in to Linear\. In a terminal run: workshop mcp login linear/);
+  await assert.rejects(connector.actions['tools.list'].run({ server: 'linear' }, empty.ctx), /Not signed in to Linear\. Sign in again in Settings, Tokens & sign-ins\./);
   // Signed in: tools list with the access token.
   const c = oauthCtx(s, { key, box: seal(key, rec) });
   assert.deepEqual((await connector.actions['tools.list'].run({ server: 'linear' }, c.ctx)).map(t => t.name), ['list_issues']);
@@ -135,7 +136,7 @@ test('the connector sends the access token, refreshes it when it runs out or is 
   assert.equal(unseal(key, c.store.get('oauth-linear')).access_token, 'at-3');
   // A refresh the server refuses: sign in again.
   s.access.clear(); s.refreshes.clear();
-  await assert.rejects(connector.actions['tools.read'].run({ server: 'linear', tool: 'list_issues', arguments: {} }, c.ctx), /workshop mcp login linear/);
+  await assert.rejects(connector.actions['tools.read'].run({ server: 'linear', tool: 'list_issues', arguments: {} }, c.ctx), /Sign in again in Settings, Tokens & sign-ins/);
 });
 
 test('workshop mcp login: browser sign-in, the key in the secret store, the tokens sealed in the connector storage; logout forgets both', async () => {
@@ -171,4 +172,37 @@ test('workshop mcp login: browser sign-in, the key in the secret store, the toke
     assert.equal(fs.existsSync(file), false);
     assert.equal(stored['linear-signin'], undefined);
   } finally { fs.rmSync(home, { recursive: true, force: true }); }
+});
+
+test('sign-in from Settings (1.2.0): signin.begin gives the page to open; signin.finish seals the tokens with the key Workshop saved', async () => {
+  const s = fakeOAuth();
+  setFetch(s.fetch);
+  const key = newKey();
+  const c = oauthCtx(s, { key });
+  const redirect = 'http://127.0.0.1:43111/oauth/callback';
+  // Only to Workshop's own callback on this computer (the host checks args against this before run).
+  const re = new RegExp(connector.actions['signin.begin'].argsSchema.properties.redirect.pattern);
+  assert.ok(re.test(redirect));
+  assert.ok(!re.test('https://evil.example/oauth/callback'));
+  assert.ok(!re.test('http://127.0.0.1.evil.example:80/oauth/callback'));
+  const b = await connector.actions['signin.begin'].run({ server: 'linear', redirect }, c.ctx);
+  assert.match(b.url, /^https:\/\/auth\.example\.test\/authorize\?/);
+  assert.equal(new URL(b.url).searchParams.get('redirect_uri'), redirect);
+  assert.equal(b.host, 'auth.example.test');
+  const back = s.approve(b.url);
+  assert.equal(back.state, b.state);
+  // A state it did not start is refused.
+  await assert.rejects(connector.actions['signin.finish'].run({ state: 'not-ours', code: back.code, key }, c.ctx), /not started here/);
+  const r = await connector.actions['signin.finish'].run({ state: b.state, code: back.code, key }, c.ctx);
+  assert.deepEqual(r, { server: 'linear' });
+  const box = c.store.get('oauth-linear');
+  assert.ok(!JSON.stringify(box).includes('at-1'), 'sealed, not in the clear');
+  assert.equal(unseal(key, box).access_token, 'at-1');
+  // Each state works once.
+  await assert.rejects(connector.actions['signin.finish'].run({ state: b.state, code: back.code, key }, c.ctx), /not started here/);
+  // Signed in: tools list.
+  assert.deepEqual((await connector.actions['tools.list'].run({ server: 'linear' }, c.ctx)).map(t => t.name), ['list_issues']);
+  // Not for agents.
+  assert.equal(connector.actions['signin.begin'].agent, undefined);
+  assert.equal(connector.actions['signin.finish'].agent, undefined);
 });

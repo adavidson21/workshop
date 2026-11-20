@@ -9,6 +9,7 @@ import { checkConnectorModule } from './connector-check.mjs';
 import { writeJsonAtomic, KeyedLock } from './fsutil.mjs';
 import { HttpError, STATUS_FOR, fail } from './http.mjs';
 import { SECRET_NAME, readIndex, secretStatus } from './secrets.mjs';
+import { envSecretName } from './stored-env.mjs';
 import { digestOf } from './approvals.mjs';
 
 const STOP_MS = 5000;
@@ -280,9 +281,14 @@ export class ConnectorHost {
     const entry = this.#loaded(id);
     const cfg = this.#storedConfig(entry);
     const env = {};
-    for (const n of envNames(entry.mod.configSchema, cfg)) env[n] = { set: typeof this.#env[n] === 'string' && this.#env[n] !== '' };
-    // Secrets: whether `workshop secret set` recorded one by that name, and its expiry. Never read for this.
+    // Secrets: whether one is saved by that name (Settings or `workshop secret set`), and its expiry. Never read for this.
     const index = readIndex(this.#home);
+    // A variable's token may be saved from Settings (lib/stored-env.mjs): `stored` says so, with its expiry.
+    for (const n of envNames(entry.mod.configSchema, cfg)) {
+      const sn = envSecretName(n);
+      const stored = !!(sn && index[sn]);
+      env[n] = { set: typeof this.#env[n] === 'string' && this.#env[n] !== '', ...(stored ? { stored: true, secret: sn, ...secretStatus(index, sn), set: true } : {}) };
+    }
     const secrets = {};
     for (const n of secretNames(entry.mod.configSchema, cfg)) secrets[n] = secretStatus(index, n);
     return { id: entry.id, schema: entry.mod.configSchema, config: cfg, env, secrets };

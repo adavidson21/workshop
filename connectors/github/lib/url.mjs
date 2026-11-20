@@ -21,7 +21,7 @@ export function configFromUrl(url, current = {}) {
     for (let i = 2; taken.has(name); i++) name = `${name.replace(/-\d+$/, '')}-${i}`;
     conn = { name, apiUrl, tokenEnv: 'GITHUB_PAT' };
     config.connections.push(conn);
-    notes.push(`Added the connection "${name}" for ${dotcom ? 'github.com' : host}. Save a token with: workshop pat GITHUB_PAT`);
+    notes.push(`Added the connection "${name}" for ${dotcom ? 'github.com' : host}. Add its token in Settings, Tokens & sign-ins.`);
   } else notes.push(`The connection "${conn.name}" already points at ${dotcom ? 'github.com' : host}.`);
   if (!config.defaultConnection) config.defaultConnection = conn.name;
   if (repo && REPO_RE.test(repo)) {

@@ -79,12 +79,12 @@ const connector = {
   api: 1,
   id: 'play',
   name: 'Google Play',
-  version: '1.0.0',
+  version: '1.1.0',
   configSchema: {
     type: 'object',
     additionalProperties: false,
     properties: {
-      keySecret: { type: 'string', title: 'Service account key (secret name)', 'x-workshop-secret': true, 'x-workshop-secret-kind': 'key-file', default: 'play', description: 'Save the JSON key Google Cloud gave you with: workshop secret set play --from-file <key.json>. Then delete the file. See the connector README for the Play Console permissions to give it.' },
+      keySecret: { type: 'string', title: 'Service account key', 'x-workshop-secret': true, 'x-workshop-secret-kind': 'key-file', default: 'play', description: 'Click Add key file and choose the JSON key Google Cloud gave you, then delete the file. See the connector README for the Play Console permissions to give it.' },
       apps: {
         type: 'array', title: 'Apps',
         description: 'Your apps on Google Play. Tandem can only touch these, and uploads only the bundle in each app\'s project folder.',
@@ -97,7 +97,7 @@ const connector = {
             kind: { type: 'string', title: 'Kind of project', enum: ['bubblewrap', 'gradle'], 'x-workshop-labels': ['Bubblewrap (a PWA)', 'Gradle (Android Studio, Capacitor, Flutter...)'], default: 'bubblewrap' },
             bundle: { type: 'string', title: 'Bundle file', description: `Inside the project folder. Leave empty for ${DEFAULT_BUNDLE.bubblewrap} (Bubblewrap) or ${DEFAULT_BUNDLE.gradle} (Gradle).` },
             site: { type: 'string', format: 'uri', title: 'Site (PWAs)', description: 'The PWA\'s address, like https://wishlist.example.org, to check its assetlinks.json.' },
-            signingSecret: { type: 'string', title: 'Signing password (secret name)', 'x-workshop-secret': true, 'x-workshop-secret-kind': 'password', description: 'Only "workshop play build" reads it, to sign the bundle. Save it with: workshop secret set <name> --password' },
+            signingSecret: { type: 'string', title: 'Signing password (secret name)', 'x-workshop-secret': true, 'x-workshop-secret-kind': 'password', description: 'Only "workshop play build" reads it, to sign the bundle. Click Add password to save it.' },
             keyPasswordSecret: { type: 'string', title: 'Key password (secret name), if different', 'x-workshop-secret': true, 'x-workshop-secret-kind': 'password' }
           }
         }

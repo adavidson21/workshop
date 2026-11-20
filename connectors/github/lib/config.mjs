@@ -33,6 +33,8 @@ export function normalize(raw = {}) {
     if (connections.some(x => x.name === name)) { problems.push(`Two GitHub connections are named "${name}".`); continue; }
     const a = addresses(c.apiUrl, c.webUrl);
     if (!a) { problems.push(`Connection "${name}" has an API URL that is not a web address.`); continue; }
+    const ts = String(c.tokenSecret || '').trim();
+    if (ts && !/^[a-z][a-z0-9-]{0,39}$/.test(ts)) problems.push(`Connection "${name}": Token holds something that is not a saved token's name. Click Add token in Settings and paste the token there.`);
     connections.push({
       name, apiUrl: a.api, webUrl: a.web, graphqlUrl: a.graphql,
       // A secret in this computer's store (tokenSecret) wins over the variable. Internally both are a "token name";

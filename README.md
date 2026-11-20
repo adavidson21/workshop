@@ -83,7 +83,7 @@ The first time, the **Needs you** panel opens with a **Get started** checklist (
 1. **Connect Workshop:** pick Work computer or Personal computer.
 2. **Add yourself** in Settings, People.
 3. **Back up your data:** company OneDrive at work, or any folder your computer backs up.
-4. **Connect Azure DevOps** (optional): create a personal access token with **Work Items (Read & write)** and **Code (Read)**, then run `workshop pat` to save it safely.
+4. **Connect Azure DevOps** (optional): create a personal access token with **Work Items (Read & write)** and **Code (Read)**, then click **Add token** on its connection in Settings (or run `workshop pat`). It goes into this computer's secret store.
 5. **Pick your apps:** turn off what you won't use.
 6. **Add your team** and its area paths (skipped without Azure DevOps).
 7. **Add your first task** in Docket and **log your first receipt** in Rapport.
@@ -114,7 +114,7 @@ Run these in a terminal. Start with `workshop doctor` whenever something seems o
 | `workshop stop` | Stop Workshop |
 | `workshop export --readable` | Copy your data as spreadsheets and documents into the `Readable copy` folder of your data folder |
 | `workshop doctor` | Check everything and say what to fix (`--sizes` also lists the largest files in your data folder) |
-| `workshop pat` | Save or renew your Azure DevOps token |
+| `workshop pat` | Save or renew your Azure DevOps token from a terminal (Settings, Tokens & sign-ins does the same) |
 | `workshop apps` | Turn apps on or off (also in Settings, Apps) |
 | `workshop data-folder` | Show where your data is (`--onedrive` moves it there) |
 | `workshop update` | Work mode: update everything to the newest release |

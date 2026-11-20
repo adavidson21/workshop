@@ -101,7 +101,7 @@ test('saveSecret records the name only after reading the value back; secrets.jso
     assert.equal((await saveSecret(home, 'x1', TOKEN, { platform: 'linux', exec: () => ({ status: 1 }), read })).ok, false);
     assert.match((await saveSecret(home, 'x1', TOKEN, { platform: 'linux', exec: () => ({ error: new Error('ENOENT') }), read })).message, /libsecret-tools/);
 
-    assert.equal(removeSecret(home, 'cloudflare', { platform: 'linux', exec: () => ({ status: 0 }) }).ok, true);
+    assert.equal((await removeSecret(home, 'cloudflare', { platform: 'linux', exec: () => ({ status: 0 }) })).ok, true);
     assert.equal(readIndex(home).cloudflare, undefined);
   } finally { fs.rmSync(home, { recursive: true, force: true }); }
 });

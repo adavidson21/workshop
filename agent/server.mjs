@@ -35,6 +35,8 @@ import { appSwitches, readOff, writeOff, pinApps, readBuild } from './lib/apps.m
 import { applyStartAtLogin, startAtLoginStatus } from './lib/login.mjs';
 import { liveEnv } from './lib/userenv.mjs';
 import { secretReader } from './lib/secrets.mjs';
+import { storedEnv } from './lib/stored-env.mjs';
+import { credentials } from './lib/credentials.mjs';
 import { Approvals } from './lib/approvals.mjs';
 import { Activity } from './lib/activity.mjs';
 import { Routines } from './lib/routines.mjs';
@@ -186,9 +188,17 @@ export async function createAgent(o) {
     rules: () => (config.approvals && Array.isArray(config.approvals.rules) ? config.approvals.rules : []),
     saveRules: fn => commitConfig(() => { config.approvals = { ...(config.approvals || {}), rules: fn(config.approvals && Array.isArray(config.approvals.rules) ? config.approvals.rules : []) }; })
   });
+  // Tokens saved from Settings (lib/credentials.mjs): secrets by name, and variables' tokens (lib/stored-env.mjs).
+  const secretsRead = o.secrets || secretReader();
+  const savedEnv = storedEnv(o.env || liveEnv(process.env), { home, read: secretsRead, onValue: v => log.addSecret(v), everyMs: o.env ? 0 : 60000 });
   const connectors = new ConnectorHost({
-    dir: connectorsDir, schemas, env: o.env || liveEnv(process.env), home, storageDir: path.join(paths.data, '_connectors'), dataDir, log, events, config: () => config,
-    secrets: o.secrets || secretReader(), workMode, approvals, activity
+    dir: connectorsDir, schemas, env: savedEnv.env, home, storageDir: path.join(paths.data, '_connectors'), dataDir, log, events, config: () => config,
+    secrets: secretsRead, workMode, approvals, activity
+  });
+  const creds = credentials({
+    home, connectors, secretsRead, savedEnv, log, events, config, commitConfig, platform: o.platform,
+    dataDirConnectors: path.join(paths.data, '_connectors'), ownOrigin: () => `http://127.0.0.1:${port}`,
+    ...(o.secretWriter ? { save: o.secretWriter.save, remove: o.secretWriter.remove } : {})
   });
 
   const routines = new Routines({ config: () => config, connectors, dataDir, log: log.for('routines'), events, now: o.now });
@@ -303,6 +313,9 @@ export async function createAgent(o) {
       const headerOk = same(req.headers['x-workshop-token'], token);
       const cookieOk = same(parseCookies(req).workshop_token, token);
 
+      // An MCP server's sign-in page sends the browser back here (lib/credentials.mjs). Only a sign-in Settings
+      // started, by its one-time state, is accepted.
+      if (p === '/oauth/callback' && req.method === 'GET') { await creds.callback(res, url); return; }
       if (!isApi) { await handlePage(req, res, url, cookieOk); return; }
 
       // Tools for agents (docs/agent-api.md): programs on this computer, never pages, with the agent token only.
@@ -471,6 +484,9 @@ document.getElementById('allow').addEventListener('click', function () {
 
     if (parts[0] === 'apps' && parts.length === 1) { only('GET'); ok(listApps()); return; }
 
+    // Tokens & sign-ins (lib/credentials.mjs): save, remove and list secrets, and MCP sign-in, from Settings.
+    if (parts[0] === 'secrets' || parts[0] === 'signin' || parts[0] === 'signout') { if (await creds.api(req, parts, { own, ok })) return; }
+
     // What is stored where (docs/agent-api.md, Storage): sizes and paths, never contents. The data folder's path is
     // already in GET /api/config, so hosted pages may read this too.
     if (parts[0] === 'storage' && parts.length === 1) {
@@ -600,6 +616,8 @@ document.getElementById('allow').addEventListener('click', function () {
         const body = await readJsonBody(req, MB);
         const errs = schemas.validate('connector-config-put', body);
         if (errs.length) fail('bad_request', `Send {"config": {...}}: ${errs[0]}`);
+        // A token pasted where its name goes is moved into the secret store, and the name saved instead.
+        if (own) body.config = (await creds.moveOut(id, connectors.configView(id).schema, body.config)).value;
         connectors.checkConfig(id, body.config);
         // A hosted page may change only fields the connector marks x-workshop-hosted.
         if (!own) {
@@ -865,6 +883,15 @@ document.getElementById('allow').addEventListener('click', function () {
   server.headersTimeout = 30000;
   server.requestTimeout = 120000;
   await connectors.load();
+  await savedEnv.refresh().catch(e => log.warn(`Could not read saved tokens (${e.message}).`));
+  // Tokens pasted into a name field before Settings could save them (config.json must never hold one).
+  for (const id of Object.keys(config.connectors || {})) {
+    try {
+      const view = connectors.configView(id);
+      const r = await creds.moveOut(id, view.schema, config.connectors[id].config);
+      if (r.moved.length) await commitConfig(() => { config.connectors[id].config = r.value; });
+    } catch (e) { log.warn(`Could not check ${id}'s settings for pasted tokens (${e.message}).`); }
+  }
   const listenPort = o.port ?? config.port;
   try {
     await new Promise((resolve, reject) => { server.once('error', reject); server.listen(listenPort, '127.0.0.1', resolve); });
@@ -914,6 +941,7 @@ document.getElementById('allow').addEventListener('click', function () {
       stopping ??= (async () => {
         routines.stop();
         prWatch.stop();
+        savedEnv.stop();
         clearInterval(scratchTimer);
         clearInterval(copyTimer);
         watch.stop();

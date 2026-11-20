@@ -30,7 +30,7 @@ export async function clientFor(ctx, { fetchImpl } = {}) {
   const name = ctx.config.tokenSecret;
   let token;
   try { token = await ctx.secret(name); } catch { throw new SettingsError('The API token setting names a secret Workshop cannot read. Check it in Settings.'); }
-  if (!token) throw new CfError(`No Cloudflare token saved as "${name}". In a terminal run: workshop secret set ${name} --expires YYYY-MM-DD`);
+  if (!token) throw new CfError(`No Cloudflare token saved as "${name}". Add it in Settings, Tokens & sign-ins.`);
   return new Cloudflare({ api: ctx.config.apiUrl || DEFAULT_API, token, account: ctx.config.accountId, secretName: name, signal: ctx.signal, fetchImpl });
 }
 
@@ -63,7 +63,7 @@ export class Cloudflare {
     try { j = text ? JSON.parse(text) : null; } catch { /* not JSON */ }
     if (res.status >= 200 && res.status < 300 && (!j || j.success !== false)) return { result: j ? j.result : null, info: j ? j.result_info || null : null };
     const detail = j && Array.isArray(j.errors) && j.errors.length ? j.errors.map(e => (e && e.message) || '').filter(Boolean).join('; ') : '';
-    if (res.status === 401) throw new CfError(`Cloudflare rejected the token saved as "${this.secretName}" (HTTP 401). It may have expired or been revoked. Make a new one, then run: workshop secret set ${this.secretName}`, 401);
+    if (res.status === 401) throw new CfError(`Cloudflare rejected the token saved as "${this.secretName}" (HTTP 401). It may have expired or been revoked. Make a new one and replace it in Settings, Tokens & sign-ins.`, 401);
     if (res.status === 403) throw new CfError(`Cloudflare refused this (HTTP 403): the token is missing a permission for it. ${detail}`.trim(), 403);
     if (res.status === 429) throw new CfError('Cloudflare\'s rate limit was reached. Try again in a few minutes.', 429);
     if (res.status === 404) throw new CfError(`Not found on Cloudflare (HTTP 404). ${detail}`.trim(), 404);

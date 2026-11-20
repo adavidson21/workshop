@@ -548,3 +548,16 @@ label.check input{accent-color:var(--accent);width:1rem;height:1rem;margin:0}
 .rt-form input,.rt-form textarea,.rt-form select{font:inherit}
 .rt-when{display:flex;flex-wrap:wrap;gap:.6rem;align-items:end}
 .rt-when .rt-on{display:flex;gap:.35rem;align-items:center}
+
+/* Tokens & sign-ins (secrets-page.js) and the Add token dialog (secret-dialog.js) */
+.cfg-secret-btn{flex:none;padding:.25rem .7rem;font-size:.82rem}
+.sd-acts{display:flex;gap:.4rem;flex:none;align-items:center}
+.sd-state[data-tone=ok]{color:var(--accent)}
+.sd-state[data-tone=warn]{color:var(--warn)}
+.sd-state[data-tone=bad]{color:var(--danger)}
+dialog.sd{border:1px solid var(--line);border-radius:12px;padding:1.2rem 1.4rem;max-width:30rem;width:calc(100% - 2rem);background:var(--card,var(--bg));color:var(--ink)}
+dialog.sd::backdrop{background:rgba(0,0,0,.35)}
+.sd-form h2{margin:0 0 .3rem;font-size:1.05rem}
+.sd-row{display:flex;align-items:center;gap:.7rem;margin:.6rem 0}
+.sd-row>span{flex:0 0 4.5rem;font-size:.85rem;color:var(--muted)}
+.sd-row>input{flex:1;min-width:0}

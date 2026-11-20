@@ -4,10 +4,14 @@
 // other tool call is a change that waits in Approvals (or runs when an always-allow rule covers that tool).
 // Node standard library only. It calls only the server URLs in its settings.
 import { McpClient, McpError } from './lib/client.mjs';
-import { needsRefresh, refresh, seal, storageKey, unseal } from './lib/oauth.mjs';
+import crypto from 'node:crypto';
+import { authorizeUrl, discover, exchange, needsRefresh, pkce, refresh, register, seal, storageKey, unseal } from './lib/oauth.mjs';
 
 // 1.1.0: Sign in (OAuth) for servers that take no token (lib/oauth.mjs, README.md, Sign in).
-const VERSION = '1.1.0';
+// 1.2.0: Sign in from Settings, Tokens & sign-ins (signin.begin and signin.finish); no terminal needed.
+const VERSION = '1.2.0';
+const SIGNIN_MS = 10 * 60 * 1000;
+const signins = new Map(); // state -> {id, meta, client, verifier, redirect, at}: sign-ins Settings started
 const TOOL = /^[A-Za-z0-9_.\-/]{1,128}$/;
 const CACHE_MS = 5 * 60 * 1000;
 let running = null;
@@ -33,8 +37,8 @@ const refreshing = new Map(); // server id -> a refresh in flight, so a rotated 
 
 /** The access token of a signed-in server, refreshed and saved again (encrypted) when it runs out or was refused. */
 async function oauthToken(ctx, s, { force = false } = {}) {
-  const login = `In a terminal run: workshop mcp login ${s.id}`;
-  if (!s.tokenSecret) throw new SettingsError(`${s.name} signs in with OAuth: name its sign-in key under Token (secret name), then ${login.toLowerCase()}`);
+  const login = 'Sign in again in Settings, Tokens & sign-ins.';
+  if (!s.tokenSecret) throw new SettingsError(`${s.name} signs in with OAuth: click Sign in for it in Settings, Tokens & sign-ins.`);
   let key;
   try { key = await ctx.secret(s.tokenSecret); } catch { throw new SettingsError(`Server "${s.name}" names a secret Workshop cannot read.`); }
   const box = ctx.storage ? await ctx.storage.get(storageKey(s.id)) : undefined;
@@ -63,7 +67,7 @@ async function clientFor(ctx, s, { fresh = false } = {}) {
   } else if (s.tokenSecret) {
     let token;
     try { token = await ctx.secret(s.tokenSecret); } catch { throw new SettingsError(`Server "${s.name}" names a secret Workshop cannot read.`); }
-    if (!token) throw new McpError(`No token saved as "${s.tokenSecret}" for ${s.name}. In a terminal run: workshop secret set ${s.tokenSecret}`);
+    if (!token) throw new McpError(`No token saved as "${s.tokenSecret}" for ${s.name}. Add it in Settings, Tokens & sign-ins.`);
     headers[s.header || 'Authorization'] = `${s.prefix ?? 'Bearer '}${token}`;
   }
   return new McpClient({ url: s.url, headers, fetchImpl, signal: ctx.signal, name: s.name, clientVersion: VERSION });
@@ -138,8 +142,8 @@ export default {
             id: { type: 'string', title: 'Id', pattern: '^[a-z][a-z0-9-]{0,30}$', description: 'Short, lowercase: github, linear. Tools show as <id>__<tool>.' },
             name: { type: 'string', title: 'Name', maxLength: 60 },
             url: { type: 'string', title: 'Server URL', format: 'uri', pattern: '^(https://|http://127\\.0\\.0\\.1[:/]|http://localhost[:/])', description: 'Its Streamable HTTP address, for example https://api.githubcopilot.com/mcp/. https only, except on this computer.' },
-            auth: { type: 'string', title: 'How it signs in', enum: ['token', 'oauth'], 'x-workshop-labels': ['A token', 'Sign in (OAuth)'], default: 'token', description: 'Sign in: for servers that take no token. Name a secret below, then run workshop mcp login <id> in a terminal; it opens your browser.' },
-            tokenSecret: { type: 'string', title: 'Token (secret name)', 'x-workshop-secret': true, description: 'Optional. Save the token with: workshop secret set <name> --expires YYYY-MM-DD. With Sign in, any name, for example linear-signin: workshop mcp login saves a key there.' },
+            auth: { type: 'string', title: 'How it signs in', enum: ['token', 'oauth'], 'x-workshop-labels': ['A token', 'Sign in (OAuth)'], default: 'token', description: 'Sign in: for servers that take no token. Save, then click Sign in for it in Settings, Tokens & sign-ins; it opens the server\'s sign-in page.' },
+            tokenSecret: { type: 'string', title: 'Token', 'x-workshop-secret': true, description: 'Optional. Click Add token to paste it. With Sign in, leave it empty: Workshop names and fills it when you sign in.' },
             header: { type: 'string', title: 'Header', default: 'Authorization', pattern: '^[A-Za-z0-9-]{1,60}$', 'x-workshop-section': 'Advanced' },
             prefix: { type: 'string', title: 'Before the token', default: 'Bearer ', maxLength: 20, 'x-workshop-section': 'Advanced' },
             trustReadOnly: { type: 'boolean', title: 'Run tools the server marks read-only without asking', default: true, description: 'Off: every tool call from Tandem waits for your approval.' },
@@ -151,6 +155,43 @@ export default {
   },
   test: { action: 'tools.list', arg: 'server', label: 'Server id (lists its tools)' },
   actions: {
+    // Sign-in from Settings (agent/lib/credentials.mjs). Not for agents: no `agent` flag. The agent keeps the key in
+    // the secret store and passes it to signin.finish; the tokens are kept here, encrypted with it.
+    'signin.begin': {
+      title: 'Start signing in to a server', write: true,
+      argsSchema: { type: 'object', required: ['server', 'redirect'], additionalProperties: false, properties: {
+        server: { type: 'string', maxLength: 32 },
+        redirect: { type: 'string', maxLength: 100, pattern: '^http://(127\\.0\\.0\\.1|localhost):[0-9]{1,5}/oauth/callback$' }
+      } },
+      async run(args, ctx) {
+        const s = serverOf(ctx, args.server);
+        if (s.auth !== 'oauth') throw new SettingsError(`${s.name} is set to use a token, not Sign in.`);
+        const f = fetchImpl || globalThis.fetch;
+        const meta = await discover(s.url, f);
+        const client = await register(meta, args.redirect, f);
+        const { verifier, challenge } = pkce();
+        const st = crypto.randomBytes(16).toString('hex');
+        for (const [k, v] of signins) if (Date.now() - v.at > SIGNIN_MS) signins.delete(k);
+        signins.set(st, { id: s.id, meta, client, verifier, redirect: args.redirect, at: Date.now() });
+        return { url: authorizeUrl(meta, { client_id: client.client_id, redirect_uri: args.redirect, challenge, state: st, scope: meta.scopes.join(' ') }), state: st, host: new URL(meta.authorization_endpoint).host };
+      }
+    },
+    'signin.finish': {
+      title: 'Finish signing in to a server', write: true,
+      argsSchema: { type: 'object', required: ['state', 'code', 'key'], additionalProperties: false, properties: {
+        state: { type: 'string', maxLength: 64 }, code: { type: 'string', maxLength: 4096 }, key: { type: 'string', maxLength: 100 }
+      } },
+      async run(args, ctx) {
+        const p = signins.get(args.state);
+        signins.delete(args.state);
+        if (!p || Date.now() - p.at > SIGNIN_MS) throw new SettingsError('That sign-in was not started here, or took longer than 10 minutes. Start it again.');
+        const rec = await exchange(p.meta, p.client, { code: args.code, verifier: p.verifier, redirect_uri: p.redirect }, fetchImpl || globalThis.fetch);
+        await ctx.storage.put(storageKey(p.id), seal(args.key, rec));
+        state.delete(p.id);
+        ctx.statusChanged();
+        return { server: p.id };
+      }
+    },
     'servers.list': {
       title: 'List the MCP servers and how many tools each has', write: false, agent: true, setup: true,
       async run(args, ctx) {

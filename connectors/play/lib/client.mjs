@@ -37,7 +37,7 @@ export async function clientFor(ctx, { fetchImpl, now } = {}) {
   const name = ctx.config.keySecret;
   let value;
   try { value = await ctx.secret(name); } catch { throw new SettingsError('The service account key setting names a secret Workshop cannot read. Check it in Settings, Google Play.'); }
-  if (!value) throw new PlayError(`No service account key saved as "${name}". In a terminal run: workshop secret set ${name} --from-file <key.json>`);
+  if (!value) throw new PlayError(`No service account key saved as "${name}". Add the key file in Settings, Tokens & sign-ins.`);
   let key;
   try { key = parseKey(value); } catch (e) { throw new PlayError(e instanceof KeyError ? e.message : 'The saved service account key cannot be read.'); }
   return new Play({ api: ctx.config.apiUrl || DEFAULT_API, tokenUrl: ctx.config.tokenUrl || DEFAULT_TOKEN_URL, key, secretName: name, signal: ctx.signal, fetchImpl, now });
@@ -61,7 +61,7 @@ export function explain(status, message, reason, secretName) {
   if (/changesNotSentForReview/i.test(m)) return Object.assign(new PlayError('Play wants these changes sent for review by hand in Play Console.', 400), { needsManualReview: true });
   if (/CHANGES_ALREADY_IN_REVIEW|already have changes in review/i.test(`${reason} ${m}`)) return new PlayError('This app already has changes in review on Play. Workshop never cancels a review: wait for it to finish (or cancel it yourself in Play Console), then try again.', 409);
   if (/(API has not been used|is disabled|SERVICE_DISABLED|accessNotConfigured)/i.test(`${reason} ${m}`)) return new PlayError('The Google Play Android Developer API is not turned on in the service account\'s Google Cloud project. Turn it on (APIs & Services, Library, "Google Play Android Developer API"), wait a few minutes, and try again.', 403);
-  if (status === 401) return new PlayError(`Google did not accept the sign-in made from the key saved as "${secretName}" (HTTP 401). Make a new JSON key, then run: workshop secret set ${secretName} --from-file <key.json>`, 401);
+  if (status === 401) return new PlayError(`Google did not accept the sign-in made from the key saved as "${secretName}" (HTTP 401). Make a new JSON key and replace it in Settings, Tokens & sign-ins.`, 401);
   if (status === 403) return new PlayError(`Play refused this (HTTP 403): the service account is missing a permission for this app. In Play Console, Users and permissions, give it the app and the permission. ${m}`.trim(), 403);
   if (status === 404 && /package not found|applicationNotFound|No application was found/i.test(`${reason} ${m}`)) return new PlayError('Play does not know this package, or the service account cannot see it. Create the app in Play Console, upload its first bundle there by hand, and give the service account access to it (Users and permissions).', 404);
   if (status === 404) return new PlayError(`Not found on Google Play (HTTP 404). ${m}`.trim(), 404);
@@ -107,7 +107,7 @@ export class Play {
     }
     tokens.delete(k);
     const { message, reason } = googleError(j);
-    if (reason === 'invalid_grant' || /invalid_grant|Invalid JWT/i.test(message)) throw new PlayError(`Google refused the service account key saved as "${this.secretName}" (${message || 'invalid_grant'}). It may have been deleted or disabled in Google Cloud, or this computer's clock is off. Make a new JSON key, then run: workshop secret set ${this.secretName} --from-file <key.json>`, 401);
+    if (reason === 'invalid_grant' || /invalid_grant|Invalid JWT/i.test(message)) throw new PlayError(`Google refused the service account key saved as "${this.secretName}" (${message || 'invalid_grant'}). It may have been deleted or disabled in Google Cloud, or this computer's clock is off. Make a new JSON key and replace it in Settings, Tokens & sign-ins`, 401);
     throw new PlayError(`Google did not give Workshop an access token (HTTP ${res.status}). ${message}`.trim(), res.status);
   }
 

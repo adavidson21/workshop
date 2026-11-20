@@ -33,8 +33,8 @@ export const configSchema = {
         properties: {
           name: { type: 'string', title: 'Name', pattern: '^[A-Za-z0-9_-]{1,40}$', default: 'github', description: 'Any short name, letters, digits, - or _.' },
           apiUrl: { type: 'string', title: 'API URL', format: 'uri', default: 'https://api.github.com', description: 'https://api.github.com for github.com, or https://<your server>/api/v3 for GitHub Enterprise Server.' },
-          tokenEnv: { type: 'string', title: 'Token environment variable', 'x-workshop-env': true, default: 'GITHUB_PAT', description: 'A fine-grained token with Issues and Pull requests (Read), and Members (Read) for team reviews. Save it with: workshop pat GITHUB_PAT' },
-          tokenSecret: { type: 'string', title: 'Token secret (instead of the variable)', 'x-workshop-secret': true, description: 'Recommended on a Mac. The name you saved the token under with: workshop secret set github --expires YYYY-MM-DD. When set, the variable above is not used.' },
+          tokenEnv: { type: 'string', title: 'Or: token environment variable', 'x-workshop-env': true, default: 'GITHUB_PAT', description: 'Only used when Token above is empty. Click Add token to save one under this name instead of setting the variable yourself.' },
+          tokenSecret: { type: 'string', title: 'Token', 'x-workshop-secret': true, description: 'Click Add token and paste a fine-grained token with Issues and Pull requests (Read), and Members (Read) for team reviews. Workshop keeps it in this computer\'s secret store.' },
           tokenExpires: { type: 'string', title: 'Token expires', pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}$', maxLength: 10, description: 'Optional, YYYY-MM-DD. GitHub usually tells Workshop on its own; Workshop warns 14 days before.' }
         }
       }
@@ -102,7 +102,7 @@ export default {
   api: 1,
   id: 'github',
   name: 'GitHub',
-  version: '1.4.0',
+  version: '1.5.0',
   configSchema,
   test: { action: 'workitem.get', arg: 'id', label: 'Issue (owner/repo#12)' },
   actions: {

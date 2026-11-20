@@ -68,7 +68,7 @@ export function importConfig({ helper, engAgents, current } = {}) {
       const api = c.apiVersion || topApi;
       if (api && String(api) !== '6.0') conn.apiVersion = String(api);
       if ((c.auth || engAgents.auth) === 'windows') {
-        notes.push(`Connection "${name}" used Windows sign-in in eng-agents. Workshop uses a PAT; set ${conn.patEnv} before using it.`);
+        notes.push(`Connection "${name}" used Windows sign-in in eng-agents. Workshop uses a PAT; add it in Settings, Tokens & sign-ins (${conn.patEnv}) before using it.`);
       }
       connections.push(conn);
     }

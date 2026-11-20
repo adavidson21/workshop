@@ -42,11 +42,11 @@ export function compactKey(fileText) {
 /** {email, key: KeyObject} from the stored form. Throws KeyError when it is not one. */
 export function parseKey(value) {
   const parts = String(value || '').split('.');
-  if (parts.length !== 3 || parts[0] !== PREFIX) throw new KeyError('The saved secret is not a service account key. Save it with: workshop secret set play --from-file <key.json>');
+  if (parts.length !== 3 || parts[0] !== PREFIX) throw new KeyError('The saved secret is not a service account key. Add the key file again in Settings, Tokens & sign-ins.');
   const email = Buffer.from(parts[1], 'base64url').toString('utf8');
   if (!EMAIL.test(email)) throw new KeyError('The saved service account key has no valid email. Save it again with --from-file.');
   try { return { email, key: crypto.createPrivateKey({ key: Buffer.from(parts[2], 'base64url'), format: 'der', type: 'pkcs8' }) }; }
-  catch { throw new KeyError('The saved service account key cannot be read. Save it again with: workshop secret set play --from-file <key.json>'); }
+  catch { throw new KeyError('The saved service account key cannot be read. Add the key file again in Settings, Tokens & sign-ins.'); }
 }
 
 /** A signed JWT asking Google for an access token (RFC 7523), good for `ttl` seconds (at most an hour). */

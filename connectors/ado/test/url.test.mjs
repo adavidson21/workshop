@@ -32,7 +32,7 @@ test('a first link adds connection "work", the default connection and a PR sourc
   assert.deepEqual(config.connections, [{ name: 'work', serverUrl: 'https://ado.example.com/tfs', collection: 'Main', patEnv: 'ADO_PAT', apiVersion: '6.0', useSystemCa: true, verifyTls: true, project: 'Web' }]);
   assert.equal(config.defaultConnection, 'work');
   assert.deepEqual(config.prSources, [{ connection: 'work', project: 'Web', repos: [] }]);
-  assert.ok(notes.some(n => n.includes('workshop pat ADO_PAT')));
+  assert.ok(notes.some(n => n.includes('Tokens & sign-ins (ADO_PAT)')));
 });
 
 test('a link for an existing connection fills its project and keeps everything else', () => {

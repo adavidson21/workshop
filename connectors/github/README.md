@@ -22,10 +22,10 @@ How ADO concepts map to GitHub, and what is planned next: the GitHub tracker pla
 ### The token
 
 1. On GitHub: Settings, Developer settings, **Fine-grained tokens**, Generate. Pick the repos (or all repos), and give it **Issues: Read** and **Pull requests: Read**. For team reviews, also **Members: Read** under the organization's permissions. A classic token with `repo` and `read:org` also works.
-2. Run `workshop pat GITHUB_PAT` and paste it. It is not shown and does not land in shell history.
+2. In Settings, GitHub, click **Add token** on the connection and paste it (Settings, Manager, Tokens & sign-ins lists them all). It goes into this computer's secret store and the connection's **Token** is filled in for you.
 3. In Settings, add the connection (or paste any GitHub link into **Paste any link from GitHub**), then try the Test field with an issue such as `owner/repo#12`.
 
-**On a Mac (or anywhere you'd rather not keep it in a variable):** run `workshop secret set github --expires <its expiry date>` instead of step 2, and put `github` in the connection's **Token secret**. The token then lives in the macOS Keychain (Credential Manager on Windows), and Tandem's GitHub scripts read GitHub through Workshop (`api.get`, `graphql.query` below), so no variable needs it.
+From a terminal instead: `workshop secret set github --expires <its expiry date>`, then put `github` in the connection's **Token**. Either way Tandem's GitHub scripts read GitHub through Workshop (`api.get`, `graphql.query` below), so no variable needs it. A `GITHUB_PAT` variable still works when **Token** is empty.
 
 With a variable, the token lives only in that environment variable. The connector reads it through `ctx.env`, sends it only in the `Authorization` header, and never logs, returns or emits it.
 

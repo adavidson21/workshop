@@ -25,6 +25,8 @@ import { render as renderForm, readValue } from './forms.js';
 import { mountCloudflareChanges } from './cloudflare-page.js';
 import { mountPlayReleases } from './play-page.js';
 import { mountConnections } from './connections-page.js';
+import { mountSecrets } from './secrets-page.js';
+import { openSecretDialog } from './secret-dialog.js';
 import { mountRoutines } from './routines-page.js';
 import * as R from './repos.js';
 import * as P from './pages.js';
@@ -666,9 +668,9 @@ async function appsCard() {
    on the pages they name (ADO: Work items, Pull requests; opencode's PR reviews: Pull requests). A page that
    belongs to a connector says in one line what to do while that connector is off or not set up. */
 const NOTE = {
-  ado: 'PATs never go in here: save one with <code>workshop pat</code> and name its variable in a connection. Which project each repo uses is on <a href="#" class="lnk" data-goto-page="repos">Repos</a>.',
-  cloudflare: 'The token never goes in here: save it in this computer\'s own secret store with <code>workshop secret set cloudflare --expires YYYY-MM-DD</code>. Tandem can read your account and propose changes; only you apply them, below.',
-  play: 'The service account key never goes in here: save the JSON key with <code>workshop secret set play --from-file &lt;key.json&gt;</code>, then delete the file. Build a signed bundle with <code>workshop play build &lt;app&gt;</code>. Tandem can read your apps and propose releases; only you approve them.'
+  ado: 'Add your PAT with <b>Add token</b> on a connection (or on <a href="#" class="lnk" data-goto-page="secrets">Tokens &amp; sign-ins</a>). It goes into this computer\'s secret store, never into these settings. Which project each repo uses is on <a href="#" class="lnk" data-goto-page="repos">Repos</a>.',
+  cloudflare: 'Add the token with <b>Add token</b> below (or on <a href="#" class="lnk" data-goto-page="secrets">Tokens &amp; sign-ins</a>). It goes into this computer\'s secret store, never into these settings. Tandem can read your account and propose changes; only you apply them, below.',
+  play: 'Add the JSON key with <b>Add key file</b> below (or on <a href="#" class="lnk" data-goto-page="secrets">Tokens &amp; sign-ins</a>), then delete the file. Build a signed bundle with <code>workshop play build &lt;app&gt;</code>. Tandem can read your apps and propose releases; only you approve them.'
 };
 const conn = { list: [], info: {}, cc: {} }; // cc[id]: {schema, config, env}, as getConfig gives it
 const drafts = {};                           // drafts[id]: fields filled in from a link or a file, not saved yet
@@ -694,6 +696,31 @@ async function saveKeys(id, keys, value) {
   if (drafts[id]) { for (const k of keys) delete drafts[id][k]; if (!Object.keys(drafts[id]).length) delete drafts[id]; }
   changed(id, 'config', keys);
   return saved;
+}
+
+/* Tokens & sign-ins (secrets-page.js, secret-dialog.js): the Add token button on connector forms, and keeping
+   those forms current when a token is saved or removed on the Tokens & sign-ins page. Adding a value needs
+   Workshop on this computer; a hosted page only shows what is saved. */
+let secretStore = '';
+function secretOpener() {
+  if (ws.backend !== 'agent' || ws.mode !== 'local') return null;
+  return async opts => {
+    const r = await openSecretDialog({ ...opts, store: secretStore, esc }, b => agentCall('POST', '/api/secrets', b));
+    if (r) { toast('Saved', 'success'); secretsChanged(); }
+    return r;
+  };
+}
+async function secretsChanged() {
+  for (const id of Object.keys(conn.cc)) { await loadCfg(id); changed(id, 'config', []); }
+}
+async function setSecretField(id, at, value) {
+  const fresh = await ws.connectors.getConfig(id);
+  const cfg = structuredClone(fresh.config || {});
+  const keys = at.replace(/\[(\d+)\]/g, '.$1').split('.');
+  let o = cfg;
+  for (const k of keys.slice(0, -1)) o = o[k];
+  o[keys.at(-1)] = value;
+  await saveKeys(id, [keys[0]], { [keys[0]]: cfg[keys[0]] });
 }
 
 // Settings from a link or a file: the fields that differ from what is saved wait on their pages, unsaved.
@@ -804,7 +831,7 @@ function connectorBlock(info) {
     el.textContent = empty ? 'Not set up' : STATE_LABEL[st.state] || st.state;
     el.dataset.state = empty ? 'neutral' : st.state;
     box.querySelector('[data-state-msg]').textContent = empty ? 'Paste a link below, or add a connection by hand.' : st.message || '';
-    // A PAT saved while Workshop runs (workshop pat) shows up here without a restart; this asks again now.
+    // A PAT saved while Workshop runs (Settings or workshop pat) shows up here without a restart; this asks again now.
     box.querySelector('[data-recheck]').hidden = !info.enabled || (st.state === 'ready' && !st.message);
     const t = box.querySelector('[data-test]');
     if (t) t.hidden = st.state !== 'ready';
@@ -1064,8 +1091,8 @@ function formCard(info, pg) {
     form.className = 'cfg';
     form.dataset.track = '';
     const node = single
-      ? renderForm({ ...props[single], title: undefined, description: undefined }, value[single], cc.env, { readOnly, fold: false, secrets: cc.secrets })
-      : renderForm(P.subSchema(cc.schema, keys), value, cc.env, { readOnly, fold: isMain, page: pg, secrets: cc.secrets });
+      ? renderForm({ ...props[single], title: undefined, description: undefined }, value[single], cc.env, { readOnly, fold: false, secrets: cc.secrets, connector: id, onSecret: secretOpener() })
+      : renderForm(P.subSchema(cc.schema, keys), value, cc.env, { readOnly, fold: isMain, page: pg, secrets: cc.secrets, connector: id, onSecret: secretOpener() });
     form.appendChild(node);
     form.insertAdjacentHTML('beforeend', `<div class="acts"><span class="msg" aria-live="polite">${esc(lastMsg)}</span>${readOnly ? '' : '<button class="btn primary">Save</button>'}</div>`);
     sec.appendChild(form);
@@ -1644,6 +1671,10 @@ async function start() {
       const list = await connectorsSetup();
       await productsPage();
       if (list.some(i => i.id === 'opencode')) await writingPages(); // Writing needs opencode for its AI steps
+      try {
+        const sec = await agentCall('GET', '/api/secrets'); secretStore = sec.store || '';
+        await mountSecrets({ card, esc, agentCall, toast, errText, local: ws.mode === 'local', setField: setSecretField, onChanged: secretsChanged });
+      } catch (e) { card('', '', 'secrets').insertAdjacentHTML('beforeend', `<p class="err">${esc(errText(e))}</p>`); }
       // Connections manager (approvals, activity) and Routines (connections-page.js, routines-page.js).
       try { mountConnections({ ws, card, esc, toast, errText, local: ws.mode === 'local' }); } catch (e) { card('', '', 'outside').insertAdjacentHTML('beforeend', `<p class="err">${esc(errText(e))}</p>`); }
       if (list.some(i => i.id === 'opencode')) { try { mountRoutines({ ws, card, esc, toast, errText, local: ws.mode === 'local' }); } catch (e) { card('', '', 'routines').insertAdjacentHTML('beforeend', `<p class="err">${esc(errText(e))}</p>`); } }

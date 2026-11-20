@@ -2,7 +2,7 @@
   "manifestVersion": 1,
   "id": "settings",
   "name": "Settings",
-  "version": "7.7.0",
+  "version": "7.8.0",
   "description": "Status, apps, this computer and data; people and teams, knowledge (products, glossary, repo map), focus hours and writing voice; connections, approvals, routines, opencode and repos; a user guide.",
   "icon": "icon.svg",
   "entry": "index.html",
@@ -90,7 +90,9 @@
     "js/settings.js",
     "js/voice-model.js",
     "js/voice-page.js",
-    "settings.css"
+    "settings.css",
+    "js/secrets-page.js",
+    "js/secret-dialog.js"
   ],
   "data": [
     "teams",

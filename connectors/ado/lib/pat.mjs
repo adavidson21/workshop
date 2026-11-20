@@ -8,10 +8,8 @@ const DAY = 24 * 60 * 60 * 1000;
 export const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 /** What to do about a PAT, in plain words, for this computer's platform. */
-export function patHint(name, platform = process.platform) {
-  return platform === 'win32'
-    ? `Save it with: workshop pat ${name}`
-    : `Set ${name} in your shell profile ("workshop pat ${name}" shows how), then run: workshop restart`;
+export function patHint() {
+  return 'Add it in Settings, Tokens & sign-ins.';
 }
 
 /**
@@ -92,11 +90,11 @@ export function patStatus(cfg, read, rejections = [], { now = new Date(), platfo
   let message = null;
   if (rejections.length) {
     const r = rejections[0];
-    message = `ADO rejected the PAT in ${r.patEnv}. It may have expired or been revoked. Make a new one in ADO, then ${patHint(r.patEnv, platform).replace(/^Save/, 'save').replace(/^Set/, 'set')}.`;
+    message = `ADO rejected the PAT in ${r.patEnv}. It may have expired or been revoked. Make a new one in ADO, then ${patHint(r.patEnv, platform).replace(/^Save/, 'save').replace(/^Set/, 'set').replace(/^Add/, 'add').replace(/\.$/, '')}.`;
   } else if (expiring.length) {
     const e = [...expiring].sort((a, b) => a.days - b.days)[0];
     const when = e.days < 0 ? `expired on ${e.expires}` : e.days === 0 ? 'expires today' : `expires in ${e.days} day${e.days === 1 ? '' : 's'} (${e.expires})`;
-    message = `The PAT in ${e.patEnv} ${when}. Make a new one in ADO, ${patHint(e.patEnv, platform).replace(/^Save/, 'save').replace(/^Set/, 'set')}, and update "PAT expires" in Settings.`;
+    message = `The PAT in ${e.patEnv} ${when}. Make a new one in ADO, ${patHint(e.patEnv, platform).replace(/^Save/, 'save').replace(/^Set/, 'set').replace(/^Add/, 'add').replace(/\.$/, '')}, and update "PAT expires" in Settings.`;
   }
   return { state: 'ready', message, details };
 }

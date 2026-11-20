@@ -202,7 +202,7 @@ Your ADO Issues, Bugs and User Stories assigned to you, your GitHub issues assig
 **Setup:**
 
 1. Install Workshop on this computer, or start it if it is installed (`workshop open`). See [Workshop](https://github.com/adavidson21/workshop).
-2. Make a PAT with **Work Items (Read)** (add **Code (Read)** for pull requests and **Project and Team (Read)** for team PRs), then run `workshop pat ADO_PAT` and paste it.
+2. Make a PAT with **Work Items (Read)** (add **Code (Read)** for pull requests and **Project and Team (Read)** for team PRs), then click **Add token** beside the connection's PAT in Settings and paste it (or run `workshop pat ADO_PAT`).
 3. In Workshop **Settings**, turn on the **Azure DevOps** connector and add your connection, or **Import settings from a file** with the `ado-helper.json` you used before. Set **PAT expires**.
 4. On Docket's own site, pair it once: folder icon, **Use Workshop on this computer**, then allow the site in the window that opens. Inside Workshop there is nothing to pair.
 
@@ -215,7 +215,7 @@ Docket starts syncing by itself the first time it sees the connector ready (no C
 - Workshop stopped while Docket was open: start it again; Docket picks it up by itself.
 - The ADO connector is off or not set up: turn it on in Workshop **Settings**.
 
-The ADO button also shows the connector's own messages: a missing or rejected PAT turns it red and skips the sync (the tip says what to run, usually `workshop pat`), and a PAT that expires within two weeks turns it amber while sync keeps working.
+The ADO button also shows the connector's own messages: a missing or rejected PAT turns it red and skips the sync (the tip says what to do, usually replace the token in Settings, Tokens & sign-ins), and a PAT that expires within two weeks turns it amber while sync keeps working.
 
 **Docket's own sync settings** are in its sync Settings (the sync button), saved with your board: how often to sync, whether new work items wait for you, and the starting value and urgent flag for each PR tier. They are not connector settings.
 

@@ -30,9 +30,8 @@ test('daysLeft counts whole days to the last day the PAT works', () => {
   assert.equal(daysLeft('soon', now), null);
 });
 
-test('patHint says how to save a PAT on each platform', () => {
-  assert.equal(patHint('ADO_PAT', 'win32'), 'Save it with: workshop pat ADO_PAT');
-  assert.match(patHint('ADO_PAT', 'darwin'), /shell profile.*workshop restart/);
+test('patHint points to Settings on every platform (no terminal needed)', () => {
+  for (const p of ['win32', 'darwin', 'linux']) assert.equal(patHint('ADO_PAT', p), 'Add it in Settings, Tokens & sign-ins.');
 });
 
 test('patStatus: missing, expiring, expired and rejected, in that order of importance', () => {
@@ -42,13 +41,13 @@ test('patStatus: missing, expiring, expired and rejected, in that order of impor
 
   const missing = patStatus(cfg, read({ TEST_ADO_PAT: 'x'.repeat(30) }), [], { now, platform: 'win32' });
   assert.equal(missing.state, 'error');
-  assert.equal(missing.message, 'OTHER_PAT is not set. Save it with: workshop pat OTHER_PAT');
+  assert.equal(missing.message, 'OTHER_PAT is not set. Add it in Settings, Tokens & sign-ins.');
   assert.deepEqual(missing.details.patsMissing, ['OTHER_PAT']);
 
   const both = read({ TEST_ADO_PAT: 'x'.repeat(30), OTHER_PAT: 'y'.repeat(30) });
   const soon = patStatus(cfg, both, [], { now, platform: 'win32' });
   assert.equal(soon.state, 'ready');
-  assert.equal(soon.message, 'The PAT in TEST_ADO_PAT expires in 8 days (2026-11-10). Make a new one in ADO, save it with: workshop pat TEST_ADO_PAT, and update "PAT expires" in Settings.');
+  assert.equal(soon.message, 'The PAT in TEST_ADO_PAT expires in 8 days (2026-11-10). Make a new one in ADO, add it in Settings, Tokens & sign-ins, and update "PAT expires" in Settings.');
   assert.deepEqual(soon.details.patsExpiring, [{ patEnv: 'TEST_ADO_PAT', connection: 'main', expires: '2026-11-10', days: 8 }]);
 
   const later = patStatus(cfg, both, [], { now: new Date(2026, 9, 1), platform: 'win32' });
@@ -60,7 +59,7 @@ test('patStatus: missing, expiring, expired and rejected, in that order of impor
 
   const rejected = patStatus(cfg, both, [{ patEnv: 'OTHER_PAT', at: '2026-11-02T10:00:00.000Z' }], { now, platform: 'win32' });
   assert.equal(rejected.state, 'ready'); // calls still go through, so a new PAT works at once
-  assert.match(rejected.message, /^ADO rejected the PAT in OTHER_PAT\. .* save it with: workshop pat OTHER_PAT\.$/);
+  assert.match(rejected.message, /^ADO rejected the PAT in OTHER_PAT\. .* add it in Settings, Tokens & sign-ins\.$/);
 });
 
 test('authTracker keeps a 401 until the variable holds a new value or a call succeeds; 403 is not a bad PAT', () => {
@@ -141,7 +140,7 @@ test('a 401 error says how to save a new PAT; a 403 keeps the helper\'s wording'
   const { ctx } = fakeCtx({ connections: [{ name: 'main', serverUrl: srv.url, collection: 'Main', patEnv: 'TEST_ADO_PAT' }] }, { TEST_ADO_PAT: 'wrong-token-0123456789abcd' });
   try {
     await ado.start(ctx);
-    await assert.rejects(ado.actions['workitem.get'].run({ id: 101 }, ctx), e => /HTTP 401\).*If you made a new one, (save it with: workshop pat|set) TEST_ADO_PAT/.test(e.message));
+    await assert.rejects(ado.actions['workitem.get'].run({ id: 101 }, ctx), e => /HTTP 401\).*If you made a new one, add it in Settings, Tokens & sign-ins\./.test(e.message));
   } finally { await ado.stop(); await srv.close(); }
 });
 

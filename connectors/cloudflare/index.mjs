@@ -73,13 +73,13 @@ export default {
   api: 1,
   id: 'cloudflare',
   name: 'Cloudflare',
-  version: '1.1.0',
+  version: '1.2.0',
   configSchema: {
     type: 'object',
     additionalProperties: false,
     properties: {
       accountId: { type: 'string', title: 'Account ID', pattern: '^[0-9a-f]{32}$', description: 'In the Cloudflare dashboard: Account home, the menu next to your account name, Copy account ID.' },
-      tokenSecret: { type: 'string', title: 'API token (secret name)', 'x-workshop-secret': true, default: 'cloudflare', description: 'The name you saved the token under with: workshop secret set cloudflare --expires YYYY-MM-DD. See the connector README for the permissions to give it.' },
+      tokenSecret: { type: 'string', title: 'API token', 'x-workshop-secret': true, default: 'cloudflare', description: 'Click Add token to paste it; Workshop keeps it in this computer\'s secret store. See the connector README for the permissions to give it.' },
       zones: { type: 'array', title: 'Zones Workshop may change', items: { type: 'string' }, default: [], description: 'Your domains, like example.org. DNS records and custom domains outside these are refused, even in a change set you apply. Empty means no DNS or domain changes at all.' },
       agents: { type: 'boolean', title: 'Let Tandem read and propose changes', default: true, description: 'Tandem can read your account and propose change sets. Only you can apply them, here in Workshop.' },
       apiUrl: { type: 'string', format: 'uri', title: 'API address', default: DEFAULT_API, 'x-workshop-section': 'Advanced' }

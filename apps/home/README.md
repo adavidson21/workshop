@@ -15,7 +15,7 @@ What it shows:
   1. Connect Workshop on this computer: **Work computer** (the default: the work mode installer) or **Personal computer** (the usual one, then Connect). The choice is saved.
   2. Add yourself: opens Settings, People with a person set to **You**.
   3. Keep your data backed up: company OneDrive in work mode, otherwise any folder your computer backs up.
-  4. Connect Azure DevOps: a PAT with Work Items (Read & write) and Code (Read), `workshop pat`, then Settings on this computer.
+  4. Connect Azure DevOps: a PAT with Work Items (Read & write) and Code (Read), then Settings on this computer (Add token).
   5. Pick your apps: one line per app, with Slate and Dispatch suggested off when neither Azure DevOps nor Dispatch is set up. **These look right** ticks it off; Settings, Apps has the switches.
   6. Add your team, and set your team's area paths (needs Azure DevOps; skipped with it).
   7. Add your first task in Docket, and log your first receipt.

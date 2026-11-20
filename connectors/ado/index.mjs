@@ -37,7 +37,7 @@ export const configSchema = {
           serverUrl: { type: 'string', title: 'Server URL', format: 'uri', description: 'The part before the collection, for example https://ado.example.com or https://ado.example.com/tfs.' },
           collection: { type: 'string', title: 'Collection', description: 'The part of your ADO address right after the server, for example DefaultCollection in https://ado.example.com/DefaultCollection/MyProject.' },
           project: { type: 'string', title: 'Project', description: 'Used when a work item does not say its project.' },
-          patEnv: { type: 'string', title: 'PAT environment variable', 'x-workshop-env': true, default: 'ADO_PAT', description: 'Save the PAT with: workshop pat ADO_PAT (or the name you use here).' },
+          patEnv: { type: 'string', title: 'PAT', 'x-workshop-env': true, default: 'ADO_PAT', description: 'Click Add token to paste your PAT; Workshop keeps it in this computer\'s secret store. ADO_PAT is the name it goes by (an environment variable by that name works too).' },
           patExpires: { type: 'string', title: 'PAT expires', pattern: '^[0-9]{4}-[0-9]{2}-[0-9]{2}$', maxLength: 10, description: 'Optional, YYYY-MM-DD: the expiry date ADO showed when you made the PAT. Workshop warns 14 days before.' },
           apiVersion: { type: 'string', title: 'API version', default: '6.0', pattern: '^[0-9]+\\.[0-9]+$' },
           useSystemCa: { type: 'boolean', title: 'Trust certificates trusted by this computer', description: 'Needed when the ADO server uses a company certificate.', default: true },
@@ -155,7 +155,7 @@ export default {
   api: 1,
   id: 'ado',
   name: 'Azure DevOps',
-  version: '1.16.0',
+  version: '1.17.0',
   configSchema,
   test: { action: 'workitem.get', arg: 'id', label: 'Work item ID' },
   actions: {

@@ -13,11 +13,9 @@ export const sourceLabel = name => (String(name).startsWith('secret:') ? `Secret
 /** The short form after "the token in": GITHUB_PAT, or secret "github". */
 export const shortSource = name => (String(name).startsWith('secret:') ? `secret "${String(name).slice(7)}"` : String(name));
 
-export function tokenHint(name, platform = process.platform) {
-  if (String(name).startsWith('secret:')) return `Save it with: workshop secret set ${String(name).slice(7)} --expires YYYY-MM-DD`;
-  return platform === 'win32'
-    ? `Save it with: workshop pat ${name}`
-    : `Set ${name} in your shell profile ("workshop pat ${name}" shows how), then run: workshop restart`;
+export function tokenHint(name) {
+  if (String(name).startsWith('secret:')) return `Add it in Settings, Tokens & sign-ins (${String(name).slice(7)}).`;
+  return 'Add it in Settings, Tokens & sign-ins.';
 }
 
 /** Days until a YYYY-MM-DD date (the last day the token works). Null when not a real date. */
@@ -98,7 +96,7 @@ export function tokenStatus(cfg, read, tracker, { now = new Date(), platform = p
   const rejections = tracker ? tracker.active(read) : [];
   if (expiring.length) details.tokensExpiring = expiring;
   if (rejections.length) details.tokensRejected = rejections;
-  const fix = name => tokenHint(name, platform).replace(/^Save/, 'save').replace(/^Set/, 'set');
+  const fix = name => tokenHint(name, platform).replace(/^Save/, 'save').replace(/^Set/, 'set').replace(/^Add/, 'add').replace(/\.$/, '');
   let message = null;
   if (rejections.length) {
     const r = rejections[0];

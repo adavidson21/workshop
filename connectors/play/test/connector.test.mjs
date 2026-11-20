@@ -382,7 +382,7 @@ test('off in work mode, off for Tandem when the switch is off, and clear message
     assert.equal((await A['tracks.list'].run({ app: PKG }, noAgents, PERSON)).tracks.length, 2);
   } finally { noAgents.done(); }
   const none = makeCtx({ key: null });
-  try { await assert.rejects(A['tracks.list'].run({ app: PKG }, none, PERSON), /workshop secret set play --from-file/); } finally { none.done(); }
+  try { await assert.rejects(A['tracks.list'].run({ app: PKG }, none, PERSON), /Add the key file in Settings, Tokens & sign-ins/); } finally { none.done(); }
   const wrong = makeCtx({ key: 'a-cloudflare-token-1234567890' });
   try { await assert.rejects(A['tracks.list'].run({ app: PKG }, wrong, PERSON), /not a service account key/); } finally { wrong.done(); }
   // A key Google no longer accepts (deleted in Google Cloud).

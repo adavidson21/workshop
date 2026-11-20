@@ -35,6 +35,7 @@ export const PAGES = {
   'writing-voice': { label: 'Voice', group: 'you', nav: 'writing' },
   'writing-audiences': { label: 'Audiences', group: 'you', nav: 'writing' },
   'writing-rules': { label: 'Rules', group: 'you', nav: 'writing' },
+  secrets: { label: 'Tokens & sign-ins', group: 'connections', nav: 'manager' },
   outside: { label: 'All connections', group: 'connections', nav: 'manager' },
   approvals: { label: 'Approvals', group: 'connections', nav: 'manager' },
   activity: { label: 'Activity', group: 'connections', nav: 'manager' },

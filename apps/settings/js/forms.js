@@ -4,10 +4,11 @@
 
      string                      text field (format: uri -> url; x-workshop-multiline -> textarea)
      string + enum               select (x-workshop-labels for option labels)
-     string + x-workshop-env     environment variable name field (shows whether it is set; no value field)
-     string + x-workshop-secret  secret name field (shows whether `workshop secret set` saved it, and its expiry;
-                                 no value field: values are only ever typed into the terminal). The command it
-                                 shows follows x-workshop-secret-kind: token, key-file or password.
+     string + x-workshop-env     environment variable name field: whether a token is there, and Add token
+                                 (saves it in this computer's secret store under that name; opts.onSecret)
+     string + x-workshop-secret  secret name field: whether it is saved and until when, and Add token / Replace
+                                 (opts.onSecret opens the dialog, secret-dialog.js). The button follows
+                                 x-workshop-secret-kind: token, key-file or password. A value is never shown.
      integer / number            number field (minimum, maximum)
      boolean                     checkbox
      array of strings            list of text fields with add and remove
@@ -21,15 +22,31 @@
 
    render(schema, value, env, opts) returns a DOM element whose `readValue()` gives the current config
    back as a plain object. Each control carries its own reader, so reading never re-parses the DOM.
-   In read-only mode every control is disabled. PATs are never entered here: an env field shows the
-   variable name and whether it is set, never a value. */
+   In read-only mode every control is disabled. Values are never typed into the form itself: Add token opens a
+   dialog that sends the value straight to Workshop's secret store, and the form keeps only the name. */
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 let seq = 0;
 const nextId = () => 'f' + (++seq);
 
 // Public: build the form. `env` is the GET /api/connectors/<id>/config `env` map ({NAME: {set}}).
 
-/** The command that saves a secret of this kind (x-workshop-secret-kind): a token, a key file or a typed password. */
+/** The button's words for a secret field: Add or Replace, token, key file or password. */
+export function secretButton(kind, saved) {
+  const what = kind === 'key-file' ? 'key file' : kind === 'password' ? 'password' : 'token';
+  return `${saved ? 'Replace' : 'Add'} ${what}`;
+}
+
+/** A secret's state in a few words: {text, cls}. `s` is the agent's {set, store, expires, daysLeft} or null. */
+export function secretState(s, unsaved) {
+  if (unsaved) return { text: 'save to check', cls: '' };
+  const d = s && typeof s.daysLeft === 'number' ? s.daysLeft : null;
+  if (!s || !s.set) return { text: 'not added yet', cls: 'warn' };
+  if (d !== null && d < 0) return { text: `expired ${s.expires}`, cls: 'warn' };
+  if (d !== null && d <= 14) return { text: `saved, expires in ${d} days`, cls: 'warn' };
+  return { text: `saved in ${s.store || 'your secret store'}`, cls: 'ok' };
+}
+
+/** The command that saves a secret of this kind from a terminal, for people who prefer one. */
 export function secretCommand(name, kind) {
   if (kind === 'key-file') return `workshop secret set ${name} --from-file <key.json>`;
   if (kind === 'password') return `workshop secret set ${name} --password`;
@@ -138,6 +155,15 @@ function row(schema, node, key, required) {
   return r;
 }
 
+/** The Add token button for a token field, or null where values cannot be added (read-only, no agent). */
+function actionButton(o, ro) {
+  if (!o.onSecret) return null;
+  const b = document.createElement('button');
+  b.type = 'button'; b.className = 'btn cfg-secret-btn';
+  if (ro) b.disabled = true;
+  return b;
+}
+
 function leafField(schema, value, env, o) {
   const holder = document.createElement('div');
   holder.className = 'cfg-leaf';
@@ -146,50 +172,78 @@ function leafField(schema, value, env, o) {
   if (schema['x-workshop-env']) {
     const name = value != null ? String(value) : (schema.default || '');
     const input = document.createElement('input');
-    input.type = 'text'; input.value = name; input.className = 'cfg-input mono'; input.placeholder = 'ENV_VAR_NAME';
+    input.type = 'text'; input.value = name; input.className = 'cfg-input mono cfg-name'; input.placeholder = 'ENV_VAR_NAME';
+    input.title = 'The name the token goes by. Keep the default unless you already use another.';
     if (ro) input.disabled = true;
     holder.appendChild(input);
     const status = document.createElement('span');
     status.className = 'cfg-env-status';
+    const btn = actionButton(o, ro);
     // The agent reports only on names already saved in the config; a new name is checked after Save.
     const render = () => {
       const n = input.value.trim();
       const known = env && Object.prototype.hasOwnProperty.call(env, n);
-      const set = known && env[n].set;
-      status.textContent = !n ? '' : !known ? 'save to check' : set ? 'set on this computer' : 'not set on this computer';
-      status.className = 'cfg-env-status ' + (!known ? '' : set ? 'ok' : 'warn');
+      const e = known ? env[n] : null;
+      status.textContent = !n ? '' : !known ? 'save to check' : e.stored ? secretState(e).text : e.set ? 'set on this computer' : 'not added yet';
+      status.className = 'cfg-env-status ' + (!known ? '' : e.set ? 'ok' : 'warn');
+      if (btn) { btn.textContent = secretButton('token', !!(e && e.stored)); btn.disabled = ro || !n || !known; }
     };
     input.addEventListener('input', render); render();
     holder.appendChild(status);
+    if (btn) {
+      holder.appendChild(btn);
+      btn.addEventListener('click', async () => {
+        const n = input.value.trim();
+        const r = await o.onSecret({ kind: 'token', env: n, replace: !!(env[n] && env[n].stored) });
+        if (r) { env[n] = { ...(env[n] || {}), set: true, stored: true, ...(r.status || {}) }; render(); }
+      });
+    }
     holder.readValue = () => input.value.trim();
-    return holder; // secrets are never entered here, only the variable name
+    return holder; // the token itself never goes in the form, only the variable's name
   }
 
   if (schema['x-workshop-secret']) {
-    const name = value != null ? String(value) : (schema.default || '');
+    const kind = schema['x-workshop-secret-kind'] || 'token';
+    const saved0 = value != null ? String(value) : (schema.default || '');
     const input = document.createElement('input');
-    input.type = 'text'; input.value = name; input.className = 'cfg-input mono'; input.placeholder = 'secret-name';
+    input.type = 'text'; input.value = saved0; input.className = 'cfg-input mono cfg-name'; input.placeholder = 'name';
+    input.title = 'The name Workshop keeps it under. Add token fills this in.';
     if (ro) input.disabled = true;
     holder.appendChild(input);
     const status = document.createElement('span');
     status.className = 'cfg-env-status';
-    const how = document.createElement('code');
-    how.className = 'cfg-secret-cmd';
+    const btn = actionButton(o, ro);
+    const secrets = o.secrets || {};
     // The agent reports on names already saved in the config (GET connector config, `secrets`); never a value.
     const render = () => {
       const n = input.value.trim();
-      const s = o.secrets && Object.prototype.hasOwnProperty.call(o.secrets, n) ? o.secrets[n] : null;
-      const d = s && typeof s.daysLeft === 'number' ? s.daysLeft : null;
-      status.textContent = !n ? '' : !s ? 'save to check' : !s.set ? 'not saved on this computer'
-        : d !== null && d < 0 ? `expired ${s.expires}` : d !== null && d <= 14 ? `saved, expires in ${d} days` : `saved in ${s.store || 'your secret store'}`;
-      status.className = 'cfg-env-status ' + (!s ? '' : s.set && !(d !== null && d <= 14) ? 'ok' : 'warn');
-      how.textContent = n && (!s || !s.set || (d !== null && d <= 14)) ? secretCommand(n, schema['x-workshop-secret-kind']) : '';
+      const s = Object.prototype.hasOwnProperty.call(secrets, n) ? secrets[n] : null;
+      const pasted = n && !/^[a-z][a-z0-9-]{0,39}$/.test(n) && n.length >= 16;
+      const st = pasted ? { text: 'that looks like the token itself: Save moves it into the secret store', cls: 'warn' } : !n ? { text: '', cls: '' } : secretState(s, !s);
+      status.textContent = st.text;
+      status.className = 'cfg-env-status ' + st.cls;
+      if (btn) btn.textContent = secretButton(kind, !!(s && s.set));
     };
     input.addEventListener('input', render); render();
     holder.appendChild(status);
-    holder.appendChild(how);
+    if (btn) {
+      holder.appendChild(btn);
+      btn.addEventListener('click', async () => {
+        const n = input.value.trim();
+        const okName = /^[a-z][a-z0-9-]{0,39}$/.test(n);
+        const r = await o.onSecret({ kind, name: okName ? n : (schema.default || o.connector || ''), replace: okName && !!(secrets[n] && secrets[n].set) });
+        if (!r) return;
+        secrets[r.name] = r.status || { set: true };
+        if (r.name !== n) {
+          input.value = r.name;
+          input.dispatchEvent(new Event('input', { bubbles: true })); // marks the form changed: Save keeps the name
+          status.textContent = 'saved: click Save to use it';
+          status.className = 'cfg-env-status ok';
+        } else render();
+      });
+    }
     holder.readValue = () => input.value.trim();
-    return holder; // secrets are never entered here, only the name; the value goes in with `workshop secret set`
+    return holder; // the value never goes in the form, only the name
   }
 
   if (schema.type === 'boolean') {

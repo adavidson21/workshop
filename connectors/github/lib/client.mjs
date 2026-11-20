@@ -86,7 +86,7 @@ export class GitHub {
     try { detail = JSON.parse(text).message || ''; } catch { /* not JSON */ }
     if (res.status === 401) {
       try { this.onAuth?.rejected?.(this.conn.tokenEnv, 401); } catch { /* status only */ }
-      throw new GhError(`GitHub rejected the token in ${shortSource(this.conn.tokenEnv)} (HTTP 401). It may have expired or been revoked. If you made a new one, ${tokenHint(this.conn.tokenEnv).replace(/^Save/, 'save').replace(/^Set/, 'set')}.`, 401);
+      throw new GhError(`GitHub rejected the token in ${shortSource(this.conn.tokenEnv)} (HTTP 401). It may have expired or been revoked. If you made a new one, ${tokenHint(this.conn.tokenEnv).replace(/^Save/, 'save').replace(/^Set/, 'set').replace(/^Add/, 'add').replace(/\.$/, '')}.`, 401);
     }
     if ((res.status === 403 || res.status === 429) && (res.headers.get('x-ratelimit-remaining') === '0' || /rate limit/i.test(detail))) {
       const reset = Number(res.headers.get('x-ratelimit-reset'));

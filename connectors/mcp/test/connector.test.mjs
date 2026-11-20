@@ -79,7 +79,7 @@ test('not trusting read-only marks makes every tool ask; a missing token says ho
   const list = await A['tools.list'].run({ server: 'gh' }, ctx);
   assert.ok(list.every(t => !t.readOnly));
   await assert.rejects(A['tools.read'].run({ server: 'gh', tool: 'get_issue' }, ctx), /needs your approval/);
-  await assert.rejects(A['tools.list'].run({ server: 'gh2' }, makeCtx([{ ...GH, id: 'gh2' }], { token: null })), /workshop secret set gh-mcp/);
+  await assert.rejects(A['tools.list'].run({ server: 'gh2' }, makeCtx([{ ...GH, id: 'gh2' }], { token: null })), /No token saved as "gh-mcp".*Tokens & sign-ins/);
   await assert.rejects(A['tools.list'].run({ server: 'nope' }, ctx), /no MCP server "nope"/);
   await assert.rejects(A['tools.list'].run({ server: 'gh' }, makeCtx([{ ...GH, enabled: false }])), /no MCP server "gh"/);
 });

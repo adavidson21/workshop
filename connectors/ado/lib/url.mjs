@@ -83,6 +83,6 @@ export function configFromUrl(link, current) {
     out.prSources = [{ connection: conn.name, project: parts.project, repos: [] }];
     notes.push(`Pull requests waiting on you will come from every repo in ${parts.project}.`);
   }
-  notes.push(`Save your PAT with: workshop pat ${conn.patEnv || 'ADO_PAT'}`);
+  notes.push(`Add your PAT in Settings, Tokens & sign-ins (${conn.patEnv || 'ADO_PAT'}).`);
   return { config: out, notes, parts };
 }

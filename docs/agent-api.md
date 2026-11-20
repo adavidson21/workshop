@@ -323,6 +323,22 @@ Schema [connector-config](schemas/connector-config.schema.json), example [connec
 - `config` is the stored config with schema defaults filled in.
 - `env` has one entry per environment variable *named* in `config` (every value of a field marked `x-workshop-env`). It says only whether the variable is set and not empty. **The value is never returned, logged, or written anywhere.**
 - `secrets` has one entry per secret *named* in `config` (every value of a field marked `x-workshop-secret`): `{set, store, expires, daysLeft}` from `~/.workshop/secrets.json`, the list `workshop secret set` keeps. The store is not read for this, and **the value is never returned.**
+- `env` entries may also have `stored: true`, `secret` and the expiry fields when the variable's token was saved from Settings (agent 1.17.0, Secrets below).
+- `PUT` from Workshop on this computer moves a token pasted into a name field (`x-workshop-secret` or `x-workshop-env`) into the secret store first, and saves its name instead.
+
+### Secrets (Tokens & sign-ins, agent 1.17.0)
+
+Settings, Manager, **Tokens & sign-ins** uses these. A value goes in once and never comes back out. All but `GET /api/secrets` and the callback are local only (`local_only` from a hosted page) and need the `X-Workshop-Token` header.
+
+| Method and path | What it does |
+|---|---|
+| `GET /api/secrets` | `{store, platform, secrets: [{name, set, store, expires, daysLeft, saved, note, usedBy}], uses: [{connector, connectorName, enabled, path, title, kind, secretKind, name, env, saved, envSet}], signins: [{id, name, host, secret, signedIn}]}`. Names and dates only. |
+| `POST /api/secrets` | `{name, kind, value, expires?, note?}` or `{env, kind, value, ...}` (saved as `env-<name>`, which connectors get for that variable). `kind`: `token` (default), `password` or `key-file` (the Google key file's text, cut down as `workshop secret set --from-file` does). Answers `{ok, name, secret: {set, store, expires, daysLeft}}`; 400 says what is wrong with the value, without repeating it. Connectors that name the secret start again. |
+| `DELETE /api/secrets/<name>` | Removes it from the store and from `secrets.json`. |
+| `POST /api/signin/mcp/<id>` | Starts an MCP server's sign-in (`auth: "oauth"`): `{url, host}`, the page to open. Names the server's sign-in key first if it has none. |
+| `POST /api/signout/mcp/<id>` | Deletes the sealed tokens and the key. |
+| `GET /oauth/callback` | Where the server's sign-in page sends the browser back. Only a sign-in started above, within 10 minutes, is accepted; it answers with a page that says what happened. |
+
 - Works whether or not the connector is enabled.
 
 ### `PUT /api/connectors/<id>/config`

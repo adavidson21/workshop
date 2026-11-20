@@ -207,7 +207,7 @@ test('off in work mode, off for Tandem when the switch is off, and a clear messa
     assert.equal((await A['zones.list'].run({}, noAgents, PERSON)).length, 2);
   } finally { noAgents.done(); }
   const none = makeCtx({ token: null });
-  try { await assert.rejects(A['zones.list'].run({}, none, PERSON), /workshop secret set cloudflare/); } finally { none.done(); }
+  try { await assert.rejects(A['zones.list'].run({}, none, PERSON), /Add it in Settings, Tokens & sign-ins/); } finally { none.done(); }
   assert.deepEqual(fake.writes(), []);
 });
 

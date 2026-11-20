@@ -1432,7 +1432,7 @@ async function runSecret(rest, io) {
     return v ? 0 : 1;
   }
   if (sub === 'remove') {
-    const r = (store.remove || removeSecret)(home, name, { platform });
+    const r = await (store.remove || removeSecret)(home, name, { platform });
     io.out(r.ok ? `Removed ${name}.${r.message ? ` ${r.message}` : ''} Revoke the token where it was made too, if you no longer use it.` : r.message);
     return r.ok ? 0 : 1;
   }
@@ -1524,7 +1524,7 @@ async function runMcp(rest, io) {
   const file = path.join(homePaths(home).data, '_connectors', 'mcp', `${storageKey(id)}.json`);
   if (sub === 'logout') {
     try { fs.rmSync(file, { force: true }); } catch { /* gone */ }
-    const r = (store.remove || removeSecret)(home, s.tokenSecret, { platform });
+    const r = await (store.remove || removeSecret)(home, s.tokenSecret, { platform });
     io.out(`Signed out of ${s.name}: the encrypted sign-in is gone${r.ok ? ' and so is its key' : `, but the key was not removed (${r.message})`}. Revoke Workshop's access on the server's site too, if you no longer use it.`);
     return 0;
   }

@@ -4,7 +4,7 @@ Your Cloudflare account in Workshop, for your own computer: zones and DNS, Worke
 
 ## How it keeps the token safe
 
-- The token lives in this computer's own secret store: macOS Keychain, Windows Credential Manager, or the Secret Service on Linux. You save it with `workshop secret set cloudflare`, which asks for it without showing it and hands it to the store on stdin (never a command line, a file Workshop writes, an environment variable or a log). See [docs/security.md](../../docs/security.md), Secrets.
+- The token lives in this computer's own secret store: macOS Keychain, Windows Credential Manager, or the Secret Service on Linux. You add it in Settings (**Add token**) or with `workshop secret set cloudflare`; either way it goes to the store on stdin (never a command line, a file Workshop writes, an environment variable or a log). See [docs/security.md](../../docs/security.md), Secrets.
 - Only this connector, inside the Workshop agent, reads it (`ctx.secret`), and only to put it in the `Authorization` header of a call to the API address above.
 - Tandem never gets the token. Its agents call this connector's read actions through `/api/tools` with a separate agent token that can only read and propose ([docs/agent-api.md](../../docs/agent-api.md), Tools for agents).
 - Every change is a change set you review and approve. Changes are checked against **Zones Workshop may change** when they are proposed and again when you apply them. The steps you read are worked out from the changes themselves, and Approve sends back a fingerprint of them: if the file was edited after you read it, nothing is applied. There is no way to delete a zone, a Worker or a Pages project, and no change can carry a secret value.
@@ -25,18 +25,18 @@ What this does not protect against: a program running as you that sets out to re
    | Zone | DNS: Edit | DNS records |
 
    Under **Zone Resources** pick **Specific zone** and only the domains you want Workshop to touch. Set a **TTL** end date (90 days is a good rhythm). If attaching a Worker to a custom domain fails with HTTP 403, add Zone, **Workers Routes: Edit**.
-2. **Save it.** In a terminal on this computer: `workshop secret set cloudflare --expires <the TTL date>`. Paste the token when asked. Check it with `workshop secret check cloudflare`.
+2. **Save it.** In Settings, Cloudflare, click **Add token**, paste it and give its TTL date (Settings, Manager, Tokens & sign-ins lists them all). (Or in a terminal: `workshop secret set cloudflare --expires <the TTL date>`.)
 3. **Turn it on.** Settings, Cloudflare: switch it on, paste your **Account ID** (Account home, the menu next to the account name, Copy account ID), and list **Zones Workshop may change** (for example `example.org`). Leave **Let Tandem read and propose changes** on to use it from Tandem.
 4. Use the Test field (a zone name, or leave it empty) to see your zones.
 
-When the token nears its date, Settings and `workshop secret list` say so; make a new token with the same permissions and run `workshop secret set cloudflare --expires <new date>` again. No restart is needed: Workshop reads it again within a minute.
+When the token nears its date, Settings and `workshop secret list` say so; make a new token with the same permissions and click **Replace token**. No restart is needed: Workshop reads it again within a minute.
 
 ## Settings
 
 | Setting | Default | Meaning |
 | --- | --- | --- |
 | `accountId` | required | Your Cloudflare account ID (32 hex characters). |
-| `tokenSecret` | `cloudflare` | The secret name the token was saved under with `workshop secret set`. Settings shows whether it is saved and when it expires; there is no field for the token itself. |
+| `tokenSecret` | `cloudflare` | The name the token is kept under. Settings shows whether it is saved and when it expires, with **Add token** / **Replace token**. |
 | `zones` | `[]` | Zones Workshop may change. DNS records and custom domains outside these are refused, even in a set you apply. Empty means no DNS or domain changes at all. |
 | `agents` | `true` | Tandem may read and propose through `/api/tools`. Off: those calls are refused; you can still use everything from Workshop. |
 | `apiUrl` | `https://api.cloudflare.com/client/v4` | The one address the connector calls (Advanced). |

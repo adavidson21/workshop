@@ -241,16 +241,16 @@ function detail(s, ctx) {
       if (a.state === 'off' || a.state === 'missing') {
         return `<p>Docket syncs your work items and the pull requests waiting on your review, and Slate and Runway read your backlog and publish to it, through the Azure DevOps connector.</p>
           <ol class="su-list"><li>Make a personal access token in ADO with <b>Work Items (Read &amp; write)</b>, plus <b>Code (Read)</b> for pull requests. Note its expiry date. (Work Items (Read) is enough if you only use Docket: Slate and Runway then can't publish, comment or close items.)</li>
-          <li>Save it on this computer: ${copy('workshop pat ADO_PAT')}It asks for the token without showing it.</li>
-          <li>In ${settingsWhere} turn on <b>Azure DevOps</b> and paste any link from Azure DevOps (a work item or board) to fill in your connection. Set <b>PAT expires</b>, Save, and try the Test field with a work item ID.</li></ol>
+          <li>In ${settingsWhere} turn on <b>Azure DevOps</b> and paste any link from Azure DevOps (a work item or board) to fill in your connection. Save.</li>
+          <li>Click <b>Add token</b> beside <b>PAT</b>, paste it and give its expiry date. It goes into this computer's secret store. Then try the Test field with a work item ID.</li></ol>
           <p>${settingsBtn('Open Settings', 'connections')}</p>`;
       }
       if (a.state === 'noConnection') {
         return `<p>The connector is on but has no connection yet. In ${settingsWhere} open Connections and paste any Azure DevOps link, or add your server, collection and project by hand.</p><p>${settingsBtn('Open Settings', 'connections')}</p>`;
       }
       if (a.state === 'noPat') {
-        return `<p>The connection is set up, but the token isn't saved on this computer yet. Run this and paste your token when asked:</p>${copy(`workshop pat ${a.patEnv || 'ADO_PAT'}`)}
-          <p class="su-fine">${ctx.platform === 'win' ? 'Workshop picks it up within seconds; this step ticks itself off.' : 'Then run <code>workshop restart</code>; this step ticks itself off.'}</p>`;
+        return `<p>The connection is set up, but its token isn't saved on this computer yet. In ${settingsWhere}, Tokens &amp; sign-ins, click <b>Add token</b> beside ${esc(a.patEnv || 'ADO_PAT')} and paste it.</p>
+          <p>${settingsBtn('Open Tokens & sign-ins', 'secrets')}</p><p class="su-fine">Workshop picks it up at once; this step ticks itself off.</p>`;
       }
       if (a.state === 'browser') return '<p>Do <b>Connect Workshop on this computer</b> first.</p>';
       return `<p>${esc(a.message || 'The ADO connector is not ready yet.')}</p><p>${settingsBtn('Open Settings', 'connections')}</p>`;

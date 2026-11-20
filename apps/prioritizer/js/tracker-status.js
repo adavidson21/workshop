@@ -15,7 +15,7 @@ export function connectorNote(c, id = (c && c.id) || 'ado') {
   const d = s.details || {};
   // A rejected token keeps the connector "ready" (the next request may work), but every sync fails until it is replaced.
   const rejected = [d.patsRejected, d.tokensRejected].some(r => Array.isArray(r) && r.length);
-  if (rejected) return { error: s.message || `${name} rejected the token. Make a new one, then run: workshop pat`, warn: '' };
+  if (rejected) return { error: s.message || `${name} rejected the token. Make a new one and replace it in Settings, Tokens & sign-ins.`, warn: '' };
   if (s.state !== 'ready') return { error: s.message || `The ${name} connector is ${s.state || 'not ready yet'}.`, warn: '' };
   return { error: '', warn: s.message || '' };
 }

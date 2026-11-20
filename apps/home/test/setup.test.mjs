@@ -82,14 +82,16 @@ test('the card: the current step is open with what to do next, and every command
   assert.deepEqual(mac.copies, ['curl -fsSL https://workshop.alexisdavidson.org/install-work.sh | bash'], 'never an http installer address');
 });
 
-test('the ADO step names the PAT variable to save and links to Settings on this computer', () => {
+test('the ADO step names the PAT to add in Settings (no terminal) and links to Settings on this computer', () => {
   const f = { ...fresh, connected: true, name: 'Sam', ado: { state: 'noPat', patEnv: 'WORK_PAT' } };
   const { html, copies } = card(stepsFor(f), 'ado', { ...ctx, facts: f });
-  assert.deepEqual(copies, ['workshop pat WORK_PAT']);
-  assert.match(html, /picks it up within seconds/);
+  assert.deepEqual(copies, []);
+  assert.match(html, /Add token<\/b> beside WORK_PAT/);
+  assert.match(html, /picks it up at once/);
   const off = { ...f, ado: { state: 'off' } };
   const o = card(stepsFor(off), 'ado', { ...ctx, facts: off });
-  assert.deepEqual(o.copies, ['workshop pat ADO_PAT']);
+  assert.deepEqual(o.copies, []);
+  assert.match(o.html, /Add token<\/b> beside <b>PAT<\/b>/);
   assert.match(o.html, /href="http:\/\/127\.0\.0\.1:4380\/apps\/settings\/"[^>]*>Open Settings on this computer/);
   assert.match(o.html, /Work Items \(Read &amp; write\)/, 'Slate and Runway publish: the PAT needs write');
   assert.match(o.html, /paste any link from Azure DevOps/);

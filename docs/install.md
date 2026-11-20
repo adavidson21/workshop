@@ -67,7 +67,7 @@ For a work laptop: Workshop runs from a pinned copy on your computer instead of 
    `git clone --branch <workshop tag> https://github.com/adavidson21/workshop`, then the same for `docket`, `runway` and `receipts`
 3. Install in work mode and build the pinned copy: `powershell -ExecutionPolicy Bypass -File workshop\scripts\install.ps1 -WorkMode` (on a Mac or Linux: `bash workshop/scripts/install.sh --work-mode`). It turns on work mode, builds the copy from the `docket`, `runway` and `receipts` folders next to Workshop, and adds a `workshop` command for new terminal windows. Open a new terminal before using `workshop`; until then use `node workshop/workshop.mjs` the same way.
 4. `workshop start`, then `workshop open`. Workshop opens at the `http://127.0.0.1:...` address from the pinned copy. Settings says "Work mode is on" and shows the tags. There is no **Connect** step in work mode.
-5. Add your ADO connection in Settings and save your token with `workshop pat ADO_PAT` (the Home page's **Get started** walks you through it).
+5. Add your ADO connection in Settings and click **Add token** to paste your PAT (or run `workshop pat ADO_PAT`) (the Home page's **Get started** walks you through it).
 6. Run `workshop doctor` and continue when it ends with `Result: all good.`
 
 **Dispatch in work mode (only if your company allows a coding agent):**
