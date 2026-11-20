@@ -8,7 +8,7 @@ import os from "node:os";
 import path from "node:path";
 import { archiveChat, listChats, resetChats, resetSearch, searchChats, sendChat, startChat } from "../lib/chat.mjs";
 import { MAX_PIECE, attachPiece, readAttachments, resetAttachments } from "../lib/chat-attach.mjs";
-import { chatChanges, chatSuggest, cleanSuggestion, editedPaths, resetSuggest, suggestPrompt } from "../lib/chat-more.mjs";
+import { chatChanges, chatSuggest, cleanSuggestion, editedPaths, fileChange, resetSuggest, suggestPrompt } from "../lib/chat-more.mjs";
 import { oc, permissions, questions, sessions, upsertSession } from "../lib/opencode-state.mjs";
 import { configure } from "../lib/context.mjs";
 
@@ -127,6 +127,13 @@ test("Changes: the files a chat edited, each diffed against the last commit; new
   assert.match(by["gateway/src/headers.cs"].diff, /^@@ -1,3 \+1,3 @@\n line 1\n-line 2\n\+line two\n line 3$/);
   assert.deepEqual([by["gateway/src/new.cs"].status, by["gateway/src/new.cs"].diff], ["added", "@@ -0,0 +1,2 @@\n+a\n+b"]);
   assert.deepEqual([by["notes.md"].repo, by["notes.md"].status, by["notes.md"].additions], [null, "added", 1]);
+  // A workspace reached through a link (macOS temp folders are; Windows short names act alike): git names the real path.
+  const link = path.join(dir, "ws-link");
+  try { fs.symlinkSync(ws, link, "dir"); } catch { /* no links here */ }
+  if (fs.existsSync(link)) {
+    const viaLink = await fileChange(link, "gateway/src/headers.cs");
+    assert.deepEqual([viaLink.repo, viaLink.status, viaLink.additions], ["gateway", "modified", 1]);
+  }
   g("commit", "-q", "-am", "commit it");
   assert.equal((await chatChanges({ session: "ses_1" })).files.find((f) => f.path === "gateway/src/headers.cs").status, "clean");
 });

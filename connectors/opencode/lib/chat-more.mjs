@@ -44,6 +44,7 @@ function allAdded(text) {
   const lines = text.replace(/\r\n/g, "\n").replace(/\n$/, "").split("\n");
   return `@@ -0,0 +1,${lines.length} @@\n` + lines.map((l) => "+" + l).join("\n");
 }
+const real = (p) => { try { return fs.realpathSync.native(p); } catch { return path.resolve(p); } };
 function readText(file) {
   const buf = fs.readFileSync(file);
   if (buf.length > 400000 || buf.subarray(0, 8000).includes(0)) return null;
@@ -57,12 +58,16 @@ export async function fileChange(ws, rel) {
   const exists = fs.existsSync(abs);
   let dir = path.dirname(abs);
   while (!fs.existsSync(dir) && dir.startsWith(ws + path.sep)) dir = path.dirname(dir);
+  // git names the repo by its real path (macOS temp folders are links, Windows may use short names): compare real paths.
+  const wsReal = real(ws);
   const top = (await git(dir, ["rev-parse", "--show-toplevel"])).out.trim();
-  const root = top && path.resolve(top).startsWith(ws) ? path.resolve(top) : null;
-  const repo = root ? path.relative(ws, root).replace(/\\/g, "/") || "." : null;
+  const topReal = top ? real(top) : null;
+  const root = topReal && (topReal === wsReal || topReal.startsWith(wsReal + path.sep)) ? topReal : null;
+  const repo = root ? path.relative(wsReal, root).replace(/\\/g, "/") || "." : null;
+  const absReal = path.join(real(dir), path.relative(dir, abs));
   const out = (status, diff = "") => ({ path: rel, repo, status, additions: count(diff, "+"), deletions: count(diff, "-"), diff: diff.length > DIFF_MAX ? diff.slice(0, DIFF_MAX) + "\n... (cut)" : diff });
   if (root) {
-    const inRepo = path.relative(root, abs).replace(/\\/g, "/");
+    const inRepo = path.relative(root, absReal).replace(/\\/g, "/");
     const tracked = (await git(root, ["ls-files", "--error-unmatch", "--", inRepo])).code === 0;
     if (tracked || !exists) {
       const d = await git(root, ["diff", "--no-color", "--no-ext-diff", "-U3", "HEAD", "--", inRepo]);
