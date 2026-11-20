@@ -31,7 +31,7 @@ import { EventHub } from './lib/events.mjs';
 import { ConnectorHost } from './lib/connectors.mjs';
 import { LOCAL_PAGE, serveStatic } from './lib/static.mjs';
 import { PinnedSite, uiDirOf } from './lib/pinned.mjs';
-import { appSwitches, readOff, writeOff, pinApps, readBuild } from './lib/apps.mjs';
+import { appSwitches, readOff, writeOff, readAreasOff, writeAreasOff, pinApps, readBuild } from './lib/apps.mjs';
 import { applyStartAtLogin, startAtLoginStatus } from './lib/login.mjs';
 import { liveEnv } from './lib/userenv.mjs';
 import { secretReader } from './lib/secrets.mjs';
@@ -574,6 +574,8 @@ document.getElementById('allow').addEventListener('click', function () {
       const app = switches().apps.find(a => a.id === id);
       if (!app) fail('not_found', `There is no ${id} app.`);
       if (!app.canTurnOff) fail('bad_request', `${app.name} is always on.`);
+      const areaOf = app.area && switches().areas.find(a => a.id === app.area);
+      if (body.on && areaOf) fail('bad_request', `${app.name} is off with ${areaOf.label}. Turn ${areaOf.label} on first.`);
       await appsLock.run('apps', async () => {
         const off = readOff(home);
         if (body.on) off.delete(id); else off.add(id);
@@ -591,6 +593,35 @@ document.getElementById('allow').addEventListener('click', function () {
       const view = switches();
       const now = view.apps.find(a => a.id === id);
       ok({ ...view, changed: id, download: view.workMode && now.on && now.separate && !now.downloaded ? now.command : null });
+      return;
+    }
+
+    // Areas (docs/apps.md, Areas): turn a whole kind of work on or off. Saved next to the app switches in
+    // <home>/apps.json; the apps' own switches are kept. In work mode the pinned copy is rebuilt.
+    if (parts[0] === 'app-areas') {
+      if (parts.length !== 2) fail('not_found', 'Not found.');
+      only('PUT');
+      if (!own) fail('local_only', 'Turn areas on and off from Workshop on this computer.');
+      const id = name(parts[1], 'area');
+      const body = await readJsonBody(req, 64 * 1024);
+      if (!body || typeof body !== 'object' || typeof body.on !== 'boolean' || Object.keys(body).length !== 1) fail('bad_request', 'Send {"on": true} or {"on": false}.');
+      const area = switches().areas.find(a => a.id === id);
+      if (!area) fail('not_found', `There is no ${id} area.`);
+      await appsLock.run('apps', async () => {
+        const off = readAreasOff(home);
+        if (body.on) off.delete(id); else off.add(id);
+        await writeAreasOff(home, off);
+        log.for('apps').info(`${area.label} turned ${body.on ? 'on' : 'off'}.`);
+        if (!workMode()) return;
+        try {
+          const { skipped } = pinApps({ home, repo: root, schemas, uiDir: pinned.uiDir });
+          for (const x of skipped) log.for('work').warn(`${x.id} is not in the pinned copy: ${x.problem}.`);
+        } catch (e) {
+          log.for('work').error(`Could not rebuild the pinned copy: ${e.message}`);
+          fail('internal', `${area.label} is ${body.on ? 'on' : 'off'}, but the pinned copy could not be rebuilt: ${e.message} Run "workshop pin" to see why.`);
+        }
+      });
+      ok({ ...switches(), changed: id, download: null });
       return;
     }
 

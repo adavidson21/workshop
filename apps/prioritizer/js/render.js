@@ -12,7 +12,7 @@ import { childrenOf, commit, hiddenCount, inboxQueue, productPick, isWaiting, li
 import { focusSettings } from './focus-hours.js';
 import { weekFocusMinutes } from '../../../shared/focus.js';
 import { $, daysBetween, esc, fmtDay, fmtLong, today, todayStr } from './util.js';
-import { embedded, ws } from './ws.js';
+import { embedded, peoplePlaceOn, ws } from './ws.js';
 import { dayHead, renderDay } from './day-view.js';
 import { dp } from './dayplan.js';
 import { fmt12, repeatLabel, sprintInfo, sprintsOn } from './dayplan-model.js';
@@ -69,6 +69,7 @@ function setView(v){
     v = 'today';
   }
   if (!VIEWS.includes(v)) return;
+  if (v === 'people' && !peoplePlaceOn()) v = 'today';
   const was = state.view;
   // Today is always Today: leaving Plan week is a route or click to Today like any other place.
   if (v === 'today' && !old && ui.planWeek){ ui.planWeek = false; state.lens = 'rank'; saveUi(); }
@@ -131,7 +132,7 @@ function renderSide(){
   const tips = {today: `Today: To sort, Up next and Today${inbox ? `. ${inbox} to sort` : ''}. Shortcut: 1 (3 To sort, 2 plan the day)`};
   // Three places (Docket 10.5.0): Today is where the day happens (its Day plan and the week's ranking included),
   // People and Done are for review. One count, on Today: what is waiting to be sorted. Lists are a filter under the page title.
-  $('#snav').innerHTML = NAV.map(([k, label, ic, key]) => `<button class="sitem${nav === k ? ' on' : ''}" data-nav="${k}" aria-current="${nav === k ? 'page' : 'false'}" data-tip="${tips[k] || `${label}. Shortcut: ${key}`}">${ic}<span class="lbl">${label}</span>${
+  $('#snav').innerHTML = NAV.filter(([k]) => k !== 'people' || peoplePlaceOn()).map(([k, label, ic, key]) => `<button class="sitem${nav === k ? ' on' : ''}" data-nav="${k}" aria-current="${nav === k ? 'page' : 'false'}" data-tip="${tips[k] || `${label}. Shortcut: ${key}`}">${ic}<span class="lbl">${label}</span>${
     k === 'today' && inbox ? `<span class="badge" aria-label="${inbox} to sort">${inbox}</span>` : ''}</button>`).join('');
   if (!$('#slists')) return;
   // Counts follow the PR filter, so a hidden Team PR doesn't count anywhere. The Pull requests list counts all of

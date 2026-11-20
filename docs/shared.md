@@ -8,7 +8,7 @@ Workshop is one repo: the agent, the connectors, the shell, the shared files and
 | --- | --- | --- | --- |
 | B1 | App to app (code) | An app (`apps/<id>/`) uses only its own files and the public shared files below. Never another app's files. | `tests/check-boundaries.mjs` |
 | B2 | App to platform (code) | Apps and `shared/` never use `shell/`, `agent/`, `connectors/` or `worker/`; they reach them through the SDK. The shell frames apps and never imports their code. | `tests/check-boundaries.mjs` |
-| B3 | Runtime to browser (code) | `agent/` and each `connectors/<id>/` use only their own files, `shared/site.js` and `shared/app-folders.js` (plain data). | `tests/check-boundaries.mjs`, `tests/check-site.mjs` |
+| B3 | Runtime to browser (code) | `agent/` and each `connectors/<id>/` use only their own files, `shared/site.js`, `shared/app-folders.js` and `shared/areas.js` (plain data and pure helpers, no imports). | `tests/check-boundaries.mjs`, `tests/check-site.mjs` |
 | B4 | Shared's public surface | Apps use only the files listed under Public. Every file in `shared/` is listed here, as Public or Internal, so adding one is a choice. | `tests/check-boundaries.mjs` |
 | B5 | App to app (data) | An app writes only its own data. It reads another app's data only through the contracts: any app's `summary` ([summaries.md](summaries.md)) and `handoffs` ([handoffs.md](handoffs.md)), and Settings' `people`, `teams`, `products`, `glossary`, `focus`, `app-settings` and `writing` ([people.md](people.md), [teams.md](teams.md), [products.md](products.md), [glossary.md](glossary.md), [focus.md](focus.md), [app-settings.md](app-settings.md), [writing.md](writing.md)). One pair read: Settings reads Chat's `writing-feedback` (and no other app does), to learn from your answers in Rewrite a draft. Files follow `privateFiles` ([app-manifest.md](app-manifest.md)). One exception, for a retired app: Rapport (`receipts`) may read the old 1:1s app's (`oneonones`) `people` and `settings`, which it copies in on first open. | The SDK refuses other reads with `forbidden` ([sdk.md](sdk.md), Data). Tests: `shared/test/sdk-contract-reads.test.mjs`. |
 | B6 | Contracts change on purpose | Contract collections have versioned schemas in `docs/schemas/`. A schema change comes with its docs change. | `tests/check-contracts.mjs` |
@@ -52,6 +52,7 @@ Apps may use these. Each module's header comment says what it exports and how to
 | `shared/save-file.js` | Give the person a file to keep (a download). |
 | `shared/site.js` | Where Workshop lives on the web ([site.md](site.md)). |
 | `shared/app-folders.js` | The folder each app keeps its data in, inside the data folder ([data-format.md](data-format.md), App folders). |
+| `shared/areas.js` | Areas: what turning off Management or Work hides ([apps.md](apps.md), Areas). Apps read the state with `ws.areas`. |
 | `shared/monaco.js` | The Monaco code editor (`loadMonaco`, `applyMonacoTheme`, `languageOf`), for Loom's code review and Chat's Files. |
 | `shared/vendor/` | Third-party code served from this site (SheetJS, and Monaco for `shared/monaco.js`); see `vendor/README.md`. |
 | `shared/sw-register.js` | Registers a site's service worker. Only for apps that still have a site of their own; goes with them. |

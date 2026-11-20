@@ -62,7 +62,7 @@ import { enableStartAtLogin, disableStartAtLogin, startAtLoginStatus } from './a
 import { main as adoDoctorMain } from './connectors/ado/doctor.mjs';
 import { checkProviders } from './connectors/opencode/lib/providers.mjs';
 import { verifyPinned, describeBuild, uiDirOf } from './agent/lib/pinned.mjs';
-import { buildRegistry as registryOf, findApp, pinApps, readOff, writeOff, appSwitches } from './agent/lib/apps.mjs';
+import { buildRegistry as registryOf, findApp, pinApps, readOff, writeOff, readAreasOff, writeAreasOff, appSwitches } from './agent/lib/apps.mjs';
 import { ENV_NAME, liveEnv, readWindowsUserEnv } from './agent/lib/userenv.mjs';
 import { patProblem, readSecret, startBackground, stopAgent, writeWindowsUserEnv } from './scripts/lib/control.mjs';
 import { SECRET_NAME, daysLeft, readIndex, readSecret as readStoredSecret, storeName } from './agent/lib/secrets.mjs';
@@ -141,6 +141,8 @@ const USAGE = `Usage: workshop <command> [options]
                                  (eng-agents) is downloaded next to
                                  Workshop and installed in opencode. Settings (Apps) has the same switches.
   apps off <app>                 Turn an app off: it leaves the rail (and the pinned copy in work mode).
+  apps on|off <area>             Turn an area on or off (management, work): its apps, Settings pages and app
+                                 parts with it. For a personal computer without work things.
   update                         Update Workshop (every app is part of it) and Tandem (eng-agents) each to its
                                  newest release tag (skipping any already there), then rebuild the pinned copy if
                                  work mode is on. Tandem is reinstalled in opencode when opencode's copy is behind.
@@ -1130,8 +1132,14 @@ function switchLines(list) {
     let state = a.on ? 'on' : 'off';
     if (!a.canTurnOff) state = 'always on';
     let note = '';
-    if (list.workMode && !noCopy && a.on && !a.inWorkshop) note = 'not in the pinned copy yet: run "workshop pin"';
+    const area = a.area && (list.areas || []).find(x => x.id === a.area);
+    if (area) note = `off with ${area.label}${a.own ? '' : ' (and its own switch is off)'}`;
+    else if (list.workMode && !noCopy && a.on && !a.inWorkshop) note = 'not in the pinned copy yet: run "workshop pin"';
     lines.push(`  ${a.name.padEnd(12)} ${state.padEnd(10)}${note ? ` ${note}` : ''}`);
+  }
+  if ((list.areas || []).length) {
+    lines.push('Areas:');
+    for (const x of list.areas) lines.push(`  ${x.label.padEnd(12)} ${(x.on ? 'on' : 'off').padEnd(10)} ${x.about}`);
   }
   return lines;
 }
@@ -1146,14 +1154,32 @@ async function runApps(rest, io) {
   if (!action) {
     io.out(`Apps${workMode ? ' (work mode: the rail shows what is in the pinned copy)' : ''}:`);
     for (const l of switchLines(list())) io.out(l);
-    io.out('Turn one on or off: workshop apps on <app>, workshop apps off <app>. Or use Settings, Apps.');
+    io.out('Turn one on or off: workshop apps on <app or area>, workshop apps off <app or area>. Or use Settings, Apps.');
     return 0;
   }
   if ((action !== 'on' && action !== 'off') || extra.length) { io.out('Use: workshop apps, workshop apps on <app>, or workshop apps off <app>.'); return 1; }
   const all = list();
+  // An area (shared/areas.js) by its id or label: turns a whole kind of work on or off.
+  const areaWord = String(word || '').trim().toLowerCase();
+  const area = (all.areas || []).find(x => x.id === areaWord || x.label.toLowerCase() === areaWord);
+  if (area) {
+    const areasOff = readAreasOff(home);
+    if (action === 'on') areasOff.delete(area.id); else areasOff.add(area.id);
+    await writeAreasOff(home, areasOff);
+    io.out(`${area.label} is ${action}.`);
+    if (!workMode) { io.out('Reload Workshop if it is open.'); return 0; }
+    let r;
+    try { r = pin({ home }); } catch (e) { io.out(`Could not rebuild the pinned copy: ${e.message}`); return 1; }
+    io.out(`Rebuilt the pinned copy: ${describeBuild(r.build)}.`);
+    for (const l of skippedLines(r.skipped)) io.out(l);
+    io.out(await agentHealth(info.config?.port ?? DEFAULT_PORT) ? 'Reload Workshop in your browser to see the change.' : 'Start Workshop with: workshop up');
+    return 0;
+  }
   const app = findApp(word, all.apps.map(a => ({ ...a, key: a.key || a.id })));
-  if (!app) { io.out(`There is no app called "${word || ''}". Apps: ${all.apps.map(a => a.key || a.id).join(', ')}.`); return 1; }
+  if (!app) { io.out(`There is no app or area called "${word || ''}". Apps: ${all.apps.map(a => a.key || a.id).join(', ')}. Areas: ${(all.areas || []).map(x => x.id).join(', ')}.`); return 1; }
   if (!app.canTurnOff) { io.out(`${app.name} is always on.`); return action === 'on' ? 0 : 1; }
+  const areaOf = app.area && (all.areas || []).find(x => x.id === app.area);
+  if (action === 'on' && areaOf) { io.out(`${app.name} is off with ${areaOf.label}. Turn it on first: workshop apps on ${areaOf.id}`); return 1; }
   const off = readOff(home);
   if (action === 'on') {
     // Loom's agents (Tandem) come from their own repo too: downloaded next to Workshop and installed in opencode.

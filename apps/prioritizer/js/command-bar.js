@@ -1,5 +1,6 @@
 import { addTask } from './actions.js';
 import { NAV_KEYS, TOUCH, VALUE } from './constants.js';
+import { peoplePlaceOn } from './ws.js';
 import { hideTip } from './events.js';
 import { closeMenu, showHelp } from './overlays.js';
 import { parseQuick } from './quick-add.js';
@@ -86,7 +87,7 @@ function cheatHtml(){
         : row(tag('+product', '+'), 'Set up your products in Workshop: Settings, Products')}
     </div>
     <div class="cgrp"><h4>Go to</h4>
-      ${row(GO.map(([k, label]) => `<button type="button" class="ctag go" data-go="${k}">${TOUCH ? '' : `<kbd>${k}</kbd>`}${label}</button>`).join(''), TOUCH ? 'Closes this and opens it' : 'Press the number outside this box, or click to go')}
+      ${row(GO.filter(([k]) => k !== '5' || peoplePlaceOn()).map(([k, label]) => `<button type="button" class="ctag go" data-go="${k}">${TOUCH ? '' : `<kbd>${k}</kbd>`}${label}</button>`).join(''), TOUCH ? 'Closes this and opens it' : 'Press the number outside this box, or click to go')}
     </div>
     ${TOUCH ? '' : `<div class="cgrp ckeys"><h4>Keys</h4><div class="kgrid">
       ${KEYS.map(([k, what]) => `<div class="crow"><div class="ctags">${k.split(' ').map(x => `<kbd>${x}</kbd>`).join('')}</div><div class="cwhat">${what}</div></div>`).join('')}</div>

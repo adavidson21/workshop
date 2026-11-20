@@ -35,7 +35,7 @@ import { startSlateLink } from './slate-link.js';
 import { startAgentQueue } from './agent-queue.js';
 import { startProductsLink } from './products-link.js';
 import { findTask } from './state.js';
-import { ready, embedded } from './ws.js';
+import { ready, embedded, peoplePlaceOn } from './ws.js';
 import { mountBar } from '../../../shared/standalone-bar.js';
 import { startDirectory } from './directory.js';
 import { focusHoursBoot } from './focus-hours.js';
@@ -50,6 +50,8 @@ else { mountBar('Docket'); if (window.WorkshopSw) WorkshopSw.register((msg, labe
 const loaded = boot();
 ready.then(ws => {
   if (!ws) return;
+  // Management off (docs/apps.md, Areas): the People place leaves the sidebar, and a saved view of it opens Today.
+  if (!peoplePlaceOn()) loaded.then(() => { if (state.view === 'people') setView('today'); else render(); });
   // Notes about each task, for the drawer's Notes line (notes-link.js). Inside Workshop only.
   startNotesLink(ws, embedded, () => loaded.then(syncDrawer));
   // Where ADO tasks stand on Slate's board, for the In Slate chip and the drawer (slate-link.js).

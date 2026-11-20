@@ -158,11 +158,15 @@ For hosted and browser modes, the static site carries `apps/registry.json` with 
 
 ### `GET /api/app-switches`
 
-Every app with its on/off switch (docs/apps.md). Schema [app-switches](schemas/app-switches.schema.json), example [app-switches.work-mode.json](examples/app-switches.work-mode.json). Every app comes from `apps/` (`separate` is always false since apps in their own repos ended in Nov 2026). In work mode, `inWorkshop` says whether the pinned copy has the app.
+Every app with its on/off switch (docs/apps.md). Schema [app-switches](schemas/app-switches.schema.json), example [app-switches.work-mode.json](examples/app-switches.work-mode.json). Every app comes from `apps/` (`separate` is always false since apps in their own repos ended in Nov 2026). In work mode, `inWorkshop` says whether the pinned copy has the app. `areas` lists the areas ([apps.md](apps.md), Areas); each app has `own` (its own switch) and `area` (the area that has it off, or `""`), and `on` is true only when both allow it.
 
 ### `PUT /api/app-switches/<id>`
 
-Body `{"on": true}` or `{"on": false}`. Workshop on this computer only (`403 local_only` from a paired site). Saves the switch in `<home>/apps.json` and, in work mode, rebuilds the pinned copy from what is on this computer. Answers like `GET`, plus `changed` (the id) and `download`: the command to run when an app turned on in work mode is not downloaded yet, else `null`. The agent never downloads anything itself. `400` for Home and Settings (always on) or a bad body, `404` for an unknown app.
+Body `{"on": true}` or `{"on": false}`. Workshop on this computer only (`403 local_only` from a paired site). Saves the switch in `<home>/apps.json` and, in work mode, rebuilds the pinned copy from what is on this computer. Answers like `GET`, plus `changed` (the id) and `download`: the command to run when an app turned on in work mode is not downloaded yet, else `null`. The agent never downloads anything itself. `400` for Home and Settings (always on), an app turned on while its area is off, or a bad body, `404` for an unknown app.
+
+### `PUT /api/app-areas/<id>`
+
+Body `{"on": true}` or `{"on": false}`. Workshop on this computer only (`403 local_only` from a paired site). Saves the area in `<home>/apps.json` (the apps' own switches are kept) and, in work mode, rebuilds the pinned copy. Answers like `GET /api/app-switches`, plus `changed` (the area id) and `download: null`. `400` for a bad body, `404` for an unknown area.
 
 ### `POST /api/update-terminal`
 

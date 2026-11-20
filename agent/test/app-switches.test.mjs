@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { createAgent } from '../server.mjs';
-import { readOff, writeOff, buildRegistry, gitHead, pinApps, appSwitches, readManifest, APPS_FILE } from '../lib/apps.mjs';
+import { readOff, writeOff, readAreasOff, writeAreasOff, effectiveOff, buildRegistry, gitHead, pinApps, appSwitches, readManifest, APPS_FILE } from '../lib/apps.mjs';
 import { verifyPinned } from '../lib/pinned.mjs';
 import { loadSchemas, skippedLines } from '../../workshop.mjs';
 import { tempHome, rmHome, get, put, post, REPO, dataDirOf } from './helpers.mjs';
@@ -26,6 +26,29 @@ test('apps.json keeps the apps turned off, and never Home or Settings', async ()
     assert.deepEqual([...readOff(home)], ['notes']);
     fs.writeFileSync(path.join(home, APPS_FILE), 'not json');
     assert.deepEqual([...readOff(home)], [], 'an unreadable file turns nothing off');
+  } finally { rmHome(home); }
+});
+
+test('areas: kept next to the app switches, turn their apps off without touching their own switch', async () => {
+  const home = tempHome();
+  try {
+    await writeOff(home, new Set(['notes']));
+    await writeAreasOff(home, new Set(['management', 'nope']));
+    assert.deepEqual(JSON.parse(fs.readFileSync(path.join(home, APPS_FILE), 'utf8')), { off: ['notes'], areasOff: ['management'] });
+    await writeOff(home, new Set(['notes', 'bench']));
+    assert.deepEqual([...readAreasOff(home)], ['management'], 'writing app switches keeps the areas');
+    assert.deepEqual([...readOff(home)].sort(), ['bench', 'notes'], 'own switches only');
+    assert.deepEqual([...effectiveOff(home)].sort(), ['bench', 'notes', 'receipts'], 'Rapport is off with Management');
+    const view = appSwitches({ home, repo: REPO, schemas, workMode: false });
+    contractSchemas.assert('app-switches', view, 'appSwitches with areas');
+    const rapport = view.apps.find(a => a.id === 'receipts');
+    assert.deepEqual([rapport.on, rapport.own, rapport.area], [false, true, 'management']);
+    assert.deepEqual(view.areas.map(a => [a.id, a.on]), [['management', false], ['work', true]]);
+    const { off } = pinApps({ home, repo: REPO, schemas });
+    assert.ok(off.has('receipts'), 'the pinned copy leaves out an area\'s apps');
+    await writeAreasOff(home, new Set());
+    assert.deepEqual(JSON.parse(fs.readFileSync(path.join(home, APPS_FILE), 'utf8')), { off: ['bench', 'notes'] });
+    assert.equal(appSwitches({ home, repo: REPO, schemas, workMode: false }).apps.find(a => a.id === 'receipts').on, true, 'back to its own switch');
   } finally { rmHome(home); }
 });
 
@@ -103,6 +126,20 @@ test('GET and PUT /api/app-switches: changes come from this computer only, and w
     assert.equal(r.status, 200, r.text);
     assert.equal((await get(agent, '/apps/slate/index.html', { auth: 'cookie' })).status, 200, 'Slate is back');
 
+    r = await put(agent, '/api/app-areas/work', { on: false });
+    assert.equal(r.status, 200, r.text);
+    contractSchemas.assert('app-switches', r.json, 'PUT area');
+    assert.equal(r.json.changed, 'work');
+    assert.equal(r.json.apps.find(a => a.id === 'runway').area, 'work');
+    assert.ok(!ids(JSON.parse(fs.readFileSync(path.join(uiDir, 'apps', 'registry.json'), 'utf8'))).includes('runway'), 'rebuilt without Runway');
+    r = await put(agent, '/api/app-switches/runway', { on: true });
+    assert.equal(r.status, 400, 'an app stays off while its area is off');
+    assert.match(r.json.error, /Turn Work on first/);
+    assert.equal((await put(agent, '/api/app-areas/nope', { on: false })).status, 404);
+    assert.equal((await put(agent, '/api/app-areas/work', { on: 1 })).status, 400);
+    r = await put(agent, '/api/app-areas/work', { on: true });
+    assert.equal(r.json.apps.find(a => a.id === 'runway').on, true);
+
     assert.equal((await put(agent, '/api/app-switches/home', { on: false })).status, 400, 'Home is always on');
     assert.equal((await put(agent, '/api/app-switches/nope', { on: false })).status, 404);
     assert.equal((await put(agent, '/api/app-switches/slate', { on: 'yes' })).status, 400);
@@ -124,6 +161,7 @@ test('a paired site can read the switches but not change them', async () => {
     const w = await put(agent, '/api/app-switches/notes', { on: false }, { origin: site });
     assert.equal(w.status, 403);
     assert.equal(w.json.code, 'local_only');
+    assert.equal((await put(agent, '/api/app-areas/work', { on: false }, { origin: site })).status, 403, 'nor the areas');
     assert.equal(fs.existsSync(path.join(home, APPS_FILE)), false, 'nothing was saved');
   } finally { await agent.stop(); rmHome(home); }
 });
