@@ -225,15 +225,35 @@ export function testsBadge(it) {
   if (t.newTests) return { cls: 'ok', text: `+${t.newTests} test${t.newTests === 1 ? '' : 's'}` };
   return { cls: 'ok', text: 'Tests pass' };
 }
+/** How a card moves on the floor (Loom 6.12.0): 'run' (Tandem is working: it bobs on the moving belt), 'gate' (it waits
+    on you: it bumps against a striped gate), 'stuck' (pulled off: tilted, still) or 'idle' (queued or waiting on CI and
+    people: still). The belt under a line only runs while one of its cards is 'run'. */
+export function motionOf(c) {
+  if (!c) return 'idle';
+  if (c.station === 'stuck' || isStuck(c.it)) return 'stuck';
+  if (c.mine) return 'gate';
+  if (c.it) {
+    const a = itemAuto(c.it);
+    if (a && a.status === 'running') return 'run';
+    if (isBusy(itemSession(c.it))) return 'run';
+    if (c.station === 'transit') return /running|fixing|merging/i.test(transitBadge(c.it).text) ? 'run' : 'idle';
+    return 'idle';
+  }
+  if (c.session) return isBusy(S.L && S.L.sessions && S.L.sessions[c.session]) ? 'run' : 'idle';
+  return 'idle';
+}
+const GEAR = '<svg class="fl-gear" viewBox="0 0 24 24" width="12" height="12" aria-hidden="true"><path fill="currentColor" d="M10.6 2h2.8l.5 2.6 1.6.7 2.2-1.5 2 2-1.5 2.2.7 1.6 2.6.5v2.8l-2.6.5-.7 1.6 1.5 2.2-2 2-2.2-1.5-1.6.7-.5 2.6h-2.8l-.5-2.6-1.6-.7-2.2 1.5-2-2 1.5-2.2-.7-1.6L2 13.4v-2.8l2.6-.5.7-1.6-1.5-2.2 2-2 2.2 1.5 1.6-.7zM12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z"/></svg>';
+const MOTION_WORD = { run: 'Working', gate: 'Waiting at the gate for you', stuck: 'Pulled off the line', idle: 'Waiting' };
 function chipHtml(c, sel) {
   const key = keyOf(c);
   const on = sel && sel === key;
   const tb = c.station === 'transit' ? transitBadge(c.it) : testsBadge(c.it);
   const sb = sentBackOf(c.it);
   const label = `${TYPE(c)}: ${c.title}. ${c.status}${tb ? '. ' + tb.text : ''}${sb ? `. Your comments: ${sb}` : ''}${c.mine ? '. Your turn: ' + c.action : ''}`;
-  return `<button type="button" class="fl-card k-${h(c.kind)}${c.it && c.it.story ? ' story' : ''}${c.mine ? ' mine' : ''}${on ? ' on' : ''}" data-lane-open="${h(key)}" aria-pressed="${!!on}" aria-label="${h(label)}" title="${h(c.title + ' · ' + c.status)}">` +
-    `<span class="fl-ctop">${projSw(c)}<span class="fl-id">${c.id ? '#' + h(c.id) : h(TYPE(c))}</span>${c.id ? `<span class="fl-type">${h(TYPE(c))}</span>` : ''}</span>` +
-    `<span class="fl-title">${h(c.title)}</span>${tb ? `<span class="fl-tst ${tb.cls}" aria-hidden="true">${h(tb.text)}</span>` : ''}${sb ? `<span class="fl-tst sb" aria-hidden="true">Your comments: ${h(String(sb))}</span>` : ''}${c.mine && c.action ? `<span class="fl-act">${h(c.action)}</span>` : ''}</button>`;
+  const m = motionOf(c);
+  return `<button type="button" class="fl-card k-${h(c.kind)}${c.it && c.it.story ? ' story' : ''}${c.mine ? ' mine' : ''}${on ? ' on' : ''} m-${m}" data-lane-open="${h(key)}" aria-pressed="${!!on}" aria-label="${h(label)}" title="${h(c.title + ' · ' + c.status)}">` +
+    `<span class="fl-ctop">${projSw(c)}<span class="fl-id">${m === 'run' ? GEAR : ''}${c.id ? '#' + h(c.id) : h(TYPE(c))}</span>${c.id ? `<span class="fl-type">${h(TYPE(c))}</span>` : ''}</span>` +
+    `<span class="fl-title">${h(c.title)}</span>${tb ? `<span class="fl-tst ${tb.cls}" aria-hidden="true">${h(tb.text)}</span>` : ''}${sb ? `<span class="fl-tst sb" aria-hidden="true">Your comments: ${h(String(sb))}</span>` : ''}${c.mine && c.action ? `<span class="fl-act">${h(c.action)}</span>` : ''}${m === 'run' ? '<span class="fl-prog" aria-hidden="true"></span>' : ''}${m === 'gate' ? '<span class="fl-gatebar" aria-hidden="true"></span>' : ''}</button>`;
 }
 function stackHtml(line, s, sel) {
   const key = line + ':' + s.id;
@@ -245,9 +265,10 @@ function stackHtml(line, s, sel) {
 }
 function plateHtml(s, extra) {
   const busy = s.id === 'build' && extra && extra.queued > 0;
-  const cls = s.you ? ' you' : busy ? ' busy' : '';
+  const ms = s.cards.map(motionOf);
+  const cls = (s.you ? ' you' : busy ? ' busy' : '') + (ms.includes('run') ? ' whirr' : '') + (ms.includes('gate') ? ' gated' : '');
   const sub = extra && s.id === 'build' && (extra.running || extra.queued) ? `${extra.running} building${extra.queued ? `, ${extra.queued} queued` : ''}` : s.desc;
-  return `<div class="fl-plate${cls}"><span class="fl-name">${h(s.name)}</span><span class="fl-sub">${h(sub)}</span><span class="fl-n" aria-label="${h(plural(s.cards.length, 'item'))}">${s.cards.length}</span></div>`;
+  return `<div class="fl-plate${cls}">${ms.includes('gate') ? '<span class="fl-arm" aria-hidden="true"></span>' : ''}<span class="fl-name">${ms.includes('run') ? GEAR : ''}${h(s.name)}</span><span class="fl-sub">${h(sub)}</span><span class="fl-n" aria-label="${h(plural(s.cards.length, 'item'))}">${s.cards.length}</span></div>`;
 }
 function stationHtml(line, s, sel, extra) {
   return `<section class="fl-station st-${h(s.id)}" aria-label="${h(s.name + ': ' + plural(s.cards.length, 'item'))}">${stackHtml(line, s, sel)}${plateHtml(s, extra)}</section>`;
@@ -255,7 +276,7 @@ function stationHtml(line, s, sel, extra) {
 function expressHtml(fd, sel) {
   if (!fd.express.length) return '';
   const cols = CODE.map(s => `<div class="fl-xcol">${EXPRESS.has(s.id) ? fd.express.filter(c => c.station === s.id).map(c => chipHtml(c, sel)).join('') : ''}</div>`).join('');
-  return `<div class="fl-express" aria-label="Express lane: quick changes Tandem builds hands-off"><span class="fl-xlabel">Express</span><div class="fl-xbelt">${cols}</div></div>`;
+  return `<div class="fl-express" aria-label="Express lane: quick changes Tandem builds hands-off"><span class="fl-xlabel">Express</span><div class="fl-xbelt${fd.express.some(c => motionOf(c) === 'run') ? ' moving' : ''}">${cols}</div></div>`;
 }
 /** The builds at the Loading dock (Publish all ready counts the ones with nothing to answer). */
 const readyItems = fd => (fd.code.find(s => s.id === 'dock') || { cards: [] }).cards.map(c => c.it).filter(Boolean);
@@ -272,9 +293,10 @@ function shippedHtml(done, delivered = []) {
 }
 function lineHtml(id, title, sub, stations, sel, extra, before, ready) {
   const n = stations.reduce((t, s) => t + s.cards.length, 0);
+  const moving = stations.some(s => s.cards.some(c => motionOf(c) === 'run'));
   const pubAll = ready ? publishAllHtml(ready) : '';
   return `<section class="fl-line fl-${id}" aria-label="${h(title)}"><header class="fl-lh"><h2>${h(title)}</h2><span class="fl-ls">${h(sub)}</span><span class="fl-ln">${h(plural(n, 'item'))}</span>${pubAll}</header>` +
-    (before || '') + `<div class="fl-stations" style="--n:${stations.length}">${stations.map(s => stationHtml(id, s, sel, extra)).join('')}</div><div class="fl-belt" aria-hidden="true"></div></section>`;
+    (before || '') + `<div class="fl-stations" style="--n:${stations.length}">${stations.map(s => stationHtml(id, s, sel, extra)).join('')}</div><div class="fl-belt${moving ? ' moving' : ''}" aria-hidden="true"><i class="fl-roll"></i><i class="fl-roll"></i></div></section>`;
 }
 const STEP_WORD = { done: 'done', now: 'now', next: 'next' };
 /** New lines: products being onboarded, their five steps lit (Core 4.10.0 /onboard-product). */
@@ -302,14 +324,33 @@ function handoffHtml(fd, sel) {
   return `<section class="fl-handoff" aria-label="Epics handing off to builds">${belt}${fd.epics.length ? `<div class="fl-epics">${fd.epics.map(epic).join('')}</div>` : ''}</section>`;
 }
 
-/** The floor, with the open card's panel beside it (the lanes' own panel, passed in). */
+/** Where a card is on the floor, for the popup's stamp: its station's name and how it moves. */
+function whereOf(fd, key) {
+  for (const [line, list] of [['code', fd.code], ['paper', fd.paper]]) for (const st of list) {
+    const c = st.cards.find(x => keyOf(x) === key);
+    if (c) return { name: (line === 'code' ? 'Code line, ' : 'Research line, ') + st.name, m: motionOf(c), kind: c.kind, story: !!c.story };
+  }
+  const pools = [['express', 'Express lane'], ['belt', 'Hand-off belt'], ['stuck', 'Pulled off the line'], ['other', 'On the floor']];
+  for (const [k, name] of pools) { const c = fd[k].find(x => keyOf(x) === key); if (c) return { name, m: motionOf(c), kind: c.kind, story: !!c.story }; }
+  return null;
+}
+/** The open card's details as a popup that grows out of the card (Loom 6.12.0; was a side panel). floor-motion.js
+    places it beside the card after each paint; a click outside it, its X or Escape closes it. */
+function popHtml(fd, sel, panel) {
+  if (!panel) return '';
+  const w = whereOf(fd, sel);
+  const stamp = w ? `<p class="fl-stamp m-${w.m}"><span class="fl-sdot" aria-hidden="true"></span>${h(w.name)}<span class="fl-sword">${h(MOTION_WORD[w.m])}</span></p>` : '';
+  return `<div class="fl-pop k-${h((w && w.kind) || 'other')}${w && w.story ? ' story' : ''}" role="dialog" aria-label="Details" data-pop-for="${h(sel)}"><span class="fl-tail" aria-hidden="true"></span><div class="fl-pin">${stamp}${panel}</div></div>`;
+}
+/** The floor: the two lines (and the hand-off belt between them) are the stage, the page's focal point; everything else
+    sits under it, and the open card pops out of its box. */
 export function floorHtml(data, sel, panel) {
   const fd = floorData(data);
   const code = lineHtml('code', 'Code line', 'Feature, bug and quick change. Ends in a PR.', fd.code, sel, fd.slots, expressHtml(fd, sel), readyItems(fd));
   const paper = lineHtml('paper', 'Research line', 'Investigate, error log, docs and epics. Ends in a brief or a breakdown.', fd.paper, sel, null, '');
   const stuck = fd.stuck.length ? `<section class="fl-stuck" aria-label="Pulled off the line"><h2>Pulled off the line</h2><div class="fl-row">${fd.stuck.map(c => chipHtml(c, sel)).join('')}</div></section>` : '';
   const other = fd.other.length ? `<section class="fl-other" aria-label="Also waiting"><h2>Also on the floor</h2><div class="fl-row">${fd.other.map(c => chipHtml(c, sel)).join('')}</div></section>` : '';
-  return `<div class="ln-body fl-body${panel ? ' has-panel' : ''}"><div class="fl-floor">${newLinesHtml(fd, sel)}${code}${shippedHtml(data.doneList, fd.delivered)}${stuck}${handoffHtml(fd, sel)}${paper}${other}</div>${panel || ''}</div>`;
+  return `<div class="ln-body fl-body"><div class="fl-floor"><div class="fl-stage">${code}${handoffHtml(fd, sel)}${paper}</div>${shippedHtml(data.doneList, fd.delivered)}${stuck}${other}${newLinesHtml(fd, sel)}</div>${popHtml(fd, sel, panel)}</div>`;
 }
 
 /** In an epic's panel (Core 4.10.0): once its breakdown is approved, build its stories here, hands-off, in order. */

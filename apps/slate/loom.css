@@ -118,7 +118,9 @@ body[data-loom-tab=lanes] #runs-root > #hub { display: none; }
 /* The drop box */
 #runs-root .ln-drop { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
 #runs-root .ln-dl { font: 600 12.5px/1.3 var(--sans); color: var(--muted); }
-#runs-root .ln-drop textarea { font: inherit; width: 100%; box-sizing: border-box; min-height: 4.2rem; resize: vertical; border: 1px solid var(--line); border-radius: 10px; padding: 9px 11px; background: var(--surface); color: var(--ink); }
+#runs-root .ln-drop textarea { font: inherit; width: 100%; box-sizing: border-box; min-height: 2.6rem; height: 2.6rem; resize: vertical; transition: height .18s ease; border: 1px solid var(--line); border-radius: 10px; padding: 9px 11px; background: var(--surface); color: var(--ink); }
+/* Loom 6.12.0: one line until you use it, so the floor's lines stay the focal point */
+#runs-root .ln-drop textarea:focus, #runs-root .ln-drop textarea:not(:placeholder-shown) { height: 5.2rem; }
 #runs-root .ln-drop textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 22%, transparent); }
 #runs-root .ln-drow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 #runs-root .ln-kindpick { font: 500 13px/1.2 var(--sans); padding: 6px 10px; min-height: 34px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); }
@@ -230,8 +232,8 @@ body[data-loom-tab=lanes] #runs-root .page:has(.fl-body) { max-width: none; }
 #runs-root .fl-name { font: 700 14.5px/1.2 var(--serif, var(--sans)); grid-column: 1; }
 #runs-root .fl-sub { font-size: 11.5px; line-height: 1.3; opacity: .85; grid-column: 1; }
 #runs-root .fl-n { grid-column: 2; grid-row: 1 / span 2; align-self: center; font: 700 20px/1 var(--serif, var(--sans)); font-variant-numeric: tabular-nums; opacity: .8; }
-#runs-root .fl-belt { height: 14px; border-radius: 0 0 7px 7px; background: repeating-linear-gradient(90deg, color-mix(in srgb, var(--ink) 70%, var(--surface)) 0 16px, color-mix(in srgb, var(--ink) 82%, var(--surface)) 16px 32px); }
-#runs-root .fl-paper .fl-belt { height: 10px; opacity: .6; }
+#runs-root .fl-belt { position: relative; height: 16px; border-radius: 8px; background: repeating-linear-gradient(90deg, color-mix(in srgb, var(--ink) 70%, var(--surface)) 0 16px, color-mix(in srgb, var(--ink) 82%, var(--surface)) 16px 32px); box-shadow: inset 0 -3px 0 rgba(0,0,0,.18); }
+#runs-root .fl-paper .fl-belt { height: 12px; opacity: .75; }
 #runs-root .fl-card { display: flex; flex-direction: column; gap: 2px; width: 100%; box-sizing: border-box; text-align: left; padding: 6px 8px; border-radius: 7px; border: 1px solid var(--line); background: color-mix(in srgb, var(--ink) 4%, var(--surface)); color: var(--ink); font: 500 12px/1.25 var(--sans); cursor: pointer; }
 #runs-root .fl-card:hover { box-shadow: var(--raise); }
 #runs-root .fl-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
@@ -349,3 +351,87 @@ body[data-loom-tab=lanes] #runs-root .page:has(.fl-body) { max-width: none; }
 #runs-root .guide .ghide-row { margin: 0 0 12px; }
 #runs-root .guide .ghide-row .eyebrow { margin: 0; }
 #runs-root .ghide-row [data-setup-hide] { font-size: 12px; color: var(--muted); }
+
+/* ---------- Loom 6.12.0: the stage, motion and the popup ----------
+   The two lines sit on a stage, the page's focal point. Motion says what each card is doing: Tandem working bobs on a
+   moving belt with a gear turning and a progress shimmer; waiting on you bumps against a striped gate; pulled off sits
+   tilted. Belts only run while a card on them is working. Loops share a 2400 ms beat and start at --ph (floor-motion.js)
+   so a repaint does not restart them. */
+#runs-root .fl-floor { --ph: 0ms; }
+#runs-root .fl-stage { display: flex; flex-direction: column; gap: 26px; padding: 18px 20px 20px; border-radius: 20px; border: 1px solid var(--line);
+  background: radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--ink) 11%, transparent) 1px, transparent 1.6px) 0 0 / 18px 18px, color-mix(in srgb, var(--ink) 3%, var(--surface)); box-shadow: inset 0 1px 0 color-mix(in srgb, var(--surface) 70%, transparent), var(--raise); }
+#runs-root .fl-stage .fl-lh h2 { font-size: 19px; }
+#runs-root .fl-stage .fl-stack { min-height: 54px; }
+#runs-root .fl-roll { position: absolute; top: 50%; width: 22px; height: 22px; margin-top: -11px; border-radius: 50%; background: radial-gradient(circle, var(--surface) 0 3px, color-mix(in srgb, var(--ink) 60%, var(--surface)) 3.5px 100%); box-shadow: 0 1px 2px rgba(0,0,0,.25); }
+#runs-root .fl-roll:first-child { left: -6px; }
+#runs-root .fl-roll:last-child { right: -6px; }
+#runs-root .fl-paper .fl-roll { width: 18px; height: 18px; margin-top: -9px; }
+#runs-root .fl-card { position: relative; overflow: visible; transition: box-shadow .15s, transform .15s; }
+#runs-root .fl-card:hover { transform: translateY(-2px); }
+#runs-root .fl-card.m-idle { opacity: .88; }
+#runs-root .fl-card.m-stuck { transform: rotate(-1.5deg); border-style: dashed; }
+#runs-root .fl-card.m-stuck:nth-child(even) { transform: rotate(1.2deg); }
+#runs-root .fl-gear { flex: none; vertical-align: -2px; margin-right: 4px; color: var(--accent); }
+#runs-root .fl-plate .fl-gear { width: 13px; height: 13px; color: currentColor; opacity: .8; }
+#runs-root .fl-prog { position: absolute; left: 6px; right: 6px; bottom: 2px; height: 3px; border-radius: 2px; overflow: hidden; background: color-mix(in srgb, var(--accent) 16%, transparent); }
+#runs-root .fl-prog::after { content: ""; position: absolute; inset: 0; width: 40%; border-radius: 2px; background: var(--accent); }
+#runs-root .fl-card.m-run { padding-bottom: 9px; }
+#runs-root .fl-card.m-gate { box-shadow: 0 0 0 3px color-mix(in srgb, var(--merlot) 18%, transparent); }
+#runs-root .fl-gatebar { position: absolute; top: -3px; bottom: -3px; right: -7px; width: 5px; border-radius: 3px; background: repeating-linear-gradient(-45deg, var(--gate) 0 5px, var(--ink) 5px 10px); box-shadow: 0 1px 2px rgba(0,0,0,.25); }
+#runs-root .fl-plate { position: relative; }
+#runs-root .fl-arm { position: absolute; left: 10px; right: 10px; top: -5px; height: 5px; border-radius: 3px; background: repeating-linear-gradient(-45deg, var(--gate) 0 6px, var(--ink) 6px 12px); transform-origin: left center; }
+
+@media (prefers-reduced-motion: no-preference) {
+  #runs-root .fl-belt.moving { animation: flBelt .8s linear infinite; animation-delay: var(--ph); }
+  #runs-root .fl-belt.moving .fl-roll { animation: flSpin .8s linear infinite; animation-delay: var(--ph); }
+  #runs-root .fl-xbelt.moving { background-image: repeating-linear-gradient(90deg, transparent 0 22px, color-mix(in srgb, var(--warn) 22%, transparent) 22px 30px); animation: flBelt .8s linear infinite; animation-delay: var(--ph); }
+  #runs-root .fl-card.m-run { animation: flBob 1.2s ease-in-out infinite; animation-delay: var(--ph); }
+  #runs-root .fl-card.m-run:hover { animation-play-state: paused; }
+  #runs-root .fl-card.m-run .fl-gear, #runs-root .fl-plate.whirr .fl-gear { animation: flSpin 2.4s linear infinite; animation-delay: var(--ph); }
+  #runs-root .fl-prog::after { animation: flShimmer 1.2s ease-in-out infinite; animation-delay: var(--ph); }
+  #runs-root .fl-card.m-gate { animation: flBump 2.4s ease-in-out infinite; animation-delay: var(--ph); }
+  #runs-root .fl-card.m-gate:hover { animation-play-state: paused; }
+  #runs-root .fl-card.m-gate .fl-gatebar { animation: flGate 2.4s ease-in-out infinite; animation-delay: var(--ph); }
+  #runs-root .fl-arm { animation: flArm 2.4s ease-in-out infinite; animation-delay: var(--ph); }
+  #runs-root .fl-pop:not(.still) { animation: flPopIn .46s cubic-bezier(.34,1.56,.64,1); }
+  #runs-root .fl-pop:not(.still) .fl-pin { animation: flPopKid .4s .1s both ease-out; }
+}
+@keyframes flBelt { to { background-position: 32px 0; } }
+@keyframes flSpin { to { transform: rotate(360deg); } }
+@keyframes flBob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+@keyframes flShimmer { 0% { transform: translateX(-100%); } 100% { transform: translateX(250%); } }
+/* waiting on you: rolls up to the gate, bumps it twice, settles */
+@keyframes flBump { 0%, 52%, 100% { transform: translateX(0); } 58% { transform: translateX(4px); } 63% { transform: translateX(-1px); } 69% { transform: translateX(3px); } 75% { transform: translateX(0); } }
+@keyframes flGate { 0%, 55%, 100% { transform: scaleY(1); } 60% { transform: scaleY(.9) translateX(1px); } 72% { transform: scaleY(.95); } }
+@keyframes flArm { 0%, 100% { transform: rotate(0); } 50% { transform: rotate(-4deg); } }
+@keyframes flPopIn { 0% { opacity: 0; transform: scale(.12); border-radius: 40px; } 60% { opacity: 1; } 100% { transform: none; } }
+@keyframes flPopKid { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+/* the popup: a job ticket that grows out of the card */
+#runs-root .fl-pop { --pk: var(--accent); position: fixed; z-index: 50; left: 0; top: 0; display: flex; flex-direction: column; max-height: calc(100vh - 24px);
+  background: var(--surface); border: 2px solid var(--pk); border-radius: 22px; box-shadow: 0 18px 50px rgba(var(--tint), .22), 0 3px 10px rgba(0,0,0,.08); }
+#runs-root .fl-pin { min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 14px 16px 16px; }
+#runs-root .fl-pop.k-diagnose { --pk: var(--stop); }
+#runs-root .fl-pop.k-ask { --pk: var(--ln-clarify); }
+#runs-root .fl-pop.k-docs, #runs-root .fl-pop.k-epic { --pk: var(--ln-plan); }
+#runs-root .fl-pop.story { --pk: var(--merlot); }
+#runs-root .fl-pop::before { content: ""; position: absolute; left: 14px; right: 14px; top: 6px; height: 4px; background: radial-gradient(circle, color-mix(in srgb, var(--pk) 35%, transparent) 1.6px, transparent 2px) 0 0 / 9px 4px repeat-x; }
+#runs-root .fl-pop .ln-panel { max-width: none; flex: none; border: 0; box-shadow: none; padding: 0; background: transparent; }
+#runs-root .fl-pop .ln-pt h3 { font-size: 19px; }
+#runs-root .fl-tail { position: absolute; width: 14px; height: 14px; background: var(--surface); border: 2px solid var(--pk); transform: rotate(45deg); pointer-events: none; }
+#runs-root .fl-pop[data-side=left] .fl-tail { left: -9px; top: calc(var(--tail, 30px) - 7px); border-top: 0; border-right: 0; }
+#runs-root .fl-pop[data-side=right] .fl-tail { right: -9px; top: calc(var(--tail, 30px) - 7px); border-bottom: 0; border-left: 0; }
+#runs-root .fl-pop[data-side=top] .fl-tail { top: -9px; left: calc(var(--tail, 30px) - 7px); border-bottom: 0; border-right: 0; }
+#runs-root .fl-pop[data-side=bottom] .fl-tail { bottom: -9px; left: calc(var(--tail, 30px) - 7px); border-top: 0; border-left: 0; }
+#runs-root .fl-pop[data-side=none] .fl-tail { display: none; }
+#runs-root .fl-stamp { display: inline-flex; align-items: center; gap: 7px; margin: 6px 0 10px; padding: 4px 10px 4px 8px; border: 1.5px dashed var(--pk); border-radius: 999px; color: var(--pk); font: 700 11px/1.2 var(--sans); text-transform: uppercase; letter-spacing: .04em; transform: rotate(-2deg); }
+#runs-root .fl-sword { font-weight: 500; text-transform: none; letter-spacing: 0; color: var(--muted); }
+#runs-root .fl-sdot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+#runs-root .fl-stamp.m-gate { color: var(--merlot); border-color: var(--merlot); }
+#runs-root .fl-stamp.m-stuck { color: var(--stop); border-color: var(--stop); }
+#runs-root .fl-stamp.m-idle .fl-sdot { background: none; border: 1.5px solid currentColor; box-sizing: border-box; }
+@media (prefers-reduced-motion: no-preference) {
+  #runs-root .fl-stamp.m-run .fl-sdot { animation: flPulse 1.2s ease-in-out infinite; }
+  #runs-root .fl-stamp.m-gate .fl-sdot { animation: flPulse 2.4s ease-in-out infinite; }
+}
+@keyframes flPulse { 0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, currentColor 45%, transparent); } 50% { box-shadow: 0 0 0 5px transparent; } }

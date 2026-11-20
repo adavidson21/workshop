@@ -274,7 +274,7 @@ export function dropHtml() {
   const list = pickable();
   const ado = list.length ? `<button type="button" class="lnk plain ln-adobtn" data-ado-toggle="1" aria-expanded="${!!S.ui.dropPick}">From ADO</button>` : '';
   return `<section class="ln-drop" aria-label="Start something"><label for="ln-drop" class="ln-dl">Drop anything: a user story or ADO number, an error log, or a question</label>` +
-    `<textarea id="ln-drop" rows="3" data-draft="lanes:drop" placeholder="Paste a story, a stack trace or a question. Enter starts it; Shift+Enter for a new line.">${h(text)}</textarea>` +
+    `<textarea id="ln-drop" rows="1" data-draft="lanes:drop" placeholder="Paste a story, a stack trace or a question. Enter starts it; Shift+Enter for a new line.">${h(text)}</textarea>` +
     `<div class="ln-drow">${ado}<button type="button" class="lnk plain" data-start-open="1" title="Plan an epic, write docs, handle a request">Other flows</button>` +
     `<button type="button" class="lnk plain" data-onboard-toggle="1" aria-expanded="${!!S.ui.onboardPick}" title="Get a product ready for its first build">Onboard a product</button><button type="button" class="lnk plain" data-cover-toggle="1" aria-expanded="${!!S.ui.coverPick}" title="End-to-end tests for what a product already does, built hands-off">Add regression tests</button><span class="grow"></span>${pick}` +
     `<button type="button" class="btn primary" data-lane-start="1"${ready ? '' : ' disabled title="Connect opencode to start work"'}${S.ui.dropBusy ? ' disabled' : ''}>${S.ui.dropBusy ? 'Starting…' : 'Start'}</button></div>` +

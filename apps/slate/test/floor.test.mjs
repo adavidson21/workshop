@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { S, resetUi } from '../js/dispatch/state.js';
 import { lanesData, lanesHtml, laneView } from '../js/dispatch/lanes.js';
-import { CODE, PAPER, STACK_MAX, lineOf, stationOf, floorData, floorHtml, epicPanelHtml, rowsData, rowsHtml, onboardPickHtml, coverPickHtml, testsBadge, toldStep } from '../js/dispatch/floor.js';
+import { CODE, PAPER, STACK_MAX, motionOf, lineOf, stationOf, floorData, floorHtml, epicPanelHtml, rowsData, rowsHtml, onboardPickHtml, coverPickHtml, testsBadge, toldStep } from '../js/dispatch/floor.js';
 import { setBoardFeed } from '../js/loom.js';
 
 const FIXTURE = JSON.parse(fs.readFileSync(new URL('./fixtures/state.json', import.meta.url), 'utf8'));
@@ -87,7 +87,7 @@ test('express lane: a quick change autopilot is building rides above the line; a
 test('the build bay plate counts running and queued autopilot builds and turns busy with a queue', () => {
   S.L.autopilot = { a: { status: 'running' }, b: { status: 'running' }, c: { status: 'queued' } };
   const html = floorHtml(lanesData('all'), '', '');
-  assert.match(html, /<div class="fl-plate busy"><span class="fl-name">Build bay<\/span><span class="fl-sub">2 building, 1 queued<\/span>/);
+  assert.match(html, /<div class="fl-plate busy whirr"><span class="fl-name"><svg class="fl-gear"[^]*?<\/svg>Build bay<\/span><span class="fl-sub">2 building, 1 queued<\/span>/);
   assert.match(html, /<div class="fl-plate you"><span class="fl-name">Plan desk/);
 });
 
@@ -112,11 +112,12 @@ test('Floor is the default; List is the other view (no lanes since 6.7.0); a car
   assert.equal([...html.matchAll(/data-lane-view="(\w+)"/g)].map(m => m[1]).join(','), 'floor,list');
   assert.match(html, /class="fl-floor"/);
   assert.doesNotMatch(html, /class="ln-lanes"/);
-  assert.match(html, /<button type="button" class="fl-card k-build mine" data-lane-open="41610-rate-limit-headers"[^>]*>.*?<span class="fl-act">Publish<\/span>/);
+  assert.match(html, /<button type="button" class="fl-card k-build mine m-gate" data-lane-open="41610-rate-limit-headers"[^>]*>.*?<span class="fl-act">Publish<\/span>/);
   S.ui.laneSel = '41610-rate-limit-headers';
   html = lanesHtml();
-  assert.match(html, /class="ln-body fl-body has-panel"/);
-  assert.match(html, /<aside class="ln-panel"/);
+  // Loom 6.12.0: on the floor the panel pops out of the card, stamped with where it is and how it moves.
+  assert.match(html, /class="ln-body fl-body"><div class="fl-floor">/);
+  assert.match(html, /<div class="fl-pop k-build" role="dialog" aria-label="Details" data-pop-for="41610-rate-limit-headers"><span class="fl-tail" aria-hidden="true"><\/span><div class="fl-pin"><p class="fl-stamp m-gate"><span class="fl-sdot" aria-hidden="true"><\/span>Code line, Loading dock<span class="fl-sword">Waiting at the gate for you<\/span><\/p><aside class="ln-panel"/);
   S.view.lanes = 'list';
   assert.equal(laneView(), 'list');
   html = lanesHtml();
@@ -167,7 +168,7 @@ test('stories wear the brand outline; one not started yet rides the hand-off bel
   assert.ok(fd.code.find(s => s.id === 'build').cards.some(c => c.folder === 'L50-create'));
   assert.deepEqual(fd.epics[0].stories.map(x => [x.story, x.at, x.atName]), [['1.1', 'build', 'Build bay'], ['1.2', 'belt', 'On the belt']]);
   const html = floorHtml(lanesData('all'), '', '');
-  assert.match(html, /class="fl-card k-build story"[^>]*data-lane-open="L50-create"[^>]*>.*?Story 1\.1/);
+  assert.match(html, /class="fl-card k-build story m-idle"[^>]*data-lane-open="L50-create"[^>]*>.*?Story 1\.1/);
   assert.match(html, /aria-label="Hand-off belt: stories from approved breakdowns, waiting to start"/);
   assert.match(html, /<article class="fl-epic" aria-label="Epic Team workspaces">.*?<span class="fl-eready">0 of 2 ready<\/span>/);
   assert.match(html, /data-lane-open="L51-invite"><span class="fl-sid">1\.2<\/span><span class="fl-stitle">Story 1\.2<\/span><span class="fl-sat at-belt">On the belt<\/span>/);
@@ -190,7 +191,7 @@ test('products being onboarded are new lines on top, their five steps lit, gaps 
     steps: [{ id: 'add', name: 'Add', st: 'done' }, { id: 'scan', name: 'Scan', st: 'done' }, { id: 'gaps', name: 'Fill the gaps', st: 'now' }, { id: 'trial', name: 'Trial run', st: 'now' }, { id: 'live', name: 'Live', st: 'next' }] },
     { product: 'Billing', gaps: 0, live: '2026-11-19', trial: null, steps: [{ id: 'add', name: 'Add', st: 'done' }, { id: 'live', name: 'Live', st: 'done' }] }];
   const html = floorHtml(lanesData('all'), '', '');
-  assert.ok(html.indexOf('fl-new') < html.indexOf('fl-code'), 'new lines sit above the code line');
+  assert.ok(html.indexOf('fl-stage') < html.indexOf('fl-new'), 'the stage (both lines) comes first; new lines sit under it (Loom 6.12.0)');
   assert.match(html, /<span class="fl-nlname">Sample &lt;Portal&gt;<\/span>/);
   assert.match(html, /<li class="fl-step now" aria-label="Fill the gaps: now">/);
   assert.match(html, /<li class="fl-step next" aria-label="Live: next">/);
@@ -321,7 +322,7 @@ test('after Publish (connector 1.28.0): In transit with what its PR waits on, Pu
   rec.watch.fix = { state: 'ready', text: 'bbb222 the test read the old constant' };
   assert.deepEqual(transitBadge(it), { cls: 'warn', text: 'Fix ready to push' });
   const html = floorHtml(lanesData('all'), '', '');
-  assert.match(html, /class="fl-card k-build mine"[^>]*data-lane-open="41610-rate-limit-headers"[\s\S]*?Fix ready to push[\s\S]*?<span class="fl-act">Push fix<\/span>/);
+  assert.match(html, /class="fl-card k-build mine m-gate"[^>]*data-lane-open="41610-rate-limit-headers"[\s\S]*?Fix ready to push[\s\S]*?<span class="fl-act">Push fix<\/span>/);
   assert.match(publishHtml(it), /data-push-fix="41610-rate-limit-headers" data-repo="gateway" data-out>Push fix <span class="out-mark" data-out="git"/);
   assert.equal(agentQueue({ items: S.D.items, publish: S.D.publish })[0].note, 'Push fix: Tandem fixed the failing CI', 'first: urgent');
   rec.watch = watch({ ci: 'passed', review: 'changes', comments: 2 });
@@ -337,4 +338,20 @@ test('after Publish (connector 1.28.0): In transit with what its PR waits on, Pu
   assert.match(publishHtml(it), /Merged<\/span>[\s\S]*data-ado-resolve="41610-rate-limit-headers" data-ado="41610" data-out>Resolve in ADO/);
   delete S.D.publish;
   delete S.D.adoLinks;
+});
+
+test('motion (Loom 6.12.0): working cards bob on a moving belt, your turn waits at a gate, stopped is pulled off', () => {
+  const fd = floorData(lanesData('all'));
+  const at = id => fd.code.concat(fd.paper).flatMap(s => s.cards).concat(fd.stuck).find(c => c.folder === id);
+  assert.equal(motionOf(at('41207-fix-login-timeout')), 'run');
+  assert.equal(motionOf(at('41610-rate-limit-headers')), 'gate');
+  assert.equal(motionOf(at('41455-audit-log-filter')), 'idle');
+  assert.equal(motionOf(at('41502-csv-export')), 'stuck', 'stuck wins over your turn');
+  assert.equal(motionOf(null), 'idle');
+  const html = floorHtml(lanesData('all'), '', '');
+  assert.match(html, /<section class="fl-line fl-code"[^]*?<div class="fl-belt moving"/, 'the code line runs while a build works');
+  assert.match(html, /<section class="fl-line fl-paper"[^]*?<div class="fl-belt" aria-hidden/, 'the research line stands still with nothing working');
+  assert.match(html, /data-lane-open="41207-fix-login-timeout"[^>]*>[^]*?<span class="fl-prog" aria-hidden="true"><\/span><\/button>/);
+  assert.match(html, /data-lane-open="41610-rate-limit-headers"[^>]*>[^]*?<span class="fl-gatebar" aria-hidden="true"><\/span><\/button>/);
+  assert.match(html, /<div class="fl-plate you gated"><span class="fl-arm"/);
 });
