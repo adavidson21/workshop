@@ -77,6 +77,38 @@ Paste (Ctrl+V) or drop a PNG, JPEG, GIF or WebP on the composer (`js/images.js`)
 - Pictures show in the thread; click one to see it full size. The turns never carry them: the page asks for each one once with `chat.image`.
 - Pictures go with a message, not a `/command` or `!shell` line. With an opencode 2.x background service, Chat says it cannot send them.
 
+## Chat 4.1.0 (connector 1.29.0)
+
+More of what Claude's desktop app has, from a review of the gaps (Workshop project doc `claude/desktop-gaps-v1-shipped.md`).
+
+### Context meter
+
+In the composer's bar: how full the model's context window is (a ring and a percent), from opencode's own token counts for the last answer and the model's window size from opencode's provider list. Its tooltip has the numbers and the cost so far. Past 75% it turns amber and offers **Compact** (`/compact`); past 90%, red. A model whose window opencode does not know shows the token count instead.
+
+### Suggested next prompt
+
+After an answer, one short message you might send next shows above the box: click it, or press Right arrow in the empty box, to put it in the box (it is never sent for you). The connector's `chat.suggest` asks the chat's model in a scratch session that sees only the last exchange (your message and the answer, cut short), never the chat or the files, with Tandem's read-only `chat` agent (or opencode's `plan`), then deletes that session. One small request per answer; the same answer is never asked twice. Turn it off in Settings, opencode connector, **Suggest a next prompt in Chat**.
+
+### Changes
+
+A workbench tab (`js/changes.js`, the connector's `chat.changes`): the files this chat's agent edited (its edit, write and patch tool calls), each with its diff against the repo's last commit. Files outside a git repo, or new and not added yet, show all their lines as added; a file committed or undone since shows as such.
+
+- Hover a line and click **+** to comment on it (Ctrl+Enter adds it). Comments wait under their lines, counted on the Changes button, until you **Send to chat**: every comment goes to the chat as one message (file, line, the line itself and what you asked), so the agent addresses them together. Queued while the chat works.
+- Comments are kept per chat in the page, not saved.
+
+### Two chats side by side
+
+The workbench's **Second chat** tab (`js/split.js`): another chat beside the one in view, with its own thread, prompts and box. Pick it there, Alt-click a chat in the sidebar, or use the chat's **Open beside** button. Its messages go to its own last agent and model. **Make it the main chat** swaps it into the middle. With no other chat listed, turn on **All** to pick any session in the workspace.
+
+### Archive and search
+
+- **Archive** (a chat's row) takes it out of the list and keeps its thread; **Archived (n)** at the bottom of the sidebar lists them, with **Unarchive**. Sending a message in an archived chat brings it back. Chat keeps up to 300 chats (archived ones count).
+- **Search** filters titles as you type; from three letters it also searches what was said (`chat.search`), archived chats included, under **In messages** with the matching words. The connector reads each chat's messages from opencode once, then again only after new activity.
+
+### PDFs
+
+Attach a PDF with the paperclip, or paste or drop it on the composer, next to pictures. It goes up in pieces (`chat.attach`, since Workshop's agent takes 1 MB per request) into the data folder (`chat/attachments/`, mode 0600), then with the message as a file part opencode passes to the model, and the file is deleted. Up to 3 per message, 20 MB each; pieces nobody sent are deleted after an hour. Whether the model can read PDFs is up to the model. Other files: put them in the workspace and type `@`.
+
 ## Sources
 
 When an answer ends with a `Sources:` list (Tandem's hub and chat agents always add one), Chat shows it as chips under the answer (`js/sources.js`, [knowledge.md](knowledge.md), Citations): a Folio note has **Open** and **That's wrong** (both open it in Folio, the second with a reminder to fix the line there), a Settings file opens its page, and anything else is shown as a path. Only a list at the very end counts; the text is escaped like the rest of the answer.
@@ -85,7 +117,7 @@ When an answer ends with a `Sources:` list (Tandem's hub and chat agents always 
 
 | Action | Write | Args | Result |
 | --- | --- | --- | --- |
-| `chat.options` | no | | `{kind, version, agents, subagents, models, defaults, commands, can: {shell, undo, compact, files, images, side, terminal}}`. Agents are opencode's primary agents (hidden ones left out); models are those of connected providers |
+| `chat.options` | no | | `{kind, version, agents, subagents, models, defaults, commands, can: {shell, undo, compact, files, images, side, terminal, pdf, changes, suggest}}`. Agents are opencode's primary agents (hidden ones left out); models are those of connected providers, each with `context` (its window in tokens) when opencode knows it (1.29.0) |
 | `chat.start` | yes | `text`, optional `agent`, `model: {provider, id}`, `files`, `images` | `{session}`: a new session with its first message |
 | `chat.send` | yes | `session`, `text`, optional `agent`, `model`, `files`, `images` | `{ok}`. 409 while opencode is still working (Chat queues instead). Any session in the workspace; sending in one from All sessions lists it. `images`: up to 4 `{name, mime, data}` (base64; PNG, JPEG, GIF or WebP, checked against their first bytes), at most 920,000 characters together |
 | `chat.side` | yes | `session`, `text`, optional `side`, `agent`, `model`, `images` | `{side}`: asks in the chat's side chat. Without `side`, copies the chat first (opencode's fork). Default agent: Tandem's `chat`, else `plan` |
@@ -110,6 +142,11 @@ When an answer ends with a `Sources:` list (Tandem's hub and chat agents always 
 | `chat.list` | no | optional `hubs`, `all` | `{items}`: chats, hub messages that are not a capture or go, and continued sessions, newest activity first; with `all: true` also every other top-level session in the workspace (`from: "opencode"`); with `hubs: true`, the 12 newest hub threads |
 | `chat.remove` | no | `session` | Stops listing it. The opencode session is kept |
 | `chat.rename` | no | `session`, `title` | `{ok, title}`: renames it in Chat's list. The opencode session keeps its own title |
+| `chat.archive` | no | `session`, optional `archived` (false brings it back) | `{ok, archived}` (1.29.0). `chat.list` leaves archived chats out and counts them (`archived`); `chat.list {archived: true}` lists them |
+| `chat.search` | no | `query` (2 letters or more), optional `all` | `{items: [{session, title, from, last, archived?, snippet}]}` (1.29.0): titles and messages, up to 30 |
+| `chat.changes` | no | `session` | `{files: [{path, repo, status: modified \| added \| deleted \| clean \| binary, additions, deletions, diff, cut?}], at}` (1.29.0) |
+| `chat.suggest` | no | `session` | `{text}` or `{text: null}` (1.29.0); `{off: true}` when Settings turned it off |
+| `chat.attach` | yes | `data` (base64, up to 700,000 characters), then `id`; the first piece also `name`, `mime: "application/pdf"` | `{id, bytes}` (1.29.0). `chat.start` and `chat.send` take `attachments: [{id}]` |
 
 Stop is the connector's `abort` action, and **opencode window** (`/tui`) its `terminal` action. Events for the Terminal, on `/api/events` as `connector` events: `term.out` `{id, at, data}` (at most 8,000 characters each; a page that sees `at` past what it has calls `term.read`), `term.exit` `{id, exitCode}` and `term.gone` `{id}`. The list lives in the data folder, `<dataDir>/chat/chats.json` (mode 0600, newest 100), so it stays with your data if Workshop is removed. Connector 1.18.0 copies it there once from `<Workshop home>/data/_connectors/opencode/chats.json` and keeps the old file. Each hub entry keeps its intent once `hub.result` reads the route (older entries: read from the request's `route.json`), so captures and go stay out of the list. The turns stay in opencode.
 

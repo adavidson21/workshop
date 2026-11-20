@@ -37,6 +37,7 @@
 //   workshop help                          This help.
 //
 // Node 22 or later, standard library only, no npm install. See docs/security.md.
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import http from 'node:http';
@@ -67,6 +68,7 @@ import { patProblem, readSecret, startBackground, stopAgent, writeWindowsUserEnv
 import { SECRET_NAME, daysLeft, readIndex, readSecret as readStoredSecret, storeName } from './agent/lib/secrets.mjs';
 import { removeSecret, saveSecret, secretProblem } from './scripts/lib/secrets-store.mjs';
 import { expectedPhrase } from './agent/lib/reset.mjs';
+import { authorizeUrl, discover, exchange, newKey, pkce, register, seal, storageKey } from './connectors/mcp/lib/oauth.mjs';
 import { compactKey } from './connectors/play/lib/key.mjs';
 import { PLAY_USAGE, runPlay } from './scripts/lib/play.mjs';
 import readline from 'node:readline';
@@ -110,6 +112,10 @@ const USAGE = `Usage: workshop <command> [options]
          --from-file <key.json>  gave you. Only what signing needs is kept. Delete the file afterwards.
   secret set <name> --password   Keep a password you type twice, like an Android keystore's (6 characters or more).
   secret list                    The secrets Workshop keeps: names, store, expiry. Never values.
+  mcp login <server id>          Sign in to an MCP server that takes no token (Settings, MCP servers, How it signs
+                                 in: Sign in). Opens your browser; the key goes in the secret store and the
+                                 sign-in, encrypted with it, in Workshop's own folder.
+  mcp logout <server id>         Forget that sign-in (the key and the encrypted tokens).
   secret check <name>            Read it back from the store and say whether it is there (never shows it).
   secret remove <name>           Delete it from the store.
   play build <app> [--bump]      Build an app's signed bundle (Bubblewrap or Gradle) in its project folder, with the
@@ -1478,6 +1484,85 @@ async function runSecret(rest, io) {
   return 0;
 }
 
+// --------------------------------------------------------------- mcp login (sign in to an MCP server with OAuth)
+
+/** A one-time listener on 127.0.0.1 for the sign-in's redirect: {port, wait(ms) => query, close()}. */
+function listenOnce() {
+  return new Promise((resolve, reject) => {
+    let done = null;
+    const got = new Promise(r => { done = r; });
+    const srv = http.createServer((req, res) => {
+      const u = new URL(req.url, 'http://127.0.0.1');
+      if (u.pathname !== '/callback') { res.writeHead(404).end(); return; }
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
+      res.end('<!doctype html><meta charset="utf-8"><title>Workshop</title><body style="font:16px system-ui;margin:3em">Done. You can close this tab and go back to the terminal.</body>');
+      done(Object.fromEntries(u.searchParams));
+    });
+    srv.on('error', reject);
+    srv.listen(0, '127.0.0.1', () => resolve({
+      port: srv.address().port,
+      wait: ms => Promise.race([got, new Promise(r => setTimeout(() => r({ error: 'timeout' }), ms).unref())]),
+      close: () => srv.close()
+    }));
+  });
+}
+
+async function runMcp(rest, io) {
+  const [sub, id] = rest;
+  const usage = 'Usage: workshop mcp login <server id> | logout <server id>';
+  if (!['login', 'logout'].includes(sub) || !id) { io.out(usage); return sub ? 1 : 0; }
+  const home = resolveHome(io.env);
+  const cfg = inspectConfig(homePaths(home).config, loadSchemas()).config || {};
+  const servers = (((cfg.connectors || {}).mcp || {}).config || {}).servers || [];
+  const s = servers.find(x => x && x.id === id);
+  if (!s) { io.out(`There is no MCP server "${id}" in Settings, MCP servers. Add it there first.`); return 1; }
+  if (s.auth !== 'oauth') { io.out(`${s.name} is set to use a token. In Settings, MCP servers, set How it signs in to Sign in (OAuth) first.`); return 1; }
+  if (!s.tokenSecret || !SECRET_NAME.test(s.tokenSecret)) { io.out(`Name a sign-in key for ${s.name} under Token (secret name) in Settings, MCP servers, for example ${id}-signin. Then run this again.`); return 1; }
+  const platform = io.platform || process.platform;
+  if (!storeName(platform)) { io.out(`Workshop has no secret store on ${platform}.`); return 1; }
+  const store = io.secretStore || {};
+  const file = path.join(homePaths(home).data, '_connectors', 'mcp', `${storageKey(id)}.json`);
+  if (sub === 'logout') {
+    try { fs.rmSync(file, { force: true }); } catch { /* gone */ }
+    const r = (store.remove || removeSecret)(home, s.tokenSecret, { platform });
+    io.out(`Signed out of ${s.name}: the encrypted sign-in is gone${r.ok ? ' and so is its key' : `, but the key was not removed (${r.message})`}. Revoke Workshop's access on the server's site too, if you no longer use it.`);
+    return 0;
+  }
+  const fetchImpl = io.fetch || globalThis.fetch;
+  let lis = null;
+  try {
+    io.out(`Finding how ${s.name} signs in...`);
+    const meta = await discover(s.url, fetchImpl);
+    lis = await (io.listen || listenOnce)();
+    const redirect_uri = `http://127.0.0.1:${lis.port}/callback`;
+    const client = await register(meta, redirect_uri, fetchImpl);
+    const { verifier, challenge } = pkce();
+    const state = crypto.randomBytes(16).toString('hex');
+    const url = authorizeUrl(meta, { client_id: client.client_id, redirect_uri, challenge, state, scope: meta.scopes.join(' ') });
+    io.out(`Opening your browser to sign in to ${s.name} (${new URL(meta.authorization_endpoint).host}). If it does not open, go to:\n\n  ${url}\n\nWaiting up to 5 minutes...`);
+    if (io.openUrl) io.openUrl(url);
+    else {
+      const [cmd, args] = process.platform === 'win32' ? ['cmd', ['/c', 'start', '""', url]] : process.platform === 'darwin' ? ['open', [url]] : ['xdg-open', [url]];
+      try { spawn(cmd, args, { stdio: 'ignore', detached: true, windowsVerbatimArguments: process.platform === 'win32' }).on('error', () => {}).unref(); } catch { /* printed above */ }
+    }
+    const q = await lis.wait(io.waitMs || 5 * 60 * 1000);
+    if (q.error) { io.out(q.error === 'timeout' ? 'No answer within 5 minutes. Nothing was saved.' : `Sign-in did not go through: ${String(q.error_description || q.error).slice(0, 200)}. Nothing was saved.`); return 1; }
+    if (q.state !== state || !q.code) { io.out('That answer was not for this sign-in. Nothing was saved.'); return 1; }
+    const rec = await exchange(meta, client, { code: q.code, verifier, redirect_uri }, fetchImpl);
+    const key = newKey();
+    const saved = await (store.save || saveSecret)(home, s.tokenSecret, key, { platform, note: `Sign-in key for the MCP server ${s.name}` });
+    if (!saved.ok) { io.out(`${saved.message} Nothing was saved.`); return 1; }
+    fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
+    await writeJsonAtomic(file, seal(key, rec), { mode: 0o600 });
+    try { fs.chmodSync(file, 0o600); } catch { /* Windows */ }
+    io.out(`Signed in to ${s.name}${rec.expires_at ? '. Workshop renews the sign-in on its own' : ''}. Its tools show in Settings, MCP servers within a minute.`);
+    return 0;
+  } catch (e) {
+    io.out(`${e && e.message ? e.message : 'Sign-in failed.'} Nothing was saved.`);
+    return 1;
+  } finally { if (lis) lis.close(); }
+}
+
 // --------------------------------------------------------------- reset (start over)
 
 /** A JSON request to the running agent with the token header (no Origin: this computer). */
@@ -1642,6 +1727,7 @@ export async function main(argv, io = { out: s => console.log(s), env: process.e
   if (cmd === 'restart') return runRestart(rest, io);
   if (cmd === 'pat') return runPat(rest, io);
   if (cmd === 'secret') return runSecret(rest, io);
+  if (cmd === 'mcp') return runMcp(rest, io);
   if (cmd === 'play') return runPlayCommand(rest, io);
   if (cmd === 'export') return runExport(rest, io);
   if (cmd === 'reset') return runReset(rest, io);

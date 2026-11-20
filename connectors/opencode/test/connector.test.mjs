@@ -475,7 +475,7 @@ for (const kind of ["v1", "v2"]) {
     test("[P-autopilot] builds over the limit queue, and a hands-off Quick change approves itself only with auto", async () => {
       const titles = () => fake.bodiesFor(kind === "v1" ? "POST /session" : "POST /api/session").map((b) => b.title);
       const st0 = await call("state", {}, ctx());
-      assert.deepEqual(st0.autopilotOptions, { maxRuns: 2, quickHandsOff: true, fairSlots: true, factory: { taskFileCap: 6, quickTasks: 3, retries: 3, autoFix: "should-fix", reviewRounds: 2, uiChecks: true, regression: true, uiCheckPerTask: true, modelSeesImages: false, worktrees: "always" } });
+      assert.deepEqual(st0.autopilotOptions, { maxRuns: 2, quickHandsOff: true, fairSlots: true, factory: { taskFileCap: 6, quickTasks: 3, retries: 3, autoFix: "should-fix", reviewRounds: 2, uiChecks: true, regression: true, uiCheckPerTask: true, modelSeesImages: false, worktrees: "always", publish: "pr", mergeOnly: "" } });
       // A second buildable item: a copy of 41207 (the example's only one that is not blocked).
       fs.cpSync(path.join(ws.work, "41207-fix-login-timeout"), path.join(ws.work, "41208-copy-of-login"), { recursive: true });
       await call("refresh", {}, ctx());
@@ -1194,5 +1194,67 @@ describe("after Publish", { skip: !hasGit }, () => {
     wt = await watch();
     assert.equal(wt.merged, true);
     await rejects(call("published.record", { folder: "41207-fix-login-timeout", repo: "x", status: status() }), "not_found");
+  });
+});
+
+describe("merge without a PR (1.29.0)", { skip: !hasGit }, () => {
+  let ws, fake;
+  const FOLDER = "41610-rate-limit-headers";
+  const BRANCH = "dev/bug/41610-rate-limit-headers";
+  const titles = () => fake.bodiesFor("POST /session").map((b) => b.title);
+  const live = async () => (await call("state")).liveMode.live;
+  const gw = () => path.join(ws.dir, "gateway");
+  const g = (...a) => execFileSync("git", ["-C", gw(), ...a], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
+  before(async () => {
+    ws = makeWorkspace({ repos: true });
+    g("push", "-q", "origin", "main");
+    fake = await startFakeOpencode({ kind: "v1" });
+    await startConnector({ ...configFor(ws.dir, { url: fake.url }), factory: { publish: "merge" } });
+    await waitFor(() => oc.status().details.opencode.connected, "opencode to connect");
+  });
+  after(async () => {
+    await oc.stop();
+    await fake.close();
+    ws.remove();
+  });
+
+  test("a conflict pushes nothing and starts /pr-fix conflict; once it is fixed, Publish merges into main and the item is done", async () => {
+    assert.equal((await call("state")).publish[FOLDER].mode, "merge");
+    // main moved on origin with a change to the same file the branch added.
+    g("checkout", "-q", "main");
+    fs.writeFileSync(path.join(gw(), "headers.txt"), "y from main\n");
+    g("add", ".");
+    g("commit", "-q", "-m", "headers on main");
+    g("push", "-q", "origin", "main");
+    g("reset", "-q", "--hard", "HEAD~1");
+    const tip = execFileSync("git", ["-C", ws.origin, "rev-parse", "main"], { encoding: "utf8" }).trim();
+    await rejects(call("publish", { folder: FOLDER }), "conflict", /gateway conflicts with main \(headers\.txt\)\. Nothing was pushed\. Tandem is merging main into the branch/);
+    assert.equal(execFileSync("git", ["-C", ws.origin, "rev-parse", "main"], { encoding: "utf8" }).trim(), tip);
+    assert.ok(!ws.branchesAt().includes(BRANCH), "the branch is never pushed");
+    const file = path.join(ws.work, FOLDER, "ci", "conflict-1.md");
+    assert.match(fs.readFileSync(file, "utf8"), /^# Conflict: gateway into main \(merge without a PR\)\n\n- Item: 41610\n- Repo: gateway\n- Branch: dev\/bug\/41610-rate-limit-headers\n- Base: main\n- PR: none[\s\S]*- `headers\.txt`/);
+    await waitFor(() => titles().includes("41610: /pr-fix 41610 conflict auto"), "/pr-fix to run");
+    assert.equal((await call("state")).publish[FOLDER].mergeFix.state, "working");
+    await rejects(call("publish", { folder: FOLDER }), "conflict", /Tandem is merging main into gateway's branch/);
+    // Tandem merges main into the branch (as /pr-fix would) and writes its Result.
+    g("checkout", "-q", BRANCH);
+    try { g("merge", "-q", "--no-edit", "origin/main"); } catch {}
+    fs.writeFileSync(path.join(gw(), "headers.txt"), "x\ny from main\n");
+    g("add", ".");
+    g("commit", "-q", "--no-edit");
+    g("checkout", "-q", "main");
+    fs.appendFileSync(file, "- Result: FIXED abc1234 merged main\n");
+    const sid = (await live()).items[FOLDER].current;
+    fake.send(busyEvent("v1", sid));
+    await waitFor(async () => (await live()).sessions[sid]?.status === "busy", "busy");
+    fake.send(idleEvent("v1", sid));
+    await waitFor(async () => (await call("state")).publish[FOLDER].mergeFix?.state === "ready", "the fix to be ready");
+    const r = await call("publish", { folder: FOLDER });
+    assert.deepEqual([r.mode, r.merged, r.repos[0].repo, r.repos[0].pr], ["merge", true, "gateway", null]);
+    assert.match(execFileSync("git", ["-C", ws.origin, "log", "-1", "--format=%s", "main"], { encoding: "utf8" }), /^Merge dev\/bug\/41610-rate-limit-headers: /);
+    const pub = (await call("state")).publish[FOLDER];
+    assert.deepEqual([pub.published.mode, !!pub.published.merged, pub.mergeFix], ["merge", true, null]);
+    await waitFor(() => titles().includes("41610: /retro 41610 auto"), "/retro to run");
+    assert.deepEqual((await call("published.watch")).items, [], "nothing to watch: there is no PR");
   });
 });

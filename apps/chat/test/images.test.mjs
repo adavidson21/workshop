@@ -36,8 +36,8 @@ test('chips carry no picture data, only an id the page fills in', () => {
   assert.equal(chipsHtml([], 'x'), '');
 });
 
-test('the workbench: three tabs, and a width that leaves the chat room', () => {
-  assert.deepEqual(TABS.map(t => t.id), ['terminal', 'files', 'side']);
+test('the workbench: five tabs (Changes and Second chat since Chat 4.1.0), and a width that leaves the chat room', () => {
+  assert.deepEqual(TABS.map(t => t.id), ['terminal', 'files', 'changes', 'side', 'split']);
   assert.equal(clampWidth(100), MIN_W);
   assert.equal(clampWidth(5000), MAX_W);
   assert.equal(clampWidth(900, 1100), 740, 'at least 360 pixels stay for the chat');

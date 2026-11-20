@@ -95,7 +95,7 @@ test("the 1.x adapter sends the agent, model, files, commands, shell, undo and c
     assert.deepEqual(await api.findFiles("app"), ["src/app.cs"]);
     assert.deepEqual((await api.agentList()).map((a) => [a.name, a.mode]), [["build", "primary"], ["general", "subagent"]]);
     const models = await api.modelList();
-    assert.deepEqual(models.models, [], "the fake lists providers without models");
+    assert.deepEqual(models.models, [{ provider: "anthropic", providerName: "Anthropic", id: "claude-x", name: "Claude X", context: 200000 }], "with its context window for the meter (1.29.0)");
     assert.equal((await api.richMessages("ses_1"))[0].text, "Last reply in ses_1");
   } finally {
     await fake.close();

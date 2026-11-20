@@ -524,10 +524,10 @@ async function submit(verdict) {
 function confirmPublish() {
   return confirmOutside({
     system: 'git',
-    title: `Publish ${R.item.id ? '#' + R.item.id + ' ' : ''}${R.item.title || ''}?`,
-    body: 'Approves this review, pushes each branch of the build to its remote (never force), then opens the PR pages with the text filled in.',
+    title: `${R.item.merge ? 'Merge' : 'Publish'} ${R.item.id ? '#' + R.item.id + ' ' : ''}${R.item.title || ''}?`,
+    body: R.item.merge ? 'Approves this review, merges each branch into its target and pushes the target (never force). No PR, no team review, no CI before the merge.' : 'Approves this review, pushes each branch of the build to its remote (never force), then opens the PR pages with the text filled in.',
     items: R.item.prItems && R.item.prItems.length ? R.item.prItems : [`${R.repo || ''}: ${R.session ? R.session.branch : ''}`],
-    ok: 'Publish'
+    ok: R.item.merge ? 'Merge' : 'Publish'
   });
 }
 
@@ -540,7 +540,7 @@ async function publishNow() {
     const r = await R.api.publish(R.item.folder);
     R.ui.published = true;
     for (const p of (r && r.repos) || []) if (p.pr) window.open(p.pr, '_blank', 'noopener');
-    ws.toast('Approved and published. Create each PR on the page that opened.', { kind: 'info' });
+    ws.toast(R.item.merge ? 'Approved and merged. Tandem runs its retro.' : 'Approved and published. Create each PR on the page that opened.', { kind: 'info' });
   } catch (e) {
     R.ui.publishError = errText(e);
   } finally {
@@ -712,6 +712,8 @@ if (!MOCK && ws.backend !== 'agent') {
     if (!R.repo) R.repo = R.item.repos[0] || null;
     R.ui.published = !!R.item.published;
     R.ui.canPublish = !!R.item.ready && !R.item.published;
+    R.ui.merge = !!R.item.merge;
+    if (R.item.merge) R.ui.approveLabel = `Approve and merge${R.item.mergeInto ? ' into ' + R.item.mergeInto : ''}`;
     if (!R.repo) throw new Error(`Work item ${R.id} has no PR text for any repo yet. Run the step that writes pr.md first.`);
     R.ui.backHref = MOCK ? 'index.html' : `index.html#${encodeURIComponent(R.id)}`;
     document.title = `Review: ${R.item.title}`;

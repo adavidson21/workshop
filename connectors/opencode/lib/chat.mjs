@@ -30,12 +30,13 @@ import { ctx, httpError, inWorkspace, log, opt } from "./context.mjs";
 import { broadcastLive } from "./live.mjs";
 import { oc, permissions, questions, sessions, upsertSession } from "./opencode-state.mjs";
 import { IMAGE_URL } from "./chat-parts.mjs";
+import { dropAttachments, readAttachments } from "./chat-attach.mjs";
 
 /** Hub threads' follow-ups default to this read-only agent (eng-agents Core 2.14.0). */
 export const AGENT = "chat";
 export const MAX_FILES = 20;
 export const MAX_ALL = 200;
-export const KEEP = 100;
+export const KEEP = 300; // 100 before 1.29.0, when Archive came (archived chats count too)
 export const MAX_TEXT = 20000;
 export const MAX_TURNS = 100;
 export const MAX_IMAGES = 4;
@@ -198,6 +199,8 @@ function cleanText(text) {
   if (t.length > MAX_TEXT) throw httpError(400, `The message is over ${MAX_TEXT} characters.`);
   return t;
 }
+/** The session id of a chat or workspace session, for chat-more.mjs (Changes, suggestions). Throws 404 otherwise. */
+export const chatSessionOf = (session) => known(session).session;
 /** A conversation in the list, or any opencode session in the workspace (All sessions). */
 function known(session) {
   const sid = String(session || "");
@@ -254,15 +257,18 @@ function errOf(r) {
   return m ? String(m).slice(0, 300) : `HTTP ${r ? r.status : "?"}`;
 }
 
-async function send(session, { text, agent, model, files, images }) {
-  if (images && images.length && oc.kind !== "v1") throw httpError(501, "This opencode cannot take pasted images from Chat.");
-  if (oc.api.promptRich) await oc.api.promptRich(session, { text, agent, model, files, images });
+async function send(session, { text, agent, model, files, images, attachments }) {
+  const extra = attachments || [];
+  if (((images && images.length) || extra.length) && oc.kind !== "v1") throw httpError(501, "This opencode cannot take pasted images or PDFs from Chat.");
+  // PDFs (connector 1.29.0) go the way pictures do: a file part with a data: URL.
+  if (oc.api.promptRich) await oc.api.promptRich(session, { text, agent, model, files, images: (images || []).concat(extra.map(({ mime, name, data }) => ({ mime, name, data }))) });
   else await oc.api.prompt(session, text, agent);
+  dropAttachments(extra);
   markBusy(session, "Reading your message");
 }
 function opts(args, { forHub = false } = {}) {
   const agent = cleanAgent(args.agent != null && args.agent !== "" ? args.agent : forHub ? AGENT : null);
-  return { agent, model: cleanModel(args.model), files: cleanFiles(args.files), images: cleanImages(args.images) };
+  return { agent, model: cleanModel(args.model), files: cleanFiles(args.files), images: cleanImages(args.images), attachments: readAttachments(args.attachments) };
 }
 async function newSession(title, now) {
   const created = await oc.api.createSession(titleOf(title));
@@ -275,6 +281,7 @@ async function newSession(title, now) {
 function touch(c, now) {
   c.last = now;
   c.replies = (c.replies || 0) + 1;
+  delete c.archived; // a message in an archived chat brings it back
   save();
 }
 function needIdle(sid) {
@@ -410,7 +417,8 @@ export async function chatOptions({ config } = {}) {
     models: models.models.slice(0, 500),
     defaults: models.defaults,
     commands: commands.slice(0, 300).map((c) => ({ name: c.name, description: String(c.description).slice(0, 300) })),
-    can: { shell: !!oc.api.shell, undo: !!oc.api.revert, compact: !!oc.api.summarize, files: !!oc.api.findFiles, images: oc.kind === "v1", side: !!oc.api.fork, terminal: !!oc.api.ptyCreate },
+    can: { shell: !!oc.api.shell, undo: !!oc.api.revert, compact: !!oc.api.summarize, files: !!oc.api.findFiles, images: oc.kind === "v1", side: !!oc.api.fork, terminal: !!oc.api.ptyCreate,
+      pdf: oc.kind === "v1", changes: !!oc.api.richMessages, suggest: !!(oc.api.promptWait && oc.api.deleteSession) && !(config && config.suggestPrompts === false) },
   };
 }
 
@@ -493,19 +501,23 @@ export async function chatMessages({ session }, { config } = {}) {
  * HUB_RECENT hub threads instead (followed up or not), so the hub can show its cards again after a reload.
  */
 export const HUB_RECENT = 12;
-export function listChats({ config, hubs = false, all = false } = {}) {
+export function listChats({ config, hubs = false, all = false, archived = false } = {}) {
   needAi(config);
   if (hubs) {
     const items = [...load().values()].filter((c) => c.from === "hub").sort((a, b) => (b.at || 0) - (a.at || 0)).slice(0, HUB_RECENT)
       .map((c) => ({ session: c.session, from: c.from, title: c.title, at: c.at, last: c.last, replies: c.replies || 0, hub: c.hub, busy: busy(c.session), waiting: waiting(c.session) }));
     return { items };
   }
+  const row = (c) => ({ session: c.session, from: c.from, title: c.title, at: c.at, last: c.last, replies: c.replies || 0, busy: busy(c.session), waiting: waiting(c.session),
+    ...(c.hub ? { hub: c.hub } : {}), ...(c.intent ? { intent: c.intent } : {}), ...(c.archived ? { archived: c.archived } : {}) });
+  // Archived chats (connector 1.29.0) are their own list.
+  if (archived) return { items: [...load().values()].filter((c) => c.archived && isChat(c)).sort((a, b) => (b.archived || 0) - (a.archived || 0)).map(row) };
   const items = [...load().values()]
-    .filter(isChat)
+    .filter((c) => isChat(c) && !c.archived)
     .sort((a, b) => (b.last || 0) - (a.last || 0))
-    .map((c) => ({ session: c.session, from: c.from, title: c.title, at: c.at, last: c.last, replies: c.replies || 0, busy: busy(c.session), waiting: waiting(c.session),
-      ...(c.hub ? { hub: c.hub } : {}), ...(c.intent ? { intent: c.intent } : {}) }));
-  if (!all) return { items };
+    .map(row);
+  const archivedCount = [...load().values()].filter((c) => c.archived && isChat(c)).length;
+  if (!all) return { items, archived: archivedCount };
   const have = new Set(load().keys());
   const others = [...sessions.values()]
     .filter((s) => !s.parent && !have.has(s.id))
@@ -515,7 +527,63 @@ export function listChats({ config, hubs = false, all = false } = {}) {
     })
     .sort((a, b) => (b.last || 0) - (a.last || 0))
     .slice(0, MAX_ALL);
-  return { items: items.concat(others) };
+  const archivedIds = new Set([...load().values()].filter((c) => c.archived).map((c) => c.session));
+  return { items: items.concat(others.filter((o) => !archivedIds.has(o.session))), archived: archivedCount };
+}
+
+/** Archive or bring back a chat (connector 1.29.0): out of the list, kept with its thread, back on its next message. */
+export function archiveChat({ session, archived = true }, { config, now = Date.now() } = {}) {
+  needAi(config);
+  const c = adopt(known(session), now);
+  if (c.from === "side") throw httpError(400, "A side chat goes with its chat.");
+  if (archived) { c.archived = now; if (c.from === "hub") c.hidden = false; }
+  else delete c.archived;
+  save();
+  return { ok: true, archived: !!c.archived };
+}
+
+/* ---------- search in messages (connector 1.29.0) ---------- */
+
+export const SEARCH_MAX = 30;
+export const SEARCH_CHATS = 150;
+const texts = new Map(); // session -> {last, text}: a chat's words, read again only when it has new activity
+/** Tests start each search fresh. */
+export function resetSearch() { texts.clear(); }
+function snippet(text, i, n) {
+  const a = Math.max(0, i - 60), b = Math.min(text.length, i + n + 80);
+  return (a ? "..." : "") + text.slice(a, b).replace(/\s+/g, " ").trim() + (b < text.length ? "..." : "");
+}
+/**
+ * Chats whose title or messages have the words, newest first: [{session, title, from, archived?, snippet, last}].
+ * Reads each chat's messages from opencode once, then again only after new activity. Your chats and archived ones;
+ * with `all`, every session in the workspace too.
+ */
+export async function searchChats({ query, all = false }, { config } = {}) {
+  needAi(config);
+  const q = String(query || "").replace(/\s+/g, " ").trim().toLowerCase();
+  if (q.length < 2) throw httpError(400, "Type at least two letters.");
+  needOc();
+  const listed = listChats({ config, all }).items.concat(listChats({ config, archived: true }).items).slice(0, SEARCH_CHATS);
+  const want = listed.filter((c) => { const t = texts.get(c.session); return !t || t.last !== (c.last || 0); });
+  for (let i = 0; i < want.length; i += 6) {
+    await Promise.all(want.slice(i, i + 6).map(async (c) => {
+      try {
+        const list = await oc.api.messages(c.session, 200);
+        texts.set(c.session, { last: c.last || 0, text: list.map((m) => String(m.text || "")).join("\n").slice(0, 400000) });
+      } catch { /* a session opencode no longer has: title only */ }
+    }));
+  }
+  const out = [];
+  for (const c of listed) {
+    const title = String(c.title || "");
+    const body = (texts.get(c.session) || {}).text || "";
+    const ti = title.toLowerCase().indexOf(q);
+    const bi = body.toLowerCase().indexOf(q);
+    if (ti < 0 && bi < 0) continue;
+    out.push({ session: c.session, title, from: c.from, last: c.last || 0, ...(c.archived ? { archived: c.archived } : {}), snippet: bi >= 0 ? snippet(body, bi, q.length) : "" });
+    if (out.length >= SEARCH_MAX) break;
+  }
+  return { items: out };
 }
 
 /** Stops listing a conversation in the Chat list. The opencode session is kept. */

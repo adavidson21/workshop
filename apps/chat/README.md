@@ -16,6 +16,8 @@ The **Hub** agent (first in New chat's list) is the one box that asks Tandem or 
 
 **Chat 4.0.0** adds the workspace basics Claude's desktop app keeps beside a conversation, in a **workbench** panel next to the chat (the three buttons at the right of the header, or Ctrl+` for the terminal): a real **Terminal** in the workspace (opencode runs the shells; up to four, kept while the page is closed), **Files** to browse and edit the workspace (Monaco; saves never overwrite a change an agent made since you opened the file), and **Side chats** that copy the chat so far and ask there, so nothing is added to it. Paste or drop **pictures** into a message. Tool calls that read or changed a file have an **Open** button that shows it in Files. opencode's own terminal window is `/tui`. Contract: [docs/chat.md](../../docs/chat.md), The workbench.
 
+**Chat 4.1.0** (connector 1.29.0) adds a context meter in the composer, a suggested next prompt (Right arrow takes it), **Changes** (what the chat changed, with line comments sent back as one message) and a **Second chat** beside the first in the workbench, **Archive**, search in what was said, and PDF attachments (paperclip, paste or drop). See [docs/chat.md](../../docs/chat.md), Chat 4.1.0.
+
 The top bar's **Capture** is the quick add (rules only, no AI); Chat is where you ask.
 
 ## Routes

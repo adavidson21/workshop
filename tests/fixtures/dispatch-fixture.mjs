@@ -7,6 +7,9 @@
 // Then reads commands, one JSON object per line:
 //   {"ask": {"id": "per_x", "session": "ses_..."|null, "title": "git push"}}   a permission prompt
 //   {"requests": true}                                                          the requests seen, and branches at origin
+//   {"messages": {"session": "ses_...", "list": [{info, parts}]}}               what that session's messages are (Chat 4.1.0)
+//   {"reply": "text"}                                                           what a waited message answers (a suggested prompt)
+//   {"idle": "ses_..."}                                                         opencode says that session is done
 // and answers each with one JSON line. Stops when stdin closes.
 import readline from "node:readline";
 import { makeWorkspace } from "../../connectors/opencode/test/harness.mjs";
@@ -31,6 +34,9 @@ rl.on("line", (line) => {
     return console.log(JSON.stringify({ ok: true }));
   }
   if (m.requests) return console.log(JSON.stringify({ requests: fake.state.requests, bodies: fake.state.bodies, branches: ws.branchesAt() }));
+  if (m.messages) { fake.state.messages.set(m.messages.session, m.messages.list); return console.log(JSON.stringify({ ok: true })); }
+  if (typeof m.reply === "string") { fake.state.reply = m.reply; return console.log(JSON.stringify({ ok: true })); }
+  if (m.idle) { fake.send({ type: "session.idle", properties: { sessionID: m.idle } }); return console.log(JSON.stringify({ ok: true })); }
   console.log(JSON.stringify({ error: "unknown command" }));
 });
 const quit = async () => { await fake.close(); ws.remove(); process.exit(0); };

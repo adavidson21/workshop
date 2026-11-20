@@ -151,3 +151,25 @@ test('Try it (connector 1.28.0): start, starting, Open the app and Stop, a failu
   assert.equal(tryItHtml({ ...it, stage: 'plan' }), '', 'nothing to run before the build');
   delete S.D.previews;
 });
+
+test('merge without a PR (connector 1.29.0): Merge into main, Tandem\'s conflict fix, then merged with no PR to follow', async () => {
+  const { mergeLabel } = await import('../js/dispatch/factory.js');
+  const it = item(READY);
+  S.D.publish[READY].mode = 'merge';
+  let html = publishHtml(it);
+  assert.match(html, /Ready to merge/);
+  assert.equal(mergeLabel(it), 'Merge into main');
+  assert.match(html, /data-publish="41610-rate-limit-headers"[^>]*>Merge into main <span class="out-mark" data-out="git"/);
+  assert.match(html, /No PR: Settings, Factory, When you publish\./);
+  S.D.publish[READY].mergeFix = { repo: 'gateway', target: 'main', state: 'working' };
+  html = publishHtml(it);
+  assert.match(html, /Tandem is merging main into gateway's branch\. Publish again when it is done\./);
+  assert.match(html, /data-publish="41610-rate-limit-headers" disabled/);
+  S.D.publish[READY].mergeFix = { repo: 'gateway', target: 'main', state: 'ready', text: 'abc1234 merged main' };
+  assert.match(publishHtml(it), /Tandem merged main in<\/span> abc1234 merged main Publish again to merge\./);
+  S.D.publish[READY].published = { at: '2026-11-19T12:00:00Z', mode: 'merge', merged: '2026-11-19T12:00:00Z', repos: [{ repo: 'gateway', branch: 'b', target: 'main', pr: null, merged: '0123456789abcdef' }] };
+  html = publishHtml(it);
+  assert.match(html, /Merged<\/span> [^<]*, no PR\. Done:/);
+  assert.match(html, /<span class="mono">gateway<\/span> <span class="dim">b into main<\/span> <span class="mono dim">01234567<\/span>/);
+  assert.doesNotMatch(html, /In transit|Create the PR/);
+});

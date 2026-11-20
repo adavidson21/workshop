@@ -51,7 +51,7 @@ export function banner(session, ui) {
   if (ui.error) return `<div class="rv-banner bad" role="alert">${esc(ui.error)}</div>`;
   if (session.status === 'approved') {
     return ui.published
-      ? `<div class="rv-banner ok">Approved and published. Create the pull request on the page that opened.</div>`
+      ? `<div class="rv-banner ok">${ui.merge ? 'Approved and merged, no PR. Tandem runs its retro.' : 'Approved and published. Create the pull request on the page that opened.'}</div>`
       : `<div class="rv-banner ok">Approved. ${ui.publishError ? `Publishing did not go through: ${esc(ui.publishError)} ` : ''}Publish from Loom when you are ready.</div>`;
   }
   if (session.status === 'revising') {

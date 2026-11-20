@@ -26,8 +26,11 @@ export function reviewApi(ws) {
       const pub = (d.publish || {})[it.folder] || null;
       const reviewed = Object.keys((d.reviews || {})[it.folder] || {});
       const repos = [...new Set([...(it.pr || []).map(p => p.repo), ...reviewed].filter(Boolean))];
+      const targets = [...new Set((it.pr || []).map(r => String(r.target || 'main').replace(/^origin\//, '')))];
       return { id: String(it.id || it.folder), title: it.title || it.folder, folder: it.folder, repos, ready: !!(it.next && it.next.stage === 'ship'), published: !!(pub && pub.published),
-        prItems: (it.pr || []).map(r => `${r.repo}: ${r.branch || '?'} → ${r.target || 'main'}`) };
+        prItems: (it.pr || []).map(r => `${r.repo}: ${r.branch || '?'} → ${r.target || 'main'}`),
+        // Merge without a PR (connector 1.29.0): Approve merges into the target instead.
+        merge: !!(pub && pub.mode === 'merge'), mergeInto: targets.length === 1 ? targets[0] : null };
     },
     session: (id, repo) => read('review.session', { id, repo }),
     file: (id, repo, path, side) => read('review.file', { id, repo, path, side }),

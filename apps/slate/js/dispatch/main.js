@@ -20,7 +20,7 @@ import { createCaptureStore } from '../../../../shared/capture-box.js';
 import { slateLinks, summaryCards } from './summary.js';
 import { sendWork, workOffer } from './slate-handoff.js';
 import { noticedList, observationTask, startArgsOf } from './noticed.js';
-import { publishItems, readyClean, hasDrafts } from './factory.js';
+import { publishItems, readyClean, hasDrafts, publishOf, mergeLabel } from './factory.js';
 import { confirmOutside } from '../../../../shared/outside.js';
 import { useApps } from '../../../../shared/capture.js';
 import { loadView, saveView, pruneView } from './local.js';
@@ -1108,16 +1108,21 @@ listen('click', ev => {
     const folder = pub.getAttribute('data-publish');
     const it = itemForFolder(folder);
     if (!it) return;
-    confirmOutside({ system: 'git', title: `Publish ${it.id ? '#' + it.id + ' ' : ''}${it.title || folder}?`, body: 'Pushes each branch to its remote (never force), then opens the PR pages with the text filled in.', items: publishItems(it), ok: 'Publish' }).then(ok => {
+    const merging = (publishOf(it) || {}).mode === 'merge';
+    const conf = merging
+      ? { title: `${mergeLabel(it)}: ${it.id ? '#' + it.id + ' ' : ''}${it.title || folder}?`, body: 'Merges each branch into its target and pushes the target (never force). No PR, no team review, no CI before the merge.', ok: 'Merge' }
+      : { title: `Publish ${it.id ? '#' + it.id + ' ' : ''}${it.title || folder}?`, body: 'Pushes each branch to its remote (never force), then opens the PR pages with the text filled in.', ok: 'Publish' };
+    confirmOutside({ system: 'git', ...conf, items: publishItems(it) }).then(ok => {
       if (!ok) return;
-      act(() => write('publish', { folder }), r => { openPrs(r); toast('Published. Create each PR on the page that opened.'); }, 'pub:' + folder);
+      act(() => write('publish', { folder }), r => { if (r && r.mode === 'merge') toast('Merged. Tandem runs its retro.'); else { openPrs(r); toast('Published. Create each PR on the page that opened.'); } }, 'pub:' + folder);
     });
     return;
   }
   if (t.closest('[data-publish-all]')) {
     const list = ((S.D && S.D.items) || []).filter(readyClean);
     if (!list.length) return;
-    confirmOutside({ system: 'git', title: `Publish ${list.length} ready build${list.length === 1 ? '' : 's'}?`, body: 'Each has passing checks and no review questions. Pushes every branch (never force), then opens the PR pages.', items: list.map(it => (it.id ? '#' + it.id + ' ' : '') + (it.title || it.folder)), ok: 'Publish all' }).then(ok => {
+    const merges = list.filter(it => (publishOf(it) || {}).mode === 'merge').length;
+    confirmOutside({ system: 'git', title: `Publish ${list.length} ready build${list.length === 1 ? '' : 's'}?`, body: `Each has passing checks and no review questions. Pushes every branch (never force), then opens the PR pages.${merges ? ` ${merges === list.length ? 'All merge' : merges + ' merge'} into their target with no PR (Settings, Factory).` : ''}`, items: list.map(it => (it.id ? '#' + it.id + ' ' : '') + (it.title || it.folder)), ok: 'Publish all' }).then(ok => {
       if (!ok) return;
       // Builds with draft code review comments in this browser stay out (connector 1.28.0 `skip`).
       const skip = ((S.D && S.D.items) || []).filter(it => it.kind === 'item' && hasDrafts(it)).map(it => it.folder);
