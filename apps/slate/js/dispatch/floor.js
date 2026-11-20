@@ -268,7 +268,7 @@ function plateHtml(s, extra) {
   const ms = s.cards.map(motionOf);
   const cls = (s.you ? ' you' : busy ? ' busy' : '') + (ms.includes('run') ? ' whirr' : '') + (ms.includes('gate') ? ' gated' : '');
   const sub = extra && s.id === 'build' && (extra.running || extra.queued) ? `${extra.running} building${extra.queued ? `, ${extra.queued} queued` : ''}` : s.desc;
-  return `<div class="fl-plate${cls}">${ms.includes('gate') ? '<span class="fl-arm" aria-hidden="true"></span>' : ''}<span class="fl-name">${ms.includes('run') ? GEAR : ''}${h(s.name)}</span><span class="fl-sub">${h(sub)}</span><span class="fl-n" aria-label="${h(plural(s.cards.length, 'item'))}">${s.cards.length}</span></div>`;
+  return `<div class="fl-plate${cls}">${ms.includes('gate') ? '<span class="fl-arm" aria-hidden="true"></span><span class="fl-beacon" aria-hidden="true"></span>' : ''}<span class="fl-name">${ms.includes('run') ? GEAR : ''}${h(s.name)}</span><span class="fl-sub">${h(sub)}</span><span class="fl-n" aria-label="${h(plural(s.cards.length, 'item'))}">${s.cards.length}</span></div>`;
 }
 function stationHtml(line, s, sel, extra) {
   return `<section class="fl-station st-${h(s.id)}" aria-label="${h(s.name + ': ' + plural(s.cards.length, 'item'))}">${stackHtml(line, s, sel)}${plateHtml(s, extra)}</section>`;
@@ -294,8 +294,11 @@ function shippedHtml(done, delivered = []) {
 function lineHtml(id, title, sub, stations, sel, extra, before, ready) {
   const n = stations.reduce((t, s) => t + s.cards.length, 0);
   const moving = stations.some(s => s.cards.some(c => motionOf(c) === 'run'));
+  // Loom 6.13.0: how many on this line wait on you, with a flashing beacon, so it reads at a glance.
+  const need = stations.reduce((t, s) => t + s.cards.filter(c => c.mine).length, 0);
+  const needHtml = need ? `<span class="fl-need"><span class="fl-beacon" aria-hidden="true"></span>${h(need === 1 ? '1 needs you' : need + ' need you')}</span>` : '';
   const pubAll = ready ? publishAllHtml(ready) : '';
-  return `<section class="fl-line fl-${id}" aria-label="${h(title)}"><header class="fl-lh"><h2>${h(title)}</h2><span class="fl-ls">${h(sub)}</span><span class="fl-ln">${h(plural(n, 'item'))}</span>${pubAll}</header>` +
+  return `<section class="fl-line fl-${id}" aria-label="${h(title)}"><header class="fl-lh"><h2>${h(title)}</h2><span class="fl-ls">${h(sub)}</span>${needHtml}<span class="fl-ln">${h(plural(n, 'item'))}</span>${pubAll}</header>` +
     (before || '') + `<div class="fl-stations" style="--n:${stations.length}">${stations.map(s => stationHtml(id, s, sel, extra)).join('')}</div><div class="fl-belt${moving ? ' moving' : ''}" aria-hidden="true"><i class="fl-roll"></i><i class="fl-roll"></i></div></section>`;
 }
 const STEP_WORD = { done: 'done', now: 'now', next: 'next' };
