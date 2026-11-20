@@ -507,6 +507,7 @@ label.check input{accent-color:var(--accent);width:1rem;height:1rem;margin:0}
 #repo-map-card .pc-k{color:var(--muted)}
 #repo-map-card .pc-v.mono{word-break:break-all}
 /* Cloudflare: change sets waiting for you (js/cloudflare-page.js) */
+/* Change sets (Cloudflare) and release sets (Google Play) */
 .cf-set{border:1px solid var(--line);border-radius:var(--r-sm);padding:.75rem .9rem;margin:.6rem 0}
 .cf-head{display:flex;flex-wrap:wrap;gap:.25rem .6rem;align-items:baseline}
 .cf-why{margin:.35rem 0 0;font-size:.88rem}

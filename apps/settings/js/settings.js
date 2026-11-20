@@ -23,6 +23,7 @@
 import { connect } from '../../../shared/workshop-sdk.js';
 import { render as renderForm, readValue } from './forms.js';
 import { mountCloudflareChanges } from './cloudflare-page.js';
+import { mountPlayReleases } from './play-page.js';
 import { mountConnections } from './connections-page.js';
 import { mountRoutines } from './routines-page.js';
 import * as R from './repos.js';
@@ -666,7 +667,8 @@ async function appsCard() {
    belongs to a connector says in one line what to do while that connector is off or not set up. */
 const NOTE = {
   ado: 'PATs never go in here: save one with <code>workshop pat</code> and name its variable in a connection. Which project each repo uses is on <a href="#" class="lnk" data-goto-page="repos">Repos</a>.',
-  cloudflare: 'The token never goes in here: save it in this computer\'s own secret store with <code>workshop secret set cloudflare --expires YYYY-MM-DD</code>. Tandem can read your account and propose changes; only you apply them, below.'
+  cloudflare: 'The token never goes in here: save it in this computer\'s own secret store with <code>workshop secret set cloudflare --expires YYYY-MM-DD</code>. Tandem can read your account and propose changes; only you apply them, below.',
+  play: 'The service account key never goes in here: save the JSON key with <code>workshop secret set play --from-file &lt;key.json&gt;</code>, then delete the file. Build a signed bundle with <code>workshop play build &lt;app&gt;</code>. Tandem can read your apps and propose releases; only you approve them.'
 };
 const conn = { list: [], info: {}, cc: {} }; // cc[id]: {schema, config, env}, as getConfig gives it
 const drafts = {};                           // drafts[id]: fields filled in from a link or a file, not saved yet
@@ -730,6 +732,7 @@ async function connectorsSetup() {
     if (NOTE[info.id]) sec.insertAdjacentHTML('beforeend', `<p class="sub conn-note">${NOTE[info.id]}</p>`);
     if (info.id === 'ado') connectionsCard();
     if (info.id === 'cloudflare' && info.enabled) mountCloudflareChanges({ ws, card, esc, toast, errText });
+    if (info.id === 'play' && info.enabled) mountPlayReleases({ ws, card, esc, errText });
   }
   // Generated forms, after every main page exists, so a field on another connector's page finds it.
   for (const info of list) {
