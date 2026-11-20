@@ -22,7 +22,10 @@ rl.on("line", (line) => {
   try { m = JSON.parse(line); } catch { return console.log(JSON.stringify({ error: "bad json" })); }
   if (m.ask) {
     const p = { id: m.ask.id, sessionID: m.ask.session || "ses_tui0", permission: "bash", patterns: [m.ask.title], metadata: { command: m.ask.title } };
-    if (!m.ask.session && !fake.state.sessions.has("ses_tui0")) fake.state.sessions.set("ses_tui0", { id: "ses_tui0", title: "Started in the TUI" });
+    if (!m.ask.session && !fake.state.sessions.has("ses_tui0")) {
+      fake.state.sessions.set("ses_tui0", { id: "ses_tui0", title: "Started in the TUI" });
+      fake.send({ type: "session.created", properties: { info: { id: "ses_tui0", title: "Started in the TUI", time: { updated: Date.now() } } } });
+    }
     fake.state.permissions.push(p);
     fake.send({ type: "permission.asked", properties: p });
     return console.log(JSON.stringify({ ok: true }));

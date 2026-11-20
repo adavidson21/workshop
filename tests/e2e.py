@@ -1441,6 +1441,55 @@ def agents_checks(b, watch):
               and cf.locator('.chat-home #hub .cap-in').is_visible() and cf.evaluate("localStorage.getItem('dispatch.chatSide')") == 'closed')
         cf.click('.chat-top [data-chat-side]'); pg.wait_for_timeout(200)
         check('and opens again', cf.locator('.chat-side').is_visible() and cf.evaluate("localStorage.getItem('dispatch.chatSide')") == 'open')
+
+        # Chat 4.0.0: the workbench beside the chat. Files lists and edits the workspace through the connector (saves only
+        # over the version it opened); the fake opencode has no terminals, so the Terminal says so; a picture pasted into
+        # the composer goes with the message; a side chat copies the chat (opencode's fork) and leaves the chat alone.
+        cf.click('.chat-top [data-bench=files]'); pg.wait_for_timeout(800)
+        check('Files opens beside the chat with the workspace\'s folders', cf.locator('.bench:not([hidden]) .files').is_visible() and seen(cf, '.ft-row[data-ft-dir]')
+              and cf.get_attribute('.chat-top [data-bench=files]', 'aria-pressed') == 'true')
+        cf.click('[data-files-new]'); cf.fill('[data-files-find]', 'notes/e2e-chat.md'); cf.press('[data-files-find]', 'Enter')
+        check('+ makes a new file and opens it in the editor', seen(cf, '.files-mon .monaco-editor', ms=30000) and 'e2e-chat.md' in cf.inner_text('.files-tabs'))
+        cf.click('.files-mon .view-lines'); pg.keyboard.type('Written in Chat'); pg.wait_for_timeout(200)
+        check('an unsaved file has a dot on its tab', cf.locator('.ftab.dirty').count() == 1)
+        pg.keyboard.press('Control+s'); pg.wait_for_timeout(1000)
+        with open(os.path.join(info['workspace'], 'notes', 'e2e-chat.md')) as fh: on_disk = fh.read()
+        check('Ctrl+S saves it in the workspace', on_disk == 'Written in Chat' and cf.locator('.ftab.dirty').count() == 0)
+        pg.keyboard.type('!'); pg.wait_for_timeout(100)
+        with open(os.path.join(info['workspace'], 'notes', 'e2e-chat.md'), 'w') as fh: fh.write('An agent wrote this')
+        future = time.time() + 5; os.utime(os.path.join(info['workspace'], 'notes', 'e2e-chat.md'), (future, future))
+        pg.keyboard.press('Control+s'); pg.wait_for_timeout(1000)
+        with open(os.path.join(info['workspace'], 'notes', 'e2e-chat.md')) as fh: on_disk = fh.read()
+        check('a save over a change made since asks instead of writing', on_disk == 'An agent wrote this' and 'changed on disk' in cf.inner_text('.files-note'))
+        cf.click('.files-note [data-fn=theirs]'); pg.wait_for_timeout(800)
+        check('Use the file on disk takes theirs', 'An agent wrote this' in cf.inner_text('.files-mon .view-lines').replace('\u00a0', ' ') and cf.locator('.ftab.dirty').count() == 0)
+        cf.click('.bench [data-bench-tab=terminal]'); pg.wait_for_timeout(2500)
+        check('the Terminal says when opencode has no terminals', 'no terminals' in cf.inner_text('.term-note'))
+        cf.click('.chat-top [data-bench=side]', force=True); pg.wait_for_timeout(300)
+        check('a side chat needs a chat first', cf.locator('.bench-tab.on[data-bench-tab=terminal]').count() == 1 and cf.get_attribute('.chat-top [data-bench=side]', 'aria-disabled') == 'true')
+        # A picture and a side chat in a chat: the session opencode's terminal started (from All sessions).
+        pg.evaluate("location.hash = '#/chat/ses_tui0'"); pg.wait_for_timeout(1500)
+        cf = next(f for f in pg.frames if '/apps/chat/' in f.url)
+        seen(cf, '.chat-pane textarea')
+        cf.evaluate("""() => { const c = document.createElement('canvas'); c.width = 40; c.height = 30; c.getContext('2d').fillRect(0, 0, 20, 20);
+          const bin = atob(c.toDataURL('image/png').split(',')[1]); const bytes = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+          const dt = new DataTransfer(); dt.items.add(new File([bytes], 'shot.png', { type: 'image/png' }));
+          const ta = document.querySelector('.chat-pane textarea'); ta.focus(); ta.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true })); }""")
+        check('a pasted picture shows above the box', seen(cf, '.chat-compose .pic img[src^="data:image/png"]'))
+        cf.fill('.chat-pane textarea', 'what is in this picture?'); cf.click('[data-chat-send]'); pg.wait_for_timeout(1500)
+        r = ask({'requests': True})
+        sent = [x['body'] for x in r['bodies'] if x['route'].endswith('/prompt_async') and any(pt.get('type') == 'file' for pt in x['body'].get('parts', []))]
+        check('it goes to opencode with the message, as a picture', bool(sent) and sent[-1]['parts'][1]['mime'] == 'image/png' and sent[-1]['parts'][1]['url'].startswith('data:image/png;base64,'))
+        cf.click('.chat-top [data-bench=side]'); pg.wait_for_timeout(300)
+        cf.fill('[data-side-in]', 'what does gateway do?'); cf.click('[data-side-send]'); pg.wait_for_timeout(1500)
+        r = ask({'requests': True})
+        forks = [x for x in r['requests'] if x.endswith('/fork')]
+        side_prompt = [x['route'] for x in r['bodies'] if x['route'].endswith('/prompt_async') and x['body']['parts'][0].get('text') == 'what does gateway do?']
+        check('a side chat copies the chat and asks in the copy', len(forks) == 1 and len(side_prompt) == 1 and forks[0].split('/')[2] != side_prompt[0].split('/')[2]
+              and 'Nothing here goes into the chat' in cf.inner_text('.side-about'))
+        check('the side chat stays out of the list', not any(t.startswith('Side chat') for t in cf.eval_on_selector_all('.chat-side .chat-t', 'els => els.map(e => e.innerText)')))
+        cf.click('.bench [data-bench-close]'); pg.wait_for_timeout(200)
+        check('the workbench closes, and remembers it', cf.locator('.bench').is_hidden() and cf.evaluate("JSON.parse(localStorage.getItem('chat.bench')).open") is False)
         pg.click('.app-btn[data-app=slate]'); pg.wait_for_timeout(800)
 
         # Ship: the run's page has the PR box, with copy buttons, then Review instead of Push. The code review

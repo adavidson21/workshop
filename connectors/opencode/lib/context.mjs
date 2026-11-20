@@ -17,7 +17,7 @@ import { factoryOptions, writeFactoryFile } from "./factory.mjs";
 export const HERE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 export const MAX_AUTO_RUNS = 5; // the hard cap: more mostly competes for the model's rate limits and the CPU (3 until 1.21.0)
 export const DEFAULT_AUTO_RUNS = 2;
-export const VERSION = "1.26.0"; // the connector's version (index.mjs exports it)
+export const VERSION = "1.27.0"; // the connector's version (index.mjs exports it)
 export const APP = "eng-agents-dashboard"; // the shell status shape keeps this name (README, `status`)
 export const FRESH_SESSION = new Set(["do-task", "check-docs"]); // the pipeline says: run these in a new session
 export const isWin = process.platform === "win32";
@@ -198,7 +198,7 @@ export function repoFolder(name) {
 }
 
 // Errors carry the status and code the agent API uses (docs/agent-api.md).
-const CODES = { 400: "bad_request", 404: "not_found", 409: "conflict", 500: "internal", 503: "unavailable" };
+const CODES = { 400: "bad_request", 403: "forbidden", 404: "not_found", 409: "conflict", 413: "too_large", 500: "internal", 503: "unavailable" };
 export function httpError(status, message) {
   // The live server used 501 (not supported here) and 502 (opencode refused); the agent API has codes for neither.
   const s = status === 501 ? 400 : status === 502 ? 503 : status;

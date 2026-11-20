@@ -5,6 +5,7 @@ Third-party code served from this site, so pages make no requests to other origi
 | File | Library | Version | Source | License |
 | --- | --- | --- | --- | --- |
 | `xlsx.full.min.js` | SheetJS Community Edition | 0.20.3 | https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js | Apache 2.0 (`LICENSE-SheetJS.txt`) |
+| `monaco/` | Monaco editor (trimmed), for Loom's code review and Chat's Files through `shared/monaco.js` | 0.57.0 | `monaco-editor` on npm, written by `scripts/vendor-monaco.mjs` | MIT (`monaco/LICENSE`); see `monaco/README.md` |
 
 SHA-256 of `xlsx.full.min.js`: `cc015130aa8521e7f088f88898eba949ccdcbfb38df0bd129b44b7273c3a6f41`
 
@@ -17,6 +18,6 @@ SHA-256 of `xlsx.full.min.js`: `cc015130aa8521e7f088f88898eba949ccdcbfb38df0bd12
 
 ## Hashes
 
-Every vendor folder (`shared/vendor/`, `apps/agents/vendor/`) has a `SHA256SUMS` file listing each file (except notes like this one) and its SHA-256, in the format `sha256sum` writes. `node tests/check-vendor.mjs` (run in CI) fails if a vendored file changed, appeared or went missing without `SHA256SUMS` changing with it, so any change to third-party code shows up in review as a changed hash. After updating a library on purpose, run `node tests/check-vendor.mjs --write` and check that only the files you meant to change moved. `scripts/vendor-monaco.mjs` rewrites `apps/agents/vendor/SHA256SUMS` itself.
+Every vendor folder (`shared/vendor/`, `apps/chat/vendor/`) has a `SHA256SUMS` file listing each file (except notes like this one) and its SHA-256, in the format `sha256sum` writes. `node tests/check-vendor.mjs` (run in CI) fails if a vendored file changed, appeared or went missing without `SHA256SUMS` changing with it, so any change to third-party code shows up in review as a changed hash. After updating a library on purpose, run `node tests/check-vendor.mjs --write` and check that only the files you meant to change moved. `scripts/vendor-monaco.mjs` rewrites `shared/vendor/SHA256SUMS` itself (Monaco moved here from Loom's folder in Chat 4.0.0). Chat's terminal (xterm.js) is in `apps/chat/vendor/`; see its README.
 
 The SheetJS hash above is the one recorded from the official CDN; `SHA256SUMS` repeats it, so the two must agree.

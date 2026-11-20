@@ -1,7 +1,7 @@
 // Tests for Chat's composer reading, transcript drawing and Markdown (js/parts.js, js/md.js). Synthetic data only.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { BUILTINS, cycleAgent, diffHtml, filesIn, matchCommands, matchModels, modelFromKey, modelKey, modelLabel, parseInput, popupFor, promptHtml, questionAnswers, richRows, splitRevert, tokens, toolHtml } from '../js/parts.js';
+import { BUILTINS, attHtml, cycleAgent, diffHtml, filesIn, matchCommands, matchModels, modelFromKey, modelKey, modelLabel, parseInput, partsHtml, popupFor, promptClick, promptHtml, questionAnswers, richRows, splitRevert, tokens, toolHtml, workspacePath } from '../js/parts.js';
 import { inline, mdHtml } from '../js/md.js';
 
 test('the composer reads !shell, /commands (Chat\'s own and opencode\'s) and plain text', () => {
@@ -62,7 +62,7 @@ test('turns: one block per answer with its meta line, files on your turns, every
     { id: 'a2', role: 'tandem', text: 'Done', agent: 'plan', model: { provider: 'p', id: 'm-1' }, tokens: { input: 900, output: 100, reasoning: 0, cacheRead: 0, cacheWrite: 0 }, cost: 0.02, parts: [{ type: 'text', text: '**Done**' }] },
   ], { busy: true, activity: 'Reading <x>' });
   assert.match(html, /hi &lt;script&gt;/);
-  assert.match(html, /att-chip">a\.cs/);
+  assert.match(html, /att-chip" data-open-file="a\.cs"[^>]*>a\.cs</, "an attached file opens in Files (Chat 4.0.0)");
   assert.equal((html.match(/class="turn tandem"/g) || []).length, 1, 'two steps, one answer');
   assert.match(html, /plan · m-1 · 1\.0k tokens · \$0\.03/);
   assert.match(html, /<b>Done<\/b>/);
@@ -108,4 +108,39 @@ test('your turns name the agent only when it changed (Chat 2.3.0)', () => {
     { id: 'u3', role: 'you', text: 'three', agent: 'plan', parts: [] },
   ]);
   assert.deepEqual([...html.matchAll(/you-agent">(\w+)/g)].map(m => m[1]), ['plan']);
+});
+
+/* ---------- Chat 4.0.0: the workbench in the thread ---------- */
+test('files a tool read or changed open in Files; paths outside the workspace do not', () => {
+  for (const ok of ['src/app.cs', 'api/Program.cs', 'my docs/notes.md']) assert.equal(workspacePath(ok), ok);
+  for (const bad of ['/etc/passwd', 'C:\\x.cs', '..', '../x', '~/x', '**/*.cs', '', 'a\nb']) assert.equal(workspacePath(bad), '', bad);
+  const edit = toolHtml({ type: 'tool', tool: 'edit', status: 'completed', input: 'src/a.cs', diff: '-a\n+b' }, 'k');
+  assert.match(edit, /<div class="tool-row"><button type="button" class="tool-line"[\s\S]*<\/button><button type="button" class="lnk tool-file" data-open-file="src\/a\.cs"/, 'the Open button sits beside the line, not inside it');
+  assert.doesNotMatch(toolHtml({ type: 'tool', tool: 'bash', status: 'completed', input: 'ls src' }, 'k'), /data-open-file/);
+  assert.doesNotMatch(toolHtml({ type: 'tool', tool: 'read', status: 'completed', input: '/abs/x.cs' }, 'k'), /data-open-file/);
+  const patch = partsHtml({ id: 'm', parts: [{ type: 'patch', files: ['a.cs', '/outside/b.cs'] }] });
+  assert.match(patch, /data-open-file="a\.cs"[^>]*>a\.cs</);
+  assert.match(patch, /, \/outside\/b\.cs</);
+});
+
+test('a pasted image is a picture filled in later; it never carries its data in the HTML', () => {
+  assert.equal(attHtml({ type: 'file', name: 'shot.png', image: true, mime: 'image/png', part: 2 }, 'msg_1', 'ses_1'),
+    '<button type="button" class="att-pic" data-img-view title="shot.png"><img alt="shot.png" data-img-ref="ses_1|msg_1|2"></button>');
+  assert.match(attHtml({ type: 'file', name: 'x.png', image: true, local: 'l1' }), /data-img-local="l1"/);
+  assert.equal(attHtml({ type: 'file', name: 'x.png', image: true }, '', ''), '<span class="att-chip">x.png</span>', 'no way to load it: just its name');
+  const rows = richRows([{ id: 'msg_9', role: 'you', text: 'see', parts: [{ type: 'file', name: 'a"b.png', image: true, part: 1 }] }], { session: 'ses_2' });
+  assert.match(rows, /data-img-ref="ses_2\|msg_9\|1"/);
+  assert.match(rows, /alt="a&quot;b\.png"/);
+});
+
+test('/terminal, /files, /side and /tui are Chat\'s own; prompts answer the same way in a side chat', () => {
+  for (const n of ['terminal', 'files', 'side', 'tui']) assert.ok(BUILTINS.some(b => b.name === n), n);
+  assert.deepEqual(parseInput('/side what does Program.cs do?'), { kind: 'builtin', name: 'side', args: 'what does Program.cs do?' });
+  const prompts = [{ kind: 'question', id: 'q1', questions: [{ question: 'Which?', options: [{ label: 'A' }, { label: 'B' }] }] }];
+  const state = { answers: {}, custom: {} };
+  assert.deepEqual(promptClick({ perm: 'once', id: 'p1' }, prompts, state), { answer: { kind: 'permission', id: 'p1', reply: 'once' } });
+  assert.deepEqual(promptClick({ qPick: 'q1', qi: '0', label: 'B' }, prompts, state), { redraw: true });
+  assert.deepEqual(promptClick({ qSend: 'q1' }, prompts, state), { answer: { kind: 'question', id: 'q1', answers: [['B']] } });
+  assert.deepEqual(promptClick({ qReject: 'q1' }, prompts, state), { answer: { kind: 'question', id: 'q1', reject: true } });
+  assert.equal(promptClick({ tool: 'x' }, prompts, state), null);
 });
