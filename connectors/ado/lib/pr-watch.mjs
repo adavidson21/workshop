@@ -123,7 +123,10 @@ export async function prStatus(d, args) {
       const row = out.ci.checks.find(x => x.name === c.name && x.state === 'failed' && !x.log);
       if (!c.buildId || shown >= MAX_LOGS) continue;
       if (row) row.url = `${parts.serverUrl}/${enc(parts.collection)}/${enc(project)}/_build/results?buildId=${c.buildId}`;
-      const tl = await ado.call('GET', `build/builds/${c.buildId}/timeline`, { project, need: 'Build (Read)' });
+      // Logs are extra: a PAT without Build (Read), or a build ADO no longer has, still answers where the PR stands.
+      let tl;
+      try { tl = await ado.call('GET', `build/builds/${c.buildId}/timeline`, { project, need: 'Build (Read)' }); }
+      catch (e) { if (row) row.log = `Workshop could not read the log: ${e.message}`; continue; }
       const steps = (tl.records || []).filter(r => r.result === 'failed' && r.log && r.log.id && (r.type || 'Task') === 'Task').slice(0, 2);
       const parts2 = [];
       for (const st of steps) {
@@ -134,8 +137,10 @@ export async function prStatus(d, args) {
       if (row) row.log = parts2.join('\n\n').slice(-20000) || (steps.length ? null : 'No failed step had a log.');
       // The same pipeline on the target branch: failing there too means it is not this change.
       if (c.definitionId && args.target) {
-        const base = await ado.call('GET', 'build/builds', { project, query: { definitions: c.definitionId, branchName: `refs/heads/${String(args.target).replace(/^origin\//, '')}`, $top: 1, queryOrder: 'finishTimeDescending', statusFilter: 'completed' }, need: 'Build (Read)' });
-        const last = (base.value || [])[0];
+        let base = null;
+        try { base = await ado.call('GET', 'build/builds', { project, query: { definitions: c.definitionId, branchName: `refs/heads/${String(args.target).replace(/^origin\//, '')}`, $top: 1, queryOrder: 'finishTimeDescending', statusFilter: 'completed' }, need: 'Build (Read)' }); }
+        catch { base = null; }
+        const last = ((base && base.value) || [])[0];
         if (last && last.result === 'failed') out.ci.baseFailing = true;
       }
     }

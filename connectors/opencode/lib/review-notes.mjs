@@ -1,4 +1,4 @@
-// opencode connector: what the code review screen shows beside the diff (1.27.0, Workshop project doc
+// opencode connector: what the code review screen shows beside the diff (1.28.0, Workshop project doc
 // claude/publish-review-v1-plan.md). Pure: text in, data out, so tests need no workspace.
 //
 // - Tandem's own findings, from review.md and the earlier rounds in history/review-*.md, at their lines. A Blocker

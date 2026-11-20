@@ -18,7 +18,7 @@ import {
 import { confirmOutside } from '../../../../shared/outside.js';
 import { esc, topBar, banner, filesPane, fileBar, placeholder, commentBox, panel } from './review-view.js';
 
-// Since connector 1.27.0 the code review is the depth behind Publish: Approve records the verdict, then publishes the
+// Since connector 1.28.0 the code review is the depth behind Publish: Approve records the verdict, then publishes the
 // whole build (Loom's Publish: every branch, never force), after the shared outside confirm (shared/outside.js).
 // Send back saves the comments and Tandem's /revise turns them into fixes; the build comes back as the next revision.
 const APPROVE_LABEL = 'Approve and publish';
@@ -227,7 +227,7 @@ function paintDecorations() {
       list.push({ range: new monaco.Range(sel.start, 1, sel.end, 1), options: { isWholeLine: true, className: 'rv-sel', linesDecorationsClassName: 'rv-selbar' } });
     }
     if (hover && hover.side === side) list.push({ range: new monaco.Range(hover.line, 1, hover.line, 1), options: { glyphMarginClassName: 'rv-plus' } });
-    // Tandem's own findings (connector 1.27.0), on the new side: a mark in the gutter, the note on hover.
+    // Tandem's own findings (connector 1.28.0), on the new side: a mark in the gutter, the note on hover.
     if (side === 'new' && !R.ui.sinceLast) {
       const lines = sides.new.getModel() ? sides.new.getModel().getLineCount() : 0;
       for (const [line, notes] of notesByLine(R.session, R.ui.file)) {

@@ -14,8 +14,8 @@ export const FACTORY_DEFAULTS = Object.freeze({
   reviewRounds: 2,
   uiChecks: true,
   regression: true,
-  uiCheckPerTask: true, // 1.27.0 (eng-agents Core 4.15.0): each task that changes UI files checks its own pages
-  modelSeesImages: false, // 1.27.0: the per-task check also hands the screenshot to the model
+  uiCheckPerTask: true, // 1.28.0 (eng-agents Core 4.15.0): each task that changes UI files checks its own pages
+  modelSeesImages: false, // 1.28.0: the per-task check also hands the screenshot to the model
   worktrees: "always",
 });
 

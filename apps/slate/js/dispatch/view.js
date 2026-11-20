@@ -459,7 +459,7 @@ export function prHtml(it) {
     const head = `<div class="pr-head"><span class="rn">${h(p.repo)}</span>` +
       `<span class="branch">${h(p.branch || 'no branch')} → ${h(p.target || 'main')}</span>${flagsHtml([flag])}` +
       '<span class="row">' + (prLink ? `<a class="btn${pushed ? ' primary' : ''}" href="${h(prLink)}" target="_blank" rel="noopener" title="Opens the new pull request page with the branches filled in">Create PR${where ? ' in ' + where : ''}</a>` : '<span class="dim" style="font-size:13px">No PR link: the repo has no origin remote</span>') + '</span></div>';
-    // Connected, Publish (or Approve and publish in the code review) pushes every branch (connector 1.27.0). Without a
+    // Connected, Publish (or Approve and publish in the code review) pushes every branch (connector 1.28.0). Without a
     // connection, the command can still be copied and run by hand.
     const push = !pushed && p.pushCmd && ps && ps.local && S.conn !== 'on'
       ? `<div class="pr-push"><span class="dim">Push first:</span><code>${h(p.pushCmd)}</code>${copyBtn(p.pushCmd)}</div>`

@@ -1,4 +1,4 @@
-// lib/preview.mjs (1.27.0): the command Try it hands opencode. Run: node --test "connectors/opencode/test/*.test.mjs"
+// lib/preview.mjs (1.28.0): the command Try it hands opencode. Run: node --test "connectors/opencode/test/*.test.mjs"
 import assert from "node:assert/strict";
 import path from "node:path";
 import { test } from "node:test";

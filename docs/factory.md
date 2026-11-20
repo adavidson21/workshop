@@ -5,9 +5,9 @@ Since Workshop's opencode connector 1.21.0, Loom 6.2.0 and eng-agents (Tandem) C
 You touch a work item twice:
 
 1. **Approve the plan** (Loom's **Approve**). The build starts on its own.
-2. **Publish the PR** (Loom's **Publish**, or **Publish all ready**). Workshop pushes every branch, never force, and opens the PR pages.
+2. **Review and publish** (Loom's **Review the code**, then **Approve and publish**; or **Publish all ready**). Workshop pushes every branch, never force, and opens the PR pages. **Send back** instead turns your comments into fix tasks.
 
-In between, autopilot runs the tasks, the review and its fix tasks, the UI checks and the PR text. It stops only for a lane step-up, a step that still fails after its retries and one fresh session, a knowledge gap with no safe assumption, or a merge conflict it cannot resolve.
+In between, autopilot runs the tasks (each checking its own pages), the review and its fix tasks, the UI checks and the PR text. It stops only for a lane step-up, a step that still fails after its retries and one fresh session, a knowledge gap with no safe assumption, or a merge conflict it cannot resolve. After Publish, Workshop follows each PR until it merges (see After Publish).
 
 ## Settings, Factory
 
@@ -23,7 +23,35 @@ Saved in the opencode connector's config (`autopilot`, `factory`) and written to
 | Review findings fixed on their own | Blockers and Should fix | Nits never become tasks. |
 | Review rounds | 2 | Then a review that is still not ready waits for you. |
 | UI checks with screenshots | on | Needs a `## UI checks` table in the repo guide and Playwright in the repo. |
-| Regression tests | on | Needs a `## Regression tests` table in the repo guide. |
+| UI check in every task | on | Each task that changes UI files opens its pages before it commits. Same table. |
+| The model can see images | off | Also hands the per-task screenshot to the model. It reads the page as text either way. |
+| Regression tests | on | Needs a `### UI check in every task
+
+Since connector 1.28.0, Loom 6.9.0 and Tandem Core 4.15.0 (Workshop project doc `claude/build-self-check-v1-plan.md`). A task that changes UI files starts the app once for the build (`Start-UiApp.ps1`, the record in `.work/<item>/ui/app.json`) and runs `Test-Ui.ps1 -Quick` before it commits: one width (1280), the pages its files touch, and each page's accessibility tree as text. The task confirms what it promised is on the page and fixes a load error, console error or new accessibility problem in the same task, so the review round finds fewer. The model sees the screenshot too only with **The model can see images** on. The app stops before the review's full check (`Stop-UiApp.ps1`).
+
+### Try it
+
+While a build runs or waits at Publish, Loom's **Try it** opens the build's app in a new tab: the connector asks opencode to run `Start-UiApp.ps1` (opencode's shell, so Workshop's agent still starts no program) and opens the address once it answers. **Stop** stops it. An app nothing has used for 30 minutes stops on its own.
+
+## Code review at Publish
+
+Since connector 1.28.0, Loom 6.9.0 and Tandem Core 4.15.0 (Workshop project doc `claude/publish-review-v1-plan.md`). **Review the code** on a ready build opens the code review screen: every repo's diff in reading order (each task's files in task order, tests after the code they test, generated and lock files folded), each file marked with the task that changed it, and Tandem's own review findings at their lines (fixed or open). Comment on a line, a file or the whole change.
+
+- **Approve and publish** publishes, the same as Publish.
+- **Send back** starts autopilot with `/revise <id> auto`: each comment becomes a fix task (`- From comment:`), a comment marked **Make it a rule** goes to the repo guide's `## Remembered`, and the build goes through the usual fix round, review, UI check and PR text before it comes back to Publish as the next revision. A comment Tandem cannot act on without you (`revise.md`, `- Status: HOLD`) waits on Loom with its question.
+- **Publish all ready** skips a build with draft comments.
+
+## After Publish
+
+Since connector 1.28.0, ADO connector 1.16.0, GitHub connector 1.4.0, Loom 6.9.0 and Tandem Core 4.15.0 (Workshop project doc `claude/after-publish-v1-plan.md`). Every 5 minutes Workshop's agent asks the opencode connector which published PRs to watch, asks the ADO or GitHub connector where each stands (`pr.status`: CI and its checks, reviews, comments, conflicts, merged or abandoned) and hands the answer back. The card moves to **In transit** on the floor with what its PR waits on.
+
+- **CI fails** and the same check passes on the target branch: Workshop saves the failed checks and the end of their logs (`ci/failure-<n>.md`) and runs `/pr-fix <id> ci auto`. Tandem commits a fix on the branch; Loom shows **Push fix** and you push it (never force). At most 2 rounds per PR. A check that fails on the target branch too is marked **Not caused by this change**.
+- **Conflicts with its base:** `/pr-fix <id> conflict auto` merges the base into the branch (never a rebase: the branch is published). Push fix the same way.
+- **Teammates' comments:** counted on the card and shown in the code review screen beside the code, where you can send any back to Tandem.
+- **Merged:** the card leaves the line for **Delivered today**. Workshop removes the build's worktrees (the work folder stays) and runs `/retro <id> auto`. A linked ADO item offers **Resolve in ADO**. Notifications: a fix ready to push and a merge, when Workshop is out of sight.
+- **Abandoned:** the build is back at Publish.
+
+## Regression tests` table in the repo guide. |
 | Worktrees | every build | Every build in its own git worktree. |
 
 ## UI checks

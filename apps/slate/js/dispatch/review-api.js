@@ -6,7 +6,7 @@
      publish(folder)                  { ok, folder, repos: [{repo, branch, target, pr}] }: Loom's Publish (every branch of the build)
      revise(id)                       { ok }: start Tandem on comments it is not working on (review.revise)
      onChange(id, repo, fn)           calls fn when that review changes; returns an unsubscribe function
-   Since connector 1.27.0 Approve publishes the build and Send back (request changes) runs Tandem's /revise; the
+   Since connector 1.28.0 Approve publishes the build and Send back (request changes) runs Tandem's /revise; the
    screen no longer pushes one branch on its own.
    reviewApi(ws) uses the opencode connector (connectors/opencode/README.md, Code review).
    mockReviewApi() serves FIXTURE from memory, so the screen can be tried and tested with no agent:

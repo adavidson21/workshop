@@ -60,6 +60,9 @@ Since 1.21.0 (eng-agents Core 4.9.0; Workshop project doc `claude/software-facto
 - A restart keeps running and queued builds queued; they start again once opencode is connected.
 - Knowledge gaps: `state.gaps` is `{open: [{id, n, date, kind, product, source, question, assumed, status, sent}], answered}` from `.work/gaps.md` (written only by Tandem). A build whose step stopped on a gap with no safe assumption (`assumed: null`, `source` its id) waits on it (`autopilot.gap`); `gap.answer` resumes it once `/teach` closes the line. What Workshop sent is kept in `_dashboard/gaps.json`.
 - Publish: `state.publish` is `{<folder>: {ready, questions, ui, published, pushed}}` for items that are ready or were published (`_dashboard/published.json`). `ui` is each `ui/results-*.json` (`before` from `/start`, `after` from `/review`). Since 1.26.0 `tests` is each `tests/results-*.json` (the regression suite, eng-agents Core 4.14.0); Publish all ready skips items whose UI checks or tests failed.
+- Code review at Publish (1.28.0, eng-agents Core 4.15.0; Workshop project doc `claude/publish-review-v1-plan.md`): Approve publishes, Send back runs `/revise <id> auto` first through autopilot (see [Code review](#code-review)). `state.publish[<folder>]` also has `revising` (a Send back Tandem has not finished) and `openMustFix` (must fix comments Tandem declined); Publish all ready skips both, and Loom also skips items with draft comments (`publish.all` with `skip`). A `revise.md` with `Status: HOLD` stops autopilot for you.
+- Self-checks (1.28.0; `claude/build-self-check-v1-plan.md`): `factory.uiCheckPerTask` (default on) and `factory.modelSeesImages` (default off) go to `factory.json`. `state.previews` is `{<folder>: {status: starting|running|failed, url, message}}` for Try it (`preview.open`, `preview.stop`): opencode runs Tandem's `Start-UiApp.ps1` in a session of its own, so Workshop's agent starts no program. An app idle for 30 minutes is stopped.
+- After Publish (1.28.0; `claude/after-publish-v1-plan.md`): Workshop's agent calls `published.watch` every 5 minutes, asks the ADO or GitHub connector's `pr.status` for each repo and hands the answer to `published.record`, which keeps it in `published.json` (`repos[].watch`: `{found, pr, ci, checks, review, comments, conflict, merged, fix, checkedAt}`). Failed CI (that passes on the target branch) writes `ci/failure-<n>.md` and starts `/pr-fix <id> ci auto`; a conflict, `ci/conflict-<n>.md` and `/pr-fix <id> conflict auto`; at most 2 rounds per PR. Tandem commits, never pushes: Loom shows Push fix (`push`). Merged removes the worktrees (the work folder stays) and runs `/retro <id> auto`; abandoned forgets the publish record. Teammates' comments go to the code review screen.
 - Overlaps: `state.overlaps` is `{<folder>: [{with, files}]}` for active items whose `tasks.md` files overlap. Loom offers **Approve, build after it** (`autopilot` with `after`).
 
 ## Work items as the source
@@ -166,7 +169,7 @@ Call with `POST /api/connectors/opencode/<action>` and `{"args": {...}}` (write 
 | `observation.sent` | yes | `id` | (new) | 1.20.0: marks one as sent to Docket (Loom sends the task offer itself). |
 | `gap.answer` | yes | `id` (`G<n>`), `answer` (one line, up to 500 characters) | (new) | 1.21.0: runs `/teach <id> <answer>` (eng-agents Core 4.9.0), which writes the answer where it belongs and closes the gap. 409 when the gap is answered or an answer is on its way. Builds waiting on the gap resume when `/teach` closes it. |
 | `publish` | yes | `folder` | (new) | 1.21.0, Gate 2: for an item whose next step is ship, pushes every branch in `pr.md` (the `push` rules: never the target or default branch, never force) and records it. Returns `{ok, folder, repos: [{repo, branch, target, pr, message}]}` with each repo's create PR link. 409 when the item is not ready. |
-| `publish.all` | yes | optional `project` | (new) | 1.21.0: publishes every ready item with no review questions and no failed UI check. Returns `{ok, published, failed: [{folder, message}]}`. |
+| `publish.all` | yes | optional `project`, `skip` (folders to leave out, 1.28.0) | (new) | 1.21.0: publishes every ready item with no review questions, no failed UI check or test, and (1.28.0) no Send back waiting on Tandem or must fix comment it declined. Returns `{ok, published, failed: [{folder, message}]}`. |
 | `item.link` | yes | `folder`, `ado` (a number, `#` or `AB#` allowed) | (new) | 1.22.0: links a work item to an ADO work item: writes `- ADO item: <n>` in its `workitem.md`. |
 | `item.unlink` | yes | `folder` | (new) | 1.22.0: makes it local: `- ADO item: unlinked (was <n>)`. Workshop and Tandem never update ADO for it again. |
 | `ado.notice.seen` | no | | (new) | 1.22.0: hides the one-time notice (`state.adoNotice`). |
@@ -179,7 +182,12 @@ Call with `POST /api/connectors/opencode/<action>` and `{"args": {...}}` (write 
 | `run.assign` | yes | `folder`, `project` (`inbox` for none) | (new) | Moves a run to a project. `{folder, project}`. |
 | `review.session` | no | `id`, `repo` | (new) | The `ReviewSession` for one repo of a work item. See [Code review](#code-review). |
 | `review.file` | no | `id`, `repo`, `path`, `side` (`old`, `new` or `prev`) | (new) | `FileContent` for one file. |
-| `review.submit` | yes | `id`, `repo`, `feedback` (a `ReviewFeedback`) | (new) | Approve (records the verdict only, nothing is pushed) or request changes (the agent revises). `{ok, status, revision, submittedAt}`. |
+| `review.submit` | yes | `id`, `repo`, `feedback` (a `ReviewFeedback`) | (new) | Approve (records the verdict; Loom then calls `publish`) or request changes (Send back: autopilot runs `/revise <id> auto` first). `{ok, status, revision, submittedAt}`. |
+| `review.revise` | yes | `id` | (new) | 1.28.0: starts `/revise` again on comments already sent back (after it could not start or stopped). 409 when nothing is waiting. |
+| `preview.open` | yes | `folder`, optional `repo` | (new) | 1.28.0, Try it: starts the build's app through opencode (or reuses the one Tandem keeps for its UI checks) and answers once its address does. `{status, url}`. |
+| `preview.stop` | yes | `folder` | (new) | 1.28.0: stops it through opencode. |
+| `published.watch` | no | none | (new) | 1.28.0, for the agent's PR watcher: the published, unmerged repos to check, each with `remote`, `branch`, `target` and `host` (`ado` or `github`). |
+| `published.record` | yes | `folder`, `repo`, `status` (`pr.status`'s answer) or `error` | (new) | 1.28.0: saves where the PR stands and starts Tandem's fix on failed CI or a conflict, or the retro on a merge. `{ok, started?, merged?, abandoned?}`. |
 | `terminal` | no | `session` (optional) | `POST /api/terminal` | Opens the opencode TUI in a terminal window (Windows and macOS). On Windows it starts `powershell.exe -NoExit` directly in its own console (no encoded command, which endpoint security often blocks). Not marked write: it changes nothing outside this computer. |
 
 Errors are plain words with a code: `bad_request`, `not_found`, `conflict` (for example, autopilot is running the item), `unavailable` (opencode is not connected, or the connector is not ready). The live server's `501` becomes `bad_request` and its `502` becomes `unavailable`, since the agent API has no codes for those.
@@ -196,7 +204,8 @@ The live server pushed the whole page model on its own event stream. Connector e
 | `agent.done` | `{folder, session, error}` | A session tied to a work item finished a turn. |
 | `autopilot` | `{folder, status, message}` | Autopilot started, resumed, waits for you, finished or stopped. |
 | `projects` | `{change}` (`create`, `update`, `delete`, `run`) | A project or a run's project changed. Call `state` for the data. |
-| `review` | `{id, folder, repo, status, revision}` | A code review got a verdict, or its revision run started, failed or finished. Call `review.session` for the data. |
+| `review` | `{id, folder, repo, status, revision}` | A code review got a verdict, or a Send back started or finished. Call `review.session` for the data. |
+| `published` | `{folder, repo, event}` (`ci-failed`, `conflict`, `fix-ready`, `merged`) | 1.28.0: something changed on a published PR. Loom notifies on `fix-ready` and `merged`. |
 | `prQueue` | `{status, counts}` | The PR review queue changed. Call `state` for `liveMode.live.prQueue`. |
 
 ## Projects
@@ -243,7 +252,7 @@ The **Hub** setting (`hub`, off by default) turns this on. It is not marked `x-w
 
 The review screen in Dispatch: the reviewer reads a branch's diff, comments on lines, and approves or sends the comments to the agent as one revision. One review per work item and repo, matching `push`. `repo` is the repo folder from the item's `pr.md`.
 
-Copied from eng-agents branch `dev/feature/review-api` at `2626601` (the live server's `/api/shell/code-review/*` routes): `lib/review-git.mjs`, `lib/code-review.mjs`, `lib/revision-runner.mjs`. `lib/review.mjs` wires them to this connector. Errors are plain words with the usual codes; on any `conflict` from `review.submit`, reload the review.
+Copied from eng-agents branch `dev/feature/review-api` at `2626601` (the live server's `/api/shell/code-review/*` routes): `lib/review-git.mjs`, `lib/code-review.mjs`. `lib/review.mjs` wires them to this connector; `lib/review-notes.mjs` (1.28.0) adds Tandem's review findings at their lines and the reading order to `review.session` (`extras: {files, notes, threads}`). Errors are plain words with the usual codes; on any `conflict` from `review.submit`, reload the review.
 
 ### Types
 
@@ -285,15 +294,15 @@ type FileContent = { kind: 'text' | 'binary' | 'too_large' | 'absent'; text?: st
 - `review.submit` is refused with `conflict` if the branch head moved since the review loaded, the revision number is wrong, or the review is not awaiting a verdict. Nothing is saved. Request changes needs a comment or a summary, and is refused with `unavailable` while opencode is not connected.
 - Comments made in the "changes since last review" view go on the `new` side.
 
-### Revision runner
+### Send back (1.28.0)
 
-Request changes saves the feedback, sets the review to `revising`, and sends one revision prompt (the spec's template, plus the repo folder) through the same launcher as `reply`: in the item's current session if it is idle, else a new one linked to the item. When that turn ends, the runner checks that the agent wrote a valid `rev-<n>-response.json` and that the branch still contains the reviewed commit. Then the review becomes revision `n+1`, `awaiting_review`. If a check fails, it stays `revising` and `revisionRun` says why; replying to the agent in that session runs the checks again when its turn ends. Unfinished runs are followed again after a restart.
+Request changes saves the feedback, sets the review to `revising`, and starts autopilot with `/revise <id> auto` as its first command (Tandem Core 4.15.0). `/revise` turns each comment into a fix task, an answer or a declined note (`rev-<n>-response.json`), saves comments marked as rules in the repo guide, and moves `pr.md` to `history/`. Autopilot then runs the usual steps: the fix tasks, `/review`, the UI checks and `/pr`. When autopilot finishes, every repo still `revising` becomes revision `n+1`, `awaiting_review`, with Tandem's answers. The ad hoc revision runner (one prompt with none of Tandem's checks) is gone.
 
-`state.reviews`: `{"<folder>": {"<repo>": {status, revision, started, run}}}` for every repo in an item's `pr.md`. `started: false` means nobody has reviewed it yet; `run` is the latest revision run or `null`. Dispatch shows it on the PR card.
+`state.reviews`: `{"<folder>": {"<repo>": {status, revision, started, run, sentBack, openMustFix}}}` for every repo in an item's `pr.md` or with a review. `started: false` means nobody has reviewed it yet; `run` is `{status: running|failed, message}` while a Send back is `revising`, else `null`.
 
 ### Storage
 
-`.work/<folder>/code-review/<repo>/`: `state.json` (`{revision, status, lastReviewedHeadSha}`; missing means revision 1, awaiting review), `rev-<n>.json` (the feedback), `rev-<n>-response.json` (the agent's answers), `run.json` (the latest revision run).
+`.work/<folder>/code-review/<repo>/`: `state.json` (`{revision, status, lastReviewedHeadSha}`; missing means revision 1, awaiting review), `rev-<n>.json` (the feedback), `rev-<n>-response.json` (Tandem's answers, written by `/revise`).
 
 ## Not carried over
 

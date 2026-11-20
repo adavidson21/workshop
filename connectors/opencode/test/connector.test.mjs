@@ -989,7 +989,7 @@ describe("push", { skip: skip || (!hasGit && "git is not installed") }, () => {
   });
 });
 
-// 1.27.0 (Workshop project doc claude/publish-review-v1-plan.md): Send back from the code review starts autopilot with
+// 1.28.0 (Workshop project doc claude/publish-review-v1-plan.md): Send back from the code review starts autopilot with
 // /revise first; the build goes round again and comes back to Publish as the next revision.
 describe("code review at Publish: Send back", { skip: !hasGit }, () => {
   let ws, fake;
@@ -1082,7 +1082,7 @@ describe("code review at Publish: Send back", { skip: !hasGit }, () => {
   });
 });
 
-// 1.27.0 (Workshop project doc claude/build-self-check-v1-plan.md): Try it runs Tandem's Start-UiApp.ps1 through
+// 1.28.0 (Workshop project doc claude/build-self-check-v1-plan.md): Try it runs Tandem's Start-UiApp.ps1 through
 // opencode's shell, then shows the build's app once app.json names an address that answers.
 describe("Try it: the build's app", { skip: !hasGit }, () => {
   let ws, fake, app;
@@ -1128,7 +1128,7 @@ describe("Try it: the build's app", { skip: !hasGit }, () => {
   });
 });
 
-// 1.27.0 (Workshop project doc claude/after-publish-v1-plan.md): after Publish, Workshop's agent hands each PR's state
+// 1.28.0 (Workshop project doc claude/after-publish-v1-plan.md): after Publish, Workshop's agent hands each PR's state
 // to published.record, which starts /pr-fix when CI fails, shows Push fix when Tandem fixed it, and finishes on merge.
 describe("after Publish", { skip: !hasGit }, () => {
   let ws, fake;

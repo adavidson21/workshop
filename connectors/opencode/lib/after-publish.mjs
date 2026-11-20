@@ -1,4 +1,4 @@
-// opencode connector: after Publish (1.27.0, Workshop project doc claude/after-publish-v1-plan.md, eng-agents Core 4.15.0).
+// opencode connector: after Publish (1.28.0, Workshop project doc claude/after-publish-v1-plan.md, eng-agents Core 4.15.0).
 //
 // Workshop's agent watches each published PR (agent/lib/pr-watch.mjs, every 5 minutes): it asks this connector what to
 // watch (`published.watch`), asks the ADO or GitHub connector where each PR stands (`pr.status`), and hands the answer

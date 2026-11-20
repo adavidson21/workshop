@@ -44,7 +44,7 @@ export function agentQueue({ items = [], asking = new Map(), publish = {}, gaps 
     else if (n.needsYou && n.command && /^\/approve\b/.test(n.command)) rows.push({ id: it.folder, title: name(it), note: 'Approve the plan', route: route(it), kind: 'approve' });
     else if (publish[it.folder] && publish[it.folder].ready && !publish[it.folder].published) rows.push({ id: it.folder, title: name(it), note: 'Ready to publish', route: route(it), kind: 'publish' });
     else {
-      // After Publish (connector 1.27.0): a fix Tandem made, waiting for your push, and teammates asking for changes.
+      // After Publish (connector 1.28.0): a fix Tandem made, waiting for your push, and teammates asking for changes.
       const w = afterOf(publish[it.folder]);
       if (w.fixReady) rows.push({ id: it.folder, title: name(it), note: 'Push fix: Tandem fixed the failing CI', route: route(it), kind: 'fix', flag: 'urgent' });
       else if (w.changes) rows.push({ id: it.folder, title: name(it), note: `Comments on your PR: ${w.comments}`, route: route(it), kind: 'comments' });
@@ -59,7 +59,7 @@ export function agentQueue({ items = [], asking = new Map(), publish = {}, gaps 
   return rows.sort((a, b) => (b.flag === 'urgent') - (a.flag === 'urgent') || order[a.kind] - order[b.kind]).map(({ kind, ...r }) => r);
 }
 
-/** What a published item's PR needs from you (connector 1.27.0 `published.repos[].watch`). */
+/** What a published item's PR needs from you (connector 1.28.0 `published.repos[].watch`). */
 export function afterOf(p) {
   const out = { fixReady: false, changes: false, comments: 0, needsYou: null };
   const rec = p && p.published;

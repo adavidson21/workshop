@@ -153,7 +153,7 @@ body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.5 var(-
   .rv-top { padding: 12px 16px; }
 }
 
-/* Connector 1.27.0: reading order, Tandem's review beside the diff, teammates' PR comments, Make it a rule. */
+/* Connector 1.28.0: reading order, Tandem's review beside the diff, teammates' PR comments, Make it a rule. */
 .rv-rgroup + .rv-rgroup { margin-top: 8px; }
 .rv-ghead { margin: 0; padding: 4px 8px 2px; font: 600 12px var(--sans); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; width: 100%; text-align: left; }
 button.rv-ghead { cursor: pointer; }

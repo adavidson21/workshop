@@ -137,7 +137,7 @@ def main():
         pg.wait_for_function('() => !document.querySelector(".rv-form")')
         check('editing keeps the id and updates the text', 'at the end of orderTotal' in pg.locator('.rv-panel').inner_text() and pg.locator('.rv-entry[data-act=jump]').count() == 2)
 
-        # Tandem's review beside the diff (connector 1.27.0): its notes in the panel, one marked fixed, a mark in the gutter.
+        # Tandem's review beside the diff (connector 1.28.0): its notes in the panel, one marked fixed, a mark in the gutter.
         notes = pg.locator('.rv-notes').inner_text()
         check("Tandem's review lists its notes, the fixed one marked", "Tandem's review (2)" in pg.locator('.rv-panel').inner_text() and 'Nit' in notes and 'Fixed' in notes)
         pg.locator('[data-act=jump-note][data-line="14"]').click()
@@ -203,7 +203,7 @@ def main():
         pg.wait_for_selector('.rv-banner.bad')
         check('stale head: clear error, nothing sent, draft kept', 'changed since this review was loaded' in pg.locator('.rv-banner.bad').inner_text() and pg.locator('.rv-entry[data-act=jump]').count() == 1)
 
-        # Approve and publish (connector 1.27.0): the shared git confirm comes first; a No sends nothing at all.
+        # Approve and publish (connector 1.28.0): the shared git confirm comes first; a No sends nothing at all.
         check('the approve button publishes, with the git mark', pg.locator('[data-act=approve]').inner_text().startswith('Approve and publish') and pg.locator('[data-act=approve] .out-mark[data-out=git]').count() == 1)
         check('nothing is published before Approve', pg.evaluate('window.__reviewMock.publishes.length') == 0)
         pg.locator('[data-act=approve]').click()

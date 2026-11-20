@@ -252,7 +252,7 @@ test('mock API: request changes comes back as revision 2 with answers; stale hea
   await assert.rejects(api.submit('L1', 'shop-api', { ...fb, revision: 2, headSha: s2.headSha }), e => e.code === 'conflict' && /changed since/.test(e.message));
 });
 
-test('reading order, Tandem\'s notes, teammates\' threads and Make it a rule (connector 1.27.0)', async () => {
+test('reading order, Tandem\'s notes, teammates\' threads and Make it a rule (connector 1.28.0)', async () => {
   const { readingGroups, notesByLine, threadRows, commentFromThread, hasDraft, buildFeedback: build } = await import('../js/dispatch/review-state.js');
   const files = [
     { path: 'src/a.ts', status: 'modified', additions: 1, deletions: 0, binary: false, task: { n: 1, title: 'Add it' }, folded: false },

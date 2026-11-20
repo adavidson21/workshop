@@ -55,7 +55,7 @@ const store = (() => { try { return window.localStorage; } catch (e) { return nu
 export const hasDrafts = it => !!(store && it && it.id && hasDraft(store, it.id));
 
 /** Ready to publish with nothing to answer and no failed UI check: what Publish all ready would send. Since connector
- *  1.27.0 also nothing waiting on Tandem from a Send back, no must fix comment it declined, and no unsent draft. */
+ *  1.28.0 also nothing waiting on Tandem from a Send back, no must fix comment it declined, and no unsent draft. */
 export function readyClean(it) {
   const p = publishOf(it);
   return !!p && p.ready && !p.published && !p.questions.length && !p.ui.some(u => u.name !== 'before' && u.verdict === 'fail') && !(p.tests || []).some(t => t.name !== 'before' && t.verdict === 'fail') &&
@@ -106,7 +106,7 @@ function shotImgs(it, before, after, diff) {
 }
 
 const plural = (n, one, many = one + 's') => `${n} ${n === 1 ? one : many}`;
-/** The code, per repo (connector 1.27.0): how big the change is, where its code review stands, and Review the code. */
+/** The code, per repo (connector 1.28.0): how big the change is, where its code review stands, and Review the code. */
 function codeHtml(it, p) {
   const rows = (it.pr || []).map(r => {
     const d = (p.diff || []).find(x => x.repo === r.repo);
@@ -125,7 +125,7 @@ function codeHtml(it, p) {
 const ago = iso => { const m = Math.round((Date.now() - Date.parse(iso)) / 60000); return !(m >= 0) ? '' : m < 1 ? 'just now' : m < 60 ? `${m} min ago` : `${Math.round(m / 60)} h ago`; };
 const CI_WORD = { failed: ['bad', 'CI failed'], running: ['warn', 'CI running'], passed: ['ok', 'CI passed'], none: ['', 'No CI on this PR'] };
 const REVIEW_WORD = { approved: ['ok', 'Approved'], changes: ['warn', 'Changes requested'], waiting: ['', 'Waiting on reviewers'] };
-/** One repo after Publish (connector 1.27.0): its PR, CI, reviews, comments and Tandem's fix. */
+/** One repo after Publish (connector 1.28.0): its PR, CI, reviews, comments and Tandem's fix. */
 function afterRepo(it, r) {
   const w = r.watch || {};
   const f = h(it.folder);
@@ -146,7 +146,7 @@ function afterRepo(it, r) {
     : `<div class="after-fix"><span class="flag ${fx.state === 'not-ours' ? 'warn' : 'bad'}">${fx.state === 'not-ours' ? 'Not caused by this change' : 'CI needs you'}</span> ${h(fx.text || '')}</div>`;
   return `<li><span class="mono">${h(r.repo)}</span> ${pr} <span class="flag ${cc}">${ct}</span>${checks ? ` <span class="dim">${checks}</span>` : ''} <span class="flag ${rc}">${rt}</span>${comments}${w.conflict ? ' <span class="flag bad">Conflicts with its base</span>' : ''}${fixLine}</li>`;
 }
-/** A published build (connector 1.27.0): each PR until it merges, then done. */
+/** A published build (connector 1.28.0): each PR until it merges, then done. */
 function afterHtml(it, p) {
   const rec = p.published;
   const repos = rec.repos || [];
@@ -173,7 +173,7 @@ export function publishHtml(it) {
     `<span class="dim">Pushes ${h(String((it.pr || []).length))} branch${(it.pr || []).length === 1 ? '' : 'es'} and opens the PRs.</span></div></div>`;
 }
 
-// ------------------------------------------------------------------ Try it (connector 1.27.0)
+// ------------------------------------------------------------------ Try it (connector 1.28.0)
 /** The build's app for you to click around in: Try it while it builds or waits at Publish, then Open and Stop. */
 export function tryItHtml(it) {
   if (!it || it.kind !== 'item' || S.conn !== 'on' || !(it.repos || []).length) return '';

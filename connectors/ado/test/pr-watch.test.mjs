@@ -25,9 +25,9 @@ function scenario(over = {}) {
           { path: `${repoPath}/pullrequests`, out: { value: [] } },
           { path: 'policy/evaluations', out: { value: over.evaluations || [{ status: 'rejected', configuration: { type: { displayName: 'Build' }, settings: { buildDefinitionId: 12, displayName: 'CI' } }, context: { buildId: 501 } }] } },
           { path: `${repoPath}/pullrequests/77/statuses`, out: { value: [] } },
-          { path: 'build/builds/501/timeline', out: { records: [{ type: 'Task', name: 'Run unit tests', result: 'failed', log: { id: 9 } }, { type: 'Task', name: 'Build', result: 'succeeded', log: { id: 8 } }] } },
+          { path: 'build/builds/501/timeline', out: over.timeline || { records: [{ type: 'Task', name: 'Run unit tests', result: 'failed', log: { id: 9 } }, { type: 'Task', name: 'Build', result: 'succeeded', log: { id: 8 } }] } },
           { path: 'build/builds/501/logs/9', out: { $text: '2026-11-19T10:01:00.1234567Z Starting tests\n2026-11-19T10:02:00.1234567Z Failed HeaderTests.Writes_limit\n' } },
-          { path: 'build/builds', query: { definitions: '12', branchName: 'refs/heads/main' }, out: { value: [{ id: 400, result: over.baseResult || 'succeeded' }] } },
+          { path: 'build/builds', query: { definitions: '12', branchName: 'refs/heads/main' }, out: over.builds || { value: [{ id: 400, result: over.baseResult || 'succeeded' }] } },
           { path: `${repoPath}/pullrequests/77/threads`, out: { value: [
             { id: 1, status: 'active', threadContext: { filePath: '/src/HeaderWriter.cs', rightFileStart: { line: 18 } }, comments: [{ author: { id: 'u-b', displayName: 'Engineer B' }, content: 'Read the limit from options.', commentType: 'text' }] },
             { id: 2, status: 'active', comments: [{ author: { id: 'u-me' }, content: 'My own note', commentType: 'text' }] },
@@ -92,3 +92,9 @@ test('the same pipeline failing on the target branch is not this change; merged 
     await assert.rejects(prStatus(d, { remote: 'https://elsewhere.example/Main/P/_git/r', branch: 'x' }), /No ADO connection for https:\/\/elsewhere\.example\/Main/);
   });
 });
+
+test('a PAT without Build (Read) still answers where the PR stands; the log says why it is missing', () => withAdo({ timeline: { $status: 403 }, builds: { $status: 403 } }, async ({ d, remote }) => {
+  const s = await prStatus(d, { remote, branch: 'dev/bug/77-headers', target: 'main', logs: true });
+  assert.deepEqual([s.found, s.ci.state, s.ci.baseFailing, s.threads.length], [true, 'failed', false, 2]);
+  assert.match(s.ci.checks[0].log, /^Workshop could not read the log: .*Build \(Read\)/);
+}));

@@ -1,4 +1,4 @@
-// lib/review-notes.mjs (1.27.0): Tandem's findings at their lines, and the files in reading order.
+// lib/review-notes.mjs (1.28.0): Tandem's findings at their lines, and the files in reading order.
 // Run: node --test "connectors/opencode/test/*.test.mjs"
 import assert from "node:assert/strict";
 import { test } from "node:test";

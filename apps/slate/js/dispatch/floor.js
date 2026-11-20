@@ -83,7 +83,7 @@ function activityOf(it) {
   return String((s && s.activity) || '');
 }
 const STEP_FITS = { build: ['build', 'test', 'ui', 'fix'], review: ['review', 'test', 'ui', 'fix'] };
-/** Comments you sent back from the code review that Tandem is working on (connector 1.27.0), or 0. */
+/** Comments you sent back from the code review that Tandem is working on (connector 1.28.0), or 0. */
 export function sentBackOf(it) {
   const r = it && S.D && S.D.reviews && S.D.reviews[it.folder];
   return r ? Object.values(r).filter(x => x && x.status === 'revising').reduce((n, x) => n + (x.sentBack || 0), 0) || (Object.values(r).some(x => x && x.status === 'revising') ? 1 : 0) : 0;
@@ -96,7 +96,7 @@ export function toldStep(it) {
 /** The paper station for a flow step's key. */
 const PAPER_STEP = { investigate: 'research', scope: 'research', slice: 'write', draft: 'write', stories: 'review', milestones: 'review', read: 'review', check: 'review', final: 'review', findings: 'out', backlog: 'out', save: 'out' };
 
-/** A published build (connector 1.27.0): 'transit' until its PR merges, 'delivered' after, else ''. */
+/** A published build (connector 1.28.0): 'transit' until its PR merges, 'delivered' after, else ''. */
 export function shippedState(it) {
   const p = publishOf(it);
   const rec = p && p.published;
@@ -134,7 +134,7 @@ export function stationOf(c) {
     if (!it) return 'build';
     // Core 4.12.0: Tandem says where the build is (step.md), when it fits the stage the item is at.
     const told = toldStep(it);
-    // A Send back (connector 1.27.0): its fix tasks are built in the Fix shop, whatever step.md says.
+    // A Send back (connector 1.28.0): its fix tasks are built in the Fix shop, whatever step.md says.
     if (it.stage === 'build' && sentBackOf(it) && (!told || told === 'build')) return 'fix';
     if (told) return told;
     const act = activityOf(it);
@@ -173,7 +173,7 @@ export function floorData(data) {
   const where = {};
   for (const c of data.cards) {
     const line = lineOf(c);
-    // Merged (connector 1.27.0): off the line; today's are listed as Delivered today.
+    // Merged (connector 1.28.0): off the line; today's are listed as Delivered today.
     if (line === 'code' && c.it && shippedState(c.it) === 'delivered') {
       const at = Date.parse(publishOf(c.it).published.merged);
       if (at && new Date(at).toISOString().slice(0, 10) === (S.today || new Date().toISOString().slice(0, 10))) delivered.push({ folder: c.folder, title: c.title, id: c.id || null });
@@ -266,7 +266,7 @@ function shippedHtml(done, delivered = []) {
   const open = !!S.ui.laneDone;
   const openD = !!S.ui.laneDelivered;
   const a = done && done.length ? `<button type="button" class="lnk plain ln-done" data-lane-done="1" aria-expanded="${open}">Shipped today: ${done.length}</button>${open ? `<ul class="ln-donelist" role="list">${done.map(row).join('')}</ul>` : ''}` : '';
-  // Connector 1.27.0: PRs that merged today. Off the line; each still opens its run.
+  // Connector 1.28.0: PRs that merged today. Off the line; each still opens its run.
   const b = delivered.length ? `<button type="button" class="lnk plain ln-done" data-lane-delivered="1" aria-expanded="${openD}">Delivered today: ${delivered.length}</button>${openD ? `<ul class="ln-donelist" role="list">${delivered.map(row).join('')}</ul>` : ''}` : '';
   return `<div class="fl-shipped">${a}${b}</div>`;
 }

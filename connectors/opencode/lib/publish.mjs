@@ -5,7 +5,7 @@
 //
 // What was published, and when, is kept in .work/_dashboard/published.json: { "<folder>": { at, repos: [...] } }.
 //
-// 1.27.0 (claude/publish-review-v1-plan.md): the Publish block also says how big each repo's change is and where its
+// 1.28.0 (claude/publish-review-v1-plan.md): the Publish block also says how big each repo's change is and where its
 // code review stands (hooks set by index.mjs, so this module stays free of the review and git code). Publish refuses
 // while Tandem works on Send back comments, and Publish all ready skips builds with a must fix comment Tandem
 // declined, and any the page names (`skip`: drafts not sent yet). The after-Publish watcher (after-publish.mjs)

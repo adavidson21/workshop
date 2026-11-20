@@ -84,7 +84,7 @@ export function filesPane(session, draft, ui) {
   const counts = commentCounts(draft.comments);
   const notes = {};
   for (const x of session.notes || []) if (x.state === 'open') notes[x.path] = (notes[x.path] || 0) + 1;
-  // Reading order (connector 1.27.0): each task's files in task order, generated and lock files folded.
+  // Reading order (connector 1.28.0): each task's files in task order, generated and lock files folded.
   const groups = !ui.sinceLast && readingGroups(files);
   if (groups) {
     return groups.map(g => {

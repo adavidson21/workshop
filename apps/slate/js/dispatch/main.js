@@ -299,7 +299,7 @@ let soon = null;
 function fetchSoon() { clearTimeout(soon); soon = setTimeout(fetchState, 120); }
 
 ws.connectors.on(OC, '*', fetchSoon);
-// After Publish (connector 1.27.0): a fix to push and a merge are worth a notification when Workshop is out of sight.
+// After Publish (connector 1.28.0): a fix to push and a merge are worth a notification when Workshop is out of sight.
 ws.connectors.on(OC, 'published', p => {
   if (!p || !p.folder) return;
   if (p.event === 'fix-ready') alertUser(`Push fix: ${label(p.folder, 'a published PR')}`, `Tandem fixed the failing CI on ${p.repo || 'the PR'}. Push it from Loom.`, p.folder);
@@ -1119,7 +1119,7 @@ listen('click', ev => {
     if (!list.length) return;
     confirmOutside({ system: 'git', title: `Publish ${list.length} ready build${list.length === 1 ? '' : 's'}?`, body: 'Each has passing checks and no review questions. Pushes every branch (never force), then opens the PR pages.', items: list.map(it => (it.id ? '#' + it.id + ' ' : '') + (it.title || it.folder)), ok: 'Publish all' }).then(ok => {
       if (!ok) return;
-      // Builds with draft code review comments in this browser stay out (connector 1.27.0 `skip`).
+      // Builds with draft code review comments in this browser stay out (connector 1.28.0 `skip`).
       const skip = ((S.D && S.D.items) || []).filter(it => it.kind === 'item' && hasDrafts(it)).map(it => it.folder);
       act(() => write('publish.all', skip.length ? { skip } : {}), r => {
         for (const p of (r && r.published) || []) openPrs(p);
@@ -1188,7 +1188,7 @@ listen('click', ev => {
   }
   if (t.closest('[data-lane-done]')) { ui().laneDone = !ui().laneDone; paint(); return; }
   if (t.closest('[data-lane-delivered]')) { ui().laneDelivered = !ui().laneDelivered; paint(); return; }
-  // After Publish (connector 1.27.0): push the fix Tandem committed, after the git confirm.
+  // After Publish (connector 1.28.0): push the fix Tandem committed, after the git confirm.
   const pf = t.closest('[data-push-fix]');
   if (pf) {
     const folder = pf.getAttribute('data-push-fix'), repo = pf.getAttribute('data-repo');

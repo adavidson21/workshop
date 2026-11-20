@@ -48,6 +48,7 @@ The `workshop` command wraps this: `node workshop.mjs start` is the same as the 
 - Reaches the data folder only through `/api/data` and `/api/files`. Paths are checked as sent, before normalization, and a path that leads outside the data folder through a link is refused.
 - Loads connectors from `connectors/<id>/index.mjs` and starts the ones enabled in `config.json`. A broken connector is listed with an error and never stops the agent.
 - Lists apps from `apps/<id>/app.json`.
+- Since 1.14.0, follows published PRs (`lib/pr-watch.mjs`, Workshop project doc `claude/after-publish-v1-plan.md`): every 5 minutes it asks the opencode connector what to watch (`published.watch`), the ADO or GitHub connector where each PR stands (`pr.status`), and hands the answer back (`published.record`). Connectors cannot call each other, so the agent carries it. They show in Activity as a routine's: reads are not logged, and a PR whose state did not change is recorded again only every 30 minutes. The watcher pushes nothing.
 
 ## Layout
 
@@ -64,6 +65,7 @@ lib/
   files.mjs        plain files (the files API), trash
   watch.mjs        changes made outside Workshop
   connectors.mjs   connector host and ctx
+  pr-watch.mjs     follows published PRs for the opencode connector (1.14.0)
   events.mjs       the event stream
   static.mjs       static files
   log.mjs          log file with redaction

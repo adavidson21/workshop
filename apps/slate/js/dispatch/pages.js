@@ -250,7 +250,7 @@ export function runCardHtml(folder) {
   if (d.gates.includes(it)) return gateCard(it);
   if (d.failed.includes(it)) return failedCard(it);
   // A ready build's Publish gate (Loom 6.2.0) sits under its row, in the lanes' panel too.
-  // Try it (connector 1.27.0) while it builds; at Publish it sits in the Publish block.
+  // Try it (connector 1.28.0) while it builds; at Publish it sits in the Publish block.
   return `<div class="rows">${workRow(it)}</div>` + (it.stage === 'ship' ? '' : tryItHtml(it)) + publishHtml(it);
 }
 /** A hand-off with no movement: who has it, how long, and Open (its card, where Followed up is). */

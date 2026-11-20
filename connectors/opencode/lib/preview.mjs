@@ -1,4 +1,4 @@
-// opencode connector: Try it (1.27.0, Workshop project doc claude/build-self-check-v1-plan.md, eng-agents Core 4.15.0).
+// opencode connector: Try it (1.28.0, Workshop project doc claude/build-self-check-v1-plan.md, eng-agents Core 4.15.0).
 //
 // A build keeps its app running while Tandem checks each task's pages (eng-agents scripts/ui/Start-UiApp.ps1, the
 // record in .work/<item>/ui/app.json). Try it opens that app for you: the connector asks opencode to run

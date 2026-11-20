@@ -212,7 +212,7 @@ export function commentCounts(comments) {
   return out;
 }
 
-/* ---------- reading order (opencode connector 1.27.0) ---------- */
+/* ---------- reading order (opencode connector 1.28.0) ---------- */
 
 // The Files pane in reading order when the connector sent task labels: one group per task in order, the files no task
 // named, then generated and lock files (folded). Returns null for a review without task labels (the folder tree then).

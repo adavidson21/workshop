@@ -7,7 +7,7 @@
 // One review per work item and repo, served from git in the local workspace. Read-only toward repos:
 // it never commits, checks out, or pushes. Approve only records the verdict; pushing is wired
 // separately. Request changes (Send back) records the feedback, sets the status to "revising", and emits
-// "changes-requested"; since 1.27.0 lib/review.mjs starts autopilot with eng-agents' /revise on it.
+// "changes-requested"; since 1.28.0 lib/review.mjs starts autopilot with eng-agents' /revise on it.
 //
 // Storage, per work item and repo:
 //   .work/<folder>/code-review/<repo>/state.json    { revision, status, lastReviewedHeadSha }
@@ -148,7 +148,7 @@ export function parseResponses(text) {
 //               (checked before request changes is saved, so a verdict never strands an item)
 //   runInfo     optional (folder, repo) => the revision run's { status, message, session, revision }, or null
 //   extras      optional (item, repo, files) => { files?, notes?, threads? }: the files in reading order and what to
-//               show beside the diff (1.27.0, lib/review-notes.mjs and the after-Publish watcher)
+//               show beside the diff (1.28.0, lib/review-notes.mjs and the after-Publish watcher)
 //   now         () => Date (tests)
 export function createCodeReview({ workspace, workRoot, findItem, canRevise = () => null, runInfo = () => null, extras = null, now = () => new Date() }) {
   const events = new EventEmitter();

@@ -104,7 +104,7 @@ test('Publish: the regression suite shows passed, new tests and the criteria the
   assert.doesNotMatch(publishHtml(item(READY)), /Regression tests/);
 });
 
-test('Publish: the code per repo (connector 1.27.0): its size, Review the code, and what keeps it out of Publish all ready', () => {
+test('Publish: the code per repo (connector 1.28.0): its size, Review the code, and what keeps it out of Publish all ready', () => {
   const p = S.D.publish[READY];
   const it = item(READY);
   const was = S.conn;
@@ -133,7 +133,7 @@ test('Publish: the code per repo (connector 1.27.0): its size, Review the code, 
   delete p.review;
 });
 
-test('Try it (connector 1.27.0): start, starting, Open the app and Stop, a failure with Try again', async () => {
+test('Try it (connector 1.28.0): start, starting, Open the app and Stop, a failure with Try again', async () => {
   const { tryItHtml } = await import('../js/dispatch/factory.js');
   const it = item(READY);
   assert.match(tryItHtml(it), /data-try="41610-rate-limit-headers"[^>]*>Try it</);

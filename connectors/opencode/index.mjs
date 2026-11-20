@@ -1516,7 +1516,7 @@ const actions = {
       return needReview().getFile(args.id, args.repo, args.path, args.side);
     },
   },
-  // 1.27.0 (claude/after-publish-v1-plan.md): Workshop's agent watches published PRs (agent/lib/pr-watch.mjs).
+  // 1.28.0 (claude/after-publish-v1-plan.md): Workshop's agent watches published PRs (agent/lib/pr-watch.mjs).
   "published.watch": {
     title: "After Publish: the published PRs to check, each repo with its remote",
     write: false,
@@ -1621,7 +1621,7 @@ export default {
     loadProjects();
     loadReview();
     loadAfterPublish();
-    // 1.27.0: a build's app that nothing has built with or opened for 30 minutes is stopped (Try it, lib/preview.mjs).
+    // 1.28.0: a build's app that nothing has built with or opened for 30 minutes is stopped (Try it, lib/preview.mjs).
     every(() => { if (oc.connected) sweepIdle((model && model.items) || []).catch(() => {}); }, 5 * 60 * 1000);
     loadPrQueue();
     phase = "starting";

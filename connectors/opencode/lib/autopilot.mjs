@@ -48,7 +48,7 @@ import { holdingGap } from "./gaps.mjs";
 //   - A restart keeps queued and running builds queued; they start again once opencode is connected.
 //   - Review rounds come from the factory settings.
 //
-// 1.27.0 (eng-agents Core 4.15.0, Workshop project docs claude/publish-review-v1-plan.md and claude/after-publish-v1-plan.md):
+// 1.28.0 (eng-agents Core 4.15.0, Workshop project docs claude/publish-review-v1-plan.md and claude/after-publish-v1-plan.md):
 //   - A build can start with one command of Workshop's own before the usual steps (`pending`, startPending): /revise
 //     after a Send back from the code review, /pr-fix after Publish. Then the next-step rules carry on as always
 //     (the fix tasks, a review round, the PR text) until the item is ready to publish again.
@@ -254,7 +254,7 @@ async function autoStep(folder, finished = false) {
       const rv = reviseStatus(folder);
       if (rv && rv.status === "HOLD") return autoSet(folder, "waiting", `Needs you: ${rv.needs.join(" ") || "some comments need you; read revise.md"} Answer in the code review or fix it, then click Resume.`);
     }
-    // Workshop's own first command (1.27.0): /revise after a Send back, /pr-fix after Publish.
+    // Workshop's own first command (1.28.0): /revise after a Send back, /pr-fix after Publish.
     if (a.pending && !finished) {
       const full = a.pending;
       a.lastCommand = full;

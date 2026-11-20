@@ -54,7 +54,7 @@ export function pageData() {
   return { ...base, tandem: { ado: adoConfigured() }, projects: projectsData(folderForToken), reviews: reviewSummary(), observations: observationsData(), autopilotOptions: autoOptions(), gaps, publish: publishData(base.items), overlaps: overlapData(base.items), adoLinks: adoLinksData(base.items), adoNotice: adoNotice(),
     // 1.23.0: epics building hands-off (their stories and where they are), and products being onboarded.
     epics: epicsData(base.items), onboarding: onboardingData(base.onboarding, gaps.open, base.items, sessions),
-    // 1.27.0: Try it, each build's app (lib/preview.mjs).
+    // 1.28.0: Try it, each build's app (lib/preview.mjs).
     previews: previewData(base.items),
     liveMode: { error: modelError, live: liveData() } };
 }

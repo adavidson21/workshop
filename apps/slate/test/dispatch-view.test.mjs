@@ -155,7 +155,7 @@ test('1.2.0 PR cards: copy buttons, Create PR in ADO, and Review (not Push) when
   const it = item('41610-rate-limit-headers');
   const card = itemCard(it, false);
   assert.match(card, /<span class="flag warn">Not pushed yet<\/span>/);
-  assert.doesNotMatch(card, /Review before you push/, 'connector 1.27.0: Publish (or Approve and publish in the code review) pushes');
+  assert.doesNotMatch(card, /Review before you push/, 'connector 1.28.0: Publish (or Approve and publish in the code review) pushes');
   assert.doesNotMatch(card, /data-push|git -C gateway push/, 'connected, nothing pushes from the PR card');
   const titleIdx = S.copyStore.indexOf(it.pr[0].title);
   assert.ok(titleIdx >= 0 && new RegExp(`data-copy="${titleIdx}"[^>]*>Copy title<`).test(card), 'Copy title');

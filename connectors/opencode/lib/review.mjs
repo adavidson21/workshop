@@ -1,6 +1,6 @@
 // opencode connector: wires the code review API (code-review.mjs) to this connector's model, autopilot and events.
 //
-// 1.27.0 (Workshop project doc claude/publish-review-v1-plan.md, eng-agents Core 4.15.0): the code review is the
+// 1.28.0 (Workshop project doc claude/publish-review-v1-plan.md, eng-agents Core 4.15.0): the code review is the
 // depth behind Publish. Approve publishes (Loom calls `publish` after the verdict). Send back (request changes)
 // saves the comments and starts autopilot with `/revise <id> auto` first, so the comments become fix tasks and the
 // build goes through the usual fix round, review, UI check and PR text before it comes back to Publish as the next

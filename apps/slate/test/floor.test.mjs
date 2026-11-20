@@ -292,7 +292,7 @@ test('Add regression tests lists your products with repos; a pick runs tests.cov
   assert.match(coverPickHtml(), /Add one in Settings, Products/);
 });
 
-test('after Publish (connector 1.27.0): In transit with what its PR waits on, Push fix is your turn, merged today is Delivered', async () => {
+test('after Publish (connector 1.28.0): In transit with what its PR waits on, Push fix is your turn, merged today is Delivered', async () => {
   const { transitBadge, shippedState } = await import('../js/dispatch/floor.js');
   const { agentQueue } = await import('../js/dispatch/summary.js');
   const { publishHtml } = await import('../js/dispatch/factory.js');
