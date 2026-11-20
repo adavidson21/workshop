@@ -12,7 +12,7 @@ import { clearModelHooks, model, modelError, onModel, parserGone, refresh, reset
 import { currentSession, loadLinks } from "./lib/links.mjs";
 import { oc, resetState, sessions } from "./lib/opencode-state.mjs";
 import { connectOpencode, disconnectOpencode, onConnected } from "./lib/opencode-connect.mjs";
-import { abort, answerPermission, answerQuestion, openTerminal, pushBranch, removeItem, reply, resetActions, runCommand, shellData, startItem } from "./lib/actions.mjs";
+import { abort, answerPermission, answerQuestion, openTerminal, pushBranch, removeItem, removeWorktrees, reply, resetActions, runCommand, shellData, startItem } from "./lib/actions.mjs";
 import { autopilot, autopilotAction, loadAuto, resumeAfterGap, resumeQueued } from "./lib/autopilot.mjs";
 import { decideObservation, findObservation, loadObservations, resetObservations, startArgs } from "./lib/observations.mjs";
 import { answerGap, loadGaps, MAX_ANSWER, onGapClosed, resetGaps } from "./lib/gaps.mjs";
@@ -29,6 +29,7 @@ import { findItem } from "./lib/actions.mjs";
 import { broadcastLive, emitProjects } from "./lib/live.mjs";
 import { diffStats, loadReview, needReview, resetReview, reviewSummary, reviseAgain } from "./lib/review.mjs";
 import { openPreview, resetPreviews, stopPreview, sweepIdle } from "./lib/preview.mjs";
+import { loadAfterPublish, recordStatus, resetAfterPublish, watchList } from "./lib/after-publish.mjs";
 
 // The Publish block's code review and change size (lib/publish.mjs stays free of the review and git code).
 setPublishHooks({ review: (folder) => reviewSummary()[folder] || {}, diff: (it) => diffStats(it) });
@@ -236,6 +237,7 @@ function resetAll() {
   resetProjects();
   resetReview();
   resetPreviews();
+  resetAfterPublish();
   resetPrQueue();
   resetOneOnOnes();
   resetHub();
@@ -1396,6 +1398,25 @@ const actions = {
       return needReview().getFile(args.id, args.repo, args.path, args.side);
     },
   },
+  // 1.27.0 (claude/after-publish-v1-plan.md): Workshop's agent watches published PRs (agent/lib/pr-watch.mjs).
+  "published.watch": {
+    title: "After Publish: the published PRs to check, each repo with its remote",
+    write: false,
+    argsSchema: obj([], {}),
+    async run() {
+      needReady();
+      return { items: watchList((model && model.items) || []) };
+    },
+  },
+  "published.record": {
+    title: "After Publish: where one repo's PR stands; starts Tandem's fix when CI fails or it conflicts",
+    write: true,
+    argsSchema: obj(["folder", "repo"], { folder, repo: str("Repo folder", { minLength: 1, maxLength: 260 }), status: { type: "object", title: "pr.status's answer" }, error: str("The error pr.status gave", { maxLength: 1000 }) }),
+    async run(args) {
+      needReady();
+      return recordStatus(args, { findItem, removeWorktrees, runCommand });
+    },
+  },
   "preview.open": {
     title: "Try it: start the build's app (or reuse it) and say its address",
     write: true,
@@ -1478,6 +1499,7 @@ export default {
     onConnected(() => resumeQueued());
     loadProjects();
     loadReview();
+    loadAfterPublish();
     // 1.27.0: a build's app that nothing has built with or opened for 30 minutes is stopped (Try it, lib/preview.mjs).
     every(() => { if (oc.connected) sweepIdle((model && model.items) || []).catch(() => {}); }, 5 * 60 * 1000);
     loadPrQueue();

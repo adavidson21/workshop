@@ -38,6 +38,7 @@ import { secretReader } from './lib/secrets.mjs';
 import { Approvals } from './lib/approvals.mjs';
 import { Activity } from './lib/activity.mjs';
 import { Routines } from './lib/routines.mjs';
+import { PrWatch } from './lib/pr-watch.mjs';
 import { handleMcp } from './lib/mcp-server.mjs';
 import { openUpdateTerminal, updateArgv } from './lib/terminal.mjs';
 
@@ -191,6 +192,8 @@ export async function createAgent(o) {
   });
 
   const routines = new Routines({ config: () => config, connectors, dataDir, log: log.for('routines'), events, now: o.now });
+  // After Publish: follows published PRs until they merge (claude/after-publish-v1-plan.md).
+  const prWatch = new PrWatch({ connectors, log: log.for('pr-watch') });
 
   let port = 0;
   const ownOrigins = () => [`http://127.0.0.1:${port}`, `http://localhost:${port}`];
@@ -877,7 +880,7 @@ document.getElementById('allow').addEventListener('click', function () {
   log.info(`Workshop agent ${VERSION} listening on http://127.0.0.1:${port} (home ${home}, data folder ${dataDir}).`);
   watch.start();
   await connectors.startAll();
-  if (o.routines !== false) routines.start();
+  if (o.routines !== false) { routines.start(); prWatch.start(); }
 
   // Keep the start-at-login launcher in step with the flag, in case config.json was edited by hand or the
   // repo moved since last run. Only acts when the two disagree, so a normal start writes nothing. Gated on
@@ -910,6 +913,7 @@ document.getElementById('allow').addEventListener('click', function () {
     stop() {
       stopping ??= (async () => {
         routines.stop();
+        prWatch.stop();
         clearInterval(scratchTimer);
         clearInterval(copyTimer);
         watch.stop();

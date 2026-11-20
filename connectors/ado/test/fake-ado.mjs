@@ -16,6 +16,8 @@
 //     comments              {id: [comment]}  (work item comments, preview API)
 //     states                {type: [state]}  (work item type states)
 //     readOnly              true: every write answers 403, as a PAT with only Work Items (Read) does
+//     routes                [{path, query?, out}]: any other GET under a project, matched on the path after _apis
+//                           (lower case) and the query values named; out.$text answers text/plain (build logs)
 // Writes (Queue app): PATCH wit/workitems/<id> applies a JSON Patch to `workItems` (a failed `test` on /rev
 // answers 400 TF26071), POST <project>/_apis/wit/workitems/$<type> creates one, POST .../comments adds a comment.
 // Writes change the scenario in memory, so later reads see them.
@@ -62,6 +64,7 @@ export async function startFakeAdo(input) {
         if (write && writeDenied(u)) return send(403, { message: 'TF400813: The PAT does not have write access.' });
         const out = route(req.method, u, body);
         if (out && out.$html) return send(200, '<html><body>Sign in</body></html>', 'text/html; charset=utf-8');
+        if (out && typeof out.$text === 'string') return send(200, out.$text, 'text/plain; charset=utf-8');
         if (out && out.$status) return send(out.$status, { message: out.message || `Fake error ${out.$status}` });
         return send(200, out);
       } catch (e) {
@@ -170,6 +173,8 @@ export async function startFakeAdo(input) {
       coll.workItems[id] = w;
       return w;
     }
+    const extra = method === 'GET' && (coll.routes || []).find(r => r.path.toLowerCase() === path && Object.entries(r.query || {}).every(([k, v]) => q.get(k) === v));
+    if (extra) return extra.out;
     if (method === 'GET' && path === 'git/pullrequests') {
       const rid = q.get('searchCriteria.reviewerId');
       const status = q.get('searchCriteria.status');

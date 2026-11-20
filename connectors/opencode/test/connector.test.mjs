@@ -1127,3 +1127,72 @@ describe("Try it: the build's app", { skip: !hasGit }, () => {
     fs.rmSync(path.join(ws.work, FOLDER, "ui"), { recursive: true });
   });
 });
+
+// 1.27.0 (Workshop project doc claude/after-publish-v1-plan.md): after Publish, Workshop's agent hands each PR's state
+// to published.record, which starts /pr-fix when CI fails, shows Push fix when Tandem fixed it, and finishes on merge.
+describe("after Publish", { skip: !hasGit }, () => {
+  let ws, fake;
+  const FOLDER = "41610-rate-limit-headers";
+  const titles = () => fake.bodiesFor("POST /session").map((b) => b.title);
+  const live = async () => (await call("state")).liveMode.live;
+  const finish = async (sid) => {
+    fake.send(busyEvent("v1", sid));
+    await waitFor(async () => (await live()).sessions[sid]?.status === "busy", "the session to be busy");
+    fake.send(idleEvent("v1", sid));
+    await waitFor(async () => (await live()).sessions[sid]?.status === "idle", "the session to go idle");
+  };
+  const watch = async () => (await call("state")).publish[FOLDER].published.repos[0].watch;
+  const status = (over = {}) => ({ found: true, host: "github", id: 12, url: "https://github.com/acme/gateway/pull/12", title: "Headers", status: "active", merged: false, abandoned: false, conflict: false, head: "aaa111", review: "waiting",
+    ci: { state: "failed", baseFailing: false, checks: [{ name: "test", state: "failed", url: "https://github.com/acme/gateway/runs/1", log: "## test\nHeaderTests failed" }] },
+    threads: [{ id: "gh-31", path: "headers.txt", line: 1, author: "sam", text: "Use the constant", resolved: false }], ...over });
+  before(async () => {
+    ws = makeWorkspace({ repos: true });
+    fake = await startFakeOpencode({ kind: "v1" });
+    await startConnector(configFor(ws.dir, { url: fake.url }));
+    await waitFor(() => oc.status().details.opencode.connected, "opencode to connect");
+  });
+  after(async () => {
+    await oc.stop();
+    await fake.close();
+    ws.remove();
+  });
+
+  test("watch, CI failed: ci/failure-1.md and /pr-fix; FIXED: Push fix; pushed and green: clear; merged: done and /retro", async () => {
+    assert.deepEqual((await call("published.watch")).items, [], "nothing published yet");
+    await call("publish", { folder: FOLDER });
+    execFileSync("git", ["-C", path.join(ws.dir, "gateway"), "remote", "set-url", "origin", "https://github.com/acme/gateway.git"]);
+    await call("refresh");
+    const w = (await call("published.watch")).items;
+    assert.deepEqual(w, [{ folder: FOLDER, id: "41610", repos: [{ repo: "gateway", branch: "dev/bug/41610-rate-limit-headers", target: "main", remote: "https://github.com/acme/gateway", host: "github", logs: true }] }]);
+    const r = await call("published.record", { folder: FOLDER, repo: "gateway", status: status() });
+    assert.equal(r.started, "ci");
+    const file = path.join(ws.work, FOLDER, "ci", "failure-1.md");
+    assert.match(fs.readFileSync(file, "utf8"), /^# CI failure: gateway PR 12\n\n- Item: 41610\n- Repo: gateway\n- Branch: dev\/bug\/41610-rate-limit-headers\n- Base: main\n- PR: https:\/\/github\.com\/acme\/gateway\/pull\/12\n- Commit: aaa111\n[\s\S]*## test\n\n- Link: https:\/\/github\.com\/acme\/gateway\/runs\/1\n\n```text\n## test\nHeaderTests failed\n```/);
+    await waitFor(() => titles().includes("41610: /pr-fix 41610 ci auto"), "/pr-fix to run");
+    let wt = await watch();
+    assert.deepEqual([wt.ci, wt.review, wt.comments, wt.fix.state, wt.fixRounds], ["failed", "waiting", 1, "working", 1]);
+    assert.deepEqual((await call("review.session", { id: "41610", repo: "gateway" })).threads.map((t) => t.id), ["gh-31"], "teammates' comments in the code review");
+    // The same failure again while Tandem works: nothing new starts.
+    assert.equal((await call("published.record", { folder: FOLDER, repo: "gateway", status: status() })).started, undefined);
+    fs.appendFileSync(file, "- Result: FIXED bbb222 the header test read the old constant\n");
+    await finish((await live()).items[FOLDER].current);
+    await waitFor(async () => (await watch()).fix.state === "ready", "Push fix");
+    assert.equal((await watch()).fix.text, "bbb222 the header test read the old constant");
+    // You pushed it: the head moves, CI runs, then passes.
+    await call("published.record", { folder: FOLDER, repo: "gateway", status: status({ head: "bbb222", ci: { state: "running", checks: [], baseFailing: false } }) });
+    assert.equal((await watch()).fix, null);
+    // A failure the base branch has too is not this change: no fix.
+    const r2 = await call("published.record", { folder: FOLDER, repo: "gateway", status: status({ head: "bbb222", ci: { state: "failed", baseFailing: true, checks: [{ name: "test", state: "failed" }] } }) });
+    assert.equal(r2.started, undefined);
+    assert.equal((await watch()).fix.state, "not-ours");
+    // Merged: done, worktrees gone, /retro auto.
+    const r3 = await call("published.record", { folder: FOLDER, repo: "gateway", status: status({ status: "completed", merged: true, head: "bbb222", ci: { state: "none", checks: [], baseFailing: false } }) });
+    assert.equal(r3.merged, true);
+    await waitFor(() => titles().includes("41610: /retro 41610 auto"), "/retro to run");
+    assert.ok((await call("state")).publish[FOLDER].published.merged);
+    assert.deepEqual((await call("published.watch")).items, [], "a merged item is not watched");
+    wt = await watch();
+    assert.equal(wt.merged, true);
+    await rejects(call("published.record", { folder: "41207-fix-login-timeout", repo: "x", status: status() }), "not_found");
+  });
+});

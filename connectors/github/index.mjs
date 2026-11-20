@@ -1,6 +1,7 @@
 // GitHub connector: issues assigned to you, pull requests waiting on your review, roadmaps (milestones, Features and
 // stories) and Loom's backlog and writes, in the same shapes as the ADO connector, so Docket, Loom and Runway treat
 // both trackers alike. Two write actions (workitem.update, workitem.create) run only with `confirm: true`. Read only. See connectors/github/README.md.
+import { connectionFor, prStatus } from './lib/pr-watch.mjs';
 import { GhError, SettingsError } from './lib/client.mjs';
 import { DEFAULT_TYPES, normalize, pickConnection } from './lib/config.mjs';
 import { areasMine, cleanKnown, cleanKnownPrs, getIssue, sync } from './lib/issues.mjs';
@@ -101,7 +102,7 @@ export default {
   api: 1,
   id: 'github',
   name: 'GitHub',
-  version: '1.3.0',
+  version: '1.4.0',
   configSchema,
   test: { action: 'workitem.get', arg: 'id', label: 'Issue (owner/repo#12)' },
   actions: {
@@ -134,6 +135,28 @@ export default {
           const out = await syncPrs(d, cleanKnownPrs(args?.knownPrs), clientFor(pickConnection(d.cfg), d.env, d.signal));
           ctx.log.info(`sync.prs: ${out.items.length} PRs, ${out.gone.length} gone`);
           return out;
+        });
+      }
+    },
+    // 1.4.0 (Workshop project doc claude/after-publish-v1-plan.md): where a published PR stands, for the watcher.
+    'pr.status': {
+      title: 'Where a pull request stands: found by its branch, with CI, reviews and comments (after Publish)',
+      write: false,
+      argsSchema: {
+        type: 'object',
+        required: ['remote', 'branch'],
+        properties: {
+          remote: { type: 'string', minLength: 8, maxLength: 500 },
+          branch: { type: 'string', minLength: 1, maxLength: 250, pattern: '^[A-Za-z0-9._/-]+$' },
+          target: { type: 'string', maxLength: 250, pattern: '^[A-Za-z0-9._/-]*$' },
+          logs: { type: 'boolean', description: 'Also each failed check\'s output and annotations, and whether the target branch fails too.' }
+        }
+      },
+      async run(args, ctx) {
+        return guarded(ctx, 'pr.status', async () => {
+          const d = deps(ctx);
+          const r = connectionFor(d.cfg, args.remote);
+          return prStatus(clientFor(r.conn, d.env, d.signal), args, r);
         });
       }
     },

@@ -68,7 +68,8 @@ test('Publish: a ready build shows its UI checks and one Publish button; Publish
   S.D.publish[READY].published = { at: '2026-11-18T12:00:00Z', repos: [{ repo: 'gateway', branch: 'b', target: 'main', pr: 'https://dev.azure.com/x/_git/gateway/pullrequestcreate?sourceRef=b&targetRef=main' }] };
   const done = publishHtml(it);
   assert.match(done, /Published/);
-  assert.match(done, /Open the PR for gateway/);
+  assert.match(done, /In transit: Workshop follows each PR until it merges/);
+  assert.match(done, /<a class="btn small" href="https:\/\/dev\.azure\.com\/x\/_git\/gateway\/pullrequestcreate[^"]*" target="_blank" rel="noopener">Create the PR<\/a>/, 'until the watcher finds the PR');
   assert.doesNotMatch(done, /data-publish=/);
 });
 

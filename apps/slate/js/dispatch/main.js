@@ -299,6 +299,12 @@ let soon = null;
 function fetchSoon() { clearTimeout(soon); soon = setTimeout(fetchState, 120); }
 
 ws.connectors.on(OC, '*', fetchSoon);
+// After Publish (connector 1.27.0): a fix to push and a merge are worth a notification when Workshop is out of sight.
+ws.connectors.on(OC, 'published', p => {
+  if (!p || !p.folder) return;
+  if (p.event === 'fix-ready') alertUser(`Push fix: ${label(p.folder, 'a published PR')}`, `Tandem fixed the failing CI on ${p.repo || 'the PR'}. Push it from Loom.`, p.folder);
+  else if (p.event === 'merged') alertUser(`Merged: ${label(p.folder, 'a published PR')}`, 'Done. Tandem ran its retro and removed the worktrees.', p.folder);
+});
 ws.connectors.onStatus(OC, status => {
   const was = S.connector && S.connector.state;
   S.connector = status;
@@ -1181,6 +1187,32 @@ listen('click', ev => {
     return;
   }
   if (t.closest('[data-lane-done]')) { ui().laneDone = !ui().laneDone; paint(); return; }
+  if (t.closest('[data-lane-delivered]')) { ui().laneDelivered = !ui().laneDelivered; paint(); return; }
+  // After Publish (connector 1.27.0): push the fix Tandem committed, after the git confirm.
+  const pf = t.closest('[data-push-fix]');
+  if (pf) {
+    const folder = pf.getAttribute('data-push-fix'), repo = pf.getAttribute('data-repo');
+    const it = itemForFolder(folder);
+    const row = it && (it.pr || []).find(r => r.repo === repo);
+    confirmOutside({ system: 'git', title: `Push Tandem's fix for ${repo}?`, body: 'Pushes the fix commit on top of the published branch (never force). CI runs again on the PR.', items: [`${repo}: ${(row && row.branch) || '?'}`], ok: 'Push' }).then(ok => {
+      if (!ok) return;
+      act(() => write('push', { folder, repo }), () => toast('Pushed. CI runs again on the PR.'), 'pushfix:' + folder + ':' + repo);
+    });
+    return;
+  }
+  // Merged and linked to ADO: set the ADO item to Resolved (your team: merged to main, slated for a release).
+  const rs = t.closest('[data-ado-resolve]');
+  if (rs) {
+    const folder = rs.getAttribute('data-ado-resolve'), id = Number(rs.getAttribute('data-ado'));
+    confirmOutside({ system: 'ado', title: `Resolve ADO #${id}?`, body: 'Sets the ADO work item to Resolved: merged to main and slated for a release.', items: [`#${id}: Resolved`], ok: 'Resolve' }).then(ok => {
+      if (!ok) return;
+      act(async () => {
+        const w = await ws.connectors.call('ado', 'workitem.get', { id });
+        return ws.connectors.call('ado', 'workitem.update', { id, rev: w.rev, changes: { state: 'Resolved' } }, { confirm: true });
+      }, () => { ui().resolved = { ...(ui().resolved || {}), [folder]: true }; toast(`ADO #${id} is Resolved.`); }, 'resolve:' + folder);
+    });
+    return;
+  }
   if (t.closest('[data-ado-toggle]')) { ui().dropPick = !ui().dropPick; paint(); if (ui().dropPick) focusFirst('#ln-adoq'); return; }
   const adoPick = t.closest('[data-ado-pick]');
   if (adoPick) {

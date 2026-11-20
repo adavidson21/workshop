@@ -458,7 +458,7 @@ export class ConnectorHost {
   #logCall(id, action, a, meta, how) {
     if (!this.#activity || !a) return;
     const by = meta.rule ? 'rule' : meta.caller === 'agent' ? 'agent' : meta.caller === 'routine' ? 'routine' : 'you';
-    if (a.write !== true && by === 'you') return;
+    if (a.write !== true && (by === 'you' || meta.quiet)) return; // quiet: a background check's reads (agent/lib/pr-watch.mjs)
     this.#activity.record({ by, connector: id, action, write: a.write === true, approval: meta.approval, rule: meta.rule, ...how });
   }
 

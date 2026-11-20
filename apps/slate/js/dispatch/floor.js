@@ -28,7 +28,8 @@ import { h, plural, itemSession, isBusy, itemAuto, ago } from './view.js';
 import { hasProjects, projectById, projectOf, projectName, sw } from './projects.js';
 import { flowOf, stepIndex, stepsOf } from './flows.js';
 import { KINDS, keyOf } from './lanes.js';
-import { publishAllHtml } from './factory.js';
+import { publishAllHtml, publishOf } from './factory.js';
+import { afterOf } from './summary.js';
 
 export const CODE = [
   { id: 'plan', name: 'Plan desk', you: true, desc: 'Plans to approve' },
@@ -37,7 +38,8 @@ export const CODE = [
   { id: 'ui', name: 'UI check', desc: 'Screenshots' },
   { id: 'review', name: 'Review', desc: 'Checking the work' },
   { id: 'fix', name: 'Fix shop', desc: 'Fixing what review found' },
-  { id: 'dock', name: 'Loading dock', you: true, desc: 'Ready to publish' }
+  { id: 'dock', name: 'Loading dock', you: true, desc: 'Ready to publish' },
+  { id: 'transit', name: 'In transit', desc: 'CI and reviewers' }
 ];
 export const PAPER = [
   { id: 'plan', name: 'Plan desk', you: true, desc: 'Starting up' },
@@ -94,6 +96,33 @@ export function toldStep(it) {
 /** The paper station for a flow step's key. */
 const PAPER_STEP = { investigate: 'research', scope: 'research', slice: 'write', draft: 'write', stories: 'review', milestones: 'review', read: 'review', check: 'review', final: 'review', findings: 'out', backlog: 'out', save: 'out' };
 
+/** A published build (connector 1.27.0): 'transit' until its PR merges, 'delivered' after, else ''. */
+export function shippedState(it) {
+  const p = publishOf(it);
+  const rec = p && p.published;
+  if (!rec) return '';
+  return rec.merged ? 'delivered' : 'transit';
+}
+/** The one chip a card in transit shows: what its PR is waiting on, worst first. */
+export function transitBadge(it) {
+  const p = publishOf(it);
+  const repos = (p && p.published && p.published.repos) || [];
+  const ws = repos.map(r => r.watch || {});
+  const fix = st => ws.some(w => w.fix && w.fix.state === st);
+  if (fix('ready')) return { cls: 'warn', text: 'Fix ready to push' };
+  if (fix('working')) return { cls: 'bad', text: ws.some(w => w.fix && w.fix.state === 'working' && w.fix.kind === 'conflict') ? 'Conflict: merging' : 'CI failed: fixing' };
+  if (fix('needs-you') || fix('gave-up') || fix('not-fixed')) return { cls: 'bad', text: 'CI needs you' };
+  if (ws.some(w => w.conflict)) return { cls: 'bad', text: 'Conflict' };
+  if (fix('not-ours')) return { cls: 'warn', text: 'CI problem, not this change' };
+  if (ws.some(w => w.ci === 'failed')) return { cls: 'bad', text: 'CI failed' };
+  if (ws.some(w => w.review === 'changes')) return { cls: 'warn', text: 'Changes requested' };
+  if (ws.some(w => w.found === false)) return { cls: 'ok', text: 'Create the PR' };
+  if (ws.some(w => w.ci === 'running')) return { cls: 'ok', text: 'CI running' };
+  if (ws.length && ws.every(w => w.review === 'approved')) return { cls: 'ok', text: 'Approved' };
+  if (ws.some(w => w.checkedAt)) return { cls: 'ok', text: 'Waiting on reviewers' };
+  return { cls: 'ok', text: 'Published' };
+}
+
 /** The station a card is at: 'stuck', or a station id on its line. */
 export function stationOf(c) {
   const line = lineOf(c);
@@ -101,7 +130,7 @@ export function stationOf(c) {
   if (isStuck(it)) return 'stuck';
   if (line === 'code') {
     if (c.lane === 'clarify' || c.lane === 'plan') return 'plan';
-    if (c.lane === 'ready') return 'dock';
+    if (c.lane === 'ready') return it && shippedState(it) === 'transit' ? 'transit' : 'dock';
     if (!it) return 'build';
     // Core 4.12.0: Tandem says where the build is (step.md), when it fits the stage the item is at.
     const told = toldStep(it);
@@ -140,11 +169,25 @@ export function floorData(data) {
   const stuck = [];
   const other = [];
   const belt = [];
+  const delivered = [];
   const where = {};
   for (const c of data.cards) {
     const line = lineOf(c);
+    // Merged (connector 1.27.0): off the line; today's are listed as Delivered today.
+    if (line === 'code' && c.it && shippedState(c.it) === 'delivered') {
+      const at = Date.parse(publishOf(c.it).published.merged);
+      if (at && new Date(at).toISOString().slice(0, 10) === (S.today || new Date().toISOString().slice(0, 10))) delivered.push({ folder: c.folder, title: c.title, id: c.id || null });
+      if (c.folder) where[c.folder] = 'done';
+      continue;
+    }
     const st = stationOf(c);
     const card = { ...c, station: st, line, quick: !!(c.it && c.it.lane === 'quick'), story: isStoryCard(c) };
+    if (st === 'transit') {
+      // Your turn in transit: a fix to push, or teammates asking for changes. Otherwise it waits on CI and people.
+      const w = afterOf(publishOf(c.it));
+      card.mine = w.fixReady || w.changes || !!w.needsYou;
+      card.action = w.fixReady ? 'Push fix' : w.changes ? 'Read the comments' : w.needsYou ? 'See why' : '';
+    }
     if (c.folder) where[c.folder] = st === 'stuck' ? 'stuck' : onBelt(c) ? 'belt' : st;
     if (st === 'stuck') { stuck.push(card); continue; }
     if (line === 'other') { other.push(card); continue; }
@@ -162,7 +205,7 @@ export function floorData(data) {
   const epics = ((S.D && S.D.epics) || []).filter(e => e && e.total).map(e => ({ ...e,
     stories: (e.stories || []).map(x => { const at = where[x.folder] || (x.stage === 'ship' ? 'dock' : 'done'); return { ...x, at, atName: name(at) }; }) }));
   const onboarding = ((S.D && S.D.onboarding) || []).filter(Boolean);
-  return { code, paper, express: express.sort(order), stuck: stuck.sort(order), other: other.sort(order), belt: belt.sort((a, b) => String(a.it.story.story).localeCompare(String(b.it.story.story))), epics, onboarding, slots, mine: data.counts.mine || 0 };
+  return { code, paper, express: express.sort(order), stuck: stuck.sort(order), other: other.sort(order), belt: belt.sort((a, b) => String(a.it.story.story).localeCompare(String(b.it.story.story))), epics, onboarding, slots, delivered, mine: data.counts.mine || 0 };
 }
 
 // ------------------------------------------------------------------ drawing
@@ -185,7 +228,7 @@ export function testsBadge(it) {
 function chipHtml(c, sel) {
   const key = keyOf(c);
   const on = sel && sel === key;
-  const tb = testsBadge(c.it);
+  const tb = c.station === 'transit' ? transitBadge(c.it) : testsBadge(c.it);
   const sb = sentBackOf(c.it);
   const label = `${TYPE(c)}: ${c.title}. ${c.status}${tb ? '. ' + tb.text : ''}${sb ? `. Your comments: ${sb}` : ''}${c.mine ? '. Your turn: ' + c.action : ''}`;
   return `<button type="button" class="fl-card k-${h(c.kind)}${c.it && c.it.story ? ' story' : ''}${c.mine ? ' mine' : ''}${on ? ' on' : ''}" data-lane-open="${h(key)}" aria-pressed="${!!on}" aria-label="${h(label)}" title="${h(c.title + ' · ' + c.status)}">` +
@@ -217,11 +260,15 @@ function expressHtml(fd, sel) {
 /** The builds at the Loading dock (Publish all ready counts the ones with nothing to answer). */
 const readyItems = fd => (fd.code.find(s => s.id === 'dock') || { cards: [] }).cards.map(c => c.it).filter(Boolean);
 /** The runs finished today, under the code line (the Ready lane's "done today" before 6.7.0). Each opens its run. */
-function shippedHtml(done) {
-  if (!done || !done.length) return '';
+function shippedHtml(done, delivered = []) {
+  if ((!done || !done.length) && !delivered.length) return '';
+  const row = d => `<li><button type="button" class="lnk plain" data-open-run="${h(d.folder)}">${d.id ? '#' + h(d.id) + ' ' : ''}${h(d.title)}</button></li>`;
   const open = !!S.ui.laneDone;
-  const list = open ? `<ul class="ln-donelist" role="list">${done.map(d => `<li><button type="button" class="lnk plain" data-open-run="${h(d.folder)}">${d.id ? '#' + h(d.id) + ' ' : ''}${h(d.title)}</button></li>`).join('')}</ul>` : '';
-  return `<div class="fl-shipped"><button type="button" class="lnk plain ln-done" data-lane-done="1" aria-expanded="${open}">Shipped today: ${done.length}</button>${list}</div>`;
+  const openD = !!S.ui.laneDelivered;
+  const a = done && done.length ? `<button type="button" class="lnk plain ln-done" data-lane-done="1" aria-expanded="${open}">Shipped today: ${done.length}</button>${open ? `<ul class="ln-donelist" role="list">${done.map(row).join('')}</ul>` : ''}` : '';
+  // Connector 1.27.0: PRs that merged today. Off the line; each still opens its run.
+  const b = delivered.length ? `<button type="button" class="lnk plain ln-done" data-lane-delivered="1" aria-expanded="${openD}">Delivered today: ${delivered.length}</button>${openD ? `<ul class="ln-donelist" role="list">${delivered.map(row).join('')}</ul>` : ''}` : '';
+  return `<div class="fl-shipped">${a}${b}</div>`;
 }
 function lineHtml(id, title, sub, stations, sel, extra, before, ready) {
   const n = stations.reduce((t, s) => t + s.cards.length, 0);
@@ -262,7 +309,7 @@ export function floorHtml(data, sel, panel) {
   const paper = lineHtml('paper', 'Research line', 'Investigate, error log, docs and epics. Ends in a brief or a breakdown.', fd.paper, sel, null, '');
   const stuck = fd.stuck.length ? `<section class="fl-stuck" aria-label="Pulled off the line"><h2>Pulled off the line</h2><div class="fl-row">${fd.stuck.map(c => chipHtml(c, sel)).join('')}</div></section>` : '';
   const other = fd.other.length ? `<section class="fl-other" aria-label="Also waiting"><h2>Also on the floor</h2><div class="fl-row">${fd.other.map(c => chipHtml(c, sel)).join('')}</div></section>` : '';
-  return `<div class="ln-body fl-body${panel ? ' has-panel' : ''}"><div class="fl-floor">${newLinesHtml(fd, sel)}${code}${shippedHtml(data.doneList)}${stuck}${handoffHtml(fd, sel)}${paper}${other}</div>${panel || ''}</div>`;
+  return `<div class="ln-body fl-body${panel ? ' has-panel' : ''}"><div class="fl-floor">${newLinesHtml(fd, sel)}${code}${shippedHtml(data.doneList, fd.delivered)}${stuck}${handoffHtml(fd, sel)}${paper}${other}</div>${panel || ''}</div>`;
 }
 
 /** In an epic's panel (Core 4.10.0): once its breakdown is approved, build its stories here, hands-off, in order. */

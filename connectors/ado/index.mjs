@@ -1,6 +1,7 @@
 // Azure DevOps connector: one ADO integration for every Workshop app, replacing
 // Docket's ado-helper/ado_helper.py. Read actions, plus two write actions (workitem.update, for Runway's and Slate's Publish,
 // and workitem.create, for Slate's Publish) that the agent only runs with `confirm: true`. See connectors/ado/README.md.
+import { prStatus } from './lib/pr-watch.mjs';
 import { AdoError, SettingsError } from './lib/client.mjs';
 import { normalize } from './lib/config.mjs';
 import { dataset } from './lib/dataset.mjs';
@@ -154,7 +155,7 @@ export default {
   api: 1,
   id: 'ado',
   name: 'Azure DevOps',
-  version: '1.15.0',
+  version: '1.16.0',
   configSchema,
   test: { action: 'workitem.get', arg: 'id', label: 'Work item ID' },
   actions: {
@@ -253,6 +254,25 @@ export default {
           ctx.log.info(`workitem.find: ${args.id} on ${out.matches.length} connection(s)${out.failed.length ? `, ${out.failed.length} unreadable` : ''}`);
           return out;
         });
+      }
+    },
+
+    // 1.16.0 (Workshop project doc claude/after-publish-v1-plan.md): where a published PR stands, for the watcher.
+    'pr.status': {
+      title: 'Where a pull request stands: found by its branch, with CI, reviews and comments (after Publish)',
+      write: false,
+      argsSchema: {
+        type: 'object',
+        required: ['remote', 'branch'],
+        properties: {
+          remote: { type: 'string', minLength: 8, maxLength: 500 },
+          branch: { type: 'string', minLength: 1, maxLength: 250, pattern: '^[A-Za-z0-9._/-]+$' },
+          target: { type: 'string', maxLength: 250, pattern: '^[A-Za-z0-9._/-]*$' },
+          logs: { type: 'boolean', description: 'Also the end of each failed build step\'s log, and whether the target branch fails too.' }
+        }
+      },
+      async run(args, ctx) {
+        return guarded(ctx, 'pr.status', () => prStatus(deps(ctx), args));
       }
     },
 
