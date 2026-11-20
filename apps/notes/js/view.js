@@ -152,7 +152,7 @@ function linksHtml(state) {
   let k = -1;
   const list = shown.map(g => `<p class="section-label">${esc(g.name)} <span class="count">${g.links.length}</span></p><ul class="tree links">${g.links.map(l => { k++; return linkRow(l, Boolean(q) && k === ui.pick); }).join('')}</ul>`).join('');
   const none = !links.groups.length
-    ? '<p class="side-note">One place for the links you keep going back to: SharePoint, Sheets, ADO, Teams, the wiki. Add one with <kbd>L</kbd>, or save one from <b>Found in notes</b>. They live in <code>links.md</code>, a plain note.</p>'
+    ? '<p class="side-note">One place for the links you keep going back to: SharePoint, Sheets, Teams, the wiki. Add one with <kbd>L</kbd>, or save one from <b>Found in notes</b>. They live in <code>links.md</code>, a plain note.</p>'
     : !shown.length ? '<p class="side-note">No links match.</p>' : '';
   return list + none + (q ? '' : foundHtml(state));
 }

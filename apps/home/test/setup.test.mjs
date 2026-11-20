@@ -12,9 +12,10 @@ const states = v => Object.fromEntries(v.steps.map(s => [s.id, s.state]));
 
 test('a brand-new browser: Connect is first, steps that need Workshop wait for it', () => {
   const v = stepsFor(fresh);
-  assert.deepEqual(states(v), { connect: 'todo', name: 'todo', backup: 'blocked', ado: 'blocked', apps: 'todo', team: 'todo', areas: 'blocked', task: 'todo', receipt: 'todo', dispatch: 'blocked', login: 'blocked' });
+  // Browser mode has no Azure DevOps, so its step and the area paths step are left out (shared/ado.js).
+  assert.deepEqual(states(v), { connect: 'todo', name: 'todo', backup: 'blocked', apps: 'todo', team: 'todo', task: 'todo', receipt: 'todo', dispatch: 'blocked', login: 'blocked' });
   assert.equal(v.current, 'connect');
-  assert.deepEqual([v.finished, v.total, v.complete], [0, 9, false]);
+  assert.deepEqual([v.finished, v.total, v.complete], [0, 7, false]);
 });
 
 test('everything done: complete, nothing current', () => {
@@ -23,9 +24,10 @@ test('everything done: complete, nothing current', () => {
   assert.deepEqual([v.done, v.finished, v.complete, v.current], [9, 9, true, null]);
 });
 
-test('skipping ADO: core done moves on to the later steps', () => {
+test('ADO off: its steps are left out, and core done moves on to the later steps', () => {
   const v = stepsFor({ ...all, ado: { state: 'off' }, areas: 0, dispatch: 'off', startAtLogin: false }, ['ado']);
-  assert.equal(states(v).ado, 'skipped');
+  assert.equal(states(v).ado, undefined);
+  assert.equal(states(v).areas, undefined);
   assert.equal(v.complete, true);
   assert.equal(v.done, 7);
   assert.equal(v.current, 'dispatch');
@@ -35,8 +37,9 @@ test('skipping ADO: core done moves on to the later steps', () => {
 test('area paths: need ADO, skipped with it, read from Settings\' teams', () => {
   assert.equal(states(stepsFor({ ...all, areas: 0 })).areas, 'todo');
   assert.equal(stepsFor({ ...all, areas: 0 }).current, 'areas');
-  assert.equal(states(stepsFor({ ...all, ado: { state: 'off' }, areas: 0 })).areas, 'blocked');
-  assert.equal(states(stepsFor({ ...all, ado: { state: 'off' }, areas: 0 }, ['ado'])).areas, 'skipped');
+  assert.equal(states(stepsFor({ ...all, ado: { state: 'noPat' }, areas: 0 })).areas, 'blocked');
+  assert.equal(states(stepsFor({ ...all, ado: { state: 'noPat' }, areas: 0 }, ['ado'])).areas, 'skipped');
+  assert.equal(states(stepsFor({ ...all, ado: { state: 'off' }, areas: 0 })).areas, undefined, 'left out with ADO off');
   assert.equal(areaCount({ items: [{ id: 't_mine', areas: ['Proj\\Team', ' ', 'Proj\\Other'] }] }), 2);
   assert.equal(areaCount(null), 0);
   const { html } = card(stepsFor({ ...all, areas: 0 }), 'areas', { ...ctx, facts: { ...all, areas: 0 } });
@@ -46,7 +49,7 @@ test('area paths: need ADO, skipped with it, read from Settings\' teams', () => 
 test('a blocked step becomes current only when nothing else core is left', () => {
   const v = stepsFor({ ...all, ado: { state: 'noPat', patEnv: 'ADO_PAT' } });
   assert.equal(v.current, 'ado');
-  const w = stepsFor({ ...all, connected: false, ado: { state: 'browser' } }, ['connect']);
+  const w = stepsFor({ ...all, connected: false, ado: { state: 'noConnection' } }, ['connect']);
   assert.equal(states(w).ado, 'skipped', 'no Workshop, no ADO');
 });
 
@@ -71,7 +74,7 @@ test('adoFact turns connector info into one plain state', () => {
 
 test('the card: the current step is open with what to do next, and every command can be copied', () => {
   const { html, copies } = card(stepsFor(fresh), null, { ...ctx, facts: fresh });
-  assert.match(html, /Get started · 0 of 9/);
+  assert.match(html, /Get started · 0 of 7/);
   assert.match(html, /data-step="connect"[^>]*>\s*<button[^>]*aria-expanded="true"/);
   assert.deepEqual(copies, ['irm https://workshop.alexisdavidson.org/install-work.ps1 | iex'], 'a work computer is the default: only the work mode installer');
   assert.match(html, /data-machine="work" aria-pressed="true"/);
@@ -88,18 +91,17 @@ test('the ADO step names the PAT to add in Settings (no terminal) and links to S
   assert.deepEqual(copies, []);
   assert.match(html, /Add token<\/b> beside WORK_PAT/);
   assert.match(html, /picks it up at once/);
-  const off = { ...f, ado: { state: 'off' } };
-  const o = card(stepsFor(off), 'ado', { ...ctx, facts: off });
-  assert.deepEqual(o.copies, []);
-  assert.match(o.html, /Add token<\/b> beside <b>PAT<\/b>/);
+  const nc = { ...f, ado: { state: 'noConnection' } };
+  const o = card(stepsFor(nc), 'ado', { ...ctx, facts: nc });
   assert.match(o.html, /href="http:\/\/127\.0\.0\.1:4380\/apps\/settings\/"[^>]*>Open Settings on this computer/);
-  assert.match(o.html, /Work Items \(Read &amp; write\)/, 'Slate and Runway publish: the PAT needs write');
-  assert.match(o.html, /paste any link from Azure DevOps/);
-  assert.doesNotMatch(o.html, /ado-helper\.json/);
-  const inShell = card(stepsFor(off), 'ado', { ...ctx, settings: { inShell: true }, facts: off });
+  assert.match(o.html, /paste any Azure DevOps link/);
+  const inShell = card(stepsFor(nc), 'ado', { ...ctx, settings: { inShell: true }, facts: nc });
   assert.match(inShell.html, /data-open="settings"/);
-  const none = card(stepsFor(off), 'ado', { ...ctx, settings: null, facts: off });
+  const none = card(stepsFor(nc), 'ado', { ...ctx, settings: null, facts: nc });
   assert.ok(!/Open Settings/.test(none.html), 'no dead button when the agent address is unknown');
+  // Off: Get started says nothing about Azure DevOps at all.
+  const off = { ...f, ado: { state: 'off' } };
+  for (const id of [null, 'connect', 'name', 'apps', 'team']) assert.doesNotMatch(card(stepsFor(off), id, { ...ctx, facts: off }).html, /\bADO\b|Azure DevOps/, String(id));
 });
 
 test('open steps link to the right app and route; a closed card shows no bodies', () => {

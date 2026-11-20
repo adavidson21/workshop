@@ -4,6 +4,9 @@ import assert from 'node:assert/strict';
 import { blankDoc } from '../js/model.js';
 import { summary, shownNotes } from '../js/export.js';
 import { detailsHtml, trayHtml, unsListHtml, unsMatch, unscheduled } from '../js/view.js';
+import { setAdo } from '../../../shared/ado.js';
+// These checks are written for Azure DevOps on; the no-ADO ones turn it off themselves.
+setAdo(true);
 
 const doc = () => {
   const d = blankDoc('Test');
@@ -83,4 +86,16 @@ test('GitHub roadmaps: the bar says GitHub and has no Publish; the dialog offers
   assert.match(adoBarHtml(blankDoc('R'), { ready: true, systems: ['ado', 'github'] }), /Add items from Azure DevOps or GitHub/);
   assert.match(adoDialog({ systems: ['ado', 'github'] }), /<select name="system">/);
   assert.match(adoDialog({ systems: ['github'], system: 'github' }), /name="system" value="github"/);
+});
+
+test('with Azure DevOps off: no ADO bar, panel, export option or From Azure DevOps card', async () => {
+  const { adoBarHtml, adoPanel, listHtml } = await import('../js/view.js');
+  setAdo(false);
+  try {
+    const doc = { meta: { ado: { system: 'ado', areas: ['A'], mode: 'linked' } }, items: [] };
+    assert.equal(adoBarHtml(doc, { ready: false, message: 'x' }), '');
+    assert.equal(adoPanel({ ado: { id: 1, url: 'https://ado.example.com/_workitems/edit/1' } }), '');
+    assert.doesNotMatch(listHtml({ list: [] }, { ado: true }), /Azure DevOps|\bADO\b/);
+    assert.match(adoPanel({ ado: { id: 2, url: 'https://github.com/o/r/issues/2', type: 'Issue' } }), /#2/);
+  } finally { setAdo(true); }
 });

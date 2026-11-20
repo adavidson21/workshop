@@ -21,6 +21,7 @@
 
    Nothing here needs Azure DevOps: without it the ADO pages say what to do in one line, and the rest works. */
 import { connect } from '../../../shared/workshop-sdk.js';
+import { watchAdo, adoIsOn, noAdo, ADO_WORDS } from '../../../shared/ado.js';
 import { render as renderForm, readValue } from './forms.js';
 import { mountCloudflareChanges } from './cloudflare-page.js';
 import { mountPlayReleases } from './play-page.js';
@@ -59,6 +60,10 @@ const ABOUT = {
 const STATE_LABEL = { ready: 'Ready', starting: 'Starting', stopped: 'Stopped', error: 'Needs attention', disabled: 'Off' };
 
 const ws = await connect({ app: 'settings' });
+// While Azure DevOps is off (or not installed), Settings says nothing about it, except on its own page, which is
+// reached only from All connections, where it is switched back on (shared/ado.js).
+const adoRepaint = new Set();
+const adoKnown = watchAdo(ws, () => { for (const f of adoRepaint) { try { f(); } catch (e) { console.error(e); } } });
 const readOnly = ws.mode === 'hosted';
 // Areas off (docs/apps.md, Areas): their pages leave the nav and their connectors leave Status. A page can still
 // be opened by its route. Changes show after Workshop reloads, like the app switches.
@@ -87,6 +92,7 @@ try {
   if (r) wantPage = r.page;
 } catch (e) { /* storage blocked: start on Status */ }
 let current = null;
+adoRepaint.add(() => paintSelect());
 
 function groupEl(id) {
   let g = navEl.querySelector(`[data-group="${id}"]`);
@@ -135,6 +141,7 @@ function navPanel(navId, group, label, hidden) {
     btn.type = 'button';
     btn.className = 'nav-item';
     btn.dataset.nav = navId;
+    if (navId === 'ado') btn.dataset.adoOnly = '';
     btn.innerHTML = `<span>${esc(label)}</span><span class="nav-dot" hidden></span><span class="dirty-dot" title="Not saved" hidden></span>`;
     const g = groupEl(group);
     const after = [...g.querySelectorAll('.nav-item')].find(b => rank(P.tabsOf(b.dataset.nav)[0]) > rank(P.tabsOf(navId)[0]));
@@ -143,6 +150,7 @@ function navPanel(navId, group, label, hidden) {
   const el = document.createElement('div');
   el.className = 'navpanel';
   el.dataset.nav = navId;
+  if (navId === 'ado') el.dataset.adoSwitch = ''; // the one place ADO is named while it is off: its switch
   el.hidden = true;
   el.innerHTML = `<h2 class="page-title nav-title" hidden>${esc(label)}</h2><div class="tabs" role="tablist" aria-label="${esc(label)}" hidden></div>`;
   content.appendChild(el);
@@ -198,7 +206,7 @@ function page(id, label, group) {
 function paintSelect() {
   const groups = [...navEl.querySelectorAll('.nav-group')];
   navSelect.innerHTML = groups.map(g => `<optgroup label="${esc(g.querySelector('.nav-label span').textContent)}">${[...g.querySelectorAll('.nav-item')]
-    .map(b => `<option value="${esc(b.dataset.nav)}">${esc(navs.get(b.dataset.nav).label)}</option>`).join('')}</optgroup>`).join('');
+    .filter(b => adoIsOn() || !('adoOnly' in b.dataset)).map(b => `<option value="${esc(b.dataset.nav)}">${esc(navs.get(b.dataset.nav).label)}</option>`).join('')}</optgroup>`).join('');
   if (current) navSelect.value = pages.get(current).nav;
 }
 
@@ -320,10 +328,13 @@ const errText = e => (e && e.message) || 'Something went wrong.';
 // A link or button with data-goto-page="<page>" opens that page, for example from Status to Connections.
 content.addEventListener('click', e => {
   const g = e.target.closest('[data-goto-page]');
-  if (!g || !pages.has(g.dataset.gotoPage)) return;
+  if (!g) return;
+  let to = g.dataset.gotoPage;
+  if (!pages.has(to) && to.startsWith('c-')) to = P.mainPageOf(to.slice(2)); // All connections: ADO's is Connections
+  if (!pages.has(to)) return;
   e.preventDefault();
-  selectPage(g.dataset.gotoPage, true);
-  const p = pages.get(g.dataset.gotoPage), n = navs.get(p.nav);
+  selectPage(to, true);
+  const p = pages.get(to), n = navs.get(p.nav);
   (n.tabs.hidden ? n.btn : p.tab)?.focus();
 });
 
@@ -343,8 +354,12 @@ function header() {
     // Only this computer's settings, connections and repos are read only here; people, groups and team area paths are not.
     // One quiet line: what is locked here and where to change it (Settings UX v1). People, groups and team area
     // paths still change here.
-    note.innerHTML = `<span class="ro-line">${LOCK}<span>Apps, this computer, Azure DevOps and repos are read only here.</span> `
-      + (at ? `<a class="lnk" href="${esc(at)}/" target="_blank" rel="noopener">Change them on this computer</a>` : '<span>Change them on this computer (<code>workshop open</code>).</span>') + '</span>';
+    const paint = () => {
+      note.innerHTML = `<span class="ro-line">${LOCK}<span>Apps, this computer, ${adoIsOn() ? 'Azure DevOps ' : ''}and repos are read only here.</span> `
+        + (at ? `<a class="lnk" href="${esc(at)}/" target="_blank" rel="noopener">Change them on this computer</a>` : '<span>Change them on this computer (<code>workshop open</code>).</span>') + '</span>';
+    };
+    paint();
+    adoRepaint.add(paint);
     document.body.classList.add('ro');
   }
   // Browser mode: no subtitle. Status's "Workshop on this computer" card says how to connect.
@@ -638,7 +653,7 @@ async function appsCard() {
           ${a.canTurnOff ? `<input type="checkbox" class="toggle" role="switch" aria-label="${esc(a.name)} on"${a.on ? ' checked' : ''}${locked ? ' disabled' : ''}${why ? ` title="${esc(why)}"` : ''}>` : '<span class="app-always">Always on</span>'}
           ${a.canTurnOff && readOnly ? LOCK : ''}
         </div>
-        ${a.description ? `<p class="conn-about" title="${esc(a.description)}">${esc(short(a.description))}</p>` : ''}
+        ${noAdo(a.description) ? `<p class="conn-about" title="${esc(noAdo(a.description))}">${esc(short(noAdo(a.description)))}</p>` : ''}
         <p class="conn-status app-status">${a.canTurnOff ? status(a) : ''}</p>${opts ? `<details class="app-opts"><summary>Options</summary>${opts}</details>` : ''}`;
       if (a.canTurnOff) row.querySelector('.toggle').addEventListener('change', e => flip(a, e.target));
       row.querySelectorAll('[data-app-setting]').forEach(el => el.addEventListener('change', e => setAppSetting(a, e.target)));
@@ -717,6 +732,7 @@ async function appsCard() {
   });
   renderAreas();
   render();
+  adoRepaint.add(render);
   if (readOnly) sec.insertAdjacentHTML('afterbegin', `<p class="sub ro-line">${LOCK}<span>Turn apps on or off from Workshop on this computer.</span></p>`);
 }
 
@@ -1220,7 +1236,7 @@ function needsYouCard() {
   sec.classList.add('needs-you');
   sec.setAttribute('aria-live', 'polite');
   const paint = () => {
-    const items = P.needsYou(conn.list.filter(c => !areaHidesConn(c.id)).map(c => ({ info: conn.info[c.id], config: conn.cc[c.id] && conn.cc[c.id].config })));
+    const items = P.needsYou(conn.list.filter(c => !areaHidesConn(c.id) && (c.id !== 'ado' || adoIsOn())).map(c => ({ info: conn.info[c.id], config: conn.cc[c.id] && conn.cc[c.id].config })));
     sec.dataset.hide = items.length ? '' : '1';
     sec.hidden = !items.length;
     sec.innerHTML = items.length ? `<h2>Needs you <span class="pill-tag">${items.length}</span></h2><ul class="ny-list">${items.map(i =>
@@ -1229,6 +1245,7 @@ function needsYouCard() {
   };
   paint();
   onChange.add(paint);
+  adoRepaint.add(paint);
 }
 
 /* ---------- Status: one row per connector, with a link to the page that needs you ---------- */
@@ -1238,7 +1255,7 @@ function statusCard() {
   const box = sec.appendChild(document.createElement('ul'));
   box.className = 'people status-rows';
   const paint = () => {
-    box.innerHTML = conn.list.filter(c => !areaHidesConn(c.id)).map(c => {
+    box.innerHTML = conn.list.filter(c => !areaHidesConn(c.id) && (c.id !== 'ado' || adoIsOn())).map(c => {
       const info = conn.info[c.id];
       const r = P.statusRow(info, conn.cc[c.id] && conn.cc[c.id].config);
       const dot = r.state === 'error' ? 'error' : r.state === 'ready' ? ((info.status || {}).state || 'ready') : 'neutral';
@@ -1249,6 +1266,7 @@ function statusCard() {
   };
   paint();
   onChange.add(paint);
+  adoRepaint.add(paint);
 }
 
 /* ---------- repos (repos.js) ----------
@@ -1264,7 +1282,7 @@ async function reposTab(list) {
   const ocInfo = list.find(c => c.id === 'opencode');
   if (!adoInfo && !ocInfo) return;
   const st = { ado: null, oc: null, ocCfg: null, ocError: '', rows: [], editing: null, editingMap: null, adding: false, added: null, busy: false, hiding: false };
-  const main = card('Workspace repos', '', 'repos', 20, 'The repos in your workspace and, once Azure DevOps is connected, the project each one uses and whether Docket shows its pull requests.');
+  const main = card('Workspace repos', '', 'repos', 20, adoIsOn() ? 'The repos in your workspace and, once Azure DevOps is connected, the project each one uses and whether Docket shows its pull requests.' : 'The repos in your workspace.');
   const body = document.createElement('div'); main.appendChild(body);
   const prSec = adoInfo ? card('Where Docket looks', '', 'pull-requests', 10, 'The projects Docket checks for pull requests waiting on you.') : null;
   if (prSec) prSec.dataset.needsOn = 'ado';
@@ -1362,7 +1380,7 @@ async function reposTab(list) {
   function addForm() {
     const cats = (st.oc && st.oc.repoCategories) || [];
     return `<form class="cfg repo-add" data-repo-add>
-      <div class="cfg-row"><label for="raUrl">Clone URL</label><input id="raUrl" name="url" class="cfg-input mono" required spellcheck="false" autocomplete="off" placeholder="https://ado.example.com/Collection/Project/_git/repo"></div>
+      <div class="cfg-row"><label for="raUrl">Clone URL</label><input id="raUrl" name="url" class="cfg-input mono" required spellcheck="false" autocomplete="off" placeholder="${adoIsOn() ? 'https://ado.example.com/Collection/Project/_git/repo' : 'https://github.com/owner/repo.git'}"></div>
       <div class="cfg-row"><label for="raCat">Category</label><select id="raCat" name="category" class="cfg-input">
         <option value="">None (top of the workspace)</option>${cats.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('')}<option value="${NEW_CAT}">New category</option></select>
         <p class="cfg-help">The folder in your workspace it goes in.</p></div>
@@ -1667,7 +1685,7 @@ function healthCard() {
     out.innerHTML = '<p class="sub">Checking…</p>';
     try {
       const r = await agentCall('GET', '/api/doctor');
-      const lines = (r.lines || []).filter(l => !/^Result:/.test(l));
+      const lines = (r.lines || []).filter(l => !/^Result:/.test(l) && (adoIsOn() || !ADO_WORDS.test(l)));
       const bad = l => !/not available/.test(l) && /too old|not |problem|fix |could not|missing|failed|behind|error/i.test(l) && !/: ok\.?$/i.test(l);
       out.innerHTML = `<p class="${r.ok ? 'ok' : 'err'}"><b>${r.ok ? 'All good.' : 'Something needs fixing. The lines marked below say what to do.'}</b></p>`
         + `<ul class="health-lines">${lines.map(l => `<li class="${bad(l) ? 'err' : ''}">${esc(l)}</li>`).join('')}</ul>`;
@@ -1712,6 +1730,8 @@ async function writingPages() {
 
 /* ---------- start ---------- */
 async function start() {
+  await adoKnown; // before anything that names ADO is drawn (shared/ado.js)
+  if (!adoIsOn() && P.navOf(wantPage) === 'ado') wantPage = 'overview';
   header();
   page('overview');
   if (ws.backend === 'agent') {
@@ -1758,7 +1778,8 @@ async function start() {
   }
   dataCard();
   tipsCard();
-  mountGuide({ ws, el: page('guide') });
+  const guide = mountGuide({ ws, el: page('guide') });
+  adoRepaint.add(() => guide.repaint());
   helpBtn.hidden = false;
   if (pages.has(wantPage) && current !== wantPage) selectPage(wantPage);
   if (!current) selectPage('overview');

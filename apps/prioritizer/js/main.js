@@ -1,6 +1,7 @@
 /* Prioritizer: Startup. Connects to the Workshop shell through the SDK, installs the test hook, and
    does the first render. Imported last by index.html as the app's one module entry; it pulls in every
    other module. */
+import { watchAdo } from '../../../shared/ado.js';
 import { $, todayStr } from './util.js';
 import { urgency, score, tier, isStale, eKey, vKey } from './model.js';
 import { commit, state, setState, sanitize, migrateTask, triageQueue, ui } from './state.js';
@@ -52,6 +53,8 @@ ready.then(ws => {
   if (!ws) return;
   // Management off (docs/apps.md, Areas): the People place leaves the sidebar, and a saved view of it opens Today.
   if (!peoplePlaceOn()) loaded.then(() => { if (state.view === 'people') setView('today'); else render(); });
+  // Azure DevOps on or off (shared/ado.js): while off, Docket names it nowhere and hides ADO items' links and chips.
+  watchAdo(ws, () => loaded.then(() => { render(); syncDrawer(); setTracker(); }));
   // Notes about each task, for the drawer's Notes line (notes-link.js). Inside Workshop only.
   startNotesLink(ws, embedded, () => loaded.then(syncDrawer));
   // Where ADO tasks stand on Slate's board, for the In Slate chip and the drawer (slate-link.js).

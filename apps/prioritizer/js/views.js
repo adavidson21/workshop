@@ -1,3 +1,4 @@
+import { adoIsOn } from '../../../shared/ado.js';
 import { quickSort, wontDo } from './actions.js';
 import { EFFORTS, EQ, ICON, LENSES, POINTS, PRI, TOUCH, VALUE, VQ, WINDOW } from './constants.js';
 import { ageDays, eKey, fmtScore, isStale, nudgeDue, score, vKey } from './model.js';
@@ -45,7 +46,7 @@ function inboxBar(q){
   const back = q.filter(t => isDate(t.cameBack)).length, n = trackerNew();
   if (!q.length && !n) return '';
   if (heldInbox()) return `<div class="inbar held" role="status">${ICON.triage}<span>To sort <b class="num">${q.length}</b>, held until ${esc(fmtUntil(heldUntil()))}</span><button class="lnk" data-inbox-anyway>Open anyway</button></div>`;
-  return `<button class="inbar" data-inbox-toggle aria-expanded="${inboxOpen}">${ICON.triage}<span>To sort <b class="num">${q.length}</b>${back ? ` · ${back} came back` : ''}${n ? ` · ${n} new from ADO` : ''}</span><span class="lnk">Sort</span></button>`;
+  return `<button class="inbar" data-inbox-toggle aria-expanded="${inboxOpen}">${ICON.triage}<span>To sort <b class="num">${q.length}</b>${back ? ` · ${back} came back` : ''}${n ? ` · ${n} new ${adoIsOn() ? 'from ADO' : 'work items'}` : ''}</span><span class="lnk">Sort</span></button>`;
 }
 function inboxCol(rail){
   const q = inboxQueue();

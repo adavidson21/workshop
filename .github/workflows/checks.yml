@@ -66,6 +66,8 @@ jobs:
               python tests/transitions-e2e.py
               python tests/popout-e2e.py
               python tests/switches-e2e.py
+          - name: with Azure DevOps off
+            run: python tests/no-ado-e2e.py
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup

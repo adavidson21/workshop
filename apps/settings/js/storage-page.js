@@ -75,7 +75,7 @@ export function destinations({ backend, storage, conns = [], st = null, provider
   } else {
     rows.push({ id: 'folder', on: false, label: storage === 'folder' ? 'Your data folder' : 'This browser', text: 'Stays on this computer. Without Workshop on this computer, no connector can send anything.' });
   }
-  if (conns.some(c => c.id === 'ado')) rows.push({ id: 'ado', on: on('ado'), label: 'Azure DevOps', text: on('ado') ? 'Reads work items and pull requests from your servers. Writes only when you click a button that says so.' : 'Off. Nothing is read or sent.' });
+  if (on('ado')) rows.push({ id: 'ado', on: on('ado'), label: 'Azure DevOps', text: on('ado') ? 'Reads work items and pull requests from your servers. Writes only when you click a button that says so.' : 'Off. Nothing is read or sent.' });
   if (conns.some(c => c.id === 'github')) rows.push({ id: 'github', on: on('github'), label: 'GitHub', text: on('github') ? 'Reads pull requests from GitHub. Writes only when you click a button that says so.' : 'Off. Nothing is read or sent.' });
   if (conns.some(c => c.id === 'opencode')) {
     const who = providers && providers.length ? providers.join(', ') : 'the AI provider opencode is set up with';

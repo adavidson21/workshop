@@ -9,6 +9,10 @@ import { render } from '../js/dispatch/view.js';
 import { FLOWS, PICKER, flowOf, flowTag, stepsOf, stepIndex, currentStep, atGate, isFinished, gateFile, sendBackCommand, addOpenQuestion, docsCheckCommand,
   folderCommand, turnHtml, stepLine, youCount, shownSteps, stepsLine, flowCardHtml, forkHtml, miniTrack } from '../js/dispatch/flows.js';
 import { inboxData, inboxCount, walkList, wantedFiles, workGroup, isStopped, inboxFolders } from '../js/dispatch/pages.js';
+import { setAdo } from '../../../shared/ado.js';
+import { setFlowsAdo } from '../js/dispatch/flows.js';
+// These checks are written for Azure DevOps on; no-ado.test.mjs covers it off.
+setAdo(true); setFlowsAdo(true);
 
 const FIXTURE = JSON.parse(fs.readFileSync(new URL('./fixtures/state.json', import.meta.url), 'utf8'));
 const clone = v => JSON.parse(JSON.stringify(v));

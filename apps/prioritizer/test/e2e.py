@@ -41,6 +41,11 @@ GLOBALS = """() => {
 }"""
 
 
+def ado_on(pg):
+    """Docket on its own page has no Azure DevOps (shared/ado.js), so checks of its ADO parts turn it on by hand."""
+    pg.evaluate("() => import('/shared/ado.js').then(m => { m.setAdo(true); window.__prioritizer.render(); })"); pg.wait_for_timeout(150)
+
+
 def main():
     srv = http.server.ThreadingHTTPServer(('127.0.0.1', PORT), functools.partial(Static, directory=ROOT))
     threading.Thread(target=srv.serve_forever, daemon=True).start()
@@ -317,6 +322,7 @@ def main():
         check('undo takes the meetings back out', pg.locator('.dsec').count() == nsec)
         pg.evaluate(f'{P}.saved()'); pg.wait_for_timeout(300)
         pg.reload(); pg.wait_for_function('window.__prioritizer', timeout=15000); pg.wait_for_timeout(1200)
+        ado_on(pg)  # the ADO parts below (paste, PRs, the drawer) need Azure DevOps on
         got = pg.evaluate(slots)
         check('after reload the Day view and its plan are still there', pg.evaluate(f'{P}.state.view') == 'day' and got.get(open_ids[0]) == secs[1] and pg.locator('.dsec.lost').count() == 1)
         cols = pg.evaluate("""() => new Promise(res => { const r = indexedDB.open('workshop'); r.onsuccess = () => {
@@ -362,7 +368,7 @@ def main():
         pg.select_option('#dRepeat', ''); pg.wait_for_timeout(300)
         check("Doesn't repeat stops it and keeps the task", pg.evaluate(f"id => !{P}.state.tasks.find(x => x.id === id).recur && !{P}.dp.recurring.some(r => r.title === 'Check logs')", tid))
         pg.keyboard.press('Escape')
-        # Pasting ADO's Copy to clipboard (text plus an HTML link) into the add box keeps the link.
+        # Pasting ADO's Copy to clipboard (text plus an HTML link) into the add box keeps the link (Azure DevOps on).
         pg.keyboard.press('n'); pg.wait_for_timeout(100)
         pg.evaluate("""() => { const el = document.querySelector('#cmdInput'); el.focus(); const dt = new DataTransfer();
           dt.setData('text/plain', 'Issue 12345: Fix login');
@@ -375,6 +381,9 @@ def main():
         t = pg.evaluate(f"() => {P}.state.tasks.find(t => t.title === 'Issue 12345: Fix login')")
         check('the task keeps the ADO link', t and t.get('item', {}).get('url') == 'https://dev.azure.com/acme/Platform/_workitems/edit/12345' and t['item']['type'] == 'Issue' and t['item']['pasted'] is True and t['item']['system'] == 'ado')
         check('its row has a link that opens the item in ADO', pg.locator(f'main .row[data-id="{t["id"]}"] a.sig.ado[href*="_workitems/edit/12345"][target=_blank]').count() == 1)
+        pg.evaluate(f"() => import('/shared/ado.js').then(m => {{ m.setAdo(false); {P}.render(); }})"); pg.wait_for_timeout(150)
+        check('with Azure DevOps off its row shows no ADO link', pg.locator(f'main .row[data-id="{t["id"]}"] a.sig.ado').count() == 0)
+        ado_on(pg)
         # The Quick add cheat sheet: hidden by default, opens with its button or Ctrl+/, clicking a tag inserts it,
         # and it stays open next time (per window).
         pg.keyboard.press('n'); pg.wait_for_timeout(100)
@@ -533,7 +542,7 @@ def main():
         sheet = pg.locator('.sheet[aria-label="Connect work items"]')
         text = sheet.inner_text() if sheet.count() else ''
         check('ADO Settings with no Workshop says what to do: install or start Workshop, pair this site, turn on the connector',
-              'Install or start Workshop' in text and 'pair this site' in text and 'turn on the ADO or GitHub connector in Workshop Settings' in text)
+              'Install or start Workshop' in text and 'pair this site' in text and 'turn on a work item connector in Workshop Settings' in text)
         check('ADO Settings has no helper download, steps or port', sheet.locator('a[href*="ado_helper"], #adoPort, ol.steps').count() == 0 and 'ado_helper' not in text and 'helper' not in text.lower())
         sheet.locator('[data-ado-go]').click(); pg.wait_for_timeout(400)
         check('Connect without Workshop keeps sync off and repeats the message', 'pair this site' in pg.inner_text('#adoMsg') and pg.evaluate(f"() => !{P}.ui.tracker.on"))
@@ -790,6 +799,7 @@ def main():
         pg.wait_for_timeout(200)
 
         # ---------- row fields: hide optional fields on rows, alerts still show ----------
+        ado_on(pg)  # the ADO number field
         rf = pg.evaluate(f"""() => {{ const P = {P}, d = new Date().toLocaleDateString('en-CA');
           const add = (n, x) => {{ const c = new Date(d + 'T12:00'); c.setDate(c.getDate() + n); return c.toLocaleDateString('en-CA'); }};
           const base = {{done: false, value: 3, effort: 'M', ageFrom: d, who: [], listId: P.state.lists[0].id, rank: 0}};

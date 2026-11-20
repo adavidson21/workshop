@@ -8,6 +8,10 @@ import { S, resetUi } from '../js/dispatch/state.js';
 import { render, startRequest } from '../js/dispatch/view.js';
 import { projectFilter, inProject, startProject, runStatus, needsReview, runsIn, projectOf, projectChip, projectArgs, projectSheetHtml, projectsSheetHtml, moveSheetHtml, projectFilterHtml, INBOX } from '../js/dispatch/projects.js';
 import { emptyView, cleanView, loadView, saveView, pruneView, VIEW_KEY, OLD_KEY } from '../js/dispatch/local.js';
+import { setAdo } from '../../../shared/ado.js';
+import { setFlowsAdo } from '../js/dispatch/flows.js';
+// These checks are written for Azure DevOps on; no-ado.test.mjs covers it off.
+setAdo(true); setFlowsAdo(true);
 
 const FIXTURE = JSON.parse(fs.readFileSync(new URL('./fixtures/state.json', import.meta.url), 'utf8'));
 const clone = v => JSON.parse(JSON.stringify(v));

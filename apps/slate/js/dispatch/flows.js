@@ -15,7 +15,8 @@ import { h, md, plural, asking, isBusy, itemSession, autoIs, bucketOf, noteComma
  *  runs on the board (a card's stages), not in a .work folder. `picker: false`: kept for runs, never a card. */
 const SET_UP = { key: 'start', name: 'Set up', quiet: true, file: 'repos.md', what: 'Fetches the work item, picks the repos and makes branches. The lane comes from the work item type.' };
 const REVIEW = what => ({ key: 'review', name: 'Review', you: 'blockers', file: 'review.md', what: what + ' Stops for you only when it finds blockers it cannot turn into fix tasks.' });
-const SHIP = { key: 'ship', also: ['pr'], name: 'Ship', you: true, file: 'pr.md', what: 'Tandem writes the PR text. You read the diff, push and create the PR. Once it merges, Resolve in ADO finishes it.' };
+const SHIP = { key: 'ship', also: ['pr'], name: 'Ship', you: true, file: 'pr.md', what: 'Tandem writes the PR text. You read the diff, push and create the PR. Once it merges, Resolve in ADO finishes it.',
+  off: { what: 'Tandem writes the PR text. You read the diff, push and create the PR.' } };
 export const FLOWS = [
   {
     id: 'request', name: 'Handle a request', tag: 'Request', when: 'Someone asked for something. Triage it, then pick the path.', start: 'request', board: true,
@@ -26,7 +27,7 @@ export const FLOWS = [
     ]
   },
   {
-    id: 'feature', name: 'Build a feature', tag: 'Feature', when: 'New behavior. An ADO item, or describe it. Small changes get one short plan.', handsOff: true, start: 'item', lane: 'feature',
+    id: 'feature', name: 'Build a feature', tag: 'Feature', when: 'New behavior. An ADO item, or describe it. Small changes get one short plan.', off: { when: 'New behavior. Describe it. Small changes get one short plan.' }, handsOff: true, start: 'item', lane: 'feature',
     steps: [
       SET_UP,
       // One gate (eng-agents Core 4.0.0): /spec writes the spec, the plan and the tasks; one /approve covers them.
@@ -37,7 +38,7 @@ export const FLOWS = [
     ]
   },
   {
-    id: 'bug', name: 'Fix a bug', tag: 'Bug', when: 'A defect: an ADO item, describe it, or paste an error log.', handsOff: true, start: 'item', lane: 'bug',
+    id: 'bug', name: 'Fix a bug', tag: 'Bug', when: 'A defect: an ADO item, describe it, or paste an error log.', off: { when: 'A defect: describe it, or paste an error log.' }, handsOff: true, start: 'item', lane: 'bug',
     steps: [
       SET_UP,
       { key: 'bug', name: 'Root cause', you: true, file: 'bug.md', what: 'A repro with evidence, the code path and the root cause, with at most 3 tasks and other places with the same flaw. You approve it.' },
@@ -60,16 +61,17 @@ export const FLOWS = [
       { key: 'stories', name: 'Stories', you: true, file: 'stories.md', what: 'Read epics.md and stories.md. Approve them, or send them back with a note.' },
       { key: 'slice', name: 'Slice', file: 'milestones.md', what: 'Puts features and stories in build order (milestones.md). Each feature gets a short description and a release note; code pointers stay local as notes for the builder.' },
       { key: 'milestones', name: 'Milestones', you: true, file: 'milestones.md', what: 'Read milestones.md. Approve it, or send it back with a note.' },
-      { key: 'backlog', name: 'Create in ADO', you: true, file: 'milestones.md', what: 'Your click creates the ADO items (a dry run and your yes first), one per story, with parent links. Each story then gets a card in Decide.' }
+      { key: 'backlog', name: 'Create in ADO', you: true, file: 'milestones.md', what: 'Your click creates the ADO items (a dry run and your yes first), one per story, with parent links. Each story then gets a card in Decide.',
+        off: { name: 'Create the stories', what: 'Your click makes one local item per story. Each story then gets a card in Decide.' } }
     ]
   },
   {
     id: 'handoff', name: 'Hand to a person', tag: 'Hand-off', when: 'Someone else should build it. Define it, assign it, follow it.', start: 'handoff', board: true,
     steps: [
-      { key: 'define', name: 'Define', you: true, what: 'Tandem drafts one story (description and acceptance criteria). You approve it; it is published to ADO.' },
-      { key: 'assign', name: 'Assign', you: true, what: 'Pick who and assign it in ADO, in one step. A brief for them and a Docket follow-up are options.' },
+      { key: 'define', name: 'Define', you: true, what: 'Tandem drafts one story (description and acceptance criteria). You approve it; it is published to ADO.', off: { what: 'Tandem drafts one story (description and acceptance criteria). You approve it.' } },
+      { key: 'assign', name: 'Assign', you: true, what: 'Pick who and assign it in ADO, in one step. A brief for them and a Docket follow-up are options.', off: { what: 'Pick who. A brief for them and a Docket follow-up are options.' } },
       { key: 'with', name: 'With them', what: 'Tracked on the board until it merges. If nothing moves in 3 working days, the Inbox nudges you.' },
-      { key: 'resolve', name: 'Resolve', you: true, what: 'Merged: Resolve in ADO finishes it.' }
+      { key: 'resolve', name: 'Resolve', you: true, what: 'Merged: Resolve in ADO finishes it.', off: { what: 'Merged: resolve it to finish.' } }
     ]
   },
   {
@@ -113,6 +115,21 @@ export const FLOWS = [
     ]
   }
 ];
+/** Azure DevOps on or off (shared/ado.js): a flow or step with `off` words shows them while ADO is off, and its
+ *  own words again once it is on. Loom calls this whenever ADO turns on or off. */
+const ADO_KEYS = ['name', 'what', 'when'];
+const adoWords = new WeakMap();
+export function setFlowsAdo(on) {
+  const all = new Set([SHIP]);
+  for (const f of FLOWS) { all.add(f); for (const st of f.steps || []) all.add(st); }
+  for (const x of all) {
+    if (!x.off) continue;
+    if (!adoWords.has(x)) adoWords.set(x, Object.fromEntries(ADO_KEYS.filter(k => k in x).map(k => [k, x[k]])));
+    Object.assign(x, on ? adoWords.get(x) : x.off);
+  }
+  YOUR_TURN.backlog = on ? 'create the items in ADO.' : 'create the stories.';
+}
+
 /** The flow cards, in order. */
 export const PICKER = FLOWS.filter(f => f.picker !== false);
 export const FLOW_IDS = FLOWS.map(f => f.id);
@@ -438,3 +455,6 @@ export function flowCardHtml(f) {
     `<span class="fc-s">${dotsHtml(steps)}<span class="fc-n">${h(extra)}</span></span>` +
     (f.handsOff ? '<span class="fc-h">Hands-off after you approve</span>' : f.board ? '<span class="fc-h">A card on the floor, worked in its panel</span>' : '') + '</button>';
 }
+
+// Off until Loom knows (browser mode never has ADO).
+setFlowsAdo(false);

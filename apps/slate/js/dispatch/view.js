@@ -6,6 +6,7 @@
    - .work files open in a sheet here (the `file.read` action) instead of a /files/ link.
    - The shell owns the theme and the name: no theme menu and no brand when embedded.
    - No update checks (the connector makes none). */
+import { adoIsOn } from '../../../../shared/ado.js';
 import { docHtml, lockReason } from './doc.js';
 import { S } from './state.js';
 import { SITE } from '../../../../shared/site.js';
@@ -611,7 +612,7 @@ export function itemCard(it) {
   if (it.kind !== 'item') return noteCard(it);
   const meta = [];
   meta.push(`<span class="tag ${h(it.lane)}">${h(it.lane)}${it.laneGuessed ? '?' : ''}</span>`);
-  if (it.adoState) meta.push(`<span title="ADO state when the item was fetched">ADO: ${h(it.adoState)}</span>`);
+  if (it.adoState && adoIsOn()) meta.push(`<span title="ADO state when the item was fetched">ADO: ${h(it.adoState)}</span>`);
   meta.push(`<span title="${h(stamp(it.modifiedMs))}">Touched ${ago(it.modifiedMs)}</span>`);
   meta.push(projectChip(it));
   meta.push(slateChip(it));
@@ -995,7 +996,7 @@ export function cfgBuild() {
 //   docs:     what to document (`docs.start`: /docs <target>), or as a technical spec, a product or repos
 //             (`tsd.start`: /tsd <target>).
 // S.ui.start: {flow, src, lane, size, type, project, busy, error}. What the person types lives in S.ui.drafts['start:<field>'].
-export const adoOn = () => !!(S.D && S.D.tandem && S.D.tandem.ado);
+export const adoOn = () => adoIsOn() && !!(S.D && S.D.tandem && S.D.tandem.ado);
 // Older start modes and flows, still accepted (the hub, older links, Start work from findings).
 const LEGACY = { describe: 'feature', quick: 'feature', small: 'feature', tsd: 'docs', spike: 'spike', ado: 'feature' };
 export function startFlowOf(st) {

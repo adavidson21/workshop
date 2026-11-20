@@ -4,6 +4,8 @@ Your notebook, as plain `.md` files: the **sections** (places), the open section
 
 Nothing leaves your device: no accounts, no server, no analytics.
 
+**4.10.1.** The empty Links note no longer lists ADO among its examples.
+
 **4.10.0 (Links; Workshop project doc `claude/folio-links-v1-plan.md`).** A **Links** place: one directory of the web links you keep (SharePoint, Sheets, ADO, Teams, the wiki), by group and tag, in a plain `links.md`. `L` adds one, **Find a link** in the palette filters them, saved links show in the `[[` menu, on product notes, and **Found in notes** suggests links already in your notes. Details under What it does.
 
 **4.8.0 (Obsidian gaps, part 3).** Fold sections: an arrow beside each heading in Live, Edit and the preview, and `Ctrl+Shift+[` / `]`.
