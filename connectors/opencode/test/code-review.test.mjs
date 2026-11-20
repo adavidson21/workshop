@@ -227,6 +227,12 @@ describe("revision 2", () => {
 });
 
 describe("feedbackProblem", () => {
+  test("rule (Make it a rule, 1.28.0) is a boolean when given", () => {
+    const base = { workItemId: "12", repo: "r", revision: 1, headSha: "a".repeat(40), verdict: "request_changes", comments: [{ id: "c1", path: "a.ts", side: "new", startLine: 1, endLine: 1, quotedCode: "x", type: "must_fix", body: "b" }] };
+    assert.equal(feedbackProblem({ ...base, comments: [{ ...base.comments[0], rule: true }] }), null);
+    assert.match(feedbackProblem({ ...base, comments: [{ ...base.comments[0], rule: "yes" }] }), /rule must be true or false/);
+  });
+
   test("accepts a valid body", () => {
     headSha = "a".repeat(40);
     assert.equal(feedbackProblem(feedback()), null);

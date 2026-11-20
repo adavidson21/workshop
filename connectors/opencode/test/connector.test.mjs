@@ -475,7 +475,7 @@ for (const kind of ["v1", "v2"]) {
     test("[P-autopilot] builds over the limit queue, and a hands-off Quick change approves itself only with auto", async () => {
       const titles = () => fake.bodiesFor(kind === "v1" ? "POST /session" : "POST /api/session").map((b) => b.title);
       const st0 = await call("state", {}, ctx());
-      assert.deepEqual(st0.autopilotOptions, { maxRuns: 2, quickHandsOff: true, fairSlots: true, factory: { taskFileCap: 6, quickTasks: 3, retries: 3, autoFix: "should-fix", reviewRounds: 2, uiChecks: true, regression: true, worktrees: "always" } });
+      assert.deepEqual(st0.autopilotOptions, { maxRuns: 2, quickHandsOff: true, fairSlots: true, factory: { taskFileCap: 6, quickTasks: 3, retries: 3, autoFix: "should-fix", reviewRounds: 2, uiChecks: true, regression: true, uiCheckPerTask: true, modelSeesImages: false, worktrees: "always" } });
       // A second buildable item: a copy of 41207 (the example's only one that is not blocked).
       fs.cpSync(path.join(ws.work, "41207-fix-login-timeout"), path.join(ws.work, "41208-copy-of-login"), { recursive: true });
       await call("refresh", {}, ctx());
@@ -986,5 +986,213 @@ describe("push", { skip: skip || (!hasGit && "git is not installed") }, () => {
     const g = (...a) => spawnSync("git", a, { cwd: gw, encoding: "utf8" });
     g("commit", "-q", "--amend", "-m", "rewritten");
     await rejects(call("push", { folder: "41610-rate-limit-headers", repo: "gateway" }), "unavailable", /Push failed for gateway/);
+  });
+});
+
+// 1.28.0 (Workshop project doc claude/publish-review-v1-plan.md): Send back from the code review starts autopilot with
+// /revise first; the build goes round again and comes back to Publish as the next revision.
+describe("code review at Publish: Send back", { skip: !hasGit }, () => {
+  let ws, fake;
+  const FOLDER = "41610-rate-limit-headers";
+  const titles = () => fake.bodiesFor("POST /session").map((b) => b.title);
+  const live = async () => (await call("state")).liveMode.live;
+  const finish = async (sid) => {
+    fake.send(busyEvent("v1", sid));
+    await waitFor(async () => (await live()).sessions[sid]?.status === "busy", "the session to be busy");
+    fake.send(idleEvent("v1", sid));
+    await waitFor(async () => (await live()).sessions[sid]?.status === "idle", "the session to go idle");
+  };
+  const sessionFor = async (title) => {
+    await waitFor(() => titles().includes(title), `${title} to run`);
+    await waitFor(async () => !!(await live()).items[FOLDER]?.current, "the session to be linked");
+    return (await live()).items[FOLDER].current;
+  };
+  const feedback = (s, comments) => ({ workItemId: "41610", repo: "gateway", revision: s.revision, headSha: s.headSha, verdict: "request_changes", comments });
+  before(async () => {
+    ws = makeWorkspace({ repos: true });
+    fake = await startFakeOpencode({ kind: "v1" });
+    await startConnector(configFor(ws.dir, { url: fake.url }));
+    await waitFor(() => oc.status().details.opencode.connected, "opencode to connect");
+  });
+  after(async () => {
+    await oc.stop();
+    await fake.close();
+    ws.remove();
+  });
+
+  test("the session carries Tandem's findings and the files in reading order; Publish shows the change size", async () => {
+    const s = await call("review.session", { id: "41610", repo: "gateway" });
+    assert.deepEqual(s.files.map((f) => f.path), ["headers.txt"]);
+    assert.equal(s.files[0].folded, false);
+    assert.deepEqual(s.notes.map((n) => [n.path, n.line, n.severity, n.state]), [["src/RateLimit/HeaderWriter.cs", 18, "should_fix", "open"], ["tests/RateLimitTests.cs", 40, "nit", "open"]]);
+    await waitFor(async () => (await call("state")).publish[FOLDER].diff[0].files === 1, "the change size to be counted");
+    assert.deepEqual((await call("state")).publish[FOLDER].diff, [{ repo: "gateway", files: 1, additions: 1, deletions: 0 }]);
+  });
+
+  test("Send back runs /revise, Publish waits, and the build comes back as revision 2 with Tandem's answers", async () => {
+    let s = await call("review.session", { id: "41610", repo: "gateway" });
+    const r = await call("review.submit", { id: "41610", repo: "gateway", feedback: feedback(s, [{ id: "c1", path: "headers.txt", side: "new", startLine: 1, endLine: 1, quotedCode: "x", type: "question", body: "Why x?", rule: true }]) });
+    assert.equal(r.status, "revising");
+    const dir = path.join(ws.work, FOLDER, "code-review", "gateway");
+    assert.equal(JSON.parse(fs.readFileSync(path.join(dir, "rev-1.json"), "utf8")).comments[0].rule, true, "Make it a rule is kept for /revise");
+    const sid = await sessionFor("41610: /revise 41610 auto");
+    let st = await call("state");
+    assert.equal(st.reviews[FOLDER].gateway.status, "revising");
+    assert.equal(st.reviews[FOLDER].gateway.sentBack, 1);
+    assert.equal(st.publish[FOLDER].revising, true);
+    await rejects(call("publish", { folder: FOLDER }), "conflict", /working on the comments/);
+    assert.equal(st.reviews[FOLDER].gateway.run.status, "running");
+    // What /revise does: answers, revise.md, and pr.md to history so /pr writes it again.
+    fs.writeFileSync(path.join(dir, "rev-1-response.json"), JSON.stringify([{ commentId: "c1", status: "answered", note: "The limiter sets it." }]));
+    fs.writeFileSync(path.join(ws.work, FOLDER, "revise.md"), "# Revise: 41610 revision 1\n\n- Status: READY\n");
+    const pr = fs.readFileSync(path.join(ws.work, FOLDER, "pr.md"), "utf8");
+    fs.mkdirSync(path.join(ws.work, FOLDER, "history"), { recursive: true });
+    fs.renameSync(path.join(ws.work, FOLDER, "pr.md"), path.join(ws.work, FOLDER, "history", "pr-2026-11-19-1.md"));
+    s = await call("review.session", { id: "41610", repo: "gateway" }); // pr.md gone: repos.md's branch is used
+    assert.equal(s.branch, "dev/bug/41610-rate-limit-headers");
+    await finish(sid);
+    const sid2 = await waitFor(async () => titles().includes("41610: /pr 41610") && (await live()).items[FOLDER].current !== sid, "/pr to run next").then(async () => (await live()).items[FOLDER].current);
+    fs.writeFileSync(path.join(ws.work, FOLDER, "pr.md"), pr);
+    await finish(sid2);
+    await waitFor(async () => (await call("state")).reviews[FOLDER].gateway.status === "awaiting_review", "the next revision");
+    st = await call("state");
+    assert.equal(st.reviews[FOLDER].gateway.revision, 2);
+    assert.equal(st.liveMode.live.autopilot[FOLDER].status, "done");
+    s = await call("review.session", { id: "41610", repo: "gateway" });
+    assert.deepEqual(s.previousResponses, [{ commentId: "c1", status: "answered", note: "The limiter sets it." }]);
+  });
+
+  test("a held Send back waits for you with revise.md's Needs you line; review.revise starts it again", async () => {
+    const s = await call("review.session", { id: "41610", repo: "gateway" });
+    await call("review.submit", { id: "41610", repo: "gateway", feedback: feedback(s, [{ id: "c2", path: "headers.txt", side: "new", startLine: 1, endLine: 1, quotedCode: "x", type: "must_fix", body: "Use the new limiter package" }]) });
+    const before = titles().filter((t) => t === "41610: /revise 41610 auto").length;
+    await waitFor(() => titles().filter((t) => t === "41610: /revise 41610 auto").length === before + 1 || before === 2, "/revise to run again");
+    const sid = (await live()).items[FOLDER].current;
+    fs.writeFileSync(path.join(ws.work, FOLDER, "revise.md"), "# Revise: 41610 revision 2\n\n- Status: HOLD\n\n## Needs you\n\n- gateway/c2: it needs a new package.\n");
+    await finish(sid);
+    await waitFor(async () => (await live()).autopilot[FOLDER].status === "waiting", "autopilot to wait");
+    const a = (await live()).autopilot[FOLDER];
+    assert.match(a.message, /^Needs you: gateway\/c2: it needs a new package\./);
+    assert.equal((await call("state")).reviews[FOLDER].gateway.run.status, "failed");
+    const n = titles().length;
+    await call("review.revise", { id: "41610" });
+    await waitFor(() => titles().length > n && titles().at(-1) === "41610: /revise 41610 auto", "/revise to start again");
+    await rejects(call("review.revise", { id: "41610" }), "conflict", /already working/);
+    await call("autopilot", { folder: FOLDER, action: "stop" });
+  });
+});
+
+// 1.28.0 (Workshop project doc claude/build-self-check-v1-plan.md): Try it runs Tandem's Start-UiApp.ps1 through
+// opencode's shell, then shows the build's app once app.json names an address that answers.
+describe("Try it: the build's app", { skip: !hasGit }, () => {
+  let ws, fake, app;
+  const FOLDER = "41610-rate-limit-headers";
+  before(async () => {
+    ws = makeWorkspace({ repos: true });
+    fake = await startFakeOpencode({ kind: "v1" });
+    await startConnector(configFor(ws.dir, { url: fake.url }));
+    await waitFor(() => oc.status().details.opencode.connected, "opencode to connect");
+    const http = await import("node:http");
+    app = http.createServer((q, s) => s.end("hi")).listen(0, "127.0.0.1");
+    await new Promise((r) => app.once("listening", r));
+  });
+  after(async () => {
+    app.close();
+    await oc.stop();
+    await fake.close();
+    ws.remove();
+  });
+
+  test("preview.open runs Start-UiApp.ps1 in opencode, then the app's address shows; preview.stop runs Stop-UiApp.ps1", async () => {
+    const r = await call("preview.open", { folder: FOLDER });
+    assert.equal(r.status, "starting");
+    const shells = () => fake.state.bodies.filter((b) => /\/shell$/.test(b.route)).map((b) => b.body.command);
+    await waitFor(() => shells().length === 1, "the shell command");
+    const cmd = shells()[0];
+    assert.match(cmd, /-File "[^"]*eng-agents[\\/]scripts[\\/]ui[\\/]Start-UiApp\.ps1"/);
+    assert.match(cmd, new RegExp(`-WorkFolder "[^"]*${FOLDER}" -Repo "[^"]*gateway" -Guide "[^"]*gateway[\\\\/]AGENTS\\.md"`));
+    assert.equal((await call("state")).previews[FOLDER].status, "starting");
+    // What Start-UiApp.ps1 writes once the app answers.
+    const url = `http://127.0.0.1:${app.address().port}`;
+    fs.mkdirSync(path.join(ws.work, FOLDER, "ui"), { recursive: true });
+    fs.writeFileSync(path.join(ws.work, FOLDER, "ui", "app.json"), JSON.stringify({ version: 1, pid: process.pid, url, ours: true, started: new Date().toISOString() }));
+    await waitFor(async () => (await call("state")).previews[FOLDER].status === "running", "the app to show as running");
+    assert.equal((await call("state")).previews[FOLDER].url, url);
+    assert.deepEqual(await call("preview.open", { folder: FOLDER }), { ok: true, status: "running", url }, "a running app is reused");
+    assert.equal(shells().length, 1);
+    await call("preview.stop", { folder: FOLDER });
+    await waitFor(() => shells().length === 2, "the stop command");
+    assert.match(shells()[1], /Stop-UiApp\.ps1" -WorkFolder "[^"]*41610-rate-limit-headers"/);
+    await rejects(call("preview.open", { folder: "nope" }), "not_found");
+    fs.rmSync(path.join(ws.work, FOLDER, "ui"), { recursive: true });
+  });
+});
+
+// 1.28.0 (Workshop project doc claude/after-publish-v1-plan.md): after Publish, Workshop's agent hands each PR's state
+// to published.record, which starts /pr-fix when CI fails, shows Push fix when Tandem fixed it, and finishes on merge.
+describe("after Publish", { skip: !hasGit }, () => {
+  let ws, fake;
+  const FOLDER = "41610-rate-limit-headers";
+  const titles = () => fake.bodiesFor("POST /session").map((b) => b.title);
+  const live = async () => (await call("state")).liveMode.live;
+  const finish = async (sid) => {
+    fake.send(busyEvent("v1", sid));
+    await waitFor(async () => (await live()).sessions[sid]?.status === "busy", "the session to be busy");
+    fake.send(idleEvent("v1", sid));
+    await waitFor(async () => (await live()).sessions[sid]?.status === "idle", "the session to go idle");
+  };
+  const watch = async () => (await call("state")).publish[FOLDER].published.repos[0].watch;
+  const status = (over = {}) => ({ found: true, host: "github", id: 12, url: "https://github.com/acme/gateway/pull/12", title: "Headers", status: "active", merged: false, abandoned: false, conflict: false, head: "aaa111", review: "waiting",
+    ci: { state: "failed", baseFailing: false, checks: [{ name: "test", state: "failed", url: "https://github.com/acme/gateway/runs/1", log: "## test\nHeaderTests failed" }] },
+    threads: [{ id: "gh-31", path: "headers.txt", line: 1, author: "sam", text: "Use the constant", resolved: false }], ...over });
+  before(async () => {
+    ws = makeWorkspace({ repos: true });
+    fake = await startFakeOpencode({ kind: "v1" });
+    await startConnector(configFor(ws.dir, { url: fake.url }));
+    await waitFor(() => oc.status().details.opencode.connected, "opencode to connect");
+  });
+  after(async () => {
+    await oc.stop();
+    await fake.close();
+    ws.remove();
+  });
+
+  test("watch, CI failed: ci/failure-1.md and /pr-fix; FIXED: Push fix; pushed and green: clear; merged: done and /retro", async () => {
+    assert.deepEqual((await call("published.watch")).items, [], "nothing published yet");
+    await call("publish", { folder: FOLDER });
+    execFileSync("git", ["-C", path.join(ws.dir, "gateway"), "remote", "set-url", "origin", "https://github.com/acme/gateway.git"]);
+    await call("refresh");
+    const w = (await call("published.watch")).items;
+    assert.deepEqual(w, [{ folder: FOLDER, id: "41610", repos: [{ repo: "gateway", branch: "dev/bug/41610-rate-limit-headers", target: "main", remote: "https://github.com/acme/gateway", host: "github", logs: true }] }]);
+    const r = await call("published.record", { folder: FOLDER, repo: "gateway", status: status() });
+    assert.equal(r.started, "ci");
+    const file = path.join(ws.work, FOLDER, "ci", "failure-1.md");
+    assert.match(fs.readFileSync(file, "utf8"), /^# CI failure: gateway PR 12\n\n- Item: 41610\n- Repo: gateway\n- Branch: dev\/bug\/41610-rate-limit-headers\n- Base: main\n- PR: https:\/\/github\.com\/acme\/gateway\/pull\/12\n- Commit: aaa111\n[\s\S]*## test\n\n- Link: https:\/\/github\.com\/acme\/gateway\/runs\/1\n\n```text\n## test\nHeaderTests failed\n```/);
+    await waitFor(() => titles().includes("41610: /pr-fix 41610 ci auto"), "/pr-fix to run");
+    let wt = await watch();
+    assert.deepEqual([wt.ci, wt.review, wt.comments, wt.fix.state, wt.fixRounds], ["failed", "waiting", 1, "working", 1]);
+    assert.deepEqual((await call("review.session", { id: "41610", repo: "gateway" })).threads.map((t) => t.id), ["gh-31"], "teammates' comments in the code review");
+    // The same failure again while Tandem works: nothing new starts.
+    assert.equal((await call("published.record", { folder: FOLDER, repo: "gateway", status: status() })).started, undefined);
+    fs.appendFileSync(file, "- Result: FIXED bbb222 the header test read the old constant\n");
+    await finish((await live()).items[FOLDER].current);
+    await waitFor(async () => (await watch()).fix.state === "ready", "Push fix");
+    assert.equal((await watch()).fix.text, "bbb222 the header test read the old constant");
+    // You pushed it: the head moves, CI runs, then passes.
+    await call("published.record", { folder: FOLDER, repo: "gateway", status: status({ head: "bbb222", ci: { state: "running", checks: [], baseFailing: false } }) });
+    assert.equal((await watch()).fix, null);
+    // A failure the base branch has too is not this change: no fix.
+    const r2 = await call("published.record", { folder: FOLDER, repo: "gateway", status: status({ head: "bbb222", ci: { state: "failed", baseFailing: true, checks: [{ name: "test", state: "failed" }] } }) });
+    assert.equal(r2.started, undefined);
+    assert.equal((await watch()).fix.state, "not-ours");
+    // Merged: done, worktrees gone, /retro auto.
+    const r3 = await call("published.record", { folder: FOLDER, repo: "gateway", status: status({ status: "completed", merged: true, head: "bbb222", ci: { state: "none", checks: [], baseFailing: false } }) });
+    assert.equal(r3.merged, true);
+    await waitFor(() => titles().includes("41610: /retro 41610 auto"), "/retro to run");
+    assert.ok((await call("state")).publish[FOLDER].published.merged);
+    assert.deepEqual((await call("published.watch")).items, [], "a merged item is not watched");
+    wt = await watch();
+    assert.equal(wt.merged, true);
+    await rejects(call("published.record", { folder: "41207-fix-login-timeout", repo: "x", status: status() }), "not_found");
   });
 });

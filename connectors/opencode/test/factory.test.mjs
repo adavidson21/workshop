@@ -13,7 +13,8 @@ import { reviewQuestions } from "../lib/publish.mjs";
 test("factory settings: defaults, ranges and the file Tandem reads", () => {
   assert.deepEqual(factoryOptions(undefined), { ...FACTORY_DEFAULTS });
   assert.deepEqual(factoryOptions({ taskFileCap: 99, quickTasks: 0, retries: 2, autoFix: "blockers", reviewRounds: 3, uiChecks: false, regression: false, worktrees: "busy" }),
-    { taskFileCap: 6, quickTasks: 3, retries: 2, autoFix: "blockers", reviewRounds: 3, uiChecks: false, regression: false, worktrees: "busy" });
+    { taskFileCap: 6, quickTasks: 3, retries: 2, autoFix: "blockers", reviewRounds: 3, uiChecks: false, regression: false, uiCheckPerTask: true, modelSeesImages: false, worktrees: "busy" });
+  assert.deepEqual([factoryOptions({ uiCheckPerTask: false, modelSeesImages: true }).uiCheckPerTask, factoryOptions({ uiCheckPerTask: false, modelSeesImages: true }).modelSeesImages, factoryOptions({ modelSeesImages: "yes" }).modelSeesImages], [false, true, false]);
   assert.equal(factoryOptions({ autoFix: "nits" }).autoFix, "should-fix");
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "factory-"));
   assert.equal(writeFactoryFile(dir, FACTORY_DEFAULTS), true);

@@ -72,6 +72,8 @@ function cleanComment(c) {
     type: TYPE_IDS.has(c.type) ? c.type : 'must_fix',
     body: typeof c.body === 'string' ? c.body : '',
     ...(typeof c.suggestedCode === 'string' ? { suggestedCode: c.suggestedCode } : {}),
+    ...(c.rule === true ? { rule: true } : {}),
+    ...(typeof c.from === 'string' ? { from: c.from.slice(0, 200) } : {}),
   };
 }
 
@@ -152,9 +154,25 @@ export function buildFeedback(session, draft, verdict, textFor) {
       id: c.id, path: c.path, side: c.side, startLine: c.startLine, endLine: c.endLine,
       quotedCode, type: c.type, body: c.body.trim(),
       ...(c.suggestedCode !== undefined ? { suggestedCode: c.suggestedCode } : {}),
+      ...(c.rule === true ? { rule: true } : {}),
     });
   }
   return { feedback: { ...base, ...(summary ? { summary } : {}), comments } };
+}
+
+/** Whether a work item has a draft not sent yet, in any repo or revision (Publish all ready leaves those out). */
+export function hasDraft(store, id) {
+  const prefix = `dispatch.review.${id}.`;
+  try {
+    for (let i = 0; i < store.length; i++) {
+      const k = store.key(i);
+      if (k && k.startsWith(prefix)) {
+        const d = loadDraft(store, k);
+        if (d.comments.length || d.summary.trim()) return true;
+      }
+    }
+  } catch (e) { /* no storage: nothing to skip */ }
+  return false;
 }
 
 /* ---------- the file tree ---------- */
@@ -192,6 +210,53 @@ export function commentCounts(comments) {
   const out = {};
   for (const c of comments) out[c.path] = (out[c.path] || 0) + 1;
   return out;
+}
+
+/* ---------- reading order (opencode connector 1.28.0) ---------- */
+
+// The Files pane in reading order when the connector sent task labels: one group per task in order, the files no task
+// named, then generated and lock files (folded). Returns null for a review without task labels (the folder tree then).
+export function readingGroups(files) {
+  if (!files.some(f => f.task || f.folded)) return null;
+  const groups = [];
+  const at = new Map();
+  for (const f of files) {
+    const key = f.folded ? 'folded' : f.task ? 't' + f.task.n : 'other';
+    if (!at.has(key)) {
+      const g = { key, label: f.folded ? 'Generated and lock files' : f.task ? `Task ${f.task.n}: ${f.task.title}` : 'Not in a task', folded: !!f.folded, files: [] };
+      at.set(key, g);
+      groups.push(g);
+    }
+    at.get(key).files.push(f);
+  }
+  return groups;
+}
+
+/* ---------- beside the diff: Tandem's findings and teammates' comments ---------- */
+
+export const NOTE_LABEL = { blocker: 'Blocker', should_fix: 'Should fix', nit: 'Nit', question: 'Question' };
+
+/** Tandem's notes on one file, by line: Map(line -> [note]). */
+export function notesByLine(session, path) {
+  const out = new Map();
+  for (const n of (session && session.notes) || []) {
+    if (n.path !== path) continue;
+    if (!out.has(n.line)) out.set(n.line, []);
+    out.get(n.line).push(n);
+  }
+  return out;
+}
+
+/** Teammates' PR comments on the code (after Publish): open threads first. */
+export function threadRows(session) {
+  const t = (session && session.threads) || [];
+  return t.slice().sort((a, b) => (a.resolved ? 1 : 0) - (b.resolved ? 1 : 0) || String(a.path || '').localeCompare(String(b.path || '')) || (a.line || 0) - (b.line || 0));
+}
+
+/** A draft comment made from a teammate's thread, so Send back fixes it like the engineer's own. */
+export function commentFromThread(draft, t) {
+  const body = `${t.author ? t.author + ' on the PR: ' : 'On the PR: '}${t.text}`;
+  return { id: nextCommentId(draft.comments), path: t.path, side: 'new', startLine: t.line, endLine: t.line, type: 'must_fix', body, from: t.id };
 }
 
 /* ---------- round 2 and later ---------- */

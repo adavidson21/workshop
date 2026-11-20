@@ -7,7 +7,8 @@
    - Overlap: at approval, a build that changes the same files as another offers Build after that one.
    No DOM: main.js paints what these return and handles the clicks. */
 import { S } from './state.js';
-import { h, md, itemForFolder } from './view.js';
+import { h, md, itemForFolder, reviewHref } from './view.js';
+import { hasDraft } from './review-state.js';
 import { outsideMark } from '../../../../shared/outside.js';
 
 const KIND_NAMES = { fact: 'Fact', term: 'Term', repo: 'Repo', process: 'Process' };
@@ -49,10 +50,16 @@ export function teachHtml() {
 /** Gate 2 info for a run, from state.publish (connector 1.21.0), or null. */
 export const publishOf = it => (it && S.D && S.D.publish && S.D.publish[it.folder]) || null;
 
-/** Ready to publish with nothing to answer and no failed UI check: what Publish all ready would send. */
+const store = (() => { try { return window.localStorage; } catch (e) { return null; } })();
+/** Draft code review comments not sent yet for this item, in this browser (Publish all ready leaves those out). */
+export const hasDrafts = it => !!(store && it && it.id && hasDraft(store, it.id));
+
+/** Ready to publish with nothing to answer and no failed UI check: what Publish all ready would send. Since connector
+ *  1.28.0 also nothing waiting on Tandem from a Send back, no must fix comment it declined, and no unsent draft. */
 export function readyClean(it) {
   const p = publishOf(it);
-  return !!p && p.ready && !p.published && !p.questions.length && !p.ui.some(u => u.name !== 'before' && u.verdict === 'fail') && !(p.tests || []).some(t => t.name !== 'before' && t.verdict === 'fail');
+  return !!p && p.ready && !p.published && !p.questions.length && !p.ui.some(u => u.name !== 'before' && u.verdict === 'fail') && !(p.tests || []).some(t => t.name !== 'before' && t.verdict === 'fail') &&
+    !p.revising && !p.openMustFix && !hasDrafts(it);
 }
 export const readyCleanCount = (items) => (items || []).filter(readyClean).length;
 
@@ -98,20 +105,88 @@ function shotImgs(it, before, after, diff) {
   return `<div class="pub-imgs">${one(before, 'Before')}${one(after, 'After')}${one(diff, 'What changed')}</div>`;
 }
 
+const plural = (n, one, many = one + 's') => `${n} ${n === 1 ? one : many}`;
+/** The code, per repo (connector 1.28.0): how big the change is, where its code review stands, and Review the code. */
+function codeHtml(it, p) {
+  const rows = (it.pr || []).map(r => {
+    const d = (p.diff || []).find(x => x.repo === r.repo);
+    const rv = (p.review || {})[r.repo] || null;
+    const size = d && d.files != null ? `${plural(d.files, 'file')}, <span class="add">+${h(String(d.additions))}</span> <span class="del">-${h(String(d.deletions))}</span>` : '<span class="dim">counting the change…</span>';
+    const rev = rv && rv.revision > 1 ? ` <span class="dim">revision ${h(String(rv.revision))}</span>` : '';
+    const link = S.conn === 'on' ? `<a class="btn small" href="${h(reviewHref(it, r.repo))}" data-review title="Read the diff with Tandem's notes, comment on lines, then approve and publish or send it back">Review the code</a>` : '';
+    return `<li><span class="mono">${h(r.repo)}</span> ${size}${rev}${link}</li>`;
+  });
+  if (!rows.length) return '';
+  const drafts = hasDrafts(it) ? '<p class="dim">You have draft comments in the code review that are not sent yet.</p>' : '';
+  const mf = p.openMustFix ? `<p class="flag warn">Tandem declined ${plural(p.openMustFix, 'must fix comment')}. Read its answers in the code review before you publish.</p>` : '';
+  return `<div class="pub-code"><p class="sub-h">The code</p><ul class="pub-repos">${rows.join('')}</ul>${mf}${drafts}<p class="dim">Optional: Publish works without opening it.</p></div>`;
+}
+
+const ago = iso => { const m = Math.round((Date.now() - Date.parse(iso)) / 60000); return !(m >= 0) ? '' : m < 1 ? 'just now' : m < 60 ? `${m} min ago` : `${Math.round(m / 60)} h ago`; };
+const CI_WORD = { failed: ['bad', 'CI failed'], running: ['warn', 'CI running'], passed: ['ok', 'CI passed'], none: ['', 'No CI on this PR'] };
+const REVIEW_WORD = { approved: ['ok', 'Approved'], changes: ['warn', 'Changes requested'], waiting: ['', 'Waiting on reviewers'] };
+/** One repo after Publish (connector 1.28.0): its PR, CI, reviews, comments and Tandem's fix. */
+function afterRepo(it, r) {
+  const w = r.watch || {};
+  const f = h(it.folder);
+  if (w.error && !w.found) return `<li><span class="mono">${h(r.repo)}</span> <span class="flag warn">${h(w.error)}</span></li>`;
+  if (!w.checkedAt) return `<li><span class="mono">${h(r.repo)}</span> <span class="dim">Workshop checks the PR every few minutes.</span>${r.pr ? `<a class="btn small" href="${h(r.pr)}" target="_blank" rel="noopener">Create the PR</a>` : ''}</li>`;
+  if (w.found === false) return `<li><span class="mono">${h(r.repo)}</span> <span class="dim">No PR for this branch yet.</span>${r.pr ? `<a class="btn small" href="${h(r.pr)}" target="_blank" rel="noopener">Create the PR</a>` : ''}</li>`;
+  const pr = w.pr && w.pr.url ? `<a class="lnk" href="${h(w.pr.url)}" target="_blank" rel="noopener">PR ${h(String(w.pr.id))}</a>` : '';
+  if (w.merged) return `<li><span class="mono">${h(r.repo)}</span> ${pr} <span class="flag ok">Merged</span></li>`;
+  const [cc, ct] = CI_WORD[w.ci] || CI_WORD.none;
+  const checks = (w.checks || []).filter(c => c.state === 'failed').map(c => c.url ? `<a class="lnk" href="${h(c.url)}" target="_blank" rel="noopener">${h(c.name)}</a>` : h(c.name)).join(', ');
+  const [rc, rt] = REVIEW_WORD[w.review] || REVIEW_WORD.waiting;
+  const comments = w.comments ? ` <a class="lnk" href="${h(reviewHref(it, r.repo))}" data-review title="Read them beside the code, and send any back to Tandem">${h(plural(w.comments, 'comment'))}</a>` : '';
+  const fx = w.fix || null;
+  const busy = S.ui.busy && S.ui.busy['pushfix:' + it.folder + ':' + r.repo];
+  const fixLine = !fx ? '' : fx.state === 'ready' ? `<div class="after-fix"><span class="flag warn">Tandem fixed it</span> ${h(fx.text || '')}<button type="button" class="btn primary small" data-push-fix="${f}" data-repo="${h(r.repo)}" data-out${busy ? ' disabled' : ''}>Push fix ${outsideMark('git')}</button></div>`
+    : fx.state === 'working' ? `<div class="after-fix dim">${fx.kind === 'conflict' ? 'Tandem is merging the base in.' : 'Tandem is fixing the failing CI.'}</div>`
+    : fx.state === 'pushed' ? '<div class="after-fix dim">Fix pushed. CI runs again.</div>'
+    : `<div class="after-fix"><span class="flag ${fx.state === 'not-ours' ? 'warn' : 'bad'}">${fx.state === 'not-ours' ? 'Not caused by this change' : 'CI needs you'}</span> ${h(fx.text || '')}</div>`;
+  return `<li><span class="mono">${h(r.repo)}</span> ${pr} <span class="flag ${cc}">${ct}</span>${checks ? ` <span class="dim">${checks}</span>` : ''} <span class="flag ${rc}">${rt}</span>${comments}${w.conflict ? ' <span class="flag bad">Conflicts with its base</span>' : ''}${fixLine}</li>`;
+}
+/** A published build (connector 1.28.0): each PR until it merges, then done. */
+function afterHtml(it, p) {
+  const rec = p.published;
+  const repos = rec.repos || [];
+  const checked = repos.map(r => r.watch && r.watch.checkedAt).filter(Boolean).sort().pop();
+  if (rec.merged) {
+    const link = S.D && S.D.adoLinks && S.D.adoLinks[it.folder];
+    const resolved = S.ui.resolved && S.ui.resolved[it.folder];
+    const res = link && link.linked && link.ado && !resolved ? `<button type="button" class="btn small" data-ado-resolve="${h(it.folder)}" data-ado="${h(String(link.ado))}" data-out>Resolve in ADO ${outsideMark('ado')}</button>` : '';
+    return `<div class="pub done"><p><span class="flag ok">Merged</span> ${h(new Date(rec.merged).toLocaleString())}. Done: Tandem ran its retro (suggestions in Folio's review list) and removed the worktrees. The work folder stays.</p><ul class="pub-repos">${repos.map(r => afterRepo(it, r)).join('')}</ul>${res ? `<div class="row">${res}</div>` : ''}</div>`;
+  }
+  return `<div class="pub done"><p><span class="flag ok">Published</span> ${h(new Date(rec.at).toLocaleString())}. In transit: Workshop follows each PR until it merges${checked ? ` (checked ${ago(checked)})` : ''}.</p><ul class="pub-repos">${repos.map(r => afterRepo(it, r)).join('')}</ul></div>`;
+}
+
 /** The Publish block on a ready build's page and panel. */
 export function publishHtml(it) {
   const p = publishOf(it);
   if (!p) return '';
-  if (p.published) {
-    const links = (p.published.repos || []).map(r => r.pr ? `<a class="btn" href="${h(r.pr)}" target="_blank" rel="noopener">Open the PR for ${h(r.repo)}</a>` : `<span class="dim">${h(r.repo)}: pushed (no PR link)</span>`).join('');
-    return `<div class="pub done"><p><span class="flag ok">Published</span> ${h(new Date(p.published.at).toLocaleString())}. Create each PR if you have not yet, then Remove the run once it merges.</p><div class="row">${links}</div></div>`;
-  }
+  if (p.published) return afterHtml(it, p);
   if (!p.ready) return '';
   const q = p.questions.length ? `<div class="pub-q"><p class="sub-h">Questions from the review</p><ul>${p.questions.map(x => `<li>${md(x)}</li>`).join('')}</ul><p class="dim">Answer them in your head or send it back; they do not block Publish.</p></div>` : '';
   const busy = S.ui.busy && S.ui.busy['pub:' + it.folder];
-  return `<div class="pub"><p class="sub-h">Ready to publish</p>${testsHtml(p)}${uiHtml(it, p)}${q}` +
+  return `<div class="pub"><p class="sub-h">Ready to publish</p>${testsHtml(p)}${uiHtml(it, p)}${q}${codeHtml(it, p)}${tryItHtml(it)}` +
     `<div class="row"><button type="button" class="btn primary" data-publish="${h(it.folder)}"${busy ? ' disabled' : ''} title="Pushes every branch in pr.md (never force), then opens each PR page with the text filled in">${busy ? 'Publishing…' : 'Publish ' + outsideMark('git')}</button>` +
     `<span class="dim">Pushes ${h(String((it.pr || []).length))} branch${(it.pr || []).length === 1 ? '' : 'es'} and opens the PRs.</span></div></div>`;
+}
+
+// ------------------------------------------------------------------ Try it (connector 1.28.0)
+/** The build's app for you to click around in: Try it while it builds or waits at Publish, then Open and Stop. */
+export function tryItHtml(it) {
+  if (!it || it.kind !== 'item' || S.conn !== 'on' || !(it.repos || []).length) return '';
+  if (!['build', 'review', 'pr', 'ship'].includes(it.stage)) return '';
+  const p = (S.D && S.D.previews && S.D.previews[it.folder]) || null;
+  const busy = S.ui.busy && S.ui.busy['try:' + it.folder];
+  const f = h(it.folder);
+  if (p && p.status === 'running' && p.url) {
+    return `<div class="try row"><a class="btn" href="${h(p.url)}" target="_blank" rel="noopener" title="The app this build runs, on this computer">Open the app</a><span class="dim mono">${h(p.url)}</span><button type="button" class="btn ghost small" data-try-stop="${f}"${busy ? ' disabled' : ''}>Stop</button></div>`;
+  }
+  if (p && p.status === 'starting') return '<div class="try row"><span class="dim">Starting the app… it opens here when it answers.</span></div>';
+  const failed = p && p.status === 'failed' ? `<span class="flag warn">${h(p.message || 'The app did not start.')}</span>` : '';
+  return `<div class="try row"><button type="button" class="btn ghost" data-try="${f}"${busy ? ' disabled' : ''} title="Starts the app from this build's worktree (or uses the one Tandem keeps running for its UI checks) so you can click around">${p && p.status === 'failed' ? 'Try again' : 'Try it'}</button>${failed}</div>`;
 }
 
 /** Publish all ready, for the Ready lane: only when at least one build has nothing to answer. */
@@ -119,7 +194,7 @@ export function publishAllHtml(items) {
   const n = readyCleanCount(items);
   if (!n) return '';
   const busy = S.ui.busy && S.ui.busy['pub:all'];
-  return `<button type="button" class="btn primary small ln-puball" data-publish-all="1"${busy ? ' disabled' : ''} title="Publishes every ready build whose review has no questions and whose tests and UI checks passed">${busy ? 'Publishing…' : `Publish all ready (${n})`}</button>`;
+  return `<button type="button" class="btn primary small ln-puball" data-publish-all="1"${busy ? ' disabled' : ''} title="Publishes every ready build whose review has no questions, whose tests and UI checks passed, and that has no code review comments waiting">${busy ? 'Publishing…' : `Publish all ready (${n})`}</button>`;
 }
 
 /** The confirm text for Publish: each repo and branch. */

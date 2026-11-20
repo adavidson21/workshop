@@ -20,7 +20,7 @@ import { createCaptureStore } from '../../../../shared/capture-box.js';
 import { slateLinks, summaryCards } from './summary.js';
 import { sendWork, workOffer } from './slate-handoff.js';
 import { noticedList, observationTask, startArgsOf } from './noticed.js';
-import { publishItems, readyClean } from './factory.js';
+import { publishItems, readyClean, hasDrafts } from './factory.js';
 import { confirmOutside } from '../../../../shared/outside.js';
 import { useApps } from '../../../../shared/capture.js';
 import { loadView, saveView, pruneView } from './local.js';
@@ -299,6 +299,12 @@ let soon = null;
 function fetchSoon() { clearTimeout(soon); soon = setTimeout(fetchState, 120); }
 
 ws.connectors.on(OC, '*', fetchSoon);
+// After Publish (connector 1.28.0): a fix to push and a merge are worth a notification when Workshop is out of sight.
+ws.connectors.on(OC, 'published', p => {
+  if (!p || !p.folder) return;
+  if (p.event === 'fix-ready') alertUser(`Push fix: ${label(p.folder, 'a published PR')}`, `Tandem fixed the failing CI on ${p.repo || 'the PR'}. Push it from Loom.`, p.folder);
+  else if (p.event === 'merged') alertUser(`Merged: ${label(p.folder, 'a published PR')}`, 'Done. Tandem ran its retro and removed the worktrees.', p.folder);
+});
 ws.connectors.onStatus(OC, status => {
   const was = S.connector && S.connector.state;
   S.connector = status;
@@ -1093,6 +1099,10 @@ listen('click', ev => {
   }
   const od = t.closest('[data-onboard-dismiss]');
   if (od) { act(() => write('onboarding.dismiss', { product: od.getAttribute('data-onboard-dismiss') })); return; }
+  const tr = t.closest('[data-try]');
+  if (tr) { const folder = tr.getAttribute('data-try'); act(() => write('preview.open', { folder }), r => { if (r && r.status === 'starting') toast('Starting the app. Open the app shows here when it answers.'); }, 'try:' + folder); return; }
+  const ts = t.closest('[data-try-stop]');
+  if (ts) { const folder = ts.getAttribute('data-try-stop'); act(() => write('preview.stop', { folder }), () => toast('Stopping the app.'), 'try:' + folder); return; }
   const pub = t.closest('[data-publish]');
   if (pub) {
     const folder = pub.getAttribute('data-publish');
@@ -1109,7 +1119,9 @@ listen('click', ev => {
     if (!list.length) return;
     confirmOutside({ system: 'git', title: `Publish ${list.length} ready build${list.length === 1 ? '' : 's'}?`, body: 'Each has passing checks and no review questions. Pushes every branch (never force), then opens the PR pages.', items: list.map(it => (it.id ? '#' + it.id + ' ' : '') + (it.title || it.folder)), ok: 'Publish all' }).then(ok => {
       if (!ok) return;
-      act(() => write('publish.all', {}), r => {
+      // Builds with draft code review comments in this browser stay out (connector 1.28.0 `skip`).
+      const skip = ((S.D && S.D.items) || []).filter(it => it.kind === 'item' && hasDrafts(it)).map(it => it.folder);
+      act(() => write('publish.all', skip.length ? { skip } : {}), r => {
         for (const p of (r && r.published) || []) openPrs(p);
         toast(r && r.failed && r.failed.length ? `Published ${r.published.length}; ${r.failed.length} did not go through: ${r.failed.map(f => f.message).join(' ')}` : `Published ${(r && r.published.length) || 0}.`, !!(r && r.failed && r.failed.length));
       }, 'pub:all');
@@ -1175,6 +1187,32 @@ listen('click', ev => {
     return;
   }
   if (t.closest('[data-lane-done]')) { ui().laneDone = !ui().laneDone; paint(); return; }
+  if (t.closest('[data-lane-delivered]')) { ui().laneDelivered = !ui().laneDelivered; paint(); return; }
+  // After Publish (connector 1.28.0): push the fix Tandem committed, after the git confirm.
+  const pf = t.closest('[data-push-fix]');
+  if (pf) {
+    const folder = pf.getAttribute('data-push-fix'), repo = pf.getAttribute('data-repo');
+    const it = itemForFolder(folder);
+    const row = it && (it.pr || []).find(r => r.repo === repo);
+    confirmOutside({ system: 'git', title: `Push Tandem's fix for ${repo}?`, body: 'Pushes the fix commit on top of the published branch (never force). CI runs again on the PR.', items: [`${repo}: ${(row && row.branch) || '?'}`], ok: 'Push' }).then(ok => {
+      if (!ok) return;
+      act(() => write('push', { folder, repo }), () => toast('Pushed. CI runs again on the PR.'), 'pushfix:' + folder + ':' + repo);
+    });
+    return;
+  }
+  // Merged and linked to ADO: set the ADO item to Resolved (your team: merged to main, slated for a release).
+  const rs = t.closest('[data-ado-resolve]');
+  if (rs) {
+    const folder = rs.getAttribute('data-ado-resolve'), id = Number(rs.getAttribute('data-ado'));
+    confirmOutside({ system: 'ado', title: `Resolve ADO #${id}?`, body: 'Sets the ADO work item to Resolved: merged to main and slated for a release.', items: [`#${id}: Resolved`], ok: 'Resolve' }).then(ok => {
+      if (!ok) return;
+      act(async () => {
+        const w = await ws.connectors.call('ado', 'workitem.get', { id });
+        return ws.connectors.call('ado', 'workitem.update', { id, rev: w.rev, changes: { state: 'Resolved' } }, { confirm: true });
+      }, () => { ui().resolved = { ...(ui().resolved || {}), [folder]: true }; toast(`ADO #${id} is Resolved.`); }, 'resolve:' + folder);
+    });
+    return;
+  }
   if (t.closest('[data-ado-toggle]')) { ui().dropPick = !ui().dropPick; paint(); if (ui().dropPick) focusFirst('#ln-adoq'); return; }
   const adoPick = t.closest('[data-ado-pick]');
   if (adoPick) {

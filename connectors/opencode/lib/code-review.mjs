@@ -6,13 +6,13 @@
 //
 // One review per work item and repo, served from git in the local workspace. Read-only toward repos:
 // it never commits, checks out, or pushes. Approve only records the verdict; pushing is wired
-// separately. Request changes records the feedback, sets the status to "revising", and emits
-// "changes-requested" for the revision runner to pick up.
+// separately. Request changes (Send back) records the feedback, sets the status to "revising", and emits
+// "changes-requested"; since 1.28.0 lib/review.mjs starts autopilot with eng-agents' /revise on it.
 //
 // Storage, per work item and repo:
 //   .work/<folder>/code-review/<repo>/state.json    { revision, status, lastReviewedHeadSha }
 //   .work/<folder>/code-review/<repo>/rev-<n>.json  the ReviewFeedback submitted for revision n
-//   .work/<folder>/code-review/<repo>/rev-<n>-response.json  the agent's answers (revision-runner.mjs)
+//   .work/<folder>/code-review/<repo>/rev-<n>-response.json  the agent's answers (eng-agents /revise)
 //
 // Kept free of context.mjs: live-server.mjs passes in what it needs, so tests can run it alone.
 
@@ -89,6 +89,7 @@ export function feedbackProblem(fb) {
     if (!COMMENT_TYPES.has(c.type)) return `${at}: type must be must_fix, suggestion, or question.`;
     if (!isStr(c.body)) return `${at}: body must be text.`;
     if (c.suggestedCode !== undefined && !isStr(c.suggestedCode)) return `${at}: suggestedCode must be text.`;
+    if (c.rule !== undefined && typeof c.rule !== "boolean") return `${at}: rule must be true or false.`;
   }
   if (fb.verdict === "request_changes" && fb.comments.length === 0 && !(fb.summary || "").trim()) {
     return "Request changes needs at least one comment or a summary.";
@@ -115,6 +116,7 @@ function cleanFeedback(fb, submittedAt) {
       type: c.type,
       body: c.body,
       ...(c.suggestedCode !== undefined && { suggestedCode: c.suggestedCode }),
+      ...(c.rule === true && { rule: true }),
     })),
     submittedAt,
   };
@@ -145,8 +147,10 @@ export function parseResponses(text) {
 //   canRevise   optional () => null, or a plain-words reason a revision cannot start right now
 //               (checked before request changes is saved, so a verdict never strands an item)
 //   runInfo     optional (folder, repo) => the revision run's { status, message, session, revision }, or null
+//   extras      optional (item, repo, files) => { files?, notes?, threads? }: the files in reading order and what to
+//               show beside the diff (1.28.0, lib/review-notes.mjs and the after-Publish watcher)
 //   now         () => Date (tests)
-export function createCodeReview({ workspace, workRoot, findItem, canRevise = () => null, runInfo = () => null, now = () => new Date() }) {
+export function createCodeReview({ workspace, workRoot, findItem, canRevise = () => null, runInfo = () => null, extras = null, now = () => new Date() }) {
   const events = new EventEmitter();
   const submitting = new Set();
 
@@ -176,7 +180,13 @@ export function createCodeReview({ workspace, workRoot, findItem, canRevise = ()
     if (!isSafeRepoName(repo)) throw httpError(400, "Pass the repo folder as ?repo=.");
     const item = findItem(wid);
     if (!item) throw httpError(404, `No work item ${wid} in .work. Refresh and try again.`);
-    const row = (item.pr || []).find((p) => p.repo === repo);
+    // pr.md's row; while Tandem works on a Send back pr.md is in history/ (eng-agents /revise), so a review that
+    // was started falls back to repos.md's branch and the repo's default branch.
+    let row = (item.pr || []).find((p) => p.repo === repo);
+    if (!row && fs.existsSync(path.join(stateDir(item.folder, repo), "state.json"))) {
+      const r = (item.repos || []).find((x) => x.folder === repo);
+      if (r && r.branch) row = { repo, branch: r.branch, target: (r.git && r.git.defaultBranch) || "main" };
+    }
     const dir = path.resolve(workspace, repo);
     if (path.isAbsolute(repo) || !dir.startsWith(path.resolve(workspace) + path.sep)) throw httpError(400, "Bad repo folder.");
     return { wid, item, row, dir };
@@ -211,7 +221,10 @@ export function createCodeReview({ workspace, workRoot, findItem, canRevise = ()
     const state = readState(item.folder, repo);
     if (!row || (!state.saved && item.stage !== READY_STAGE)) notReady(item, repo, row);
     const shas = await resolveShas(row, dir, repo);
-    const files = await changedFiles(dir, shas.baseSha, shas.headSha);
+    let files = await changedFiles(dir, shas.baseSha, shas.headSha);
+    let ex = null;
+    try { ex = extras ? extras(item, repo, files) : null; } catch {} // context only: never fails the review
+    if (ex && Array.isArray(ex.files) && ex.files.length === files.length) files = ex.files;
     const dirOf = stateDir(item.folder, repo);
     const prev = state.revision > 1 ? readJson(path.join(dirOf, `rev-${state.revision - 1}.json`)) : null;
     let responses = null;
@@ -240,6 +253,8 @@ export function createCodeReview({ workspace, workRoot, findItem, canRevise = ()
       ...(responses && { previousResponses: responses }),
       ...(since && { sinceLastReview: since }),
       ...(run && { revisionRun: run }),
+      ...(ex && Array.isArray(ex.notes) && { notes: ex.notes }),
+      ...(ex && Array.isArray(ex.threads) && { threads: ex.threads }),
     };
   }
 

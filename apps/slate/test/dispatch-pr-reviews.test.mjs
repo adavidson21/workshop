@@ -279,7 +279,7 @@ test('3.0 a run at Ship: its code review is in the Inbox, its PR box on its page
   page = render();
   assert.match(page, /class="fstep here you sel"><button type="button" data-step="ship"/);
   assert.match(page, /class="prbox"/);
-  assert.match(page, /Review before you push:<\/span><a class="btn primary" href="review\.html\?id=41610&amp;repo=gateway"/);
+  assert.doesNotMatch(page, /Review before you push/, 'connector 1.28.0: the code review is reached from Publish, and Approve publishes');
   assert.match(page, /data-remove="41610-rate-limit-headers"/, 'Remove once it merges');
   S.ui.run = null;
 

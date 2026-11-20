@@ -43,6 +43,9 @@ To find an item by id, list `.work/` and match the one folder that starts with `
 | `progress.md` | every command (append only) | Entries: heading, `Did`, `Verify`, `Notes`, `Next` |
 | `findings.md` | `/spike` (spike folders) | Title, sections |
 | `tsd.md`, `check.md` | `/tsd`, `/check-docs` (tsd folders) | Title, `Status:`, wrong or outdated rows |
+| `revise.md` | `/revise` (Send back, Core 4.15.0) | `- Status: READY \| HOLD`; `## Needs you` (the held comments). HOLD stops autopilot for the engineer (connector 1.28.0) |
+| `code-review/<repo>/` | Workshop's code review (connector 1.28.0); `rev-<n>-response.json` by `/revise` | See "Code review, Send back and after Publish" below |
+| `ci/failure-<n>.md`, `ci/conflict-<n>.md` | The opencode connector after Publish (1.28.0); the `- Result:` line by `/pr-fix` (Core 4.15.0) | The newest file's `- Result:` (see below) |
 
 Files are UTF-8 Markdown with LF or CRLF line ends. A file that does not exist means "not reached yet", which is different from a file without the expected line.
 
@@ -239,12 +242,21 @@ Since eng-agents Core 4.9.0, `.work/gaps.md` holds what agents needed to know an
 
 ## Factory settings (`factory.json`), UI checks (`ui/`) and regression tests (`tests/`)
 
-Since connector 1.21.0, the opencode connector writes `.work/factory.json` (Settings, Factory) on every start: `{version: 1, taskFileCap, quickTasks, retries, autoFix, reviewRounds, uiChecks, regression, worktrees}` (`regression` since 1.26.0). eng-agents commands read it (Core 4.9.0) and never write it.
+Since connector 1.21.0, the opencode connector writes `.work/factory.json` (Settings, Factory) on every start: `{version: 1, taskFileCap, quickTasks, retries, autoFix, reviewRounds, uiChecks, regression, worktrees, uiCheckPerTask, modelSeesImages}` (`regression` since 1.26.0; `uiCheckPerTask`, default true, and `modelSeesImages`, default false, since 1.28.0). eng-agents commands read it (Core 4.9.0) and never write it.
 
-An item folder's `ui/` holds UI check results, written only by eng-agents' `Test-Ui.ps1`: `results-<name>.json` (`before` from `/start`, `after` from `/review`: `{version: 1, name, at, url, verdict: pass|fail|skipped, reason, pages: [{path, width, file, status, error, consoleErrors, failedRequests, a11y, diff}], problems, changed}`), the screenshots in `<name>/` and changed-pixel images in `diff/`.
+An item folder's `ui/` holds UI check results, written only by eng-agents' `Test-Ui.ps1`: `results-<name>.json` (`before` from `/start`, `after` from `/review`, `task-<n>` from `/do-task` since Core 4.15.0: `{version: 1, name, at, url, verdict: pass|fail|skipped, reason, pages: [{path, width, file, status, error, consoleErrors, failedRequests, a11y, diff}], problems, changed}`), the screenshots in `<name>/` and changed-pixel images in `diff/`. Workshop's Publish block reads only the newest result that is not `before` or `task-<n>`. While a build's app runs (Core 4.15.0, `Start-UiApp.ps1`), `ui/app.json` holds `{version: 1, pid, url, ready, port, cwd, started, ours}` (`ours: false` when the app was already running); the connector's Try it (1.28.0) opens `url` and `Stop-UiApp.ps1` removes the file.
 
 An item folder's `tests/` holds regression suite results (Core 4.14.0), written only by eng-agents' `Test-Suite.ps1`: `results-<name>.json` (`before` from `/start`, `after` from `/review` and `/pr`: `{version: 1, name, at, runner, command, verdict: pass|fail|skipped, reason, passed, failed, flaky, skipped, failures: [{file, title, error}], preExisting: [...], flakyTests: [{file, title}], newTests: [{file, title, status}], acceptance: ["AC-1", ...]}`), The model's item gets `tests` from the newest run that is not `before` (by `at`): `{verdict, passed, failed, flaky, newTests (a count), acceptance, at}` (connector 1.26.0), only when there is one. Also there: the runner's raw `playwright-<name>.json` and `log-<name>.txt`, which Workshop does not read. `failed` counts only tests that did not fail before the change; those that did are in `preExisting`.
 
+## Code review, Send back and after Publish
+
+Since connector 1.28.0 and eng-agents Core 4.15.0 (Workshop project docs `claude/publish-review-v1-plan.md` and `claude/after-publish-v1-plan.md`).
+
+- `code-review/<repo>/state.json` (Workshop only; Tandem reads it): `{revision, status: awaiting_review|revising|approved, lastReviewedHeadSha}`. `rev-<n>.json` (Workshop): the engineer's verdict on revision `n`, `{workItemId, repo, revision, headSha, verdict: approve|request_changes, summary?, comments: [{id, path, side, startLine, endLine, quotedCode, type: must_fix|suggestion|question, body, suggestedCode?, rule?}], submittedAt}`. **Send back** sets `status: revising` and autopilot runs `/revise <id> auto` first.
+- `rev-<n>-response.json` (`/revise` only): a JSON list, `[{commentId, status: fixed|answered|declined, note}]`. Workshop shows them beside the comments once the build is back at Ready.
+- `/revise` also adds fix tasks to `tasks.md` (each with `- From comment: <repo>/<comment id>` under `- Repo:`, which the parser ignores), moves `pr.md` to `history/pr-<date>-<n>.md` and writes `revise.md`. The next step rules above then run the new tasks, `/review` and `/pr` as usual.
+- `ci/failure-<n>.md` and `ci/conflict-<n>.md` (the connector): the repo, branch, base and commit, the failed checks with links and the end of their logs, or the PR's conflict. `/pr-fix <id> ci|conflict auto` appends one line and nothing else: `- Result: FIXED <short commit> <the cause and the fix>`, `- Result: NOT FIXED <why>` (`not caused by this change: ...` when the pipeline itself failed) or `- Result: NEEDS YOU <why>`. FIXED is a commit on the branch, never pushed: Loom shows Push fix.
+
 ## Connector-owned files
 
-The opencode connector owns `.work/_dashboard/` (`sessions.json`: which opencode session belongs to which item; `autopilot.json`; `pr-queue.json`: Review all and the nightly PR review; `observations.json`: what you did with each observation; `gaps.json`: answers sent to `/teach`; `published.json`: what Publish pushed). Their format is internal to the connector and not part of this contract. eng-agents commands never read or write them.
+The opencode connector owns `.work/_dashboard/` (`sessions.json`: which opencode session belongs to which item; `autopilot.json`; `pr-queue.json`: Review all and the nightly PR review; `observations.json`: what you did with each observation; `gaps.json`: answers sent to `/teach`; `published.json`: what Publish pushed and, since 1.28.0, where each PR stands after it (CI, reviews, comments, the fix, merged)). Their format is internal to the connector and not part of this contract. eng-agents commands never read or write them.

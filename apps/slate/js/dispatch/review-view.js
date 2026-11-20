@@ -2,7 +2,7 @@
    review.js paints these and wires Monaco into #rv-diff. Every value from the agent or the reviewer
    goes through esc(). */
 
-import { STATUS_LETTER, TYPES, RESPONSE_LABEL, typeLabel, rangeLabel, firstLine, fileTree, commentCounts, previousRows, visibleFiles, canRequestChanges } from './review-state.js';
+import { STATUS_LETTER, TYPES, RESPONSE_LABEL, NOTE_LABEL, typeLabel, rangeLabel, firstLine, fileTree, commentCounts, previousRows, visibleFiles, canRequestChanges, readingGroups, threadRows } from './review-state.js';
 import { outsideMark } from '../../../../shared/outside.js';
 
 export const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -50,14 +50,14 @@ export function topBar(session, item, ui) {
 export function banner(session, ui) {
   if (ui.error) return `<div class="rv-banner bad" role="alert">${esc(ui.error)}</div>`;
   if (session.status === 'approved') {
-    return ui.pushed
-      ? `<div class="rv-banner ok">Approved and pushed. Create the pull request from Loom.</div>`
-      : `<div class="rv-banner ok">Approved. The branch is not pushed yet: Push to origin sends it to the git remote, after a confirm.</div>`;
+    return ui.published
+      ? `<div class="rv-banner ok">Approved and published. Create the pull request on the page that opened.</div>`
+      : `<div class="rv-banner ok">Approved. ${ui.publishError ? `Publishing did not go through: ${esc(ui.publishError)} ` : ''}Publish from Loom when you are ready.</div>`;
   }
   if (session.status === 'revising') {
     const run = session.revisionRun;
-    if (run && run.status === 'failed') return `<div class="rv-banner warn" role="alert"><strong>The revision needs you.</strong> ${esc(run.message || '')} Reply to the agent from Loom.</div>`;
-    return `<div class="rv-banner">The agent is revising. This page updates when it is ready for review.</div>`;
+    if (run && run.status === 'failed') return `<div class="rv-banner warn" role="alert"><strong>Tandem is not working on your comments.</strong> ${esc(run.message || '')} <button class="btn" data-act="revise"${ui.revising ? ' disabled' : ''}>Start Tandem on them</button></div>`;
+    return `<div class="rv-banner">Tandem is working on your comments: fix tasks, then a review, tests and the UI check again. This page shows revision ${esc(session.revision + 1)} when it is back at Publish.</div>`;
   }
   if (ui.sinceLast) return `<div class="rv-banner">Showing only what changed since revision ${esc(session.revision - 1)}. Comments here go on the new code.</div>`;
   if (ui.inlineNote) return `<div class="rv-banner">Inline view: comments go on the new code. Switch to side by side to comment on removed lines.</div>`;
@@ -66,22 +66,39 @@ export function banner(session, ui) {
 
 /* ---------- files pane ---------- */
 
+function fileButton(f, name, pad, counts, ui, notes) {
+  const n = counts[f.path] || 0;
+  const tip = f.status === 'renamed' ? `Renamed from ${f.oldPath}` : f.status;
+  const k = notes[f.path] || 0;
+  return `<li><button class="rv-file${f.path === ui.file ? ' on' : ''}" ${pad} data-act="file" data-path="${esc(f.path)}" title="${esc(f.path)}">
+      <span class="rv-badge s-${esc(f.status)}" title="${esc(tip)}">${STATUS_LETTER[f.status] || '?'}</span>
+      <span class="rv-name">${esc(name)}</span>
+      ${n ? `<span class="rv-ccount" title="${plural(n, 'draft comment')}">${n}</span>` : ''}${k ? `<span class="rv-ncount" title="${plural(k, 'note')} from Tandem's review">${k}</span>` : ''}
+      ${f.binary ? '<span class="rv-delta mono">binary</span>' : `<span class="rv-delta mono"><span class="add">+${f.additions}</span> <span class="del">-${f.deletions}</span></span>`}
+    </button></li>`;
+}
+
 export function filesPane(session, draft, ui) {
   const files = visibleFiles(session, ui.sinceLast);
   if (!files.length) return `<p class="rv-empty">${ui.sinceLast ? 'Nothing changed since the last review.' : 'No changed files.'}</p>`;
   const counts = commentCounts(draft.comments);
+  const notes = {};
+  for (const x of session.notes || []) if (x.state === 'open') notes[x.path] = (notes[x.path] || 0) + 1;
+  // Reading order (connector 1.28.0): each task's files in task order, generated and lock files folded.
+  const groups = !ui.sinceLast && readingGroups(files);
+  if (groups) {
+    return groups.map(g => {
+      const open = !g.folded || !!ui.showFolded;
+      const head = g.folded
+        ? `<button class="rv-ghead lnk plain" data-act="folded" aria-expanded="${open}">${esc(g.label)} (${g.files.length})</button>`
+        : `<p class="rv-ghead" title="${esc(g.label)}">${esc(g.label)}</p>`;
+      return `<div class="rv-rgroup">${head}${open ? `<ul class="rv-tree" role="list">${g.files.map(f => fileButton(f, f.path, 'style="--d:0"', counts, ui, notes)).join('')}</ul>` : ''}</div>`;
+    }).join('');
+  }
   const rows = fileTree(files).map(r => {
     const pad = `style="--d:${r.depth}"`;
     if (r.type === 'dir') return `<li class="rv-dir" ${pad}>${ICON.folder}<span>${esc(r.name)}</span></li>`;
-    const f = r.file;
-    const n = counts[f.path] || 0;
-    const tip = f.status === 'renamed' ? `Renamed from ${f.oldPath}` : f.status;
-    return `<li><button class="rv-file${f.path === ui.file ? ' on' : ''}" ${pad} data-act="file" data-path="${esc(f.path)}" title="${esc(f.path)}">
-      <span class="rv-badge s-${esc(f.status)}" title="${esc(tip)}">${STATUS_LETTER[f.status] || '?'}</span>
-      <span class="rv-name">${esc(r.name)}</span>
-      ${n ? `<span class="rv-ccount" title="${plural(n, 'draft comment')}">${n}</span>` : ''}
-      ${f.binary ? '<span class="rv-delta mono">binary</span>' : `<span class="rv-delta mono"><span class="add">+${f.additions}</span> <span class="del">-${f.deletions}</span></span>`}
-    </button></li>`;
+    return fileButton(r.file, r.name, pad, counts, ui, notes);
   }).join('');
   return `<ul class="rv-tree" role="list">${rows}</ul>`;
 }
@@ -91,7 +108,8 @@ export function filesPane(session, draft, ui) {
 export function fileBar(file) {
   if (!file) return '';
   const from = file.status === 'renamed' ? `<span class="rv-from mono">${esc(file.oldPath)} &rarr;</span>` : '';
-  return `${from}<span class="mono">${esc(file.path)}</span><span class="rv-badge s-${esc(file.status)}">${STATUS_LETTER[file.status] || '?'}</span>`;
+  const task = file.task ? `<span class="rv-ftask" title="The task that changed it">Task ${esc(file.task.n)}: ${esc(file.task.title)}</span>` : '';
+  return `${from}<span class="mono">${esc(file.path)}</span><span class="rv-badge s-${esc(file.status)}">${STATUS_LETTER[file.status] || '?'}</span>${task}`;
 }
 
 export function placeholder(kind, size) {
@@ -110,7 +128,7 @@ export function commentBox(c, { editing, expanded, readOnly }) {
     const body = expanded ? `<div class="rv-cbody">${esc(c.body)}</div>${c.suggestedCode !== undefined ? `<pre class="rv-suggest mono">${esc(c.suggestedCode)}</pre>` : ''}` : `<span class="rv-cfirst">${esc(firstLine(c.body))}</span>`;
     const actions = expanded && !readOnly ? `<div class="rv-cactions"><button class="btn" data-act="c-edit" data-id="${esc(c.id)}">Edit</button><button class="btn text-danger" data-act="c-delete" data-id="${esc(c.id)}">Delete</button></div>` : '';
     return `<div class="rv-card${expanded ? ' open' : ''}" data-id="${esc(c.id)}">
-  <button class="rv-chead" data-act="c-toggle" data-id="${esc(c.id)}" aria-expanded="${!!expanded}"><span class="rv-type t-${esc(c.type)}">${esc(typeLabel(c.type))}</span><span class="rv-range mono">${esc(rangeLabel(c))}</span>${expanded ? '' : body}</button>
+  <button class="rv-chead" data-act="c-toggle" data-id="${esc(c.id)}" aria-expanded="${!!expanded}"><span class="rv-type t-${esc(c.type)}">${esc(typeLabel(c.type))}</span>${c.rule ? '<span class="rv-rule" title="Saved as a rule for this repo once it is fixed">Rule</span>' : ''}<span class="rv-range mono">${esc(rangeLabel(c))}</span>${expanded ? '' : body}</button>
   ${expanded ? body : ''}${actions}
 </div>`;
   }
@@ -119,7 +137,8 @@ export function commentBox(c, { editing, expanded, readOnly }) {
   return `<form class="rv-form" data-id="${esc(c.id)}">
   <div class="rv-fhead"><span class="rv-range mono">${esc(c.path)} ${esc(rangeLabel(c))}</span><div class="rv-tchips" role="group" aria-label="Comment type">${chips}</div></div>
   <textarea class="rv-text" name="body" rows="3" placeholder="What should change, or what is your question?" aria-label="Comment">${esc(c.body)}</textarea>
-  <label class="rv-stoggle"><input type="checkbox" data-act="c-suggest"${suggest ? ' checked' : ''}> Suggest change</label>
+  <div class="rv-toggles"><label class="rv-stoggle"><input type="checkbox" data-act="c-suggest"${suggest ? ' checked' : ''}> Suggest change</label>
+  <label class="rv-stoggle" title="Tandem saves it in this repo's guide, so it is never needed again"><input type="checkbox" name="rule" data-act="c-rule"${c.rule ? ' checked' : ''}> Make it a rule</label></div>
   ${suggest ? `<textarea class="rv-text mono rv-code" name="suggested" rows="${Math.min(12, Math.max(2, c.suggestedCode.split('\n').length))}" aria-label="Proposed replacement" spellcheck="false">${esc(c.suggestedCode)}</textarea>` : ''}
   <div class="rv-factions"><span class="rv-hint"><kbd>Ctrl</kbd>+<kbd>Enter</kbd> saves, <kbd>Esc</kbd> cancels</span><button type="button" class="btn ghost" data-act="c-cancel">Cancel</button><button type="submit" class="btn primary">Save</button></div>
 </form>`;
@@ -127,7 +146,7 @@ export function commentBox(c, { editing, expanded, readOnly }) {
 
 /* ---------- review panel ---------- */
 
-// ui: { panelOpen, submitting, approveLabel, confirmApprove, pushed, pushing }
+// ui: { panelOpen, submitting, approveLabel, confirmApprove, canPublish, published, publishing, publishError, revising }
 export function panel(session, draft, ui) {
   if (!ui.panelOpen) return '';
   const open = session.status === 'awaiting_review';
@@ -146,13 +165,25 @@ export function panel(session, draft, ui) {
 </section>` : '';
 
   const can = canRequestChanges(draft);
-  const pushRow = session.status === 'approved' && !ui.pushed
-    ? `<div class="rv-verdict"><button class="btn primary" data-act="push" data-out${ui.pushing ? ' disabled' : ''}>${ui.pushing ? 'Pushing...' : `Push to origin ${outsideMark('git')}`}</button></div>`
-    : '';
+  const approve = `${esc(ui.approveLabel)} ${outsideMark('git')}`;
   const actions = open ? (ui.confirmApprove
-    ? `<div class="rv-confirm" role="alert"><p>Approving sends no line comments. Discard ${plural(draft.comments.length, 'draft comment')} and approve?</p><div class="rv-verdict"><button class="btn" data-act="approve-cancel">Keep them</button><button class="btn primary" data-act="approve-confirm"${ui.submitting ? ' disabled' : ''}>${esc(ui.approveLabel)}</button></div></div>`
-    : `<div class="rv-verdict"><button class="btn primary" data-act="approve"${ui.submitting ? ' disabled' : ''}>${esc(ui.approveLabel)}</button><button class="btn" data-act="request"${!can || ui.submitting ? ' disabled' : ''} title="${can ? 'Send every comment to the agent as one revision' : 'Add a comment or a summary first'}">Request changes</button></div>`)
+    ? `<div class="rv-confirm" role="alert"><p>Approving sends no line comments. Discard ${plural(draft.comments.length, 'draft comment')} and publish?</p><div class="rv-verdict"><button class="btn" data-act="approve-cancel">Keep them</button><button class="btn primary" data-act="approve-confirm" data-out${ui.submitting ? ' disabled' : ''}>${approve}</button></div></div>`
+    : `<div class="rv-verdict"><button class="btn primary" data-act="approve" data-out${ui.submitting || !ui.canPublish ? ' disabled' : ''} title="${ui.canPublish ? 'Pushes every branch of this build (never force), then opens the PR pages' : 'Not ready to publish: the build is not at Publish'}">${approve}</button><button class="btn" data-act="request"${!can || ui.submitting ? ' disabled' : ''} title="${can ? 'Tandem turns your comments into fixes, reviews and tests again, and brings it back here' : 'Add a comment or a summary first'}">Send back</button></div>`)
     : '';
+  const pushRow = session.status === 'approved' && !ui.published && ui.canPublish
+    ? `<div class="rv-verdict"><button class="btn primary" data-act="publish" data-out${ui.publishing ? ' disabled' : ''}>${ui.publishing ? 'Publishing...' : `Publish ${outsideMark('git')}`}</button></div>`
+    : '';
+  const notes = (session.notes || []);
+  const notesSec = notes.length ? `<section class="rv-sec">
+  <p class="section-label">Tandem's review (${notes.length})</p>
+  <ul class="rv-notes" role="list">${notes.map(n => `<li class="rv-note${n.state === 'fixed' ? ' fixed' : ''}"><button class="rv-entry" data-act="jump-note" data-path="${esc(n.path)}" data-line="${esc(n.line)}"><span class="rv-nsev n-${esc(n.severity)}">${esc(NOTE_LABEL[n.severity] || n.severity)}</span><span class="rv-range mono">${esc(n.path)}:${esc(n.line)}</span><span class="rv-cfirst">${esc(firstLine(n.text))}</span></button>${n.state === 'fixed' ? '<p class="rv-answer"><span class="rv-astatus a-fixed">Fixed</span> in review round ' + esc(n.round) + '</p>' : ''}</li>`).join('')}</ul>
+  <p class="muted rv-hint">What Tandem found and fixed on its own. Comment on a line to send any of it back.</p>
+</section>` : '';
+  const threads = threadRows(session);
+  const threadSec = threads.length ? `<section class="rv-sec">
+  <p class="section-label">On the PR (${threads.length})</p>
+  <ul class="rv-threads" role="list">${threads.map(t => `<li class="rv-thread${t.resolved ? ' fixed' : ''}"><p class="rv-tmeta"><span class="mono">${t.path ? `${esc(t.path)}${t.line ? ':' + esc(t.line) : ''}` : 'The PR'}</span> ${esc(t.author || '')}</p><p class="rv-cfirst">${esc(firstLine(t.text))}</p>${!t.resolved && t.path && t.line && open ? `<button class="btn small" data-act="thread-add" data-id="${esc(t.id)}"${draft.comments.some(c => c.from === t.id) ? ' disabled' : ''}>${draft.comments.some(c => c.from === t.id) ? 'In your comments' : 'Add to my comments'}</button>` : ''}</li>`).join('')}</ul>
+</section>` : '';
 
   return `<div class="rv-panel-in">
   <section class="rv-sec">
@@ -166,5 +197,7 @@ export function panel(session, draft, ui) {
   </section>
   ${actions}${pushRow}
   ${prevList}
+  ${threadSec}
+  ${notesSec}
 </div>`;
 }

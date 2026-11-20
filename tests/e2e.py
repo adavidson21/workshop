@@ -1323,8 +1323,8 @@ def agents_checks(b, watch):
 
         # Loom 6.4.0: the floor is the default view: a code line and a research line of stations, stuck runs in a bin.
         af.click('.ln-panel [data-lane-close]'); pg.wait_for_timeout(200)
-        check('the floor is the default: Floor is pressed, the code line has its seven stations in order', af.get_attribute('[data-lane-view=floor]', 'aria-pressed') == 'true'
-              and af.eval_on_selector_all('.fl-code .fl-name', 'els => els.map(e => e.innerText)') == ['Plan desk', 'Build bay', 'Test bench', 'UI check', 'Review', 'Fix shop', 'Loading dock'])
+        check('the floor is the default: Floor is pressed, the code line has its eight stations in order', af.get_attribute('[data-lane-view=floor]', 'aria-pressed') == 'true'
+              and af.eval_on_selector_all('.fl-code .fl-name', 'els => els.map(e => e.innerText)') == ['Plan desk', 'Build bay', 'Test bench', 'UI check', 'Review', 'Fix shop', 'Loading dock', 'In transit'])
         check('a run at Ship is at the Loading dock, a root cause at the Plan desk, a stopped run pulled off the line', af.locator('.fl-code .st-dock [data-lane-open="41610-rate-limit-headers"]').count() == 1
               and af.locator('.fl-code .st-plan [data-lane-open="41300-export-retry-fails"]').count() == 1 and af.locator('.fl-stuck [data-lane-open="41502-csv-export"]').count() == 1)
         check('a spike at its findings is in the research line\'s Out tray', af.locator('.fl-paper .st-out [data-lane-open="spike-cache-options"]').count() == 1)
@@ -1493,8 +1493,8 @@ def agents_checks(b, watch):
         pg.click('.app-btn[data-app=slate]'); pg.wait_for_timeout(800)
 
         # Ship: the run's page has the PR box, with copy buttons, then Review instead of Push. The code review
-        # (review.html) reads the diff from git through the connector. Approve pushes nothing; Push to origin, after the
-        # shared git confirm, pushes the pr.md branch.
+        # (review.html) reads the diff from git through the connector. Approve and publish, after the shared git
+        # confirm, records the verdict and publishes (connector 1.28.0): the pr.md branch is pushed.
         af.click('#app .tabs [data-tab=lanes]'); pg.wait_for_timeout(300)
         if af.locator('.ln-panel [data-open-run="41610-rate-limit-headers"]').count() == 0: af.click('.fl-rowb[data-lane-open="41610-rate-limit-headers"]'); pg.wait_for_timeout(400)
         af.click('.ln-panel .ln-foot [data-open-run="41610-rate-limit-headers"]'); pg.wait_for_timeout(300)
@@ -1509,10 +1509,9 @@ def agents_checks(b, watch):
               and branch in af.inner_text('.rv-meta') and af.locator('.rv-file').count() >= 1)
         check('nothing is pushed before Approve', branch not in ask({'requests': True})['branches'])
         af.locator('[data-act=approve]').click()
-        af.wait_for_selector('[data-act=push]', timeout=20000)
-        check('Approve pushes nothing', branch not in ask({'requests': True})['branches'])
-        af.locator('[data-act=push]').click()
         af.wait_for_selector('dialog.out-dialog[open]')
+        check('Approve and publish asks first in the git confirm (connector 1.28.0)', 'Publish' in af.inner_text('dialog.out-dialog')
+              and branch not in ask({'requests': True})['branches'])
         af.locator('dialog.out-dialog [data-out-ok]').click()
         pushed = False
         for _ in range(60):
@@ -1521,9 +1520,9 @@ def agents_checks(b, watch):
             pg.wait_for_timeout(250)
         review_state = os.path.join(info['workspace'], '.work', '41610-rate-limit-headers', 'code-review', 'gateway', 'state.json')
         approved = os.path.exists(review_state) and json.load(open(review_state))['status'] == 'approved'
-        check('Approve records the verdict, and Push to origin pushes the pr.md branch', pushed and approved)
-        # The branch reaches origin before Push answers; wait for its toast so it cannot replace the next one.
-        toast_has(pg, 'Pushed ')
+        check('Approve records the verdict and publishes: the pr.md branch is pushed', pushed and approved)
+        # The branch reaches origin before Publish answers; wait for its toast so it cannot replace the next one.
+        toast_has(pg, 'Approved and published')
         af.locator('[data-act=back]').click()
         af.wait_for_selector('.ln-panel [data-open-run="41610-rate-limit-headers"]', timeout=20000)
         check('Back to Loom returns to the run (its panel in Lanes, Loom 6.4.0)', af.locator('.ln-panel .ln-foot [data-open-run="41610-rate-limit-headers"]').count() == 1)

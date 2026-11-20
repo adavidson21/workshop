@@ -5,19 +5,19 @@
 // The live server's HTTP routes are the actions below; its event stream is connector events.
 import fs from "node:fs";
 import path from "node:path";
-import { REPO_FOLDER_MAX, VERSION, configure, current, httpError, opt, shutdown, workRoot } from "./lib/context.mjs";
+import { REPO_FOLDER_MAX, VERSION, configure, current, every, httpError, opt, shutdown, workRoot } from "./lib/context.mjs";
 import { installInfo, tandemHealth } from "./lib/tandem-health.mjs";
 import { ARMS, MAX_MODELS, MAX_RUNS, PRESETS, commandFor, evalsHome, listCases, listExperiments, listResults, openEvalsTerminal, readCommands, readGuards, readResult, runArgs, scriptArgs } from "./lib/evals.mjs";
 import { clearModelHooks, model, modelError, onModel, parserGone, refresh, resetModel, watchWork } from "./lib/model.mjs";
 import { currentSession, loadLinks } from "./lib/links.mjs";
 import { oc, resetState, sessions } from "./lib/opencode-state.mjs";
 import { connectOpencode, disconnectOpencode, onConnected } from "./lib/opencode-connect.mjs";
-import { abort, answerPermission, answerQuestion, openTerminal, pushBranch, removeItem, reply, resetActions, runCommand, shellData, startItem } from "./lib/actions.mjs";
+import { abort, answerPermission, answerQuestion, openTerminal, pushBranch, removeItem, removeWorktrees, reply, resetActions, runCommand, shellData, startItem } from "./lib/actions.mjs";
 import { autopilot, autopilotAction, loadAuto, resumeAfterGap, resumeQueued } from "./lib/autopilot.mjs";
 import { decideObservation, findObservation, loadObservations, resetObservations, startArgs } from "./lib/observations.mjs";
 import { answerGap, loadGaps, MAX_ANSWER, onGapClosed, resetGaps } from "./lib/gaps.mjs";
 import { buildEpic, coverProduct, dismissOnboarding, loadEpics, onboardProduct, resetEpics, startWaiting } from "./lib/epics.mjs";
-import { forgetPublished, loadPublished, publishItem, readyToPublish, resetPublished } from "./lib/publish.mjs";
+import { forgetPublished, loadPublished, publishItem, readyToPublish, resetPublished, setPublishHooks } from "./lib/publish.mjs";
 import { adoNoticeSeen, linkItem, loadAdoLinks, resetAdoLinks, unlinkAllOnce, unlinkItem } from "./lib/ado-link.mjs";
 import { pageData, resetLive } from "./lib/live.mjs";
 import { MAX_LOG, TIMEBOXES, addRepo, dismissLoose, onboardRepo, resetWorkspace, runLoose, startLocal, startDocs, startReview, startSpike, startTsd } from "./lib/workspace.mjs";
@@ -27,7 +27,12 @@ import { clearQueue, loadPrQueue, prReviews, resetPrQueue, reviewAll, saveInbox,
 import { COLORS, INBOX, assignRun, createProject, deleteProject, loadProjects, moveProject, projectOf, resetProjects, updateProject } from "./lib/projects.mjs";
 import { findItem } from "./lib/actions.mjs";
 import { broadcastLive, emitProjects } from "./lib/live.mjs";
-import { loadReview, needReview, resetReview } from "./lib/review.mjs";
+import { diffStats, loadReview, needReview, resetReview, reviewGone, reviewSummary, reviseAgain } from "./lib/review.mjs";
+import { openPreview, resetPreviews, stopPreview, sweepIdle } from "./lib/preview.mjs";
+import { loadAfterPublish, recordStatus, resetAfterPublish, watchList } from "./lib/after-publish.mjs";
+
+// The Publish block's code review and change size (lib/publish.mjs stays free of the review and git code).
+setPublishHooks({ review: (folder) => reviewSummary()[folder] || {}, diff: (it) => diffStats(it) });
 import { DAY, MAX_NOTES_BYTES, MAX_PACKET_BYTES, draftOneOnOne, oneOnOneResult, resetOneOnOnes, tidyOneOnOne, tidyResult } from "./lib/one-on-one.mjs";
 import { HUB_ID, MAX_MESSAGE, hubResult, resetHub, runHub } from "./lib/hub.mjs";
 import { MAX_PROMPT as VOICE_MAX, KINDS as VOICE_KINDS, resetVoice, runVoice, voiceResult } from "./lib/voice.mjs";
@@ -180,6 +185,8 @@ export const configSchema = {
         autoFix: { type: "string", title: "Review findings fixed on their own", description: "Which review findings become fix tasks without asking you. Nits never do.", enum: ["should-fix", "blockers"], "x-workshop-labels": ["Blockers and Should fix", "Blockers only"], default: "should-fix", "x-workshop-hosted": true },
         reviewRounds: { type: "integer", title: "Review rounds", description: "Reviews autopilot runs before a review that is still not ready waits for you. Default 2.", minimum: 1, maximum: 4, default: 2, "x-workshop-hosted": true },
         uiChecks: { type: "boolean", title: "UI checks with screenshots", description: "When a change touches UI files, start the app, screenshot its pages and check them (needs a UI checks table in the repo guide and Playwright in the repo). Skipped, never a stop, when the app cannot start on this computer.", default: true, "x-workshop-hosted": true },
+        uiCheckPerTask: { type: "boolean", title: "UI check in every task", description: "Each task that changes UI files opens its own pages before it commits (one width, with the app kept running for the build), and reads them to confirm what the task promised is there. A problem is fixed in that task instead of in a review round. Needs the same UI checks table.", default: true, "x-workshop-hosted": true },
+        modelSeesImages: { type: "boolean", title: "The model can see images", description: "Also hand the per-task screenshot to the model. Leave off for a model that reads text only: it reads the page as text either way.", default: false, "x-workshop-hosted": true },
         regression: { type: "boolean", title: "Regression tests", description: "Run each repo's whole end-to-end suite before and after every build, and write a test for every acceptance criterion people can see (needs a Regression tests table in the repo guide). A test that passed before and fails now is fixed before the PR.", default: true, "x-workshop-hosted": true },
         worktrees: { type: "string", title: "Worktrees", description: "Every build in its own git worktree, or only when the repo folder is busy.", enum: ["always", "busy"], "x-workshop-labels": ["Every build", "Only when busy"], default: "always", "x-workshop-hosted": true },
       },
@@ -231,6 +238,8 @@ function resetAll() {
   resetActions();
   resetProjects();
   resetReview();
+  resetPreviews();
+  resetAfterPublish();
   resetPrQueue();
   resetOneOnOnes();
   resetHub();
@@ -1360,10 +1369,10 @@ const actions = {
   "publish.all": {
     title: "Publish every item that is ready with nothing to answer",
     write: true,
-    argsSchema: obj([], { project: projectId }),
+    argsSchema: obj([], { project: projectId, skip: { type: "array", title: "Leave out (folders with draft comments)", maxItems: 200, items: folder } }),
     async run(args) {
       needReady();
-      let items = readyToPublish((model && model.items) || []);
+      let items = readyToPublish((model && model.items) || [], args.skip || []);
       if (args.project) items = items.filter((it) => projectOf(it.folder) === args.project);
       const done = [];
       const failed = [];
@@ -1507,6 +1516,54 @@ const actions = {
       return needReview().getFile(args.id, args.repo, args.path, args.side);
     },
   },
+  // 1.28.0 (claude/after-publish-v1-plan.md): Workshop's agent watches published PRs (agent/lib/pr-watch.mjs).
+  "published.watch": {
+    title: "After Publish: the published PRs to check, each repo with its remote",
+    write: false,
+    argsSchema: obj([], {}),
+    async run() {
+      needReady();
+      return { items: watchList((model && model.items) || []) };
+    },
+  },
+  "published.record": {
+    title: "After Publish: where one repo's PR stands; starts Tandem's fix when CI fails or it conflicts",
+    write: true,
+    argsSchema: obj(["folder", "repo"], { folder, repo: str("Repo folder", { minLength: 1, maxLength: 260 }), status: { type: "object", title: "pr.status's answer" }, error: str("The error pr.status gave", { maxLength: 1000 }) }),
+    async run(args) {
+      needReady();
+      return recordStatus(args, { findItem, removeWorktrees, runCommand });
+    },
+  },
+  "preview.open": {
+    title: "Try it: start the build's app (or reuse it) and say its address",
+    write: true,
+    argsSchema: obj(["folder"], { folder, repo: str("Repo folder", { maxLength: 260 }) }),
+    async run(args) {
+      needReady();
+      return openPreview(args, findItem);
+    },
+  },
+  "preview.stop": {
+    title: "Try it: stop the build's app",
+    write: true,
+    argsSchema: obj(["folder"], { folder }),
+    async run(args) {
+      needReady();
+      return stopPreview(args, findItem);
+    },
+  },
+  "review.revise": {
+    title: "Code review: start Tandem on the comments you sent back",
+    write: true,
+    argsSchema: obj(["id"], { id: workItemId }),
+    async run(args) {
+      needReady();
+      const r = await reviseAgain(args.id);
+      broadcastLive();
+      return r;
+    },
+  },
   "review.submit": {
     title: "Code review: approve, or request changes from the agent",
     write: true,
@@ -1563,6 +1620,9 @@ export default {
     });
     loadProjects();
     loadReview();
+    loadAfterPublish();
+    // 1.28.0: a build's app that nothing has built with or opened for 30 minutes is stopped (Try it, lib/preview.mjs).
+    every(() => { if (oc.connected) sweepIdle((model && model.items) || []).catch(() => {}); }, 5 * 60 * 1000);
     loadPrQueue();
     phase = "starting";
     problem = null;
@@ -1577,6 +1637,7 @@ export default {
     phase = "stopped";
     problem = null;
     await parserGone(); // a parser still running holds the workspace folder open on Windows
+    await reviewGone(); // and so does the git behind Publish's change size
   },
   status() {
     const details = {

@@ -37,7 +37,7 @@ const where = () => {
 };
 
 test('two lines: the code line ends at the Loading dock, the research line at the Out tray; your gates are the ends', () => {
-  assert.deepEqual(CODE.map(s => s.id), ['plan', 'build', 'test', 'ui', 'review', 'fix', 'dock']);
+  assert.deepEqual(CODE.map(s => s.id), ['plan', 'build', 'test', 'ui', 'review', 'fix', 'dock', 'transit']);
   assert.deepEqual(PAPER.map(s => s.id), ['plan', 'research', 'write', 'review', 'out']);
   assert.deepEqual(CODE.filter(s => s.you).map(s => s.id), ['plan', 'dock']);
   assert.deepEqual(PAPER.filter(s => s.you).map(s => s.id), ['plan', 'out']);
@@ -206,8 +206,14 @@ test("Tandem's step.md places a build at its station, when it fits the item's st
   it.step = { name: 'test', at: '2026-10-21T11:50:00Z' };
   assert.equal(stationOf(card(it.folder)), 'test', 'no guessing: step.md says test');
   it.step = { name: 'ui', at: '2026-10-21T11:50:00Z' };
-  assert.equal(toldStep(it), '', 'UI checks only happen in review');
-  assert.equal(stationOf(card(it.folder)), 'build');
+  assert.equal(toldStep(it), 'ui', 'eng-agents Core 4.15.0: a task checks its own pages while it builds');
+  assert.equal(stationOf(card(it.folder)), 'ui');
+  it.step = { name: 'build', at: '2026-10-21T11:50:00Z' };
+  S.D.reviews = { [it.folder]: { 'web-app': { status: 'revising', revision: 1, sentBack: 2 } } };
+  assert.equal(stationOf(card(it.folder)), 'fix', 'a Send back builds its fix tasks in the Fix shop');
+  assert.match(floorHtml(lanesData('all'), '', ''), /class="fl-tst sb" aria-hidden="true">Your comments: 2</);
+  delete S.D.reviews;
+  it.step = { name: 'ui', at: '2026-10-21T11:50:00Z' };
   it.stage = 'review';
   assert.equal(stationOf(card(it.folder)), 'ui');
   it.step = { name: 'fix', at: '2026-10-21T11:50:00Z' };
@@ -228,7 +234,7 @@ test('List is rows grouped Needs you, Running and Also waiting, each with its st
   assert.deepEqual(groups.map(g => g.id), ['mine', 'running']);
   const pub = groups[0].rows.find(r => r.c.folder === '41610-rate-limit-headers');
   assert.equal(pub.where, 'Loading dock');
-  assert.deepEqual(pub.track.map(t => t.st), ['done', 'done', 'done', 'done', 'done', 'done', 'now']);
+  assert.deepEqual(pub.track.map(t => t.st), ['done', 'done', 'done', 'done', 'done', 'done', 'now', 'next']);
   const stuck = groups[0].rows.find(r => r.c.folder === '41502-csv-export');
   assert.equal(stuck.where, 'Pulled off the line');
   assert.ok(stuck.track.some(t => t.st === 'stuck'), 'the station it stopped at is marked');
@@ -284,4 +290,40 @@ test('Add regression tests lists your products with repos; a pick runs tests.cov
   assert.match(lanesHtml(), /ln-cover/);
   S.products = [];
   assert.match(coverPickHtml(), /Add one in Settings, Products/);
+});
+
+test('after Publish (connector 1.28.0): In transit with what its PR waits on, Push fix is your turn, merged today is Delivered', async () => {
+  const { transitBadge, shippedState } = await import('../js/dispatch/floor.js');
+  const { agentQueue } = await import('../js/dispatch/summary.js');
+  const { publishHtml } = await import('../js/dispatch/factory.js');
+  const F = '41610-rate-limit-headers';
+  const it = S.D.items.find(i => i.folder === F);
+  const watch = over => ({ found: true, checkedAt: '2026-10-21T11:58:00Z', pr: { id: 12, url: 'https://github.com/acme/gateway/pull/12' }, ci: 'running', checks: [], review: 'waiting', comments: 0, conflict: false, merged: false, fix: null, ...over });
+  S.D.publish = { [F]: { ready: true, questions: [], ui: [], published: { at: '2026-10-21T11:00:00Z', repos: [{ repo: 'gateway', branch: 'b', target: 'main', pr: null, watch: watch() }] } } };
+  assert.equal(shippedState(it), 'transit');
+  assert.equal(where()[F], 'code:transit');
+  assert.deepEqual(transitBadge(it), { cls: 'ok', text: 'CI running' });
+  const rec = S.D.publish[F].published.repos[0];
+  rec.watch = watch({ ci: 'failed', checks: [{ name: 'test', state: 'failed', url: 'https://github.com/acme/gateway/runs/1' }], fix: { state: 'working', kind: 'ci' } });
+  assert.deepEqual(transitBadge(it), { cls: 'bad', text: 'CI failed: fixing' });
+  assert.match(publishHtml(it), /Tandem is fixing the failing CI\./);
+  rec.watch.fix = { state: 'ready', text: 'bbb222 the test read the old constant' };
+  assert.deepEqual(transitBadge(it), { cls: 'warn', text: 'Fix ready to push' });
+  const html = floorHtml(lanesData('all'), '', '');
+  assert.match(html, /class="fl-card k-build mine"[^>]*data-lane-open="41610-rate-limit-headers"[\s\S]*?Fix ready to push[\s\S]*?<span class="fl-act">Push fix<\/span>/);
+  assert.match(publishHtml(it), /data-push-fix="41610-rate-limit-headers" data-repo="gateway" data-out>Push fix <span class="out-mark" data-out="git"/);
+  assert.equal(agentQueue({ items: S.D.items, publish: S.D.publish })[0].note, 'Push fix: Tandem fixed the failing CI', 'first: urgent');
+  rec.watch = watch({ ci: 'passed', review: 'changes', comments: 2 });
+  assert.match(publishHtml(it), /Changes requested<\/span> <a class="lnk" href="review\.html\?id=41610&amp;repo=gateway" data-review[^>]*>2 comments<\/a>/);
+  assert.ok(agentQueue({ items: S.D.items, publish: S.D.publish }).some(r => r.note === 'Comments on your PR: 2'));
+  // Merged today: off the line, Delivered today, Resolve in ADO for a linked item.
+  rec.watch = watch({ merged: true });
+  S.D.publish[F].published.merged = '2026-10-21T11:59:00Z';
+  S.D.adoLinks = { [F]: { linked: true, ado: '41610', was: null } };
+  const fd = floorHtml(lanesData('all'), '', '');
+  assert.doesNotMatch(fd, /data-lane-open="41610-rate-limit-headers"/);
+  assert.match(fd, /data-lane-delivered="1" aria-expanded="false">Delivered today: 1</);
+  assert.match(publishHtml(it), /Merged<\/span>[\s\S]*data-ado-resolve="41610-rate-limit-headers" data-ado="41610" data-out>Resolve in ADO/);
+  delete S.D.publish;
+  delete S.D.adoLinks;
 });
