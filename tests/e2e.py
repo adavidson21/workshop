@@ -825,7 +825,7 @@ def agent_checks(b, watch):
         item.get_by_label('Name (required)', exact=True).fill('work')
         item.get_by_label('Server URL (required)', exact=True).fill('https://ado.example.com')
         item.get_by_label('Collection (required)', exact=True).fill('Main')
-        pat = item.locator('.cfg-row', has=sf.get_by_label('PAT environment variable (required)', exact=True))
+        pat = item.locator('.cfg-row', has=sf.get_by_label('PAT (required)', exact=True))
         check('a PAT is never typed in: only the variable name', pat.locator('input').input_value() == 'ADO_PAT' and pat.locator('input[type=password]').count() == 0 and pat.locator('.cfg-env-status').inner_text() == 'save to check')
         item.locator('> .acts button.primary').click(); sf.wait_for_timeout(1200)
         with open(os.path.join(home, 'config.json')) as f: saved = json.load(f)
