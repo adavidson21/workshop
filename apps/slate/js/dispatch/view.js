@@ -367,7 +367,7 @@ export function sessionBox(s, perms, qs, hint) {
       (L().canOpenTerminal ? `<button type="button" class="btn" data-term="${h(s.id)}" title="Opens the opencode TUI on this session">Open in terminal</button>` : '') +
       (s.attach ? copyBtn(s.attach, 'Copy terminal command') : '') + '</span></div>';
     if (busy && s.activity && !ask) out += `<div class="activity" title="${h(s.activity)}">${h(s.activity)}</div>`;
-    if (s.error) out += `<p class="err">${h(s.error)}${aiState() === 'off' ? ' <b>No AI model is connected:</b> see Getting set up.' : ''}</p>`;
+    if (s.error) out += `<p class="err">${h(s.error)}${aiState() === 'off' ? (S.view && S.view.hideSetup ? ` <b>No AI model is connected:</b> run <code>${AI_LOGIN}</code>.` : ' <b>No AI model is connected:</b> see Getting set up.') : ''}</p>`;
   }
   perms.forEach(p => { out += permHtml(p, false); });
   qs.forEach(q => { out += questionHtml(q, false); });
@@ -1268,6 +1268,7 @@ export function onboardSteps() {
   ];
 }
 export function onboardHtml() {
+  if (S.view && S.view.hideSetup) return '';
   const steps = onboardSteps();
   if (steps.every(x => x.done)) return '';
   const open = (steps.find(x => !x.done) || {}).k;
@@ -1280,7 +1281,7 @@ export function onboardHtml() {
   };
   const li = steps.map((x, i) => `<li class="gstep${x.done ? ' done' : ''}${x.k === open ? ' open' : ''}"><div class="ghead"><span class="gnum" aria-hidden="true">${x.done ? CHECK_SVG : i + 1}</span><span class="gt">${h(x.title)}</span>${x.done ? '<span class="gstate">Done</span>' : ''}</div>` +
     (x.k === open ? `<div class="gbody">${bodies[x.k]}</div>` : '') + '</li>').join('');
-  return `<section class="guide onboard" aria-label="Getting set up"><p class="eyebrow">Getting set up, ${steps.filter(x => x.done).length} of 3 done</p><ol class="gsteps">${li}</ol></section>`;
+  return `<section class="guide onboard" aria-label="Getting set up"><div class="ghide-row"><p class="eyebrow">Getting set up, ${steps.filter(x => x.done).length} of 3 done</p><button type="button" class="lnk plain" data-setup-hide="1" title="Hide setup and onboarding. Settings, Show tips again brings them back.">Hide</button></div><ol class="gsteps">${li}</ol></section>`;
 }
 
 // --------------------------------------------------------- spikes and repo guides

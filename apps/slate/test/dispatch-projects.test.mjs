@@ -164,8 +164,10 @@ test('project sheet: create sends only what was typed; edit sends only what chan
 });
 
 test('view prefs: the project filter and Floor or List (6.4.0); bad storage gives the defaults; the 1.x sidebar key is removed', () => {
-  assert.deepEqual(cleanView({ project: 'orders-api', folders: [1] }), { project: 'orders-api', lanes: 'floor' });
-  assert.deepEqual(cleanView({ project: 'all', lanes: 'list' }), { project: 'all', lanes: 'list' });
+  assert.deepEqual(cleanView({ project: 'orders-api', folders: [1] }), { project: 'orders-api', lanes: 'floor', hideSetup: false });
+  assert.deepEqual(cleanView({ project: 'all', lanes: 'list' }), { project: 'all', lanes: 'list', hideSetup: false });
+  assert.equal(cleanView({ hideSetup: true }).hideSetup, true, 'Hide on setup is remembered');
+  assert.equal(cleanView({ hideSetup: 'yes' }).hideSetup, false);
   assert.equal(cleanView({ lanes: 'grid' }).lanes, 'floor', 'anything else is the floor');
   assert.deepEqual(cleanView({ project: 'bad id!' }), emptyView());
   assert.deepEqual(cleanView('nope'), emptyView());
@@ -178,7 +180,7 @@ test('view prefs: the project filter and Floor or List (6.4.0); bad storage give
   assert.deepEqual(loadView(ms), emptyView());
   assert.equal(ms.m.has(OLD_KEY), false, 'the old sidebar state is gone');
   assert.ok(saveView(ms, { project: 'billing' }));
-  assert.deepEqual(loadView(ms), { project: 'billing', lanes: 'floor' });
+  assert.deepEqual(loadView(ms), { project: 'billing', lanes: 'floor', hideSetup: false });
 });
 
 test('project names are escaped', () => {

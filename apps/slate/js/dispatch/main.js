@@ -24,6 +24,7 @@ import { publishItems, readyClean, hasDrafts, publishOf, mergeLabel } from './fa
 import { confirmOutside } from '../../../../shared/outside.js';
 import { useApps } from '../../../../shared/capture.js';
 import { loadView, saveView, pruneView } from './local.js';
+import { captureFloor, playFloor, placePop } from './floor-motion.js';
 import { notebookRoute } from './doc.js';
 import { digestCard, digestHtml } from './digest.js';
 import { createHolder, heldFor, lastEndedFocusSpan, watchFocus, dateStr, toMin } from '../../../../shared/focus.js';
@@ -488,6 +489,7 @@ const ENTERS = [
   ['.menu', el => el.getAttribute('style')],
   ['.pickup'],
   ['.guide'],
+  ['.fl-pop', el => el.getAttribute('data-pop-for')],
 ];
 // Replace the page, keeping focus and the caret in whatever the user was typing in.
 let lastHtml = null, lastFirst = null;
@@ -507,12 +509,16 @@ function paint() {
   const sel = key && typeof a.selectionStart === 'number' ? [a.selectionStart, a.selectionEnd] : null;
   const draftTop = key ? a.scrollTop : 0;
   const shown = ENTERS.map(([q, id]) => { const el = app.querySelector(q); return el ? (id ? id(el) : true) : null; });
+  const flip = captureFloor(app);
   app.innerHTML = html;
   lastHtml = html; lastFirst = app.firstChild;
   // Board and Health show the board half's page under the tab bar (loom.js); a run's page hides it.
   loomTab(S.ui.run ? 'run' : S.ui.tab);
   // Entry animations play once: an element that was already on screen keeps still through repaints.
   ENTERS.forEach(([q, id], i) => { const el = app.querySelector(q); if (el && shown[i] !== null && shown[i] === (id ? id(el) : true)) el.classList.add('still'); });
+  // The floor (Loom 6.12.0): cards slide to their new station, loops stay in phase, the open card's popup sits by it.
+  playFloor(app, flip);
+  placePop(app, true);
   loadFiles();
   if (keyWanted) tryKey();
   if (focusWanted && (Date.now() > focusWanted.until || focusItem(focusWanted.id))) focusWanted = null;
@@ -538,6 +544,9 @@ function schedule() {
   });
 }
 document.addEventListener('pointerdown', () => { pointerDown = true; }, true);
+// The floor's popup follows its card when the page scrolls or the window changes size.
+window.addEventListener('scroll', () => placePop(app, false), { passive: true, capture: true });
+window.addEventListener('resize', () => placePop(app, false));
 document.addEventListener('pointerup', () => {
   pointerDown = false;
   if (deferred) { deferred = false; setTimeout(schedule, 0); }
@@ -1019,6 +1028,8 @@ listen('click', ev => {
   const tb = t.closest('[data-tab]');
   if (tb) { setTab(tb.getAttribute('data-tab')); return; }
   // Lanes (lanes.js): open or close a card's panel, filter, start from the drop box.
+  // The floor's popup (Loom 6.12.0): a click anywhere outside it (and not on another card) closes it, then goes on.
+  if (ui().laneSel && app.querySelector('.fl-pop') && !t.closest('.fl-pop, [data-lane-open], .modal, .menu, .toasts')) { ui().laneSel = null; setBoardDrawer(''); schedule(); }
   const lo = t.closest('[data-lane-open]');
   if (lo) {
     const k = lo.getAttribute('data-lane-open');
@@ -1097,6 +1108,7 @@ listen('click', ev => {
     act(() => write('epic.build', { folder }), r => toast(r && r.split ? 'Tandem is making the stories. They start building as soon as they exist.' : `Building ${r && r.started ? r.started.length : 0} stories, in order.`), 'epic:' + folder);
     return;
   }
+  if (t.closest('[data-setup-hide]')) { S.view.hideSetup = true; saveViewNow(); toast('Setup hidden. Settings, Show tips again brings it back.'); paint(); return; }
   const od = t.closest('[data-onboard-dismiss]');
   if (od) { act(() => write('onboarding.dismiss', { product: od.getAttribute('data-onboard-dismiss') })); return; }
   const tr = t.closest('[data-try]');
@@ -1447,6 +1459,7 @@ listen('change', ev => {
 document.addEventListener('keydown', ev => {
   const overlay = ui().menu || ui().remove || ui().file || ui().settings || ui().start || ui().repo || ui().repos || ui().project || ui().projects || ui().move;
   if (ev.key === 'Escape' && overlay) { closeOverlays(); paint(); return; }
+  if (ev.key === 'Escape' && ui().laneSel && app.querySelector('.fl-pop')) { const k = ui().laneSel; ui().laneSel = null; paint(); const c = [...app.querySelectorAll('[data-lane-open]')].find(el => el.getAttribute('data-lane-open') === k); if (c) c.focus(); return; }
   // Go through them: keys for the row in view, unless you are typing.
   if (!ui().walk || overlay || ui().tab !== 'inbox' || ui().run || ev.ctrlKey || ev.metaKey || ev.altKey) return;
   const tg = ev.target;
