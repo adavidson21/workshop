@@ -4,8 +4,10 @@
 // other tool call is a change that waits in Approvals (or runs when an always-allow rule covers that tool).
 // Node standard library only. It calls only the server URLs in its settings.
 import { McpClient, McpError } from './lib/client.mjs';
+import { needsRefresh, refresh, seal, storageKey, unseal } from './lib/oauth.mjs';
 
-const VERSION = '1.0.0';
+// 1.1.0: Sign in (OAuth) for servers that take no token (lib/oauth.mjs, README.md, Sign in).
+const VERSION = '1.1.0';
 const TOOL = /^[A-Za-z0-9_.\-/]{1,128}$/;
 const CACHE_MS = 5 * 60 * 1000;
 let running = null;
@@ -27,9 +29,38 @@ function serverOf(ctx, id) {
   return s;
 }
 
-async function clientFor(ctx, s) {
+const refreshing = new Map(); // server id -> a refresh in flight, so a rotated refresh token is used once
+
+/** The access token of a signed-in server, refreshed and saved again (encrypted) when it runs out or was refused. */
+async function oauthToken(ctx, s, { force = false } = {}) {
+  const login = `In a terminal run: workshop mcp login ${s.id}`;
+  if (!s.tokenSecret) throw new SettingsError(`${s.name} signs in with OAuth: name its sign-in key under Token (secret name), then ${login.toLowerCase()}`);
+  let key;
+  try { key = await ctx.secret(s.tokenSecret); } catch { throw new SettingsError(`Server "${s.name}" names a secret Workshop cannot read.`); }
+  const box = ctx.storage ? await ctx.storage.get(storageKey(s.id)) : undefined;
+  if (!key || !box) throw new McpError(`Not signed in to ${s.name}. ${login}`);
+  let rec;
+  try { rec = unseal(key, box); } catch (e) { throw new McpError(`${e.message} ${login}`); }
+  if (!force && !needsRefresh(rec)) return rec.access_token;
+  if (!refreshing.has(s.id)) {
+    refreshing.set(s.id, (async () => {
+      try {
+        const next = await refresh(rec, fetchImpl || globalThis.fetch);
+        await ctx.storage.put(storageKey(s.id), seal(key, next));
+        return next.access_token;
+      } catch (e) {
+        throw new McpError(`${s.name}: ${e.message} ${login}`, e.code === 'unauthorized' ? 401 : null);
+      } finally { refreshing.delete(s.id); }
+    })());
+  }
+  return refreshing.get(s.id);
+}
+
+async function clientFor(ctx, s, { fresh = false } = {}) {
   const headers = {};
-  if (s.tokenSecret) {
+  if (s.auth === 'oauth') {
+    headers.Authorization = `Bearer ${await oauthToken(ctx, s, { force: fresh })}`;
+  } else if (s.tokenSecret) {
     let token;
     try { token = await ctx.secret(s.tokenSecret); } catch { throw new SettingsError(`Server "${s.name}" names a secret Workshop cannot read.`); }
     if (!token) throw new McpError(`No token saved as "${s.tokenSecret}" for ${s.name}. In a terminal run: workshop secret set ${s.tokenSecret}`);
@@ -44,12 +75,21 @@ const shapeTool = (s, t) => ({
   inputSchema: t.inputSchema && typeof t.inputSchema === 'object' ? t.inputSchema : { type: 'object' }, readOnly: readOnly(s, t)
 });
 
+/** Runs fn(client); a signed-in server that refuses the access token gets one refresh and one more try. */
+async function withClient(ctx, s, fn) {
+  try { return await fn(await clientFor(ctx, s)); }
+  catch (e) {
+    if (s.auth !== 'oauth' || !e || (e.upstream !== 401 && e.upstream !== 403)) throw e;
+    return fn(await clientFor(ctx, s, { fresh: true }));
+  }
+}
+
 /** A server's tools, cached for five minutes (as the server sent them, keyed by its URL; read-only is worked out each time). */
 async function tools(ctx, s, { fresh = false } = {}) {
   const st = state.get(s.id);
   if (!fresh && st && st.ok && st.url === s.url && Date.now() - st.at < CACHE_MS) return st.tools.map(t => shapeTool(s, t));
   try {
-    const raw = (await (await clientFor(ctx, s)).listTools()).filter(t => t && TOOL.test(String(t.name)));
+    const raw = (await withClient(ctx, s, c => c.listTools())).filter(t => t && TOOL.test(String(t.name)));
     state.set(s.id, { ok: true, tools: raw, url: s.url, at: Date.now() });
     if (running) running.statusChanged();
     return raw.map(t => shapeTool(s, t));
@@ -98,7 +138,8 @@ export default {
             id: { type: 'string', title: 'Id', pattern: '^[a-z][a-z0-9-]{0,30}$', description: 'Short, lowercase: github, linear. Tools show as <id>__<tool>.' },
             name: { type: 'string', title: 'Name', maxLength: 60 },
             url: { type: 'string', title: 'Server URL', format: 'uri', pattern: '^(https://|http://127\\.0\\.0\\.1[:/]|http://localhost[:/])', description: 'Its Streamable HTTP address, for example https://api.githubcopilot.com/mcp/. https only, except on this computer.' },
-            tokenSecret: { type: 'string', title: 'Token (secret name)', 'x-workshop-secret': true, description: 'Optional. Save the token with: workshop secret set <name> --expires YYYY-MM-DD' },
+            auth: { type: 'string', title: 'How it signs in', enum: ['token', 'oauth'], 'x-workshop-labels': ['A token', 'Sign in (OAuth)'], default: 'token', description: 'Sign in: for servers that take no token. Name a secret below, then run workshop mcp login <id> in a terminal; it opens your browser.' },
+            tokenSecret: { type: 'string', title: 'Token (secret name)', 'x-workshop-secret': true, description: 'Optional. Save the token with: workshop secret set <name> --expires YYYY-MM-DD. With Sign in, any name, for example linear-signin: workshop mcp login saves a key there.' },
             header: { type: 'string', title: 'Header', default: 'Authorization', pattern: '^[A-Za-z0-9-]{1,60}$', 'x-workshop-section': 'Advanced' },
             prefix: { type: 'string', title: 'Before the token', default: 'Bearer ', maxLength: 20, 'x-workshop-section': 'Advanced' },
             trustReadOnly: { type: 'boolean', title: 'Run tools the server marks read-only without asking', default: true, description: 'Off: every tool call from Tandem waits for your approval.' },
@@ -140,7 +181,7 @@ export default {
       async run(args, ctx) {
         const { s, t } = await toolOf(ctx, args.server, args.tool);
         if (!t.readOnly) throw new SettingsError(`${s.name}'s ${t.name} is not marked read-only, so it needs your approval: use tools.call.`);
-        return answer(await (await clientFor(ctx, s)).callTool(t.name, args.arguments || {}));
+        return answer(await withClient(ctx, s, c => c.callTool(t.name, args.arguments || {})));
       }
     },
     'tools.call': {
@@ -154,7 +195,7 @@ export default {
       scope(args) { return [`${args.server}/${args.tool}`]; },
       async run(args, ctx) {
         const { s, t } = await toolOf(ctx, args.server, args.tool);
-        return answer(await (await clientFor(ctx, s)).callTool(t.name, args.arguments || {}));
+        return answer(await withClient(ctx, s, c => c.callTool(t.name, args.arguments || {})));
       }
     }
   },

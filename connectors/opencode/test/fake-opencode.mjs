@@ -32,6 +32,8 @@ export async function startFakeOpencode({ kind, version, password = null, userna
     n: 0,
     commandResult: null, // set to {status, body} to make the next command call fail
     agents: null, // 1.x: set to true to answer /agent (build and general)
+    messages: new Map(), // 1.x (Chat 4.1.0): session id -> raw messages ({info, parts}) its /message answers with
+    reply: "NONE", // 1.x: what a waited message (POST /session/:id/message) answers, e.g. a suggested prompt
   };
 
   const auth = "Basic " + Buffer.from(`${username}:${password}`).toString("base64");
@@ -63,7 +65,7 @@ export async function startFakeOpencode({ kind, version, password = null, userna
     let r;
     if (req.method === "GET" && p === "/global/health") return json(res, 200, { healthy: true, version: s.version });
     if (req.method === "GET" && p === "/command") return json(res, 200, commands.map((name) => ({ name })));
-    if (req.method === "GET" && p === "/provider" && s.providers) return json(res, 200, { all: [{ id: "anthropic", name: "Anthropic" }, { id: "openai", name: "OpenAI" }], connected: s.providers, default: {} });
+    if (req.method === "GET" && p === "/provider" && s.providers) return json(res, 200, { all: [{ id: "anthropic", name: "Anthropic", models: { "claude-x": { id: "claude-x", name: "Claude X", limit: { context: 200000, output: 32000 } } } }, { id: "openai", name: "OpenAI" }], connected: s.providers, default: {} });
     if (req.method === "GET" && p === "/session") return json(res, 200, [...s.sessions.values()].map((x) => ({ id: x.id, title: x.title, time: { updated: 1 } })));
     if (req.method === "GET" && p === "/session/status") return json(res, 200, Object.fromEntries([...s.active].map((id) => [id, { type: "busy" }])));
     if (req.method === "GET" && p === "/permission") return json(res, 200, s.permissions);
@@ -82,6 +84,9 @@ export async function startFakeOpencode({ kind, version, password = null, userna
       s.sessions.set(id, { id, title: `${(s.sessions.get(r[1]) || {}).title || "Session"} (fork #1)` });
       return json(res, 200, { id, title: s.sessions.get(id).title });
     }
+    if ((r = m(/^\/session\/([^/]+)$/)) && req.method === "DELETE") return json(res, 200, s.sessions.delete(r[1]));
+    if ((r = m(/^\/session\/([^/]+)\/message$/)) && req.method === "POST") return json(res, 200, { info: { role: "assistant", time: { completed: 5 } }, parts: [{ type: "text", text: s.reply }] });
+    if ((r = m(/^\/session\/([^/]+)\/message$/)) && s.messages.has(r[1])) return json(res, 200, s.messages.get(r[1]));
     if ((r = m(/^\/session\/([^/]+)\/message$/))) return json(res, 200, [{ info: { role: "assistant", time: { completed: 5 } }, parts: [{ type: "text", text: `Last reply in ${r[1]}` }] }]);
     if ((r = m(/^\/session\/([^/]+)\/command$/))) {
       if (s.commandResult) {

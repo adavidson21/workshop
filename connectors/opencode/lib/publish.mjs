@@ -10,6 +10,10 @@
 // while Tandem works on Send back comments, and Publish all ready skips builds with a must fix comment Tandem
 // declined, and any the page names (`skip`: drafts not sent yet). The after-Publish watcher (after-publish.mjs)
 // keeps each repo's PR state in the same record, under `watch`.
+//
+// 1.29.0 (merge without a PR, lib/merge.mjs): with Settings, Factory, "When you publish" set to "Merge, no PR" for
+// every repo of an item, Publish merges instead of pushing branches (the `merge` function index.mjs passes). The
+// record then has `mode: "merge"` and `merged` at once, so the item goes straight to done.
 
 import fs from "node:fs";
 import path from "node:path";
@@ -19,11 +23,11 @@ const stateFile = () => path.join(stateDir, "published.json");
 let published = {};
 
 // Set by index.mjs: hooks.review(folder) => {"<repo>": {status, revision, sentBack, openMustFix}}, hooks.diff(item) =>
-// [{repo, files, additions, deletions}].
-const hooks = { review: () => ({}), diff: () => [] };
+// [{repo, files, additions, deletions}], hooks.mode(item) => "pr" | "merge", hooks.mergeFix(folder) => Tandem's merge of
+// the target into the branch after a conflict ({repo, state, text}) or null.
+const hooks = { review: () => ({}), diff: () => [], mode: () => "pr", mergeFix: () => null };
 export function setPublishHooks(h) {
-  if (h && typeof h.review === "function") hooks.review = h.review;
-  if (h && typeof h.diff === "function") hooks.diff = h.diff;
+  for (const k of Object.keys(hooks)) if (h && typeof h[k] === "function") hooks[k] = h[k];
 }
 
 export function loadPublished() {
@@ -122,7 +126,8 @@ export function publishInfo(it) {
   const review = hooks.review(it.folder) || {};
   const revising = Object.values(review).some((r) => r && r.status === "revising");
   const openMustFix = Object.values(review).reduce((n, r) => n + ((r && r.openMustFix) || 0), 0);
-  return { ready, questions, ui: uiResults(it.folder), tests: testResults(it.folder), published: published[it.folder] || null, pushed, review, revising, openMustFix, diff: ready ? hooks.diff(it) : [] };
+  return { ready, questions, ui: uiResults(it.folder), tests: testResults(it.folder), published: published[it.folder] || null, pushed, review, revising, openMustFix, diff: ready ? hooks.diff(it) : [],
+    mode: hooks.mode(it), mergeFix: hooks.mergeFix(it.folder) };
 }
 
 /** Publish info for every work item that is ready or was published, by folder. */
@@ -141,12 +146,21 @@ export function publishData(items) {
  * Returns { ok, folder, repos: [{repo, branch, target, pr (create PR link or null), message}] }.
  * A failed push stops there and says which repos were pushed.
  */
-export async function publishItem(it, push) {
+export async function publishItem(it, push, merge = null) {
   if (!it || it.kind !== "item") throw httpError(404, "No such work item. Refresh the page.");
   if (!(it.next && it.next.stage === "ship")) throw httpError(409, `${it.id} is not ready to publish yet: ${(it.next && (it.next.text || it.next.action)) || "the build is not done"}.`);
   if (Object.values(hooks.review(it.folder) || {}).some((r) => r && r.status === "revising")) throw httpError(409, `Tandem is working on the comments you sent back for ${it.id}. It comes back to Publish when it is done.`);
   const rows = it.pr || [];
   if (!rows.length) throw httpError(409, "pr.md has no repo sections to publish.");
+  if (merge && hooks.mode(it) === "merge") {
+    const fix = hooks.mergeFix(it.folder);
+    if (fix && fix.state === "working") throw httpError(409, `Tandem is merging ${fix.target || "the target"} into ${fix.repo}'s branch. Publish again when it is done.`);
+    const r = await merge(it); // throws on a conflict (after starting Tandem's fix) or a failure
+    const at = new Date().toISOString();
+    published[it.folder] = { at, mode: "merge", merged: at, repos: r.repos.map(({ repo, branch, target, merged }) => ({ repo, branch, target, pr: null, merged })) };
+    save();
+    return { ok: true, folder: it.folder, mode: "merge", merged: true, repos: r.repos.map((x) => ({ ...x, pr: null, message: x.already ? `${x.target} already had ${x.branch}.` : `Merged ${x.branch} into ${x.target}.` })) };
+  }
   const repos = [];
   for (const row of rows) {
     try {

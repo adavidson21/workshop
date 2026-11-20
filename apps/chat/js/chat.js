@@ -31,7 +31,9 @@ import { startBench } from './bench.js';
 import { startTerminal } from './terminal.js';
 import { startFiles } from './files.js';
 import { startSide } from './side.js';
-import { addPictures, chipsHtml, picturesIn } from './images.js';
+import { startChanges } from './changes.js';
+import { startSplit } from './split.js';
+import { MAX_DOCS, addPictures, chipsHtml, docsIn, picturesIn, uploadDoc } from './images.js';
 
 const OC = 'opencode';
 const LIST_MS = 10000;
@@ -53,6 +55,11 @@ const ICON = {
   plus: '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" fill="none"/></svg>',
   pen: '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false"><path d="M4 20h4L19 9l-4-4L4 16z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>',
   x: '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false"><path d="M6 6l12 12M18 6L6 18" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" fill="none"/></svg>',
+  // Chat 4.1.0: archive, open beside, Changes, Second chat, attach.
+  box: '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false"><path d="M4 7h16v3H4zM5.5 10v8.5h13V10M10 13.5h4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/></svg>',
+  beside: '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false"><rect x="3.5" y="5" width="17" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 5v14" stroke="currentColor" stroke-width="1.6"/></svg>',
+  changes: '<svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true" focusable="false"><path d="M7 4v10M2 9h10M14 18h8" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M15 4l5 5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>',
+  clip: '<svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true" focusable="false"><path d="M20 11.5l-7.8 7.8a5 5 0 01-7-7L13 4.5a3.3 3.3 0 014.7 4.7l-7.6 7.6a1.7 1.7 0 01-2.4-2.4l7-7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   up: '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false"><path d="M12 19V6M6 11l6-6 6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>',
   stop: '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false"><rect x="7" y="7" width="10" height="10" rx="1.5" fill="currentColor"/></svg>',
   undo: '<svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true" focusable="false"><path d="M9 14L4 9l5-5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 9h10a6 6 0 010 12h-3" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>',
@@ -99,12 +106,17 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
   const imgs = new Map(); // picture id or session|message|part -> data URL, for <img> in the thread and composer
   const imgLoading = new Set();
   const wasBusy = {}; // session -> busy at the last read, to tell Files when a turn ends
+  const docs = {}; // draft key -> PDFs for the message (Chat 4.1.0): {id, name, size, state: uploading | ready | failed, done, att}
+  const suggest = {}; // session -> a suggested next message ('' none), once its last answer is in (Chat 4.1.0)
+  let archivedCount = 0, showArchived = false, archivedItems = [], hits = null, hitsFor = '', searchTimer = 0;
   let listTimer = 0, convTimer = 0, fileTimer = 0, noteTimer = 0;
   // flash() is defined below; the workbench's tools call it later, never while starting.
   const terminal = startTerminal(ws, { onTui: () => builtin('tui', '') });
   const workFiles = startFiles(ws, { flash: text => flash(text) }); // not `files`: that is a message's @files below
   const side = startSide(ws, { agents: () => (options && options.agents) || [], model: () => modelNow(), paint, keep: p => imgs.set(p.id, p.url), flash: text => flash(text) });
-  const bench = startBench({ tools: { terminal, files: workFiles, side }, onChange: st => { el.classList.toggle('bench-open', st.open); el.style.setProperty('--bench-w', st.width + 'px'); if (lastHtml != null) { lastHtml = null; draw(); } } });
+  const changes = startChanges(ws, { send: text => sendFrom(text), busy: () => working(), flash: text => flash(text), onCount: () => draw() });
+  const split = startSplit(ws, { chats: () => listed(), current: () => sel, onMain: sid => select(sid), paint, flash: text => flash(text) });
+  const bench = startBench({ tools: { terminal, files: workFiles, changes, side, split }, onChange: st => { el.classList.toggle('bench-open', st.open); el.style.setProperty('--bench-w', st.width + 'px'); if (lastHtml != null) { lastHtml = null; draw(); } } });
   el.appendChild(bench.el);
 
   /* ---------- data ---------- */
@@ -150,12 +162,16 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
     clearTimeout(listTimer);
     if (!aiReady().ready) { items = []; listErr = ''; draw(); return; }
     try {
-      items = (await ws.connectors.call(OC, 'chat.list', all ? { all: true } : {})).items || [];
+      const r = await ws.connectors.call(OC, 'chat.list', all ? { all: true } : {});
+      items = r.items || [];
+      archivedCount = r.archived || 0;
+      if (showArchived) archivedItems = (await ws.connectors.call(OC, 'chat.list', { archived: true })).items || [];
       listErr = '';
       for (const c of items) pending.delete(c.session);
     } catch (e) { listErr = e.message || "Couldn't list your chats."; }
     if (sel && hub) { const it = itemOf(sel); if (it && it.hub) hub.ensure(it); }
     if (!options && !optErr) loadOptions();
+    split.refresh();
     draw();
     if (visible) listTimer = setTimeout(loadList, LIST_MS);
   }
@@ -168,9 +184,11 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
       if (sel !== want) return;
       conv = r; err = r.error || '';
       if (echo[want]) echo[want] = liveEchoes(echo[want], r.turns, { busy: !!r.busy });
-      if (wasBusy[want] && !r.busy) workFiles.changed();
+      if (wasBusy[want] && !r.busy) { workFiles.changed(); changes.changed(); }
       wasBusy[want] = !!r.busy;
       side.setSession(want, r);
+      changes.setSession(want);
+      if (!r.busy && !r.waiting && suggest[want] === undefined && lastTandem(r.turns || []) && options && options.can && options.can.suggest) askSuggestion(want);
       const row = itemOf(want); // keep the sidebar's spinner and dot in step without waiting for the list
       if (row) { row.busy = !!r.busy; row.waiting = !!r.waiting; }
       if (!sessPick[want]) sessPick[want] = { agent: r.agent || (r.from === 'hub' ? 'chat' : pick.agent === HUB ? '' : pick.agent), model: r.model ? modelKey(r.model) : pick.model };
@@ -185,10 +203,58 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
     sel = session || null; conv = null; err = ''; renaming = null; pop = null; help = false; afterOpen = false;
     if (phone()) drawer = false;
     side.setSession(sel, itemOf(sel));
+    changes.setSession(sel);
     if (sel && hub) { const it = itemOf(sel); if (it && it.hub) hub.ensure(it); }
     draw();
     if (sel) loadConv();
     focusBox();
+  }
+  /* A suggested next message (Chat 4.1.0): asked once per answer, shown above the box, taken with Right arrow. */
+  async function askSuggestion(sid) {
+    suggest[sid] = '';
+    try { const r = await ws.connectors.call(OC, 'chat.suggest', { session: sid }); suggest[sid] = (r && r.text) || ''; }
+    catch (e) { suggest[sid] = ''; }
+    if (sel === sid) draw();
+  }
+  function takeSuggestion() {
+    const s = sel && suggest[sel];
+    if (!s) return false;
+    drafts[sel] = s;
+    draw();
+    const box = el.querySelector(`[data-keep="chat:${sel}"]`);
+    if (box) { box.focus(); box.setSelectionRange(s.length, s.length); }
+    return true;
+  }
+  /* Changes' comments (Chat 4.1.0) go to the chat in view as one message, queued while it works. */
+  async function sendFrom(text) {
+    if (!sel) { flash('Open a chat first.'); return false; }
+    const job = { parsed: { kind: 'text', text }, files: [], pics: [], docs: [], text, ...pickArgs() };
+    if ((conv && (conv.busy || conv.waiting)) || echoing(sel)) { (queue[sel] = queue[sel] || []).push(job); draw(); return true; }
+    await run(sel, job);
+    return true;
+  }
+  /* Archive (Chat 4.1.0): out of the list with the thread kept; back with Unarchive or its next message. */
+  async function archive(session, archived = true) {
+    try { await ws.connectors.call(OC, 'chat.archive', { session, archived }); }
+    catch (e) { ws.toast(e.message || "Couldn't archive that.", { kind: 'error' }); return; }
+    if (archived) { items = items.filter(c => c.session !== session); archivedCount++; if (sel === session) select(null); }
+    else { archivedItems = archivedItems.filter(c => c.session !== session); archivedCount = Math.max(0, archivedCount - 1); }
+    draw();
+    loadList();
+  }
+  /* Search in messages (Chat 4.1.0): the connector reads each chat's words; titles still filter as you type. */
+  function searchSoon() {
+    clearTimeout(searchTimer);
+    const q = query.trim();
+    if (q.length < 3) { hits = null; hitsFor = ''; return; }
+    searchTimer = setTimeout(async () => {
+      try {
+        const r = await ws.connectors.call(OC, 'chat.search', { query: q, ...(all ? { all: true } : {}) });
+        if (query.trim() !== q) return;
+        hits = r.items || []; hitsFor = q;
+      } catch (e) { hits = []; hitsFor = q; }
+      draw();
+    }, 350);
   }
   function focusBox() {
     if (rewriteMode()) { rewrite.focus(); return; }
@@ -216,9 +282,13 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
     if (parsed.kind === 'builtin') { drafts[k] = ''; draw(); return builtin(parsed.name, parsed.args); }
     const files = parsed.kind === 'text' ? filesIn(text, picked[k]) : [];
     const list = pics[k] || [];
-    if (list.length && parsed.kind !== 'text') { err = 'Pictures go with a message, not with a / command or ! shell command.'; draw(); return; }
-    const job = { parsed, files, pics: list, text: text.trim(), ...pickArgs() };
+    const dl = docs[k] || [];
+    if ((list.length || dl.length) && parsed.kind !== 'text') { err = 'Pictures and PDFs go with a message, not with a / command or ! shell command.'; draw(); return; }
+    if (dl.some(d => d.state === 'uploading')) { err = 'Wait for the PDF to finish attaching.'; draw(); return; }
+    const ready = dl.filter(d => d.state === 'ready');
+    const job = { parsed, files, pics: list, docs: ready, text: text.trim(), ...pickArgs() };
     pics[k] = [];
+    docs[k] = [];
     history.push(text.trim());
     if (history.length > 50) history.shift();
     drafts[k] = ''; picked[k] = new Set();
@@ -230,9 +300,12 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
     const list = job.pics || [];
     const pickOf = { ...(agent ? { agent } : {}), ...(model ? { model } : {}) };
     const images = list.length ? { images: list.map(({ name, mime, data }) => ({ name, mime, data })) } : {};
+    const dl = job.docs || [];
+    if (dl.length) images.attachments = dl.map(d => ({ id: d.att }));
     for (const p of list) imgs.set(p.id, p.url);
     const ek = session || NEW;
-    const mine = { text: parsed.kind === 'text' ? parsed.text : job.text, files, pics: list.map(p => p.id), agent: agent || null, base: !session ? 0 : conv ? (conv.turns || []).length : null, at: Date.now() };
+    if (session) delete suggest[session];
+    const mine = { text: parsed.kind === 'text' ? parsed.text : job.text, files: files.concat(dl.map(d => d.name)), pics: list.map(p => p.id), agent: agent || null, base: !session ? 0 : conv ? (conv.turns || []).length : null, at: Date.now() };
     echo[ek] = [...(echo[ek] || []), mine];
     sending = true; err = ''; draw();
     try {
@@ -257,7 +330,7 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
       echo[ek] = (echo[ek] || []).filter(x => x !== mine);
       const msg = e.message || "Couldn't send that.";
       if (session && /still working/.test(msg)) { (queue[session] = queue[session] || []).unshift(job); setTimeout(loadConv, BUSY_MS); }
-      else { err = msg; if (!drafts[key()]) drafts[key()] = job.text; if (list.length && !(pics[key()] || []).length) pics[key()] = list; }
+      else { err = msg; if (!drafts[key()]) drafts[key()] = job.text; if (list.length && !(pics[key()] || []).length) pics[key()] = list; if (dl.length && !(docs[key()] || []).length) docs[key()] = dl; }
     }
     sending = false; draw();
     focusBox();
@@ -412,32 +485,45 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
   }
 
   /* ---------- drawing ---------- */
-  function rowHtml(c) {
+  function rowHtml(c, { snippet = '', archived = false } = {}) {
     if (renaming === c.session) {
       return `<li class="chat-row renaming"><input class="chat-rename" data-keep="chat-rename" data-chat-rename-box value="${esc(renameText)}" aria-label="Name this chat" maxlength="80"></li>`;
     }
     const outside = c.from === 'opencode';
-    return `<li class="chat-row${c.session === sel ? ' on' : ''}${outside ? ' outside' : ''}"><button type="button" class="chat-item${c.session === sel ? ' on' : ''}" data-chat-open="${esc(c.session)}"${c.session === sel ? ' aria-current="true"' : ''}>` +
+    const beside = split.session() === c.session;
+    // Alt-click (Option-click) opens a chat beside this one (Chat 4.1.0), as in Claude's desktop app.
+    return `<li class="chat-row${c.session === sel ? ' on' : ''}${outside ? ' outside' : ''}${beside ? ' beside' : ''}"><button type="button" class="chat-item${c.session === sel ? ' on' : ''}" data-chat-open="${esc(c.session)}"${c.session === sel ? ' aria-current="true"' : ''} title="Alt-click opens it beside this chat">` +
       `<span class="chat-t">${c.busy ? '<span class="spin" aria-hidden="true"></span>' : ''}${esc(c.title)}</span>` +
+      (snippet ? `<span class="chat-snip">${esc(snippet)}</span>` : '') +
       (c.waiting ? '<span class="chat-dot" title="opencode is asking you something"><span class="sr">Needs you</span></span>' : '') + '</button>' +
-      `<span class="chat-acts"><button type="button" class="chat-act" data-chat-rename="${esc(c.session)}" title="Rename" aria-label="Rename ${esc(c.title)}">${ICON.pen}</button>` +
-      (outside ? '' : `<button type="button" class="chat-act" data-chat-remove="${esc(c.session)}" title="Remove from this list. The opencode session is kept." aria-label="Remove ${esc(c.title)}">${ICON.x}</button>`) + '</span></li>';
+      `<span class="chat-acts">` +
+      (archived ? `<button type="button" class="chat-act" data-chat-unarchive="${esc(c.session)}" title="Unarchive" aria-label="Unarchive ${esc(c.title)}">${ICON.box}</button>`
+        : `<button type="button" class="chat-act" data-chat-beside="${esc(c.session)}" title="Open beside this chat" aria-label="Open ${esc(c.title)} beside">${ICON.beside}</button>` +
+          `<button type="button" class="chat-act" data-chat-rename="${esc(c.session)}" title="Rename" aria-label="Rename ${esc(c.title)}">${ICON.pen}</button>` +
+          (outside ? '' : `<button type="button" class="chat-act" data-chat-archive="${esc(c.session)}" title="Archive: out of the list, kept with its thread" aria-label="Archive ${esc(c.title)}">${ICON.box}</button>`)) +
+      (outside ? '' : `<button type="button" class="chat-act" data-chat-remove="${esc(c.session)}" title="Remove from Chat. The opencode session is kept." aria-label="Remove ${esc(c.title)}">${ICON.x}</button>`) + '</span></li>';
   }
   function sideHtml() {
-    const every = listed();
+    const every = showArchived ? archivedItems : listed();
     const shown = every.filter(c => matchChat(c, query));
-    const groups = groupChats(shown);
-    const list = groups.map(g => `<h3 class="chat-h">${esc(g.label)}</h3><ul>${g.items.map(rowHtml).join('')}</ul>`).join('');
-    const empty = !every.length
+    const groups = showArchived ? (shown.length ? [{ label: 'Archived', items: shown }] : []) : groupChats(shown);
+    let list = groups.map(g => `<h3 class="chat-h">${esc(g.label)}</h3><ul>${g.items.map(c => rowHtml(c, { archived: showArchived })).join('')}</ul>`).join('');
+    // Search in messages (Chat 4.1.0): chats whose words match, beyond the titles above.
+    const more = hits && hitsFor === query.trim() ? hits.filter(h => !shown.some(c => c.session === h.session) && (!!h.archived === showArchived || !showArchived)) : [];
+    if (more.length) list += `<h3 class="chat-h">In messages</h3><ul>${more.map(h => rowHtml({ ...h, title: h.title + (h.archived && !showArchived ? ' (archived)' : '') }, { snippet: h.snippet, archived: !!h.archived })).join('')}</ul>`;
+    const empty = showArchived && !every.length ? '<p class="chat-empty">No archived chats.</p>'
+      : !every.length
       ? (aiReady().ready ? '<p class="chat-empty">Your chats show here. Send a message to start one.</p>' : `<p class="chat-empty">${esc(aiReady().why || 'Turn on the opencode connector in Settings to talk to opencode.')}</p>`)
-      : !shown.length ? `<p class="chat-empty">No chats match "${esc(query)}".</p>` : '';
+      : !shown.length && !more.length ? `<p class="chat-empty">${query.trim().length >= 3 && hitsFor !== query.trim() ? 'Searching...' : `No chats match "${esc(query)}".`}</p>` : '';
+    const archBtn = showArchived ? '<button type="button" class="chat-archived on" data-chat-archived="0">Back to chats</button>'
+      : archivedCount ? `<button type="button" class="chat-archived" data-chat-archived="1">Archived (${archivedCount})</button>` : '';
     return `<aside class="chat-side" aria-label="Chats">` +
       `<div class="chat-side-top"><button type="button" class="chat-newbtn${sel ? '' : ' on'}" data-chat-new>${ICON.plus}<span>New chat</span></button>` +
       `<button type="button" class="chat-icon" data-chat-side title="Close sidebar" aria-label="Close sidebar">${ICON.side}</button></div>` +
       `<div class="chat-find"><input type="search" class="chat-search" data-keep="chat-search" data-chat-search placeholder="${all ? 'Search all sessions' : 'Search chats'}" aria-label="Search chats" value="${esc(query)}">` +
       `<button type="button" class="chat-all${all ? ' on' : ''}" data-chat-all="${all ? '0' : '1'}" aria-pressed="${all}" title="${all ? 'Showing every opencode session (runs, PR reviews, the terminal). Click for just your chats.' : 'Show every opencode session in the workspace: runs, PR reviews and the terminal'}">All</button></div>` +
       (listErr ? `<p class="hub-error">${esc(listErr)}</p>` : '') +
-      `<nav class="chat-list">${list}${empty}</nav></aside>`;
+      `<nav class="chat-list">${list}${empty}</nav>${archBtn ? `<div class="chat-side-foot">${archBtn}</div>` : ''}</aside>`;
   }
   function topHtml(title, extra = '') {
     const sideBtn = closed || phone()
@@ -453,7 +539,8 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
       const on = st.open && st.tab === tab;
       return `<button type="button" class="chat-icon bench-btn${on ? ' on' : ''}" data-bench="${tab}" title="${off || title}" aria-label="${title}" aria-pressed="${on}"${off ? ' aria-disabled="true"' : ''}>${icon}</button>`;
     };
-    return `<span class="row bench-btns">${b('terminal', ICON.term, 'Terminal (Ctrl+`)')}${b('files', ICON.files, 'Files')}${b('side', ICON.side, 'Side chat', sel ? '' : 'Side chat: open a chat first')}</span>`;
+    const n = changes.count();
+    return `<span class="row bench-btns">${b('terminal', ICON.term, 'Terminal (Ctrl+`)')}${b('files', ICON.files, 'Files')}${b('changes', ICON.changes, n ? `Changes (${n} comment${n === 1 ? '' : 's'})` : 'Changes: what this chat changed', sel ? '' : 'Changes: open a chat first')}${b('side', ICON.side, 'Side chat', sel ? '' : 'Side chat: open a chat first')}${b('split', ICON.beside, 'Second chat: another chat beside this one')}</span>`;
   }
   function picksHtml() {
     const a = agentNow();
@@ -468,7 +555,8 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
     const draft = drafts[k] || '';
     const shell = /^\s*!/.test(draft);
     const q = sel ? (queue[sel] || []).length : 0;
-    const ctx = sel && conv && conv.totals ? [conv.totals.context ? `${tokens(conv.totals.context)} context` : '', money(conv.totals.cost)].filter(Boolean).join(' · ') : '';
+    const ctx = meterHtml();
+    const tip = sel && !busy && !draft && suggest[sel] && !off ? `<button type="button" class="chat-suggest" data-chat-suggest title="Right arrow in the empty box takes it"><span class="dim">Suggested:</span> ${esc(suggest[sel])} <kbd>→</kbd></button>` : '';
     const hint = off ? esc(aiReady().why || 'opencode is not connected.')
       : note ? esc(note)
       : escAt && busy && Date.now() - escAt < 1500 ? 'Press Esc again to stop.'
@@ -478,10 +566,61 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
     const action = busy && !draft.trim()
       ? `<button type="button" class="chat-send stop" data-chat-stop title="Stop (Esc twice)" aria-label="Stop">${ICON.stop}</button>`
       : `<button type="button" class="chat-send" data-chat-send title="${busy ? 'Queue' : 'Send'}" aria-label="${busy ? 'Queue' : 'Send'}"${off || sending ? ' disabled' : ''}>${ICON.up}</button>`;
-    return `<div class="chat-compose"><div class="chat-col pop-anchor">${popHtml()}<div class="chat-box${shell ? ' shell' : ''}" data-chat-drop>` + chipsHtml(pics[k], 'data-pic-x') +
+    return `<div class="chat-compose"><div class="chat-col pop-anchor">${popHtml()}${tip}<div class="chat-box${shell ? ' shell' : ''}" data-chat-drop>` + chipsHtml(pics[k], 'data-pic-x') + docChipsHtml(docs[k]) +
       `<textarea rows="1" data-keep="chat:${esc(k)}" placeholder="${off ? 'opencode is not connected' : sel ? 'Message opencode' : 'Ask anything, or / for commands'}" aria-label="Message to opencode"${off ? ' disabled' : ''}>${esc(draft)}</textarea>` +
-      `<div class="chat-bar">${picksHtml()}<span class="grow"></span>${ctx ? `<span class="chat-ctx">${esc(ctx)}</span>` : ''}${action}</div></div>` +
+      `<div class="chat-bar"><button type="button" class="chat-icon chat-attach" data-chat-attach title="Attach pictures or PDFs (or paste and drop them)" aria-label="Attach pictures or PDFs"${off ? ' disabled' : ''}>${ICON.clip}</button>${picksHtml()}<span class="grow"></span>${ctx}${action}</div></div>` +
       `<p class="chat-hint" aria-live="polite">${hint}</p></div></div>`;
+  }
+  /* The context meter (Chat 4.1.0): how full the model's context window is, from opencode's own counts. */
+  function contextLimit() {
+    const models = (options && options.models) || [];
+    const find = m => (m && m.provider ? models.find(x => x.provider === m.provider && x.id === m.id) : null);
+    const hit = find(conv && conv.model) || find(modelFromKey(modelNow()));
+    return hit && hit.context ? hit.context : 0;
+  }
+  function meterHtml() {
+    if (!sel || !conv || !conv.totals) return '';
+    const used = conv.totals.context || 0, cost = money(conv.totals.cost), limit = contextLimit();
+    if (!used) return cost ? `<span class="chat-ctx">${esc(cost)}</span>` : '';
+    if (!limit) return `<span class="chat-ctx" title="opencode did not say how big this model's context window is">${esc([`${tokens(used)} context`, cost].filter(Boolean).join(' · '))}</span>`;
+    const pct = Math.min(100, Math.round((used / limit) * 100));
+    const lvl = pct >= 90 ? ' bad' : pct >= 75 ? ' warn' : '';
+    const title = `${used.toLocaleString()} of ${limit.toLocaleString()} tokens in the context window${cost ? `, ${cost} so far` : ''}. /compact frees space.`;
+    return `<span class="chat-meter${lvl}" title="${esc(title)}" role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}" aria-label="Context ${pct}% full"><span class="meter-ring" style="--p:${pct}"></span>${pct}%</span>` +
+      (pct >= 75 ? '<button type="button" class="lnk chat-compact" data-builtin="compact" title="Summarize the chat so far to free space (/compact)">Compact</button>' : '');
+  }
+  /* PDFs above the box (Chat 4.1.0), each attaching in pieces or ready. */
+  function docChipsHtml(list) {
+    if (!list || !list.length) return '';
+    return `<div class="pics docs">${list.map(d => `<span class="doc${d.state === 'failed' ? ' failed' : ''}" title="${esc(d.name)}"><span class="doc-ic" aria-hidden="true">PDF</span><span class="doc-n">${esc(d.name)}</span>` +
+      `<span class="doc-st">${d.state === 'uploading' ? `${Math.round((d.done || 0) * 100)}%` : d.state === 'failed' ? 'failed' : ''}</span>` +
+      `<button type="button" class="pic-x" data-doc-x="${esc(d.id)}" title="Remove ${esc(d.name)}" aria-label="Remove ${esc(d.name)}">×</button></span>`).join('')}</div>`;
+  }
+  async function takeDocs(files) {
+    const k = key();
+    if (!files.length || hubMode() || rewriteMode()) return;
+    if (options && options.can && options.can.pdf === false) { flash("This opencode can't take PDFs from Chat."); return; }
+    const list = docs[k] = docs[k] || [];
+    for (const f of files) {
+      if (list.length >= MAX_DOCS) { flash(`Up to ${MAX_DOCS} PDFs in one message.`); break; }
+      const d = { id: 'd' + Math.random().toString(36).slice(2, 9), name: f.name || 'document.pdf', size: f.size, state: 'uploading', done: 0, att: null };
+      list.push(d);
+      draw();
+      try {
+        d.att = await uploadDoc(f, (piece) => ws.connectors.call(OC, 'chat.attach', piece, { confirm: true }), p => { d.done = p; draw(); });
+        d.state = 'ready';
+      } catch (e) { d.state = 'failed'; flash(e.message || "Couldn't attach that PDF."); }
+      draw();
+    }
+    focusBox();
+  }
+  function takeFiles(files) {
+    const all = Array.from(files || []);
+    const pdfs = all.filter(f => f.type === 'application/pdf' || /\.pdf$/i.test(f.name || ''));
+    const pictures = all.filter(f => /^image\//.test(f.type));
+    if (pictures.length) takePictures(pictures);
+    if (pdfs.length) takeDocs(pdfs);
+    if (all.length && !pdfs.length && !pictures.length) flash('Chat attaches pictures and PDFs. For other files, put them in the workspace and type @.');
   }
   function helpHtml() {
     if (!help) return '';
@@ -670,7 +809,7 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
       drafts[k.slice(5)] = t.value; grow(t);
       popFromInput(t);
       if (was !== /^\s*!/.test(t.value)) draw();
-    } else if (k === 'chat-search') { query = t.value; draw(); }
+    } else if (k === 'chat-search') { query = t.value; searchSoon(); draw(); }
     else if (k === 'chat-rename') renameText = t.value;
     else if (k === 'chat-pop-q' && pop) { pop.q = t.value; pop.items = modelItems(t.value); pop.i = 0; draw(); }
     else if (t.hasAttribute && t.hasAttribute('data-q-custom')) { const id = t.getAttribute('data-q-custom'); (custom[id] = custom[id] || {})[+t.getAttribute('data-qi')] = t.value; }
@@ -696,6 +835,7 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
         draw(); focusBox(); return;
       }
       if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); return; }
+      if (e.key === 'ArrowRight' && !t.value && sel && suggest[sel]) { e.preventDefault(); takeSuggestion(); return; }
       if (e.key === 'ArrowUp' && !t.value && history.length) { e.preventDefault(); drafts[key()] = history[history.length - 1]; draw(); return; }
       if (e.key === 'Escape') {
         e.preventDefault();
@@ -721,7 +861,7 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
     } else if (t.matches('[data-chat-rename-box]')) {
       if (e.key === 'Enter') { e.preventDefault(); rename(); }
       else if (e.key === 'Escape') { e.preventDefault(); renaming = null; draw(); }
-    } else if (t.matches('[data-chat-search]') && e.key === 'Escape' && query) { e.preventDefault(); query = ''; draw(); }
+    } else if (t.matches('[data-chat-search]') && e.key === 'Escape' && query) { e.preventDefault(); query = ''; hits = null; hitsFor = ''; draw(); }
   });
   el.addEventListener('focusout', e => {
     if (e.target.matches && e.target.matches('[data-chat-rename-box]') && renaming) setTimeout(() => { if (renaming) rename(); }, 0);
@@ -738,7 +878,20 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
     // The workbench handles its own clicks (bench.js and its tools); from it, the chat only opens files, pictures,
     // subagent sessions and Sources, and copies code.
     if (bench.el.contains(b) && d.openFile == null && d.imgView == null && d.copy == null && d.chatOpen == null && d.srcNote == null && d.srcWrong == null && d.srcPage == null) return;
-    if (d.chatOpen != null) select(d.chatOpen);
+    if (d.chatOpen != null && (e.altKey || e.metaKey && e.shiftKey)) { split.open(d.chatOpen); bench.open('split', { focus: false }); }
+    else if (d.chatOpen != null) select(d.chatOpen);
+    else if (d.chatBeside != null) { split.open(d.chatBeside); bench.open('split', { focus: false }); draw(); }
+    else if (d.chatArchive != null) archive(d.chatArchive, true);
+    else if (d.chatUnarchive != null) archive(d.chatUnarchive, false);
+    else if (d.chatArchived != null) { showArchived = d.chatArchived === '1'; draw(); loadList(); }
+    else if (d.chatSuggest != null) takeSuggestion();
+    else if (d.chatAttach != null) {
+      const input = document.createElement('input');
+      input.type = 'file'; input.multiple = true; input.accept = 'image/png,image/jpeg,image/gif,image/webp,application/pdf';
+      input.addEventListener('change', () => takeFiles(input.files));
+      input.click();
+    }
+    else if (d.docX != null) { const k = key(); docs[k] = (docs[k] || []).filter(x => x.id !== d.docX); draw(); focusBox(); }
     else if (d.chatNew != null) { leaveRewrite(); select(null); loadOptions(); }
     else if (d.chatSide != null) toggleSide();
     else if (d.chatSend != null) send();
@@ -776,11 +929,12 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
     else if (d.srcPage != null) ws.open({ app: 'settings', path: d.srcPage });
   });
 
-  /* Pictures: paste into the box, or drop anywhere on the composer. */
+  /* Pictures and PDFs: paste into the box, or drop anywhere on the composer. */
   el.addEventListener('paste', e => {
     if (!e.target.matches || !e.target.matches('[data-keep^="chat:"]')) return;
     const files = picturesIn(e.clipboardData, { paste: true });
-    if (files.length) { e.preventDefault(); takePictures(files); }
+    const pdfs = docsIn(e.clipboardData);
+    if (files.length || pdfs.length) { e.preventDefault(); if (files.length) takePictures(files); if (pdfs.length) takeDocs(pdfs); }
   });
   el.addEventListener('dragover', e => { if (e.target.closest && e.target.closest('[data-chat-drop]') && e.dataTransfer && Array.from(e.dataTransfer.types || []).includes('Files')) { e.preventDefault(); e.target.closest('[data-chat-drop]').classList.add('drop'); } });
   el.addEventListener('dragleave', e => { const box = e.target.closest && e.target.closest('[data-chat-drop]'); if (box && !box.contains(e.relatedTarget)) box.classList.remove('drop'); });
@@ -789,7 +943,8 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
     if (!box) return;
     box.classList.remove('drop');
     const files = picturesIn(e.dataTransfer);
-    if (files.length) { e.preventDefault(); takePictures(files); }
+    const pdfs = docsIn(e.dataTransfer);
+    if (files.length || pdfs.length) { e.preventDefault(); if (files.length) takePictures(files); if (pdfs.length) takeDocs(pdfs); }
   });
   // Ctrl+` opens or closes the terminal, as in most editors.
   document.addEventListener('keydown', e => {

@@ -1,6 +1,7 @@
 /* The workbench (Chat 4.0.0, docs/chat.md, Workbench): a panel beside the chat with what Claude's desktop app keeps
    next to a conversation, so you never leave Chat for them: a Terminal (terminal.js), Files to browse and edit the
-   workspace (files.js), and a Side chat for questions that should not land in the chat (side.js).
+   workspace (files.js), and a Side chat for questions that should not land in the chat (side.js). Since Chat 4.1.0
+   also Changes, what the chat changed with line comments (changes.js), and a Second chat beside it (split.js).
 
    It is an element of its own that chat.js never redraws, so a running terminal or a file being edited keeps its
    state while the chat updates. One tab shows at a time. Whether it is open, which tab, and its width (drag its
@@ -9,7 +10,9 @@ const KEY = 'chat.bench';
 export const TABS = [
   { id: 'terminal', label: 'Terminal' },
   { id: 'files', label: 'Files' },
-  { id: 'side', label: 'Side chat' }
+  { id: 'changes', label: 'Changes' },
+  { id: 'side', label: 'Side chat' },
+  { id: 'split', label: 'Second chat' }
 ];
 export const MIN_W = 320;
 export const MAX_W = 1200;

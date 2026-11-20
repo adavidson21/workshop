@@ -155,7 +155,9 @@ function afterHtml(it, p) {
     const link = S.D && S.D.adoLinks && S.D.adoLinks[it.folder];
     const resolved = S.ui.resolved && S.ui.resolved[it.folder];
     const res = link && link.linked && link.ado && !resolved ? `<button type="button" class="btn small" data-ado-resolve="${h(it.folder)}" data-ado="${h(String(link.ado))}" data-out>Resolve in ADO ${outsideMark('ado')}</button>` : '';
-    return `<div class="pub done"><p><span class="flag ok">Merged</span> ${h(new Date(rec.merged).toLocaleString())}. Done: Tandem ran its retro (suggestions in Folio's review list) and removed the worktrees. The work folder stays.</p><ul class="pub-repos">${repos.map(r => afterRepo(it, r)).join('')}</ul>${res ? `<div class="row">${res}</div>` : ''}</div>`;
+    // Merge without a PR (connector 1.29.0): each repo's merge commit, no PR to follow.
+    const list = rec.mode === 'merge' ? repos.map(r => `<li><span class="mono">${h(r.repo)}</span> <span class="dim">${h(r.branch || '')} into ${h(r.target || 'main')}</span>${r.merged ? ` <span class="mono dim">${h(String(r.merged).slice(0, 8))}</span>` : ''}</li>`).join('') : repos.map(r => afterRepo(it, r)).join('');
+    return `<div class="pub done"><p><span class="flag ok">Merged</span> ${h(new Date(rec.merged).toLocaleString())}${rec.mode === 'merge' ? ', no PR' : ''}. Done: Tandem ran its retro (suggestions in Folio's review list) and removed the worktrees. The work folder stays.</p><ul class="pub-repos">${list}</ul>${res ? `<div class="row">${res}</div>` : ''}</div>`;
   }
   return `<div class="pub done"><p><span class="flag ok">Published</span> ${h(new Date(rec.at).toLocaleString())}. In transit: Workshop follows each PR until it merges${checked ? ` (checked ${ago(checked)})` : ''}.</p><ul class="pub-repos">${repos.map(r => afterRepo(it, r)).join('')}</ul></div>`;
 }
@@ -168,9 +170,26 @@ export function publishHtml(it) {
   if (!p.ready) return '';
   const q = p.questions.length ? `<div class="pub-q"><p class="sub-h">Questions from the review</p><ul>${p.questions.map(x => `<li>${md(x)}</li>`).join('')}</ul><p class="dim">Answer them in your head or send it back; they do not block Publish.</p></div>` : '';
   const busy = S.ui.busy && S.ui.busy['pub:' + it.folder];
+  const n = (it.pr || []).length;
+  if (p.mode === 'merge') {
+    const fx = p.mergeFix;
+    const working = fx && fx.state === 'working';
+    const fixLine = !fx ? '' : working ? `<p class="after-fix dim">Tandem is merging ${h(fx.target || 'the target')} into ${h(fx.repo)}'s branch. Publish again when it is done.</p>`
+      : fx.state === 'ready' ? `<p class="after-fix"><span class="flag ok">Tandem merged ${h(fx.target || 'the target')} in</span> ${h(fx.text || '')} Publish again to merge.</p>`
+      : `<p class="after-fix"><span class="flag bad">The conflict needs you</span> ${h(fx.text || '')}</p>`;
+    return `<div class="pub"><p class="sub-h">Ready to merge</p>${testsHtml(p)}${uiHtml(it, p)}${q}${codeHtml(it, p)}${tryItHtml(it)}${fixLine}` +
+      `<div class="row"><button type="button" class="btn primary" data-publish="${h(it.folder)}"${busy || working ? ' disabled' : ''} title="Merges every branch in pr.md into its target and pushes the target (never force). No PR.">${busy ? 'Merging…' : mergeLabel(it) + ' ' + outsideMark('git')}</button>` +
+      `<span class="dim">No PR: Settings, Factory, When you publish.</span></div></div>`;
+  }
   return `<div class="pub"><p class="sub-h">Ready to publish</p>${testsHtml(p)}${uiHtml(it, p)}${q}${codeHtml(it, p)}${tryItHtml(it)}` +
     `<div class="row"><button type="button" class="btn primary" data-publish="${h(it.folder)}"${busy ? ' disabled' : ''} title="Pushes every branch in pr.md (never force), then opens each PR page with the text filled in">${busy ? 'Publishing…' : 'Publish ' + outsideMark('git')}</button>` +
-    `<span class="dim">Pushes ${h(String((it.pr || []).length))} branch${(it.pr || []).length === 1 ? '' : 'es'} and opens the PRs.</span></div></div>`;
+    `<span class="dim">Pushes ${h(String(n))} branch${n === 1 ? '' : 'es'} and opens the PRs.</span></div></div>`;
+}
+
+/** "Merge into main" (one target) or "Merge" (several), for an item that merges without a PR (connector 1.29.0). */
+export function mergeLabel(it) {
+  const targets = [...new Set((it.pr || []).map(r => String(r.target || 'main').replace(/^origin\//, '')))];
+  return targets.length === 1 ? `Merge into ${targets[0]}` : 'Merge';
 }
 
 // ------------------------------------------------------------------ Try it (connector 1.28.0)

@@ -98,3 +98,37 @@ export function chipsHtml(list, attr) {
   const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   return `<div class="pics">${list.map(p => `<span class="pic"><img alt="${esc(p.name)}" data-img-local="${esc(p.id)}"><button type="button" class="pic-x" ${attr}="${esc(p.id)}" title="Remove ${esc(p.name)}" aria-label="Remove ${esc(p.name)}">×</button></span>`).join('')}</div>`;
 }
+
+/* PDFs (Chat 4.1.0, docs/chat.md, Attachments): sent in pieces with the connector's chat.attach, since Workshop's
+   agent takes 1 MB per request, then named by id in the message. Up to MAX_DOCS in one message, MAX_DOC bytes each. */
+export const MAX_DOCS = 3;
+export const MAX_DOC = 20 * 1024 * 1024;
+export const PIECE = 450000; // bytes: a multiple of 3, so the base64 pieces join cleanly (600000 characters each)
+
+/** The PDF files in a paste or a drop. */
+export function docsIn(dt) {
+  if (!dt) return [];
+  return Array.from(dt.files || []).filter(f => f && (f.type === 'application/pdf' || /\.pdf$/i.test(f.name || '')));
+}
+function pieceB64(blob) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => { const s = String(r.result || ''); resolve(s.slice(s.indexOf(',') + 1)); };
+    r.onerror = () => reject(new Error('That PDF could not be read.'));
+    r.readAsDataURL(blob);
+  });
+}
+/** Uploads one PDF in pieces with call(args) (chat.attach). progress(0..1) as it goes. Resolves to the attachment id. */
+export async function uploadDoc(file, call, progress = () => {}) {
+  if (file.size > MAX_DOC) throw new Error(`A PDF can be up to ${MAX_DOC / 1024 / 1024} MB. Put bigger ones in the workspace and type @.`);
+  if (!file.size) throw new Error('That PDF is empty.');
+  let id = null;
+  for (let at = 0; at < file.size; at += PIECE) {
+    const data = await pieceB64(file.slice(at, at + PIECE));
+    const r = await call(id ? { id, data } : { name: nameForDoc(file.name), mime: 'application/pdf', data });
+    id = r.id;
+    progress(Math.min(1, (at + PIECE) / file.size));
+  }
+  return id;
+}
+export const nameForDoc = name => (String(name || '').replace(/[^A-Za-z0-9 ._()-]/g, '').trim().slice(0, 80) || 'document.pdf');

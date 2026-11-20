@@ -1488,6 +1488,56 @@ def agents_checks(b, watch):
         check('a side chat copies the chat and asks in the copy', len(forks) == 1 and len(side_prompt) == 1 and forks[0].split('/')[2] != side_prompt[0].split('/')[2]
               and 'Nothing here goes into the chat' in cf.inner_text('.side-about'))
         check('the side chat stays out of the list', not any(t.startswith('Side chat') for t in cf.eval_on_selector_all('.chat-side .chat-t', 'els => els.map(e => e.innerText)')))
+
+        # Chat 4.1.0: the context meter, a suggested next prompt, Changes with a line comment sent back as one
+        # message, a second chat beside, archive, and search in messages.
+        gw_file = os.path.join(info['workspace'], 'gateway', 'headers.txt')
+        with open(gw_file) as fh: gw_was = fh.read()
+        with open(gw_file, 'w') as fh: fh.write(gw_was + 'limit = 100\n')
+        ask({'reply': 'Run the header tests'})
+        ask({'messages': {'session': 'ses_tui0', 'list': [
+            {'info': {'id': 'msg_u1', 'role': 'user', 'time': {'created': 1}}, 'parts': [{'type': 'text', 'text': 'Add the rate limit header'}]},
+            {'info': {'id': 'msg_a1', 'role': 'assistant', 'time': {'created': 2, 'completed': 3}, 'providerID': 'anthropic', 'modelID': 'claude-x',
+                      'tokens': {'input': 150000, 'output': 4000, 'reasoning': 0, 'cache': {'read': 0, 'write': 0}}},
+             'parts': [{'type': 'tool', 'tool': 'edit', 'state': {'status': 'completed', 'input': {'filePath': gw_file}, 'title': 'headers.txt'}},
+                       {'type': 'text', 'text': 'Added the X-RateLimit-Limit header with a zebra-striped value.'}]}]}})
+        ask({'idle': 'ses_tui0'}); pg.wait_for_timeout(800)
+        cf.click('.chat-side [data-chat-open="ses_tui0"]'); pg.wait_for_timeout(1500)
+        check('the context meter says how full the model\'s window is, with Compact past 75%', seen(cf, '.chat-meter') and cf.inner_text('.chat-meter').strip() == '77%'
+              and 'warn' in cf.get_attribute('.chat-meter', 'class') and cf.locator('.chat-compact').count() == 1)
+        check('a suggested next prompt shows above the box', seen(cf, '.chat-suggest') and 'Run the header tests' in cf.inner_text('.chat-suggest'))
+        cf.click('.chat-pane textarea'); pg.keyboard.press('ArrowRight')
+        check('Right arrow in the empty box takes it', cf.input_value('.chat-pane textarea') == 'Run the header tests')
+        cf.fill('.chat-pane textarea', '')
+        cf.click('.chat-top [data-bench=changes]'); pg.wait_for_timeout(1200)
+        check('Changes lists the file the chat edited, diffed against the last commit', seen(cf, '.ch-file') and 'gateway/headers.txt' in cf.inner_text('.ch-file') and '+1' in cf.inner_text('.ch-file')
+              and seen(cf, '.ch-add .ch-tx') and 'limit = 100' in cf.inner_text('.ch-add .ch-tx'))
+        cf.click('.ch-add .ch-c', force=True); cf.fill('[data-ch-text]', 'Read the limit from options'); cf.click('[data-ch-add]'); pg.wait_for_timeout(200)
+        check('a line comment waits under its line, counted on the Changes button', 'Read the limit from options' in cf.inner_text('.ch-note') and '1 comment' in cf.get_attribute('.chat-top [data-bench=changes]', 'title'))
+        cf.click('[data-ch-send]'); pg.wait_for_timeout(1500)
+        r = ask({'requests': True})
+        back = [x['body']['parts'][0]['text'] for x in r['bodies'] if x['route'] == 'POST /session/ses_tui0/prompt_async' and x['body']['parts'][0].get('text', '').startswith('Please address')]
+        check('Send to chat sends every comment to the chat as one message', len(back) == 1 and '`gateway/headers.txt:2`' in back[0] and '> limit = 100' in back[0] and 'Read the limit from options' in back[0])
+        with open(gw_file, 'w') as fh: fh.write(gw_was)
+        ask({'idle': 'ses_tui0'}); pg.wait_for_timeout(500)
+        # All lists the workspace's other sessions too, so there is a chat to put beside this one.
+        all_was = cf.locator('[data-chat-all="0"]').count() == 1
+        if not all_was: cf.click('[data-chat-all="1"]'); pg.wait_for_timeout(1500)
+        cf.click('.chat-top [data-bench=split]'); pg.wait_for_timeout(300)
+        others = cf.eval_on_selector_all('[data-split-pick] option', 'els => els.map(e => e.value).filter(Boolean)')
+        check('Second chat offers the other chats, not the one in view', len(others) >= 1 and 'ses_tui0' not in others)
+        cf.select_option('[data-split-pick]', others[0]); pg.wait_for_timeout(1000)
+        check('it shows that chat beside this one, with its own box', cf.locator('.split .turn').count() >= 1 and cf.locator('[data-split-in]').count() == 1 and cf.locator('.chat-pane textarea').count() == 1)
+        if not all_was: cf.click('[data-chat-all="0"]'); pg.wait_for_timeout(1200)
+        cf.eval_on_selector('.chat-side [data-chat-archive="ses_tui0"]', 'b => b.click()'); pg.wait_for_timeout(800)
+        check('Archive takes a chat out of the list and counts it', cf.locator('.chat-side [data-chat-open="ses_tui0"]').count() == 0 and 'Archived (1)' in cf.inner_text('.chat-side-foot'))
+        cf.fill('[data-chat-search]', 'zebra-striped'); pg.wait_for_timeout(1500)
+        check('search finds words in messages, archived chats too', 'In messages' in cf.inner_text('.chat-list') and cf.locator('.chat-snip').count() >= 1 and 'zebra-striped' in cf.inner_text('.chat-snip'))
+        cf.fill('[data-chat-search]', ''); pg.wait_for_timeout(200)
+        cf.click('[data-chat-archived="1"]'); pg.wait_for_timeout(800)
+        cf.eval_on_selector('.chat-side [data-chat-unarchive="ses_tui0"]', 'b => b.click()'); pg.wait_for_timeout(800)
+        cf.click('[data-chat-archived="0"]'); pg.wait_for_timeout(500)
+        check('Unarchive brings it back', cf.locator('.chat-side [data-chat-open="ses_tui0"]').count() == 1)
         cf.click('.bench [data-bench-close]'); pg.wait_for_timeout(200)
         check('the workbench closes, and remembers it', cf.locator('.bench').is_hidden() and cf.evaluate("JSON.parse(localStorage.getItem('chat.bench')).open") is False)
         pg.click('.app-btn[data-app=slate]'); pg.wait_for_timeout(800)

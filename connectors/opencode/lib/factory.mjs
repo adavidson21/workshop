@@ -17,6 +17,8 @@ export const FACTORY_DEFAULTS = Object.freeze({
   uiCheckPerTask: true, // 1.28.0 (eng-agents Core 4.15.0): each task that changes UI files checks its own pages
   modelSeesImages: false, // 1.28.0: the per-task check also hands the screenshot to the model
   worktrees: "always",
+  publish: "pr", // 1.29.0: "merge" merges each branch into its target with no PR (lib/merge.mjs)
+  mergeOnly: "", // 1.29.0: with publish "merge", only these repo folders (comma separated); blank for every repo
 });
 
 const int = (v, lo, hi, d) => (Number.isInteger(v) && v >= lo && v <= hi ? v : d);
@@ -36,6 +38,8 @@ export function factoryOptions(cfg) {
     uiCheckPerTask: f.uiCheckPerTask !== false,
     modelSeesImages: f.modelSeesImages === true,
     worktrees: f.worktrees === "busy" ? "busy" : d.worktrees,
+    publish: f.publish === "merge" ? "merge" : d.publish,
+    mergeOnly: typeof f.mergeOnly === "string" ? f.mergeOnly.split(",").map((s) => s.trim()).filter((s) => /^[A-Za-z0-9._ -]{1,120}$/.test(s)).slice(0, 50).join(", ") : d.mergeOnly,
   };
 }
 

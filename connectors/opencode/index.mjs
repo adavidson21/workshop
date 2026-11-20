@@ -5,7 +5,7 @@
 // The live server's HTTP routes are the actions below; its event stream is connector events.
 import fs from "node:fs";
 import path from "node:path";
-import { REPO_FOLDER_MAX, VERSION, configure, current, every, httpError, opt, shutdown, workRoot } from "./lib/context.mjs";
+import { REPO_FOLDER_MAX, VERSION, configure, current, every, httpError, log, opt, shutdown, workRoot } from "./lib/context.mjs";
 import { installInfo, tandemHealth } from "./lib/tandem-health.mjs";
 import { ARMS, MAX_MODELS, MAX_RUNS, PRESETS, commandFor, evalsHome, listCases, listExperiments, listResults, openEvalsTerminal, readCommands, readGuards, readResult, runArgs, scriptArgs } from "./lib/evals.mjs";
 import { clearModelHooks, model, modelError, onModel, parserGone, refresh, resetModel, watchWork } from "./lib/model.mjs";
@@ -29,14 +29,53 @@ import { findItem } from "./lib/actions.mjs";
 import { broadcastLive, emitProjects } from "./lib/live.mjs";
 import { diffStats, loadReview, needReview, resetReview, reviewGone, reviewSummary, reviseAgain } from "./lib/review.mjs";
 import { openPreview, resetPreviews, stopPreview, sweepIdle } from "./lib/preview.mjs";
-import { loadAfterPublish, recordStatus, resetAfterPublish, watchList } from "./lib/after-publish.mjs";
+import { clearMergeFix, finishMerged, loadAfterPublish, mergeFixOf, recordStatus, resetAfterPublish, startMergeFix, watchList } from "./lib/after-publish.mjs";
+import { mergeItem, mergesRepo } from "./lib/merge.mjs";
 
 // The Publish block's code review and change size (lib/publish.mjs stays free of the review and git code).
-setPublishHooks({ review: (folder) => reviewSummary()[folder] || {}, diff: (it) => diffStats(it) });
+setPublishHooks({
+  review: (folder) => reviewSummary()[folder] || {},
+  diff: (it) => diffStats(it),
+  // 1.29.0: an item merges without a PR when every repo it touches does (Settings, Factory, When you publish).
+  mode: (it) => ((it.pr || []).length && (it.pr || []).every((r) => mergesRepo(opt && opt.factory, r.repo)) ? "merge" : "pr"),
+  mergeFix: (folder) => mergeFixOf(folder),
+});
+
+// Publish's merge without a PR (lib/merge.mjs): every repo of the item, or none. A conflict starts Tandem's fix.
+async function mergePublish(it) {
+  const ws = path.resolve(opt.workspace);
+  const rows = (it.pr || []).map((row) => {
+    const dir = path.resolve(ws, String(row.repo || ""));
+    if (!row.repo || !dir.startsWith(ws + path.sep) || !fs.existsSync(dir)) throw Object.assign(new Error(`Repo folder ${row.repo} not found in the workspace.`), { status: 404, code: "not_found" });
+    if (!row.branch) throw Object.assign(new Error(`pr.md names no branch for ${row.repo}.`), { status: 400, code: "bad_request" });
+    return { repo: row.repo, dir, branch: row.branch, target: row.target || "main", title: row.title };
+  });
+  let r;
+  try {
+    r = await mergeItem(rows, (row) => `Merge ${row.branch}: ${row.title || it.title || it.folder}`);
+  } catch (e) {
+    throw Object.assign(new Error(e.message), { status: 502, code: "unavailable" });
+  }
+  if (r.conflict) {
+    const c = r.conflict;
+    await startMergeFix(it, c);
+    const files = c.files.length ? ` (${c.files.slice(0, 3).join(", ")}${c.files.length > 3 ? ` and ${c.files.length - 3} more` : ""})` : "";
+    throw Object.assign(new Error(`${c.repo} conflicts with ${c.target}${files}. Nothing was pushed. Tandem is merging ${c.target} into the branch; publish again when it is done.`), { status: 409, code: "conflict" });
+  }
+  clearMergeFix(it.folder);
+  return r;
+}
+async function publishOne(it) {
+  const r = await publishItem(it, pushBranch, mergePublish);
+  if (r.mode === "merge") finishMerged(it.folder, it, { removeWorktrees, runCommand }).catch((e) => log(`merge without a PR: ${e.message}`));
+  return r;
+}
 import { DAY, MAX_NOTES_BYTES, MAX_PACKET_BYTES, draftOneOnOne, oneOnOneResult, resetOneOnOnes, tidyOneOnOne, tidyResult } from "./lib/one-on-one.mjs";
 import { HUB_ID, MAX_MESSAGE, hubResult, resetHub, runHub } from "./lib/hub.mjs";
 import { MAX_PROMPT as VOICE_MAX, KINDS as VOICE_KINDS, resetVoice, runVoice, voiceResult } from "./lib/voice.mjs";
-import { MAX_FILES as CHAT_FILES, MAX_IMAGES, MAX_IMAGE_DATA, MAX_TEXT as CHAT_MAX, chatFiles, chatImage, chatMessages, chatOptions, commandChat, compactChat, listChats, redoChat, removeChat, renameChat, resetChats, sendChat, shellChat, sideChat, startChat, undoChat } from "./lib/chat.mjs";
+import { MAX_FILES as CHAT_FILES, MAX_IMAGES, MAX_IMAGE_DATA, MAX_TEXT as CHAT_MAX, archiveChat, chatFiles, chatImage, chatMessages, chatOptions, commandChat, compactChat, listChats, redoChat, removeChat, renameChat, resetChats, resetSearch, searchChats, sendChat, shellChat, sideChat, startChat, undoChat } from "./lib/chat.mjs";
+import { MAX_ATTACHMENTS, MAX_PIECE, attachPiece } from "./lib/chat-attach.mjs";
+import { chatChanges, chatSuggest, resetSuggest } from "./lib/chat-more.mjs";
 import { MAX_INPUT as TERM_INPUT, resetTerms, termClose, termInput, termList, termOpen, termRead, termResize, termResume } from "./lib/pty.mjs";
 import { MAX_EDIT, filesRead, filesStat, filesTree, filesWrite } from "./lib/workfiles.mjs";
 import { MAX_FILE, PM_FOLDER, approveFolder, startHandoff, startRefine, startScope, startShape, startSlice, startTriage, writePmFile } from "./lib/slate.mjs";
@@ -189,7 +228,16 @@ export const configSchema = {
         modelSeesImages: { type: "boolean", title: "The model can see images", description: "Also hand the per-task screenshot to the model. Leave off for a model that reads text only: it reads the page as text either way.", default: false, "x-workshop-hosted": true },
         regression: { type: "boolean", title: "Regression tests", description: "Run each repo's whole end-to-end suite before and after every build, and write a test for every acceptance criterion people can see (needs a Regression tests table in the repo guide). A test that passed before and fails now is fixed before the PR.", default: true, "x-workshop-hosted": true },
         worktrees: { type: "string", title: "Worktrees", description: "Every build in its own git worktree, or only when the repo folder is busy.", enum: ["always", "busy"], "x-workshop-labels": ["Every build", "Only when busy"], default: "always", "x-workshop-hosted": true },
+        publish: { type: "string", title: "When you publish", description: "Open a PR (the default), or merge each branch into its target and push the target, with no PR: for your own repos on a personal computer. There is no team review and no CI before the merge; the factory's own review, UI checks and tests have run. A conflict pushes nothing: Tandem merges the target into the branch and you publish again.", enum: ["pr", "merge"], "x-workshop-labels": ["Open a PR", "Merge, no PR"], default: "pr", "x-workshop-hosted": true },
+        mergeOnly: { type: "string", title: "Merge only these repos", description: "With Merge, no PR: the repo folders that merge, comma separated. Blank for every repo. A build that touches any other repo opens PRs.", maxLength: 2000, default: "", "x-workshop-hosted": true },
       },
+    },
+    suggestPrompts: {
+      type: "boolean",
+      title: "Suggest a next prompt in Chat",
+      description: "After each answer, Chat shows one short message you might send next (Right arrow takes it). The chat's model writes it from the last exchange only, in a scratch session that is deleted right after, so each answer costs one small extra request.",
+      default: true,
+      "x-workshop-hosted": true,
     },
     hub: {
       type: "boolean",
@@ -244,6 +292,8 @@ function resetAll() {
   resetOneOnOnes();
   resetHub();
   resetChats();
+  resetSearch();
+  resetSuggest();
   resetTerms();
   resetVoice();
   resetObservations();
@@ -376,6 +426,8 @@ const chatPick = {
   files: { type: "array", title: "Workspace files to attach (@path)", maxItems: CHAT_FILES, items: str("File path in the workspace", { minLength: 1, maxLength: 500 }) },
   // Pasted images (Chat 4.0.0): base64, checked against their type in lib/chat.mjs.
   images: { type: "array", title: "Pasted images", maxItems: MAX_IMAGES, items: obj(["mime", "data"], { name: str("File name", { maxLength: 120 }), mime: { type: "string", title: "Type", enum: ["image/png", "image/jpeg", "image/gif", "image/webp"] }, data: str("The image, base64", { minLength: 4, maxLength: MAX_IMAGE_DATA }) }) },
+  // PDFs (1.29.0, lib/chat-attach.mjs): uploaded in pieces with chat.attach first, named here by id.
+  attachments: { type: "array", title: "Attached PDFs", maxItems: MAX_ATTACHMENTS, items: obj(["id"], { id: str("Attachment id", { minLength: 25, maxLength: 25, pattern: "^a[0-9a-f]{24}$" }) }) },
 };
 const termId = str("Terminal id", { minLength: 4, maxLength: 104, pattern: "^pty[A-Za-z0-9_-]+$" });
 const filePath = str("Path in the workspace", { minLength: 1, maxLength: 1000 });
@@ -993,10 +1045,56 @@ const actions = {
   "chat.list": {
     title: "Chats: everything from the hub that is not a capture or go, and chats you started",
     write: false,
-    argsSchema: obj([], { hubs: { type: "boolean", title: "Recent hub threads instead" }, all: { type: "boolean", title: "Every opencode session in the workspace as well" } }),
+    argsSchema: obj([], { hubs: { type: "boolean", title: "Recent hub threads instead" }, all: { type: "boolean", title: "Every opencode session in the workspace as well" }, archived: { type: "boolean", title: "Archived chats instead (1.29.0)" } }),
     async run(args) {
       needReady();
-      return listChats({ config: ctxRef && ctxRef.config, hubs: !!(args && args.hubs), all: !!(args && args.all) });
+      return listChats({ config: ctxRef && ctxRef.config, hubs: !!(args && args.hubs), all: !!(args && args.all), archived: !!(args && args.archived) });
+    },
+  },
+  // Chat 4.1.0 (connector 1.29.0): archive, search in messages, Changes, suggested prompt, PDFs.
+  "chat.archive": {
+    title: "Archive a chat (out of the list, thread kept), or bring it back",
+    write: false,
+    argsSchema: obj(["session"], { session, archived: { type: "boolean", title: "Archived (false brings it back)" } }),
+    async run(args) {
+      needReady();
+      return archiveChat({ session: args.session, archived: args.archived !== false }, { config: ctxRef && ctxRef.config });
+    },
+  },
+  "chat.search": {
+    title: "Chats whose title or messages have these words",
+    write: false,
+    argsSchema: obj(["query"], { query: str("Words to find", { minLength: 2, maxLength: 200 }), all: { type: "boolean", title: "Every opencode session in the workspace as well" } }),
+    async run(args) {
+      needReady();
+      return searchChats(args, { config: ctxRef && ctxRef.config });
+    },
+  },
+  "chat.changes": {
+    title: "What a chat changed: the files its agent edited, each with its diff against the last commit",
+    write: false,
+    argsSchema: obj(["session"], { session }),
+    async run(args) {
+      needReady();
+      return chatChanges(args);
+    },
+  },
+  "chat.suggest": {
+    title: "A suggested next message for a chat, from its last exchange only (Settings can turn it off)",
+    write: false,
+    argsSchema: obj(["session"], { session }),
+    async run(args) {
+      needReady();
+      return chatSuggest(args, { config: ctxRef && ctxRef.config });
+    },
+  },
+  "chat.attach": {
+    title: "Attach a PDF to the next message, one piece at a time",
+    write: true,
+    argsSchema: obj(["data"], { id: str("Attachment id (empty: a new one)", { maxLength: 25, pattern: "^(a[0-9a-f]{24})?$" }), name: str("File name", { maxLength: 120 }), mime: { type: "string", title: "Type", enum: ["application/pdf"] }, data: str("This piece, base64", { minLength: 4, maxLength: MAX_PIECE }) }),
+    async run(args) {
+      needReady();
+      return attachPiece(args);
     },
   },
   "chat.side": {
@@ -1361,7 +1459,7 @@ const actions = {
     argsSchema: obj(["folder"], { folder }),
     async run(args) {
       needReady();
-      const r = await publishItem(findItem(args.folder), pushBranch);
+      const r = await publishOne(findItem(args.folder));
       broadcastLive();
       return r;
     },
@@ -1378,7 +1476,7 @@ const actions = {
       const failed = [];
       for (const it of items) {
         try {
-          done.push(await publishItem(it, pushBranch));
+          done.push(await publishOne(it));
         } catch (e) {
           failed.push({ folder: it.folder, message: e.message });
         }

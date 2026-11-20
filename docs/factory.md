@@ -25,6 +25,8 @@ Saved in the opencode connector's config (`autopilot`, `factory`) and written to
 | UI checks with screenshots | on | Needs a `## UI checks` table in the repo guide and Playwright in the repo. |
 | UI check in every task | on | Each task that changes UI files opens its pages before it commits. Same table. |
 | The model can see images | off | Also hands the per-task screenshot to the model. It reads the page as text either way. |
+| When you publish | Open a PR | **Merge, no PR**: for your own repos on a personal computer (see Merge without a PR). |
+| Merge only these repos | blank (every repo) | With Merge, no PR: the repo folders that merge. A build touching any other repo opens PRs. |
 | Regression tests | on | Needs a `### UI check in every task
 
 Since connector 1.28.0, Loom 6.9.0 and Tandem Core 4.15.0 (Workshop project doc `claude/build-self-check-v1-plan.md`). A task that changes UI files starts the app once for the build (`Start-UiApp.ps1`, the record in `.work/<item>/ui/app.json`) and runs `Test-Ui.ps1 -Quick` before it commits: one width (1280), the pages its files touch, and each page's accessibility tree as text. The task confirms what it promised is on the page and fixes a load error, console error or new accessibility problem in the same task, so the review round finds fewer. The model sees the screenshot too only with **The model can see images** on. The app stops before the review's full check (`Stop-UiApp.ps1`).
@@ -50,6 +52,15 @@ Since connector 1.28.0, ADO connector 1.16.0, GitHub connector 1.4.0, Loom 6.9.0
 - **Teammates' comments:** counted on the card and shown in the code review screen beside the code, where you can send any back to Tandem.
 - **Merged:** the card leaves the line for **Delivered today**. Workshop removes the build's worktrees (the work folder stays) and runs `/retro <id> auto`. A linked ADO item offers **Resolve in ADO**. Notifications: a fix ready to push and a merge, when Workshop is out of sight.
 - **Abandoned:** the build is back at Publish.
+
+## Merge without a PR
+
+Since connector 1.29.0 and Loom 6.10.0, for your own repos on a personal computer: Settings, Factory, **When you publish**: **Merge, no PR**. Publish then reads **Merge into main** (the target in `pr.md`), and the code review's button **Approve and merge**.
+
+- Workshop merges each branch into its target without checking anything out (`git merge-tree`, git 2.38 or later), as one merge commit per repo (undo a whole build with `git revert -m 1`), and pushes the target, never forced. If the target moved meanwhile, it merges again once. The branch itself is not pushed.
+- Every repo is merged before any is pushed: a conflict in one pushes nothing. Workshop writes `ci/conflict-<n>.md` and runs `/pr-fix <id> conflict auto` (Tandem merges the target into the branch, as after Publish); the Publish block says when it is done, and you publish again.
+- A merge is the end: the card goes to **Delivered today**, the worktrees are removed and `/retro <id> auto` runs. There is no PR to follow, so nothing is watched.
+- There is no team review and no CI before the merge: the factory's own review, UI checks and regression tests have run. Leave it on Open a PR for anything a team shares. A repo needs an `origin` remote.
 
 ## Regression tests` table in the repo guide. |
 | Worktrees | every build | Every build in its own git worktree. |

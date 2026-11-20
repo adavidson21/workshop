@@ -8,7 +8,15 @@ Remote MCP servers you add in Settings, reached through Workshop. Tandem uses th
 2. Settings, MCP servers: turn it on, add the server: an **Id** (short, lowercase: `github`), a **Name**, its **Server URL** (Streamable HTTP; https only, except on this computer) and the **Token** secret name. Most servers take the token as `Authorization: Bearer <token>`; change **Header** and **Before the token** under Advanced if yours does not.
 3. Use the Test field with the server id to list its tools. Settings, Manager, All connections shows each server, its host, its secret and how many tools are read-only.
 
-Servers that only offer OAuth sign-in are not supported yet: use a server that takes a token.
+## Sign in (OAuth)
+
+Since 1.1.0, for servers that take no token (`lib/oauth.mjs`):
+
+1. Settings, MCP servers: add the server, set **How it signs in** to **Sign in (OAuth)**, and name a secret under **Token (secret name)**, for example `linear-signin`.
+2. In a terminal: `workshop mcp login <id>`. It finds where the server signs in (its protected resource metadata, then its authorization server's metadata), registers Workshop as an app there (dynamic client registration), and opens your browser to sign in (authorization code with PKCE, the server named as the resource). The answer comes back to a one-time address on 127.0.0.1.
+3. The command saves a random key in the secret store under that name, and the tokens in this connector's storage (`<home>/data/_connectors/mcp/oauth-<id>.json`, mode 0600) encrypted with it (AES-256-GCM). Workshop's agent only ever reads the secret store, so this is how it can renew the tokens: when the access token runs out, or the server refuses it, the connector refreshes it once and saves the new tokens, sealed again.
+
+If renewing fails (the server revoked the sign-in), calls say to run `workshop mcp login <id>` again. `workshop mcp logout <id>` deletes the key and the tokens; revoke Workshop on the server's site too. Needs a server that supports dynamic client registration and PKCE (S256); otherwise use a token.
 
 ## What Tandem can do
 
@@ -25,7 +33,8 @@ Tool descriptions come from the server and reach Tandem as written: add servers 
 | `servers[].id` | required | Short, lowercase. Tools show as `<id>__<tool>`; always-allow scopes are `<id>/<tool>`. |
 | `servers[].name` | required | Shown in Approvals and Activity. |
 | `servers[].url` | required | Streamable HTTP address. https, or http on 127.0.0.1 or localhost. |
-| `servers[].tokenSecret` | none | Secret name (`x-workshop-secret`). Settings shows whether it is saved and when it expires. |
+| `servers[].auth` | `token` | `oauth`: Sign in (1.1.0). |
+| `servers[].tokenSecret` | none | Secret name (`x-workshop-secret`). Settings shows whether it is saved and when it expires. With Sign in, the name `workshop mcp login` saves the key under. |
 | `servers[].header`, `servers[].prefix` | `Authorization`, `Bearer ` | How the token is sent (Advanced). |
 | `servers[].trustReadOnly` | `true` | Run tools marked read-only without asking. |
 | `servers[].enabled` | `true` | Off: its tools are not offered. |
@@ -46,4 +55,4 @@ Tool descriptions come from the server and reach Tandem as written: add servers 
 node --test "connectors/mcp/test/*.test.mjs"
 ```
 
-They run against a fake MCP server (JSON and event-stream answers); nothing reaches the network.
+They run against a fake MCP server (JSON and event-stream answers) and a fake OAuth server; nothing reaches the network.

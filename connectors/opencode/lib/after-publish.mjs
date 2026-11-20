@@ -11,6 +11,10 @@
 //   - Merged: the item is done. Its worktrees are removed (the .work folder stays) and `/retro <id> auto` runs.
 //   - Abandoned: the publish record goes, so the item is back at Publish.
 // The state lives in published.json (lib/publish.mjs), per repo under `watch`.
+//
+// 1.29.0, merge without a PR (lib/merge.mjs): a merge that conflicts writes ci/conflict-<n>.md and starts the same
+// `/pr-fix <id> conflict auto` (startMergeFix); Loom shows its result and you publish again. A merge that went through
+// finishes like a merged PR (finishMerged): worktrees removed, /retro.
 
 import fs from "node:fs";
 import path from "node:path";
@@ -23,6 +27,7 @@ import { setThreadSource } from "./review.mjs";
 
 export const MAX_FIX_ROUNDS = 2;
 const threads = new Map(); // "<folder>|<repo>" -> [thread]
+const mergeFixes = new Map(); // folder -> {repo, target, file, state: working | ready | not-fixed | needs-you, text, at}
 let off = null;
 
 const nowIso = () => new Date().toISOString();
@@ -68,6 +73,41 @@ export function failureText({ id, repo, branch, target, status }) {
 /** ci/conflict-<n>.md. */
 export function conflictText({ id, repo, branch, target, status }) {
   return [`# Conflict: ${repo} PR ${status.id}`, "", `- Item: ${id}`, `- Repo: ${repo}`, `- Branch: ${branch}`, `- Base: ${target}`, `- PR: ${status.url}`, `- Commit: ${status.head || "unknown"}`, `- Found: ${nowIso()}`, ""].join("\n");
+}
+
+/** ci/conflict-<n>.md for a merge without a PR: the files git could not merge. */
+export function mergeConflictText({ id, repo, branch, target, files, head }) {
+  return [`# Conflict: ${repo} into ${target} (merge without a PR)`, "", `- Item: ${id}`, `- Repo: ${repo}`, `- Branch: ${branch}`, `- Base: ${target}`, "- PR: none (Publish merges without a PR)", `- Commit: ${head || "unknown"}`, `- Found: ${nowIso()}`, "",
+    "## Files git could not merge", "", ...((files || []).length ? files.map((f) => `- \`${f}\``) : ["- (git did not name them)"]), ""].join("\n");
+}
+
+/** Publish's merge conflicted: write the ci file and start Tandem's merge of the target into the branch. */
+export async function startMergeFix(it, c) {
+  const id = it && it.id ? String(it.id) : null;
+  if (!id) throw httpError(409, `${c.repo} conflicts with ${c.target}. Merge ${c.target} into ${c.branch} yourself, then publish again.`);
+  const f = nextFile(it.folder, "conflict");
+  fs.writeFileSync(path.join(f.dir, f.name), mergeConflictText({ id, ...c }));
+  mergeFixes.set(it.folder, { repo: c.repo, target: c.target, file: `ci/${f.name}`, state: "working", text: null, at: nowIso() });
+  try {
+    await startPending(it.folder, `/pr-fix ${id} conflict auto`, `${c.repo} conflicts with ${c.target}: Tandem is merging it in`);
+  } catch (e) {
+    mergeFixes.set(it.folder, { ...mergeFixes.get(it.folder), state: "needs-you", text: `Tandem could not start: ${e.message}` });
+  }
+  broadcastLive();
+}
+
+/** Tandem's merge of the target into the branch after a merge conflict, for Loom, or null. */
+export const mergeFixOf = (folder) => mergeFixes.get(folder) || null;
+export const clearMergeFix = (folder) => mergeFixes.delete(folder);
+
+/** An item is merged (every PR, or the merge without a PR): remove its worktrees and run the retro. */
+export async function finishMerged(folder, it, deps, repo = null) {
+  mergeFixes.delete(folder);
+  emit("published", { folder, repo, event: "merged" });
+  if (!it) return;
+  const id = it.id ? String(it.id) : null;
+  try { await deps.removeWorktrees(it); } catch (e) { log(`after publish: worktrees of ${folder}: ${e.message}`); }
+  if (id) { try { await deps.runCommand({ folder, command: `/retro ${id} auto` }, { fresh: true }); } catch (e) { log(`after publish: /retro ${id}: ${e.message}`); } }
 }
 
 /** The `- Result:` line /pr-fix added to a ci file: {kind: fixed | not-fixed | needs-you, text}, or null. */
@@ -153,11 +193,7 @@ export async function recordStatus({ folder, repo, status, error }, deps) {
   if (w.merged && (rec.repos || []).every((r) => r.repo === repo || (r.watch && r.watch.merged))) {
     updatePublished(folder, (x) => { x.merged = nowIso(); });
     out.merged = true;
-    emit("published", { folder, repo, event: "merged" });
-    if (it) {
-      try { await deps.removeWorktrees(it); } catch (e) { log(`after publish: worktrees of ${folder}: ${e.message}`); }
-      if (id) { try { await deps.runCommand({ folder, command: `/retro ${id} auto` }, { fresh: true }); } catch (e) { log(`after publish: /retro ${id}: ${e.message}`); } }
-    }
+    await finishMerged(folder, it, deps, repo);
   } else if (w.abandoned) {
     forgetPublished(folder);
     out.abandoned = true;
@@ -169,6 +205,16 @@ export async function recordStatus({ folder, repo, status, error }, deps) {
 // A /pr-fix build finished (or stopped): read the Result line it wrote.
 function onFixDone(folder, status) {
   if (!["done", "waiting", "stopped"].includes(status)) return;
+  const mf = mergeFixes.get(folder);
+  if (mf && mf.state === "working") {
+    let text = "";
+    try { text = fs.readFileSync(path.join(workRoot, folder, mf.file), "utf8"); } catch {}
+    const res = resultOf(text);
+    const next = !res ? { state: "needs-you", text: (autopilot[folder] && autopilot[folder].message) || "Tandem stopped without writing a result." } : res.kind === "fixed" ? { state: "ready", text: res.text } : { state: res.kind, text: res.text };
+    mergeFixes.set(folder, { ...mf, ...next, at: nowIso() });
+    if (next.state === "ready") emit("published", { folder, repo: mf.repo, event: "merge-fixed" });
+    broadcastLive();
+  }
   const rec = publishedRecords()[folder];
   if (!rec) return;
   let changed = false;
@@ -198,6 +244,7 @@ export function loadAfterPublish() {
 export function resetAfterPublish() {
   if (off) off();
   off = null;
+  mergeFixes.clear();
   threads.clear();
   setThreadSource(null);
 }
