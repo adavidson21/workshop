@@ -13,6 +13,10 @@
 //   workshop pat [NAME] [--remove]         Save a PAT in a user environment variable (default ADO_PAT) without showing it.
 //   workshop secret set|list|check|remove  Keep a token in this computer's own secret store (Keychain, Credential
 //                                          Manager, Secret Service) for a connector. See docs/security.md, Secrets.
+//                                          --from-file <key.json> saves a Google service account key (Google Play);
+//                                          --password saves a password you type, like an Android keystore's.
+//   workshop play build|release <app>      Build an app's signed bundle with Bubblewrap or Gradle and propose it for
+//                                          Google Play (scripts/lib/play.mjs, connectors/play/README.md).
 //   workshop uninstall                     Turn off start at login. Leaves your data folder (dataDir) and ~/.workshop in place.
 //   workshop doctor [--sizes]              Check Node, config.json, the port, the data folder, start at login and hosted mode.
 //   workshop export --readable             Copy your data as spreadsheets and documents into <data folder>/Readable copy/.
@@ -65,6 +69,8 @@ import { SECRET_NAME, daysLeft, readIndex, readSecret as readStoredSecret, store
 import { removeSecret, saveSecret, secretProblem } from './scripts/lib/secrets-store.mjs';
 import { expectedPhrase } from './agent/lib/reset.mjs';
 import { authorizeUrl, discover, exchange, newKey, pkce, register, seal, storageKey } from './connectors/mcp/lib/oauth.mjs';
+import { compactKey } from './connectors/play/lib/key.mjs';
+import { PLAY_USAGE, runPlay } from './scripts/lib/play.mjs';
 import readline from 'node:readline';
 
 export const REPO = path.dirname(fileURLToPath(import.meta.url));
@@ -102,6 +108,9 @@ const USAGE = `Usage: workshop <command> [options]
          [--expires YYYY-MM-DD]  Credential Manager, Linux Secret Service) for a connector that names it, such as
          [--note <words>]        Cloudflare's "cloudflare". Paste it when asked; it is not shown, not put on a
                                  command line and never written to a file. --expires warns you 14 days before.
+  secret set <name>              Keep a Google service account key (Google Play) from the JSON file Google Cloud
+         --from-file <key.json>  gave you. Only what signing needs is kept. Delete the file afterwards.
+  secret set <name> --password   Keep a password you type twice, like an Android keystore's (6 characters or more).
   secret list                    The secrets Workshop keeps: names, store, expiry. Never values.
   mcp login <server id>          Sign in to an MCP server that takes no token (Settings, MCP servers, How it signs
                                  in: Sign in). Opens your browser; the key goes in the secret store and the
@@ -109,6 +118,10 @@ const USAGE = `Usage: workshop <command> [options]
   mcp logout <server id>         Forget that sign-in (the key and the encrypted tokens).
   secret check <name>            Read it back from the store and say whether it is there (never shows it).
   secret remove <name>           Delete it from the store.
+  play build <app> [--bump]      Build an app's signed bundle (Bubblewrap or Gradle) in its project folder, with the
+       [--release <track>]       signing password from the secret store; --release also proposes it for Google Play.
+  play release <app>             Propose the bundle already built for a track. You approve it in Workshop.
+       --track <track>           "workshop play help" lists every option.
   uninstall                      Turn off start at login. Leaves your data folder (dataDir, default ~/Workshop)
                                  and ~/.workshop in place.
   export --readable              Copy your data as spreadsheets (.csv) and documents (.md) into
@@ -1372,6 +1385,16 @@ async function runPat(rest, io) {
   return 0;
 }
 
+/** Plain-words problem with a typed password (an Android keystore needs 6 characters or more), or null. */
+export function passwordProblem(value) {
+  const v = String(value ?? '');
+  if (!v) return 'Nothing was entered.';
+  if (v.length < 6) return 'That is shorter than 6 characters; an Android keystore password is at least 6.';
+  if (v.length > 1000) return 'That is too long.';
+  if (/[\x00-\x1f\x7f]/.test(v)) return 'It has a control character in it.';
+  return null;
+}
+
 /**
  * workshop secret set|list|check|remove: tokens kept in this computer's own secret store (docs/security.md,
  * Secrets). Values go to the store on stdin, never on a command line, and are never printed or written to a
@@ -1382,9 +1405,9 @@ async function runSecret(rest, io) {
   const platform = io.platform || process.platform;
   const home = resolveHome(io.env);
   const store = io.secretStore || {};
-  const usage = 'Usage: workshop secret set <name> [--expires YYYY-MM-DD] [--note <words>] | list | check <name> | remove <name>';
+  const usage = 'Usage: workshop secret set <name> [--expires YYYY-MM-DD] [--note <words>] [--from-file <key.json> | --password] | list | check <name> | remove <name>';
   const opt = flag => { const i = args.indexOf(flag); return i >= 0 ? args[i + 1] : undefined; };
-  const name = args.find((a, i) => !a.startsWith('-') && !['--expires', '--note'].includes(args[i - 1]));
+  const name = args.find((a, i) => !a.startsWith('-') && !['--expires', '--note', '--from-file'].includes(args[i - 1]));
   if (!storeName(platform)) { io.out(`Workshop has no secret store on ${platform}.`); return 1; }
   const today = (io.now ? io.now() : new Date()).toISOString().slice(0, 10);
 
@@ -1416,19 +1439,46 @@ async function runSecret(rest, io) {
   const expires = opt('--expires');
   if (expires !== undefined && (!/^\d{4}-\d{2}-\d{2}$/.test(expires) || !Number.isFinite(Date.parse(`${expires}T00:00:00Z`)))) { io.out('--expires needs a date like 2027-02-01.'); return 1; }
   if (expires && daysLeft(expires, today) < 0) { io.out(`${expires} has already passed. Make a new token and use its expiry date.`); return 1; }
-  let value;
-  try {
-    value = await (io.secret || readSecret)({ prompt: `Paste the token for ${name} and press Enter (it will not show): ` });
-  } catch (e) {
-    io.out(e && e.code === 'cancelled' ? 'Cancelled. Nothing was saved.' : 'Could not read the token. Nothing was saved.');
-    return 1;
+  const fromFile = args.includes('--from-file') ? (opt('--from-file') || '') : null;
+  const password = args.includes('--password');
+  if (fromFile !== null && password) { io.out(`Use --from-file or --password, not both.\n${usage}`); return 1; }
+  let value, note = opt('--note') || '', said = null, after = null;
+  if (fromFile !== null) {
+    // A Google service account key file (Google Play): keep only what signing needs, in one line.
+    if (!fromFile || fromFile.startsWith('-')) { io.out('--from-file needs the key file, like: workshop secret set play --from-file ~/Downloads/my-project-1234.json'); return 1; }
+    const file = path.resolve(fromFile.replace(/^~(?=$|[\\/])/, os.homedir()));
+    let text;
+    try {
+      if (fs.statSync(file).size > 64 * 1024) { io.out(`${file} is too big to be a key file. Nothing was saved.`); return 1; }
+      text = fs.readFileSync(file, 'utf8');
+    } catch { io.out(`Could not read ${file}. Nothing was saved.`); return 1; }
+    let k;
+    try { k = compactKey(text); } catch (e) { io.out(`${e.message} Nothing was saved.`); return 1; }
+    // Windows Credential Manager holds at most 2560 bytes (1280 characters) per credential.
+    if (platform === 'win32' && k.value.length > 1280) { io.out('A Google service account key is too big for Windows Credential Manager. The Google Play connector works on macOS and Linux for now. Nothing was saved.'); return 1; }
+    value = k.value;
+    note = note || `Google service account ${k.email}`;
+    said = `the service account key for ${k.email}`;
+    after = `Delete the key file now; Workshop has what it needs: ${platform === 'win32' ? 'del' : 'rm'} "${file}"`;
+  } else {
+    try {
+      value = await (io.secret || readSecret)({ prompt: password ? `Type the password for ${name} and press Enter (it will not show): ` : `Paste the token for ${name} and press Enter (it will not show): ` });
+      if (password && (io.secret || process.stdin.isTTY)) {
+        const again = await (io.secret || readSecret)({ prompt: 'Type it again: ' });
+        if (again !== value) { io.out('The two do not match. Nothing was saved.'); return 1; }
+      }
+    } catch (e) {
+      io.out(e && e.code === 'cancelled' ? 'Cancelled. Nothing was saved.' : `Could not read the ${password ? 'password' : 'token'}. Nothing was saved.`);
+      return 1;
+    }
+    const problem = password ? passwordProblem(value) : secretProblem(value);
+    if (problem) { io.out(`${problem} Nothing was saved.`); return 1; }
   }
-  const problem = secretProblem(value);
-  if (problem) { io.out(`${problem} Nothing was saved.`); return 1; }
-  const r = await (store.save || saveSecret)(home, name, value, { platform, expires: expires || null, note: opt('--note') || '' });
+  const r = await (store.save || saveSecret)(home, name, value, { platform, expires: expires || null, note });
   if (!r.ok) { io.out(`${r.message} Nothing was saved.`); return 1; }
-  io.out(`Saved ${name} (${value.length} characters) in ${storeName(platform)}.`);
-  if (!expires) io.out(`Tip: add its expiry date so Workshop warns you two weeks before: workshop secret set ${name} --expires YYYY-MM-DD`);
+  io.out(`Saved ${name} (${said || `${value.length} characters`}) in ${storeName(platform)}.`);
+  if (after) io.out(after);
+  if (!expires && !password && fromFile === null) io.out(`Tip: add its expiry date so Workshop warns you two weeks before: workshop secret set ${name} --expires YYYY-MM-DD`);
   const running = await (io.probe || agentHealth)(configuredPort(io));
   io.out(running ? 'Workshop picks it up within a minute; no restart needed.' : 'Start Workshop with: workshop up');
   return 0;
@@ -1636,6 +1686,31 @@ async function runReset(rest, io) {
   }
 }
 
+// --------------------------------------------------------------- play (Google Play builds)
+
+/** workshop play build|release (scripts/lib/play.mjs) with this install's settings, secret store and agent. */
+async function runPlayCommand(rest, io) {
+  const home = resolveHome(io.env);
+  const platform = io.platform || process.platform;
+  const info = inspectConfig(homePaths(home).config, loadSchemas());
+  if (!['build', 'release'].includes(rest[0])) { io.out(PLAY_USAGE); return rest[0] && !['help', '--help', '-h'].includes(rest[0]) ? 1 : 0; }
+  if (info.state !== 'ok' && info.state !== 'missing') { io.out('config.json has a problem. Run "workshop doctor" and fix it first.'); return 1; }
+  const play = info.config && info.config.connectors && info.config.connectors.play;
+  const port = (info.config && info.config.port) ?? DEFAULT_PORT;
+  return runPlay(rest, io, {
+    config: play && play.config ? play.config : null,
+    userHome: io.userHome || os.homedir(),
+    platform,
+    readSecret: name => (io.secretStore && io.secretStore.read ? io.secretStore.read(name, { platform }) : readStoredSecret(name, { platform })),
+    callAgent: io.callAgent || (async (method, pathname, body) => {
+      if (!(await (io.probe || agentHealth)(port))) throw new Error(`Workshop is not running. Start it with: workshop up, then run this again.`);
+      if (!play || play.enabled !== true) throw new Error('the Google Play connector is off. Turn it on in Settings, Google Play.');
+      return agentJson(port, fs.readFileSync(homePaths(home).token, 'utf8').trim(), method, pathname, body);
+    }),
+    ...(io.run ? { run: io.run } : {}), ...(io.which ? { which: io.which } : {}), ...(io.npx ? { npx: io.npx } : {}), ...(io.exists ? { exists: io.exists } : {})
+  });
+}
+
 // --------------------------------------------------------------- command line
 
 export async function main(argv, io = { out: s => console.log(s), env: process.env }) {
@@ -1653,6 +1728,7 @@ export async function main(argv, io = { out: s => console.log(s), env: process.e
   if (cmd === 'pat') return runPat(rest, io);
   if (cmd === 'secret') return runSecret(rest, io);
   if (cmd === 'mcp') return runMcp(rest, io);
+  if (cmd === 'play') return runPlayCommand(rest, io);
   if (cmd === 'export') return runExport(rest, io);
   if (cmd === 'reset') return runReset(rest, io);
 

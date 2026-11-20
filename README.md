@@ -16,7 +16,7 @@ One page for an engineering manager's whole day: what to work on next, new reque
 | **Rapport** | 1:1 prep, notes, goals and "receipts" for reviews | Nothing |
 | **Folio** | Your notebook of Markdown files | Nothing |
 | **Bench** | Is Tandem helping? Its eval results: the lift over a plain prompt, history and compare | Tandem (eng-agents) and opencode on this computer |
-| **Settings** | People, teams, Azure DevOps, GitHub, Cloudflare, repos, apps on or off | Nothing (Cloudflare: your own computer, a token in its secret store; Tandem proposes changes, you apply them) |
+| **Settings** | People, teams, Azure DevOps, GitHub, Cloudflare, Google Play, repos, apps on or off | Nothing (Cloudflare and Google Play: your own computer, a token or key in its secret store; Tandem proposes changes and releases, you approve them) |
 
 Every app can be turned on or off, so you only see what you use. More on each app: [docs/guide.md](docs/guide.md).
 

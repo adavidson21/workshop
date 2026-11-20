@@ -1,6 +1,6 @@
 # Connector module
 
-Version: **`api: 1`**. A connector is the only code in Workshop that talks to an outside system (ADO, GitHub, opencode). Apps never call outside systems; they call a connector through the agent.
+Version: **`api: 1`**. A connector is the only code in Workshop that talks to an outside system (ADO, GitHub, opencode, Cloudflare, Google Play, MCP servers). Apps never call outside systems; they call a connector through the agent.
 
 ## Where it lives
 
@@ -111,7 +111,7 @@ The Settings app (WS4) builds each connector's form from `configSchema` alone, s
 | `x-workshop-section: "<name>"` on a top-level field | Folds the field into a section with that name on its page, closed until opened (the ADO connector's team reports). An object in a section shows its fields directly. |
 | `x-workshop-hosted: true` on any field | A paired hosted page may change this field (`PUT /api/connectors/<id>/config`). Unmarked fields change only from the agent's own origin. Never mark a field that names a server, a command, a file to read, or an environment variable. |
 | `type: "string"` with `x-workshop-env: true` | Environment variable name field. The form shows the name and whether it is set (from `env` in `GET /api/connectors/<id>/config`). There is no field for the value. |
-| `type: "string"` with `x-workshop-secret: true` | Secret name field. The form shows the name, whether `workshop secret set` saved it and when it expires (from `secrets` in `GET /api/connectors/<id>/config`), and the command to save it. There is no field for the value. |
+| `type: "string"` with `x-workshop-secret: true` | Secret name field. The form shows the name, whether `workshop secret set` saved it and when it expires (from `secrets` in `GET /api/connectors/<id>/config`), and the command to save it. There is no field for the value. `x-workshop-secret-kind` picks that command: `token` (default, `--expires YYYY-MM-DD`), `key-file` (`--from-file <key.json>`, a Google service account key) or `password` (`--password`). |
 | `type: "integer"` or `"number"` | Number field, with `minimum` and `maximum`. |
 | `type: "boolean"` | Checkbox or switch. |
 | `type: "array"` of strings | List of text fields with add and remove. |

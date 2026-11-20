@@ -1133,7 +1133,7 @@
         "manifestVersion": 1,
         "id": "settings",
         "name": "Settings",
-        "version": "7.6.0",
+        "version": "7.7.0",
         "description": "Status, apps, this computer and data; people and teams, knowledge (products, glossary, repo map), focus hours and writing voice; connections, approvals, routines, opencode and repos; a user guide.",
         "icon": "icon.svg",
         "entry": "index.html",
@@ -1202,6 +1202,7 @@
         ],
         "files": [
           "js/cloudflare-page.js",
+          "js/play-page.js",
           "js/connections-page.js",
           "js/routines-page.js",
           "js/focus-model.js",
