@@ -88,7 +88,7 @@ async function one(m, deps) {
         protocolVersion: PROTOCOLS.includes(want) ? want : PROTOCOLS[0],
         capabilities: { tools: { listChanged: false } },
         serverInfo: { name: 'workshop', version: deps.version },
-        instructions: 'Workshop on this computer: your outside connections (Cloudflare, MCP servers). Reads run at once. Anything that changes something outside waits for the person to approve it in Workshop; you get an approval id to check with workshop__approval_status. Never ask for or handle tokens.'
+        instructions: 'Workshop on this computer: your outside connections (Cloudflare, Google Play, MCP servers). Reads run at once. Anything that changes something outside waits for the person to approve it in Workshop; you get an approval id to check with workshop__approval_status. Never ask for or handle tokens.'
       });
     }
     case 'ping': return ok({});

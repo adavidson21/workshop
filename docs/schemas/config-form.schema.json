@@ -214,6 +214,14 @@
           "type": "boolean",
           "description": "The value names a secret in this computer's secret store (docs/connector.md, ctx.secret)."
         },
+        "x-workshop-secret-kind": {
+          "enum": [
+            "token",
+            "key-file",
+            "password"
+          ],
+          "description": "How the secret is saved, for the command Settings shows: a pasted token (default), a key file (--from-file) or a typed password (--password)."
+        },
         "x-workshop-labels": {
           "type": "array",
           "items": {

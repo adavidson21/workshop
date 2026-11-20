@@ -6,7 +6,8 @@
      string + enum               select (x-workshop-labels for option labels)
      string + x-workshop-env     environment variable name field (shows whether it is set; no value field)
      string + x-workshop-secret  secret name field (shows whether `workshop secret set` saved it, and its expiry;
-                                 no value field: values are only ever typed into the terminal)
+                                 no value field: values are only ever typed into the terminal). The command it
+                                 shows follows x-workshop-secret-kind: token, key-file or password.
      integer / number            number field (minimum, maximum)
      boolean                     checkbox
      array of strings            list of text fields with add and remove
@@ -27,6 +28,14 @@ let seq = 0;
 const nextId = () => 'f' + (++seq);
 
 // Public: build the form. `env` is the GET /api/connectors/<id>/config `env` map ({NAME: {set}}).
+
+/** The command that saves a secret of this kind (x-workshop-secret-kind): a token, a key file or a typed password. */
+export function secretCommand(name, kind) {
+  if (kind === 'key-file') return `workshop secret set ${name} --from-file <key.json>`;
+  if (kind === 'password') return `workshop secret set ${name} --password`;
+  return `workshop secret set ${name} --expires YYYY-MM-DD`;
+}
+
 export function render(schema, value, env, opts) {
   const node = control(schema, value, env, opts || {});
   node.classList.add('cfg-root');
@@ -174,7 +183,7 @@ function leafField(schema, value, env, o) {
       status.textContent = !n ? '' : !s ? 'save to check' : !s.set ? 'not saved on this computer'
         : d !== null && d < 0 ? `expired ${s.expires}` : d !== null && d <= 14 ? `saved, expires in ${d} days` : `saved in ${s.store || 'your secret store'}`;
       status.className = 'cfg-env-status ' + (!s ? '' : s.set && !(d !== null && d <= 14) ? 'ok' : 'warn');
-      how.textContent = n && (!s || !s.set || (d !== null && d <= 14)) ? `workshop secret set ${n} --expires YYYY-MM-DD` : '';
+      how.textContent = n && (!s || !s.set || (d !== null && d <= 14)) ? secretCommand(n, schema['x-workshop-secret-kind']) : '';
     };
     input.addEventListener('input', render); render();
     holder.appendChild(status);
