@@ -279,7 +279,7 @@ function lineHtml(id, title, sub, stations, sel, extra, before, ready) {
 const STEP_WORD = { done: 'done', now: 'now', next: 'next' };
 /** New lines: products being onboarded, their five steps lit (Core 4.10.0 /onboard-product). */
 function newLinesHtml(fd, sel) {
-  if (!fd.onboarding.length) return '';
+  if (!fd.onboarding.length || (S.view && S.view.hideSetup)) return '';
   const row = o => {
     const steps = o.steps.map(x => `<li class="fl-step ${h(x.st)}" aria-label="${h(x.name + ': ' + STEP_WORD[x.st])}"><span class="fl-dot" aria-hidden="true"></span>${h(x.name)}</li>`).join('');
     const gaps = o.gaps ? `<button type="button" class="lnk plain" data-lane-filter="teach">${h(plural(o.gaps, 'gap'))} to answer</button>` : '';
@@ -287,7 +287,7 @@ function newLinesHtml(fd, sel) {
     const done = o.live ? `<span class="fl-live">Live</span><button type="button" class="lnk plain" data-onboard-dismiss="${h(o.product)}">Hide</button>` : '';
     return `<li class="fl-nl"><span class="fl-nlname">${h(o.product)}</span><ol class="fl-steps" role="list">${steps}</ol><span class="fl-nlx">${gaps}${trial}${done}</span></li>`;
   };
-  return `<section class="fl-new" aria-label="New lines: products being onboarded"><h2>New lines</h2><ul class="fl-nls" role="list">${fd.onboarding.map(row).join('')}</ul></section>`;
+  return `<section class="fl-new" aria-label="New lines: products being onboarded"><div class="ghide-row"><h2>New lines</h2><button type="button" class="lnk plain" data-setup-hide="1" title="Hide setup and onboarding. Settings, Show tips again brings them back.">Hide</button></div><ul class="fl-nls" role="list">${fd.onboarding.map(row).join('')}</ul></section>`;
 }
 /** The hand-off belt (stories waiting to start) and a tracker card per epic building hands-off. */
 function handoffHtml(fd, sel) {
@@ -375,6 +375,12 @@ export function rowsHtml(data, sel, panel) {
   return `<div class="ln-body fl-body${panel ? ' has-panel' : ''}"><div class="fl-list">${body}</div>${panel || ''}</div>`;
 }
 
+/** The picker's explanation sits behind a quiet ? (shared hints: retires after a few opens, Settings brings it back). */
+function pickHint(id, text) {
+  const T = typeof window !== 'undefined' && window.WorkshopTheme;
+  return T && T.hints ? T.hints.html(id, text) : '';
+}
+
 // ------------------------------------------------------------------ Add regression tests (Loom 6.8.0)
 /** The Add regression tests picker under the drop box: a product (from Settings, with repos) and an optional area.
     A pick runs the connector's tests.cover (Tandem's /cover): one hands-off Quick change per UI repo, cards marked Tests. */
@@ -383,8 +389,8 @@ export function coverPickHtml() {
   const list = (S.products || []).filter(p => p && !p.archived && (p.repos || []).length);
   const busy = S.ui.busy && S.ui.busy.cover;
   const rows = list.length ? `<ul role="list">${list.map(p => `<li><button type="button" class="ln-prow" data-cover-go="${h(p.name)}"${busy ? ' disabled' : ''}><span class="ln-ptitle">${h(p.name)}</span><span class="ln-ptype">${h(plural(p.repos.length, 'repo'))}</span></button></li>`).join('')}</ul>`
-    : '<p class="dim">No product with repos yet. Add one in Settings, Products.</p>';
-  return `<div class="ln-pick ln-cover"><p class="ln-pnote">Tandem writes end-to-end tests for what a product's pages do today, with every API mocked and no product code changed: one Quick change per UI repo, built hands-off. You publish each PR, and every build after that runs them.</p>` +
+    : '<p class="dim">No products with repos yet.</p>';
+  return `<div class="ln-pick ln-cover"><p class="ln-dl">Pick a product${pickHint('loom.cover', 'Tandem writes mocked end-to-end tests, one hands-off PR per UI repo. Products go in Settings, Products.')}</p>` +
     `<label class="ln-dl" for="ln-cover-area">Area or pages (optional)</label><input type="text" id="ln-cover-area" data-draft="lanes:cover" maxlength="200" placeholder="Leave empty for the main pages" value="${h((S.ui.drafts && S.ui.drafts['lanes:cover']) || '')}">${rows}</div>`;
 }
 
@@ -400,6 +406,6 @@ export function onboardPickHtml() {
   const list = onboardable();
   const busy = S.ui.busy && S.ui.busy.onboard;
   const rows = list.length ? `<ul role="list">${list.map(p => `<li><button type="button" class="ln-prow" data-onboard-go="${h(p.name)}"${busy ? ' disabled' : ''}><span class="ln-ptitle">${h(p.name)}</span><span class="ln-ptype">${h(plural(p.repos.length, 'repo'))}</span></button></li>`).join('')}</ul>`
-    : '<p class="dim">Every product with repos is onboarded or on its way. Add one in Settings, Products.</p>';
-  return `<div class="ln-pick ln-onboard"><p class="ln-pnote">Tandem drafts any missing repo guide and the product note, logs what it cannot find for Teach, and starts a trial run. It asks nothing; the steps show as a new line on the floor.</p>${rows}</div>`;
+    : '<p class="dim">All onboarded.</p>';
+  return `<div class="ln-pick ln-onboard"><p class="ln-dl">Pick a product${pickHint('loom.onboard', 'Tandem fills gaps and starts a trial run. New products go in Settings, Products.')}</p>${rows}</div>`;
 }

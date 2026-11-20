@@ -1675,11 +1675,19 @@ async function start() {
   if (!current) selectPage('overview');
 }
 
-// The quiet ? hints retire after a few uses (shared/theme.js); this brings them back.
+// Loom's Hide on Getting set up and New lines (dispatch.view hideSetup, apps/slate/js/dispatch/local.js).
+function showLoomSetup() {
+  try {
+    const v = JSON.parse(localStorage.getItem('dispatch.view') || 'null');
+    if (v && v.hideSetup) { v.hideSetup = false; localStorage.setItem('dispatch.view', JSON.stringify(v)); }
+  } catch (e) { /* blocked storage: nothing was hidden here */ }
+}
+
+// The quiet ? hints retire after a few uses (shared/theme.js); this brings them back, with Loom's hidden setup.
 function tipsCard() {
   if (!globalThis.WorkshopTheme?.hints) return;
-  const sec = card('Tips', 'The ? hints next to headings go away once you have opened each one a few times.', pages.has('computer') ? 'computer' : 'overview', 80);
+  const sec = card('Tips', 'The ? hints go away once you have opened each one a few times. This also brings back Loom\'s hidden setup steps.', pages.has('computer') ? 'computer' : 'overview', 80);
   sec.insertAdjacentHTML('beforeend', '<div class="acts left"><button type="button" class="btn" data-hints-reset>Show tips again</button></div>');
-  sec.addEventListener('click', e => { if (e.target.closest('[data-hints-reset]')) { globalThis.WorkshopTheme?.hints.reset(); toast('Tips are back.'); } });
+  sec.addEventListener('click', e => { if (e.target.closest('[data-hints-reset]')) { globalThis.WorkshopTheme?.hints.reset(); showLoomSetup(); toast('Tips and setup steps are back.'); } });
 }
 await start();

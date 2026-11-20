@@ -199,6 +199,15 @@ test('products being onboarded are new lines on top, their five steps lit, gaps 
   assert.match(html, /<span class="fl-live">Live<\/span><button type="button" class="lnk plain" data-onboard-dismiss="Billing">Hide</);
 });
 
+test('Hide on setup hides every onboarding section at once: New lines and Getting set up', async () => {
+  const { onboardHtml } = await import('../js/dispatch/view.js');
+  S.D.onboarding = [{ product: 'Billing', gaps: 0, live: null, trial: null, steps: [{ id: 'add', name: 'Add', st: 'done' }] }];
+  assert.match(floorHtml(lanesData('all'), '', ''), /<h2>New lines<\/h2><button type="button" class="lnk plain" data-setup-hide="1"/);
+  S.view.hideSetup = true;
+  assert.doesNotMatch(floorHtml(lanesData('all'), '', ''), /fl-new/);
+  assert.equal(onboardHtml(), '');
+});
+
 // Loom 6.6.0 (eng-agents Core 4.12.0, connector 1.24.0).
 test("Tandem's step.md places a build at its station, when it fits the item's stage", () => {
   const it = S.D.items.find(i => i.folder === '41207-fix-login-timeout');
@@ -258,7 +267,8 @@ test('Onboard a product lists your products with repos that are not onboarding y
   assert.match(html, /data-onboard-go="Sample Portal"><span class="ln-ptitle">Sample Portal<\/span><span class="ln-ptype">1 repo<\/span>/);
   assert.doesNotMatch(html, /No repos|Old|Billing/);
   S.products = [];
-  assert.match(onboardPickHtml(), /Add one in Settings, Products/);
+  assert.match(onboardPickHtml(), /All onboarded/);
+  assert.doesNotMatch(onboardPickHtml(), /ln-pnote/, 'the explanation is behind a ? hint, not a paragraph');
 });
 
 test('regression tests on the floor (Loom 6.8.0): cards show failing, flaky or added tests; backfill items are marked Tests', () => {
@@ -289,7 +299,8 @@ test('Add regression tests lists your products with repos; a pick runs tests.cov
   assert.doesNotMatch(html, /No repos|Old/);
   assert.match(lanesHtml(), /ln-cover/);
   S.products = [];
-  assert.match(coverPickHtml(), /Add one in Settings, Products/);
+  assert.match(coverPickHtml(), /No products with repos yet/);
+  assert.doesNotMatch(coverPickHtml(), /ln-pnote/);
 });
 
 test('after Publish (connector 1.28.0): In transit with what its PR waits on, Push fix is your turn, merged today is Delivered', async () => {

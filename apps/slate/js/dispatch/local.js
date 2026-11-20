@@ -1,20 +1,21 @@
 /* Dispatch: view prefs kept in this browser only. Today that is the project filter on Work. Projects and
    which run is in which live in the opencode connector (.work/_dashboard/projects.json), because agents need them.
 
-   Shape (localStorage "dispatch.view"): { project: "all" | "<project id>", lanes: "floor" | "list" } (lanes: Loom 6.4.0; "list" is the List of rows since 6.7.0, and 6.6's "rows" reads as "list")
+   Shape (localStorage "dispatch.view"): { project: "all" | "<project id>", lanes: "floor" | "list", hideSetup: boolean } (lanes: Loom 6.4.0; "list" is the List of rows since 6.7.0, and 6.6's "rows" reads as "list"; hideSetup hides every onboarding section, Getting set up and New lines, until Settings' "Show tips again")
 
    Loom 1.x kept sidebar folders, pins and collapsed groups under "dispatch.sidebar". Loom 2.0 has no
    sidebar, so loadView removes that key once. Pure functions take and return the prefs; main.js loads and saves. */
 export const VIEW_KEY = 'dispatch.view';
 export const OLD_KEY = 'dispatch.sidebar';
 
-export function emptyView() { return { project: 'all', lanes: 'floor' }; }
+export function emptyView() { return { project: 'all', lanes: 'floor', hideSetup: false }; }
 
 /** Clean whatever was stored (another version, a hand edit) into the current shape. */
 export function cleanView(raw) {
   const out = emptyView();
   if (raw && typeof raw === 'object' && typeof raw.project === 'string' && /^[\w-]{1,64}$/.test(raw.project)) out.project = raw.project;
   if (raw && typeof raw === 'object' && ['list', 'rows'].includes(raw.lanes)) out.lanes = 'list';
+  if (raw && typeof raw === 'object' && raw.hideSetup === true) out.hideSetup = true;
   return out;
 }
 

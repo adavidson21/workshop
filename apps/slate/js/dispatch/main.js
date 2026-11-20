@@ -1097,6 +1097,7 @@ listen('click', ev => {
     act(() => write('epic.build', { folder }), r => toast(r && r.split ? 'Tandem is making the stories. They start building as soon as they exist.' : `Building ${r && r.started ? r.started.length : 0} stories, in order.`), 'epic:' + folder);
     return;
   }
+  if (t.closest('[data-setup-hide]')) { S.view.hideSetup = true; saveViewNow(); toast('Setup hidden. Settings, Show tips again brings it back.'); paint(); return; }
   const od = t.closest('[data-onboard-dismiss]');
   if (od) { act(() => write('onboarding.dismiss', { product: od.getAttribute('data-onboard-dismiss') })); return; }
   const tr = t.closest('[data-try]');

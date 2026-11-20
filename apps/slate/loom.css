@@ -342,3 +342,10 @@ body[data-loom-tab=lanes] #runs-root .page:has(.fl-body) { max-width: none; }
 #runs-root .fl-shipped { display: flex; flex-direction: column; gap: 4px; margin-top: -10px; }
 #runs-root .fl-shipped .ln-donelist { list-style: none; margin: 0; padding: 0 2px; display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
 #runs-root .fl-rowb.fl-done { grid-template-columns: 76px minmax(0, 1fr); color: var(--muted); }
+
+/* Hide on onboarding sections (Getting set up, New lines): heading left, Hide right */
+#runs-root .ghide-row { display: flex; align-items: baseline; gap: 8px; }
+#runs-root .ghide-row > :first-child { flex: 1; min-width: 0; }
+#runs-root .guide .ghide-row { margin: 0 0 12px; }
+#runs-root .guide .ghide-row .eyebrow { margin: 0; }
+#runs-root .ghide-row [data-setup-hide] { font-size: 12px; color: var(--muted); }
