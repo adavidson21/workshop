@@ -35,6 +35,7 @@ All methods that talk to the shell or the agent return promises. Failures reject
 | `ws.status.clear()` | Removes this app's status. |
 | `ws.commands.register({id, title, shortcut?})` | Adds a command to the shell palette (`Ctrl+K`). Returns an unregister function. `id` is unique within the app; the shell scopes it to the app. Running it sends the app a `command` event. |
 | `ws.theme.current()` | `{key, scheme}`. `key` is a theme from `shared/themes.css` (`light`, `dark`, or `system`); `scheme` is `light` or `dark`. |
+| `ws.areas.off()` / `ws.areas.partOn(part)` | The areas turned off in Settings, Apps ([apps.md](apps.md), Areas), as the shell saw them when the app opened; `partOn` says whether this app should show one of its parts listed in `shared/areas.js` (Docket's `people`). Standalone: this browser's switches. |
 | `ws.on(event, handler)` | Subscribe to `theme`, `route`, `command`, `visible` or `online`. Returns an unsubscribe function. |
 
 Events:
@@ -232,7 +233,7 @@ Every message is an object with `workshop: 1`. Schema [sdk-message](schemas/sdk-
 | `response` | shell to app | `id` of the request, `ok`, then `result` or `error: {code, message}` |
 | `event` | shell to app | `event`, `payload` |
 
-Request methods: `ready` (`{app, sdk: 1}`; the shell replies with `{theme, route, visible}`), `open`, `window.open` (`{path}`), `route.set`, `toast`, `badge`, `notify`, `status.set`, `status.clear`, `commands.register`, `commands.unregister`. `params` match the SDK method arguments.
+Request methods: `ready` (`{app, sdk: 1}`; the shell replies with `{theme, route, visible, areasOff}`), `open`, `window.open` (`{path}`), `route.set`, `toast`, `badge`, `notify`, `status.set`, `status.clear`, `commands.register`, `commands.unregister`. `params` match the SDK method arguments.
 
 Rules:
 

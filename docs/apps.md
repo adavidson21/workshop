@@ -22,16 +22,29 @@ The Apps tab has the same switches. Changes come from Workshop on this computer 
 - **Hosted mode:** the switches change the rail.
 - **Browser mode (no agent):** the switches are kept in this browser and change its rail.
 
+## Areas
+
+An area turns a whole kind of work on or off at once, so a personal computer is not cluttered with work things. They are switches at the top of **Settings, Apps**, or `workshop apps on|off <area>`. Every area is on by default. What each one covers is in `shared/areas.js`:
+
+| Area | Apps | Settings pages | Connectors (Status) | App parts |
+| --- | --- | --- | --- | --- |
+| Management (`management`) | Rapport | People & teams (People & groups, Team area paths) | none | Docket's People place |
+| Work (`work`) | Runway | Azure DevOps (Connections, Work items, Pull requests) | Azure DevOps | none |
+
+The area wins: while it is off, its apps are off whatever their own switch says (their switch is disabled and says "Off with Management"; `PUT /api/app-switches/<id>` with `{"on": true}` answers `400`). Turning the area back on brings back each app's own switch. Settings pages and connectors are only hidden: an area page still opens from its route, and a connector's config and on/off state are kept. Turn Azure DevOps off on its page first if you don't want it syncing.
+
+Apps learn which areas are off from `ws.areas` ([sdk.md](sdk.md)), as the shell saw them when the app opened; changes show after Workshop reloads.
+
 ## Where it is kept
 
 `~/.workshop/apps.json` (or `WORKSHOP_HOME`), a file of its own so the command and the running agent never overwrite each other's `config.json`:
 
 ```json
-{"off": ["notes", "runway"]}
+{"off": ["notes", "runway"], "areasOff": ["management"]}
 ```
 
-No file means every app is on. Needs you (`home`) and Settings are never turned off, even if the file lists them. `workshop pin` and `workshop update` leave out the apps that are off.
+No file means every app and area is on. Browser mode keeps the areas in `localStorage` (`workshop.areasOff`). Needs you (`home`) and Settings are never turned off, even if the file lists them. `workshop pin` and `workshop update` leave out the apps that are off.
 
 ## API
 
-`GET /api/app-switches` lists every app with its switch; `PUT /api/app-switches/<id>` with `{"on": true}` or `{"on": false}` changes one (Workshop on this computer only). See [agent-api.md](agent-api.md).
+`GET /api/app-switches` lists every app with its switch, and the areas; `PUT /api/app-switches/<id>` with `{"on": true}` or `{"on": false}` changes one app, and `PUT /api/app-areas/<id>` one area (Workshop on this computer only). See [agent-api.md](agent-api.md).

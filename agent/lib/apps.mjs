@@ -2,9 +2,10 @@
 // rather than config.json, so the `workshop apps` command and the running agent can both change it without
 // either overwriting the other's copy of config.json. It is read fresh every time it is needed.
 //
-//   {"off": ["runway", "notes"]}
+//   {"off": ["runway", "notes"], "areasOff": ["management"]}
 //
-// Home and Settings are always on (Settings is where apps are turned back on).
+// Home and Settings are always on (Settings is where apps are turned back on). An area that is off
+// (shared/areas.js) turns its apps off too, without touching their own switches in "off".
 //
 // Pure file system work, like lib/pinned.mjs: no network and no child processes. Downloading an app that
 // lives in its own repo is `workshop apps on <app>`, which runs git; the agent never does that.
@@ -13,24 +14,52 @@ import path from 'node:path';
 import { VERSION } from '../version.mjs';
 import { writeJsonAtomic } from './fsutil.mjs';
 import { BUILD_FILE, pinInto, uiDirOf } from './pinned.mjs';
+import { AREAS, AREA_IDS, cleanAreas, appsOffBy, areaHiding } from '../../shared/areas.js';
 
 export const APPS_FILE = 'apps.json';
 export const ALWAYS_ON = new Set(['home', 'settings']);
 const ID = /^[a-z][a-z0-9-]{0,39}$/;
 const SHA = /^[0-9a-f]{40}$/;
 
-/** The ids of the apps turned off, as a Set. Missing or unreadable file: none are off. */
+function readFile(home) {
+  try { const v = JSON.parse(fs.readFileSync(path.join(home, APPS_FILE), 'utf8')); return v && typeof v === 'object' ? v : {}; } catch { return {}; }
+}
+const cleanOff = list => new Set((Array.isArray(list) ? list : []).filter(id => typeof id === 'string' && ID.test(id) && !ALWAYS_ON.has(id)));
+
+/** The ids of the apps turned off with their own switch, as a Set. Missing or unreadable file: none are off. */
 export function readOff(home) {
-  let v;
-  try { v = JSON.parse(fs.readFileSync(path.join(home, APPS_FILE), 'utf8')); } catch { return new Set(); }
-  const list = v && Array.isArray(v.off) ? v.off : [];
-  return new Set(list.filter(id => typeof id === 'string' && ID.test(id) && !ALWAYS_ON.has(id)));
+  return cleanOff(readFile(home).off);
 }
 
-/** Save the ids of the apps turned off. */
-export async function writeOff(home, off) {
+/** The ids of the areas turned off (shared/areas.js), as a Set. Missing file: none are off. */
+export function readAreasOff(home) {
+  return cleanAreas(readFile(home).areasOff);
+}
+
+/** The apps that are off for any reason: their own switch, or an area that is off. */
+export function effectiveOff(home) {
+  const file = readFile(home);
+  const off = cleanOff(file.off);
+  for (const id of appsOffBy(cleanAreas(file.areasOff))) if (!ALWAYS_ON.has(id)) off.add(id);
+  return off;
+}
+
+async function writeFile(home, { off, areasOff }) {
   fs.mkdirSync(home, { recursive: true, mode: 0o700 });
-  await writeJsonAtomic(path.join(home, APPS_FILE), { off: [...off].filter(id => ID.test(id) && !ALWAYS_ON.has(id)).sort() });
+  const out = { off: [...cleanOff([...off])].sort() };
+  const areas = [...cleanAreas([...areasOff])].sort();
+  if (areas.length) out.areasOff = areas;
+  await writeJsonAtomic(path.join(home, APPS_FILE), out);
+}
+
+/** Save the ids of the apps turned off with their own switch. The areas are kept as they are. */
+export async function writeOff(home, off) {
+  await writeFile(home, { off, areasOff: readAreasOff(home) });
+}
+
+/** Save the ids of the areas turned off. The apps' own switches are kept as they are. */
+export async function writeAreasOff(home, areasOff) {
+  await writeFile(home, { off: readOff(home), areasOff });
 }
 
 /** The apps/registry.json contents (same shape as GET /api/apps), built from appsDir, leaving out `off`. */
@@ -134,7 +163,7 @@ export function readBuild(uiDir) {
  * (gitHead by default; the `workshop` command passes one that runs git). Returns {build, off, skipped}.
  */
 export function pinApps({ home, repo, schemas, uiDir = uiDirOf(home), gitInfo = gitHead, version = VERSION }) {
-  const off = readOff(home);
+  const off = effectiveOff(home);
   const prev = readBuild(uiDir) || {};
   const info = { workshop: { version, ...(gitInfo(repo, prev.workshop) || {}) } };
   fs.mkdirSync(home, { recursive: true, mode: 0o700 });
@@ -153,6 +182,7 @@ export function pinApps({ home, repo, schemas, uiDir = uiDirOf(home), gitInfo = 
  */
 export function appSwitches({ home, repo, schemas, workMode, uiDir = uiDirOf(home) }) {
   const off = readOff(home);
+  const areasOff = readAreasOff(home);
   const build = workMode ? readBuild(uiDir) : null;
   let pinnedIds = null;
   if (workMode) {
@@ -164,10 +194,14 @@ export function appSwitches({ home, repo, schemas, workMode, uiDir = uiDirOf(hom
   return {
     workMode: workMode === true,
     pinned: workMode ? build !== null : null,
+    // The areas (shared/areas.js): `on`, and the apps each one turns off, by id.
+    areas: AREA_IDS.map(id => ({ id, label: AREAS[id].label, about: AREAS[id].about, on: !areasOff.has(id), apps: [...AREAS[id].apps] })),
     apps: list.map(a => {
-      const on = !off.has(a.id);
-      const out = { id: a.id, name: a.name, description: a.description, on, canTurnOff: !ALWAYS_ON.has(a.id), separate: false, inWorkshop: workMode ? pinnedIds.has(a.id) : on };
-      return out;
+      // `own`: the app's own switch. `area`: the area that has it off, or ''. `on`: both allow it.
+      const own = !off.has(a.id);
+      const area = ALWAYS_ON.has(a.id) ? '' : areaHiding('apps', a.id, areasOff);
+      const on = own && !area;
+      return { id: a.id, name: a.name, description: a.description, on, own, area, canTurnOff: !ALWAYS_ON.has(a.id), separate: false, inWorkshop: workMode ? pinnedIds.has(a.id) : on };
     })
   };
 }

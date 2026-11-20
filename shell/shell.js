@@ -12,6 +12,7 @@
    command, visible). Every app is a manifest app; the shell has no app code of its own. */
 import { allowFolder, detectBackend, folderState } from '../shared/workshop-sdk.js';
 import { SITE, onCrumbsDomain } from '../shared/site.js';
+import { appsOffBy, cleanAreas } from '../shared/areas.js';
 import { PAIR_HELP, canPair as canPairWith, forgetPairing, pairWith } from '../shared/pair.js';
 import { CAPTURE_ICON, createCaptureBar } from './capture.js';
 import { createFocusShell } from './focus.js';
@@ -100,12 +101,20 @@ async function fetchAppList() {
 }
 
 // Apps turned off in Settings, Apps (docs/apps.md): the agent's switches, or this browser's without one. Home
-// and Settings always stay. An older agent without switches turns nothing off.
+// and Settings always stay. An older agent without switches turns nothing off. An area that is off
+// (shared/areas.js) turns its apps off too; `areasOff` is told to every app when it is ready (ws.areas).
+let areasOff = new Set();
 async function appsOff() {
   if (env.backend === 'agent') {
-    try { return new Set(((await agentGet('/api/app-switches')).apps || []).filter(a => !a.on).map(a => a.id)); } catch (e) { return new Set(); }
+    try {
+      const v = await agentGet('/api/app-switches');
+      areasOff = cleanAreas((v.areas || []).filter(a => !a.on).map(a => a.id));
+      return new Set((v.apps || []).filter(a => !a.on).map(a => a.id));
+    } catch (e) { return new Set(); }
   }
-  try { const v = JSON.parse(localStorage.getItem('workshop.appsOff') || '[]'); return new Set(Array.isArray(v) ? v : []); } catch (e) { return new Set(); }
+  const read = key => { try { const v = JSON.parse(localStorage.getItem(key) || '[]'); return Array.isArray(v) ? v : []; } catch (e) { return []; } };
+  areasOff = cleanAreas(read('workshop.areasOff'));
+  return new Set([...read('workshop.appsOff'), ...appsOffBy(areasOff)]);
 }
 
 async function loadApps() {
@@ -517,7 +526,7 @@ function handleRequest(app, method, p) {
       const queued = app.pendingCommands || [];
       app.pendingCommands = [];
       if (queued.length) setTimeout(() => queued.forEach(c => sendTo(app, 'command', { id: c })));
-      return { theme: themeNow(), route, visible: app === panelApp ? panelOpen() : current === app.id };
+      return { theme: themeNow(), route, visible: app === panelApp ? panelOpen() : current === app.id, areasOff: [...areasOff] };
     }
     // Another window of this app at a route (docs/sdk.md, ws.window). Named by the route, so asking again brings
     // that window forward instead of opening a third.

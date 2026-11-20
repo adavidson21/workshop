@@ -1,6 +1,10 @@
 {
   "workMode": true,
   "pinned": true,
+  "areas": [
+    { "id": "management", "label": "Management", "about": "Managing people: Rapport, People & teams, and Docket's People place.", "on": true, "apps": ["receipts"] },
+    { "id": "work", "label": "Work", "about": "Team delivery: Runway and Azure DevOps.", "on": true, "apps": ["runway"] }
+  ],
   "apps": [
     { "id": "home", "name": "Home", "description": "Today, triage, up next, your people and Dispatch.", "on": true, "canTurnOff": false, "separate": false, "inWorkshop": true },
     { "id": "prioritizer", "name": "Docket", "description": "Decide what to work on next.", "on": true, "canTurnOff": true, "separate": true, "inWorkshop": true, "key": "docket", "repo": "adavidson21/docket", "downloaded": true, "folder": "C:\\source\\repos\\Workshop\\docket", "ref": "v5.0.0", "command": null },

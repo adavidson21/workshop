@@ -10,4 +10,8 @@ const ready = connect({ app: 'prioritizer' }).then(w => { ws = w; return w; }).c
 // the connection resolves (hiding the shell-owned theme button, choosing who registers the worker).
 const embedded = (() => { try { return window.parent !== window && window.parent.location.origin === location.origin; } catch (e) { return false; } })();
 
-export { ws, ready, embedded };
+// Docket's People place belongs to the Management area (shared/areas.js, docs/apps.md Areas): hidden while it is
+// off. On until the connection says otherwise.
+const peoplePlaceOn = () => !(ws && ws.areas && !ws.areas.partOn('people'));
+
+export { ws, ready, embedded, peoplePlaceOn };

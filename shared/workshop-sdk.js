@@ -21,6 +21,7 @@ import * as People from './people.js';
 import * as Teams from './teams.js';
 import * as AppSettings from './app-settings.js';
 import { APP_FOLDERS } from './app-folders.js';
+import { cleanAreas, partOn as areaPartOn } from './areas.js';
 
 const SDK_VERSION = 1;
 const PAIR_KEY = 'workshop.agent';
@@ -1362,9 +1363,10 @@ export async function connect(options) {
   }
 
   // Tell the shell the app is ready and learn the initial theme/route/visibility.
-  let initial = { theme: null, route: '', visible: true };
+  let initial = { theme: null, route: '', visible: true, areasOff: [] };
   if (shell.embedded) {
     try { initial = await shell.request('ready', { app, sdk: SDK_VERSION }, READY_TIMEOUT_MS) || initial; } catch (e) { /* no answer: keep the defaults */ }
+    if (Array.isArray(initial.areasOff)) areasOffInitial = initial.areasOff;
     // The route the app was opened at (docs/sdk.md: route fires "including on first show"). Sent on the
     // next task, so handlers the app adds right after `await connect()` get it.
     if (initial.route) { const path = initial.route; setTimeout(() => shell.emit('route', { path })); }
@@ -1447,6 +1449,13 @@ export async function connect(options) {
     /* apps on this Workshop site (docs/sdk.md, Apps) */
     apps: {
       list() { return appsOnSite(); }
+    },
+
+    /* areas turned off in Settings, Apps (docs/apps.md, Areas; shared/areas.js), as the shell saw them when the
+       app opened. Standalone (no shell): this browser's own switches. */
+    areas: {
+      off() { return [...areasOffNow()]; },
+      partOn(part) { return areaPartOn(app, part, areasOffNow()); }
     },
 
     /* data */
@@ -1920,6 +1929,13 @@ export function appsFromRegistry(reg) {
     }))
     .sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity) || a.name.localeCompare(b.name));
 }
+// The areas off as the shell sent them on ready (null: no shell, or one too old to send them).
+let areasOffInitial = null;
+function areasOffNow() {
+  if (Array.isArray(areasOffInitial)) return cleanAreas(areasOffInitial);
+  try { return cleanAreas(JSON.parse(localStorage.getItem('workshop.areasOff') || '[]')); } catch (e) { return new Set(); }
+}
+
 function appsOnSite() {
   if (!appsPromise) {
     appsPromise = (async () => {

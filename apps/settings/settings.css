@@ -561,3 +561,8 @@ dialog.sd::backdrop{background:rgba(0,0,0,.35)}
 .sd-row{display:flex;align-items:center;gap:.7rem;margin:.6rem 0}
 .sd-row>span{flex:0 0 4.5rem;font-size:.85rem;color:var(--muted)}
 .sd-row>input{flex:1;min-width:0}
+/* Areas (docs/apps.md, Areas): a short list of switches above the app grid. */
+.area-list{display:flex;flex-direction:column;gap:.5rem;margin:.2rem 0 1.1rem;max-width:40rem}
+.area-list .area-head{font-size:.78rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:0}
+.area-list .sub{margin:0 0 .2rem}
+.area-row{border:1px solid var(--line);border-radius:var(--r-md);padding:.7rem 1rem;background:var(--surface);align-items:center}

@@ -30,6 +30,7 @@ import { openSecretDialog } from './secret-dialog.js';
 import { mountRoutines } from './routines-page.js';
 import * as R from './repos.js';
 import * as P from './pages.js';
+import { AREAS, AREA_IDS, areaHiding, cleanAreas } from '../../../shared/areas.js';
 import { mountPeople } from './people.js';
 import { mountFocus } from './focus-page.js';
 import { mountProducts } from './products-page.js';
@@ -59,6 +60,10 @@ const STATE_LABEL = { ready: 'Ready', starting: 'Starting', stopped: 'Stopped', 
 
 const ws = await connect({ app: 'settings' });
 const readOnly = ws.mode === 'hosted';
+// Areas off (docs/apps.md, Areas): their pages leave the nav and their connectors leave Status. A page can still
+// be opened by its route. Changes show after Workshop reloads, like the app switches.
+const areasOff = cleanAreas(ws.areas ? ws.areas.off() : []);
+const areaHidesConn = id => Boolean(areaHiding('connectors', id, areasOff));
 const content = $('#content');
 
 function toast(text, kind) { return ws.toast(text, { kind }); }
@@ -152,7 +157,7 @@ function page(id, label, group) {
   label = label || def.label || id;
   group = group || def.group || 'connections';
   const navId = P.navOf(id);
-  const n = navPanel(navId, group, P.navLabel(navId, label), def.hidden);
+  const n = navPanel(navId, group, P.navLabel(navId, label), def.hidden || Boolean(areaHiding('pages', id, areasOff)));
   const tab = document.createElement('button');
   tab.type = 'button';
   tab.className = 'tab';
@@ -499,6 +504,7 @@ async function computerCard(cfg) {
    downloaded yet needs one command on this computer (the agent never downloads anything itself).
    Browser mode: the switches are kept in this browser and only change the rail. */
 const OFF_KEY = 'workshop.appsOff';
+const AREAS_KEY = 'workshop.areasOff';
 async function agentCall(method, pathname, body) {
   let base = '', token = null;
   if (ws.mode === 'local') {
@@ -514,6 +520,20 @@ async function agentCall(method, pathname, body) {
   return out;
 }
 const browserOff = () => { try { const v = JSON.parse(localStorage.getItem(OFF_KEY) || '[]'); return new Set(Array.isArray(v) ? v : []); } catch (e) { return new Set(); } };
+const browserAreasOff = () => { try { return cleanAreas(JSON.parse(localStorage.getItem(AREAS_KEY) || '[]')); } catch (e) { return new Set(); } };
+// The browser-mode view of the switches, in the agent's shape (agent/lib/apps.mjs appSwitches).
+function browserView(manifests) {
+  const off = browserOff(), aOff = browserAreasOff();
+  return {
+    workMode: false,
+    areas: AREA_IDS.map(id => ({ id, label: AREAS[id].label, about: AREAS[id].about, on: !aOff.has(id), apps: [...AREAS[id].apps] })),
+    apps: manifests.map(m => {
+      const canTurnOff = m.home !== true && m.id !== 'settings';
+      const own = !off.has(m.id), area = canTurnOff ? areaHiding('apps', m.id, aOff) : '';
+      return { id: m.id, name: m.name, description: m.description || '', on: own && !area, own, area, canTurnOff, inWorkshop: own && !area };
+    })
+  };
+}
 
 function copyBtn(text) {
   return `<button type="button" class="btn ghost app-copy" data-copy="${esc(text)}">Copy</button>`;
@@ -532,16 +552,15 @@ async function appsCard() {
   reload.querySelector('button').addEventListener('click', () => { try { window.top.location.reload(); } catch (e) { location.reload(); } });
   sec.appendChild(reload);
 
-  let view;
+  let view, manifests = [];
   if (ws.backend === 'agent') {
     try { view = await agentCall('GET', '/api/app-switches'); }
     catch (e) { box.innerHTML = `<p class="err">${esc(errText(e))} If Workshop on this computer was just updated, run <code>workshop restart</code>.</p>`; return; }
   } else {
     let reg = null;
     try { const r = await fetch('../registry.json', { cache: 'no-store' }); if (r.ok) reg = await r.json(); } catch (e) { /* none */ }
-    const off = browserOff();
-    view = { workMode: false, apps: ((reg && reg.apps) || []).map(a => a.manifest).sort((x, y) => (x.order ?? Infinity) - (y.order ?? Infinity))
-      .map(m => ({ id: m.id, name: m.name, description: m.description || '', on: !off.has(m.id), canTurnOff: m.home !== true && m.id !== 'settings', inWorkshop: !off.has(m.id) })) };
+    manifests = ((reg && reg.apps) || []).map(a => a.manifest).sort((x, y) => (x.order ?? Infinity) - (y.order ?? Infinity));
+    view = browserView(manifests);
   }
   // Switches each app declares in its manifest (docs/app-settings.md), from the site's registry, with their values.
   const decls = new Map(), values = new Map();
@@ -553,8 +572,10 @@ async function appsCard() {
   } catch (e) { /* no registry: no app settings */ }
   if (view.workMode && view.pinned === false) box.insertAdjacentHTML('beforeend', `<p class="sub">There is no pinned copy yet. Run this on your computer: <code>workshop pin</code> ${copyBtn('workshop pin')}</p>`);
 
+  const areaLabel = id => ((view.areas || []).find(x => x.id === id) || {}).label || id;
   const status = a => {
     if (!a.canTurnOff) return 'Always on.';
+    if (a.area) return `Off with ${esc(areaLabel(a.area))}.`;
     if (!a.on) return 'Off';
     if (view.workMode && a.separate && !a.downloaded) return `Not downloaded yet, so it is not in Workshop. Run this on your computer, then reload: <code>${esc(a.command)}</code> ${copyBtn(a.command)}`;
     if (view.workMode && a.separate && a.problem) return `Left out of the pinned copy: ${esc(a.problem)}. Update it with <code>workshop update</code> ${copyBtn('workshop update')}`;
@@ -566,14 +587,50 @@ async function appsCard() {
   // switch, and its own options (like Docket's Use sprints) under Options.
   box.classList.add('app-grid');
   const short = d => { const t = String(d || '').split(/(?<=[.:])\s/)[0].replace(/[.:]$/, ''); return t.length > 90 ? t.slice(0, 88).replace(/\s+\S*$/, '') + '...' : t; };
+  // Areas (docs/apps.md, Areas): one switch per kind of work, above the apps. The area wins: its apps stay off
+  // while it is off, and come back to their own switch when it is on again.
+  const areaBox = document.createElement('div');
+  areaBox.className = 'area-list';
+  box.before(areaBox);
+  const renderAreas = () => {
+    const list = view.areas || [];
+    areaBox.hidden = !list.length;
+    areaBox.innerHTML = list.length ? `<h3 class="area-head">Areas</h3><p class="sub">Turn off a kind of work you don't do on this computer. Its apps, Settings pages and app parts leave Workshop until you turn it back on.</p>` + list.map(x => {
+      const names = x.apps.map(id => (view.apps.find(a => a.id === id) || {}).name).filter(Boolean);
+      return `<label class="app-setting area-row" data-area="${esc(x.id)}"><span><b>${esc(x.label)}</b><span class="conn-about">${esc(x.about)}</span></span>
+        <input type="checkbox" class="toggle" role="switch" aria-label="${esc(x.label)} on"${x.on ? ' checked' : ''}${readOnly ? ' disabled' : ''}${names.length ? ` title="${esc(`Also turns off ${names.join(', ')}`)}"` : ''}></label>`;
+    }).join('') : '';
+    areaBox.querySelectorAll('[data-area] .toggle').forEach(el => el.addEventListener('change', e => flipArea(e.target.closest('[data-area]').dataset.area, e.target)));
+  };
+  async function flipArea(id, input) {
+    const on = input.checked, area = (view.areas || []).find(x => x.id === id);
+    input.disabled = true;
+    try {
+      if (ws.backend === 'agent') view = await agentCall('PUT', `/api/app-areas/${encodeURIComponent(id)}`, { on });
+      else {
+        const off = browserAreasOff();
+        if (on) off.delete(id); else off.add(id);
+        try { localStorage.setItem(AREAS_KEY, JSON.stringify([...off])); } catch (e) { throw new Error('This browser could not save it.'); }
+        view = browserView(manifests);
+      }
+      renderAreas();
+      render();
+      toast(`${area ? area.label : id} is ${on ? 'on' : 'off'}`, 'success');
+      reload.hidden = false;
+    } catch (err) {
+      input.checked = !on;
+      input.disabled = readOnly;
+      toast(errText(err), 'error');
+    }
+  }
   const render = () => {
     box.querySelectorAll('.app-row').forEach(el => el.remove());
     for (const a of view.apps) {
       const row = document.createElement('div');
       row.className = 'app-row' + (a.on ? '' : ' off');
       row.dataset.app = a.id;
-      const locked = readOnly || !a.canTurnOff;
-      const why = !a.canTurnOff ? 'Always on' : readOnly ? 'Change this from Workshop on this computer' : '';
+      const locked = readOnly || !a.canTurnOff || Boolean(a.area);
+      const why = !a.canTurnOff ? 'Always on' : a.area ? `Turn ${areaLabel(a.area)} on first` : readOnly ? 'Change this from Workshop on this computer' : '';
       const opts = appSettingsHtml(a);
       row.innerHTML = `<div class="app-top">
           <span class="app-ic" aria-hidden="true" style="--ic:url('../${esc(a.id)}/icon.svg');--app:var(--c-${esc(a.id)}, var(--accent))"></span>
@@ -639,7 +696,7 @@ async function appsCard() {
         const off = browserOff();
         if (on) off.delete(a.id); else off.add(a.id);
         try { localStorage.setItem(OFF_KEY, JSON.stringify([...off])); } catch (e) { throw new Error('This browser could not save it.'); }
-        view.apps = view.apps.map(x => x.id === a.id ? { ...x, on, inWorkshop: on } : x);
+        view = browserView(manifests);
       }
       render();
       const now = view.apps.find(x => x.id === a.id);
@@ -658,6 +715,7 @@ async function appsCard() {
     try { await navigator.clipboard.writeText(b.dataset.copy); b.textContent = 'Copied'; setTimeout(() => { b.textContent = 'Copy'; }, 1500); }
     catch (err) { toast('Could not copy. Select the command and copy it instead.', 'error'); }
   });
+  renderAreas();
   render();
   if (readOnly) sec.insertAdjacentHTML('afterbegin', `<p class="sub ro-line">${LOCK}<span>Turn apps on or off from Workshop on this computer.</span></p>`);
 }
@@ -1162,7 +1220,7 @@ function needsYouCard() {
   sec.classList.add('needs-you');
   sec.setAttribute('aria-live', 'polite');
   const paint = () => {
-    const items = P.needsYou(conn.list.map(c => ({ info: conn.info[c.id], config: conn.cc[c.id] && conn.cc[c.id].config })));
+    const items = P.needsYou(conn.list.filter(c => !areaHidesConn(c.id)).map(c => ({ info: conn.info[c.id], config: conn.cc[c.id] && conn.cc[c.id].config })));
     sec.dataset.hide = items.length ? '' : '1';
     sec.hidden = !items.length;
     sec.innerHTML = items.length ? `<h2>Needs you <span class="pill-tag">${items.length}</span></h2><ul class="ny-list">${items.map(i =>
@@ -1180,7 +1238,7 @@ function statusCard() {
   const box = sec.appendChild(document.createElement('ul'));
   box.className = 'people status-rows';
   const paint = () => {
-    box.innerHTML = conn.list.map(c => {
+    box.innerHTML = conn.list.filter(c => !areaHidesConn(c.id)).map(c => {
       const info = conn.info[c.id];
       const r = P.statusRow(info, conn.cc[c.id] && conn.cc[c.id].config);
       const dot = r.state === 'error' ? 'error' : r.state === 'ready' ? ((info.status || {}).state || 'ready') : 'neutral';
