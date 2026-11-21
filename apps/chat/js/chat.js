@@ -32,6 +32,7 @@ import { startTerminal } from './terminal.js';
 import { startFiles } from './files.js';
 import { startSide } from './side.js';
 import { startChanges } from './changes.js';
+import { ALERTS_KEY, alertText, alertsState, chatEvents, chatKey, nextNeedy, stepChat } from './alerts.js';
 import { startSplit } from './split.js';
 import { MAX_DOCS, addPictures, chipsHtml, docsIn, picturesIn, uploadDoc } from './images.js';
 
@@ -108,13 +109,17 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
   const wasBusy = {}; // session -> busy at the last read, to tell Files when a turn ends
   const docs = {}; // draft key -> PDFs for the message (Chat 4.1.0): {id, name, size, state: uploading | ready | failed, done, att}
   const suggest = {}; // session -> a suggested next message ('' none), once its last answer is in (Chat 4.1.0)
+  // Several chats (Chat 4.2.0, alerts.js): the last busy/waiting read of each chat, chats that finished while you were
+  // away (a dot until opened), and whether Chat is the app in view.
+  let seen = null, inView = true;
+  const unread = new Set();
   let archivedCount = 0, showArchived = false, archivedItems = [], hits = null, hitsFor = '', searchTimer = 0;
   let listTimer = 0, convTimer = 0, fileTimer = 0, noteTimer = 0;
   // flash() is defined below; the workbench's tools call it later, never while starting.
   const terminal = startTerminal(ws, { onTui: () => builtin('tui', '') });
   const workFiles = startFiles(ws, { flash: text => flash(text) }); // not `files`: that is a message's @files below
   const side = startSide(ws, { agents: () => (options && options.agents) || [], model: () => modelNow(), paint, keep: p => imgs.set(p.id, p.url), flash: text => flash(text) });
-  const changes = startChanges(ws, { send: text => sendFrom(text), busy: () => working(), flash: text => flash(text), onCount: () => draw() });
+  const changes = startChanges(ws, { send: text => sendFrom(text), busy: () => working(), flash: text => flash(text), onCount: () => draw(), model: () => modelNow(), canReview: () => !options || !options.can || options.can.review !== false });
   const split = startSplit(ws, { chats: () => listed(), current: () => sel, onMain: sid => select(sid), paint, flash: text => flash(text) });
   const bench = startBench({ tools: { terminal, files: workFiles, changes, side, split }, onChange: st => { el.classList.toggle('bench-open', st.open); el.style.setProperty('--bench-w', st.width + 'px'); if (lastHtml != null) { lastHtml = null; draw(); } } });
   el.appendChild(bench.el);
@@ -168,6 +173,7 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
       if (showArchived) archivedItems = (await ws.connectors.call(OC, 'chat.list', { archived: true })).items || [];
       listErr = '';
       for (const c of items) pending.delete(c.session);
+      watch(items);
     } catch (e) { listErr = e.message || "Couldn't list your chats."; }
     if (sel && hub) { const it = itemOf(sel); if (it && it.hub) hub.ensure(it); }
     if (!options && !optErr) loadOptions();
@@ -190,7 +196,7 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
       changes.setSession(want);
       if (!r.busy && !r.waiting && suggest[want] === undefined && lastTandem(r.turns || []) && options && options.can && options.can.suggest) askSuggestion(want);
       const row = itemOf(want); // keep the sidebar's spinner and dot in step without waiting for the list
-      if (row) { row.busy = !!r.busy; row.waiting = !!r.waiting; }
+      if (row) { row.busy = !!r.busy; row.waiting = !!r.waiting; watch([row]); }
       if (!sessPick[want]) sessPick[want] = { agent: r.agent || (r.from === 'hub' ? 'chat' : pick.agent === HUB ? '' : pick.agent), model: r.model ? modelKey(r.model) : pick.model };
     } catch (e) { if (sel === want) err = e.message || "Couldn't read this chat."; }
     draw();
@@ -198,9 +204,42 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
     if (conv && !conv.busy && !conv.waiting && (queue[want] || []).length) { flush(want); return; }
     if (conv && (conv.busy || conv.waiting || (queue[want] || []).length || echoing(want)) && visible) convTimer = setTimeout(loadConv, BUSY_MS);
   }
+  /* Several chats (Chat 4.2.0): a notification when a chat finishes or needs you while you look elsewhere. */
+  const outOfSight = () => !inView || (typeof document !== 'undefined' && (document.hidden || !document.hasFocus()));
+  function watch(list) {
+    const r = chatEvents(seen, list);
+    const first = seen === null;
+    seen = r.next;
+    if (first) return;
+    for (const ev of r.events) {
+      const away = ev.session !== sel || outOfSight();
+      if (ev.kind === 'done' && away) unread.add(ev.session);
+      if (!away) continue;
+      const st = alertsState(typeof localStorage !== 'undefined' ? localStorage : null, typeof Notification === 'function' ? Notification : null);
+      if (st.on && outOfSight()) ws.notify({ ...alertText(ev), route: `chat/${ev.session}` }).catch(() => {});
+    }
+  }
+  async function toggleAlerts() {
+    const st = alertsState(localStorage, typeof Notification === 'function' ? Notification : null);
+    if (st.perm === 'default') { try { await Notification.requestPermission(); } catch (e) { /* closed */ } try { localStorage.removeItem(ALERTS_KEY); } catch (e) { /* blocked */ } }
+    else if (st.perm === 'granted') { try { st.off ? localStorage.removeItem(ALERTS_KEY) : localStorage.setItem(ALERTS_KEY, 'off'); } catch (e) { /* blocked */ } }
+    draw();
+  }
+  function alertsBtn() {
+    const st = alertsState(typeof localStorage !== 'undefined' ? localStorage : null, typeof Notification === 'function' ? Notification : null);
+    if (st.perm === 'unsupported') return '';
+    if (st.perm === 'denied') return '<button type="button" class="chat-archived" disabled title="Notifications are blocked for this site in your browser settings">Alerts are blocked</button>';
+    const label = st.perm === 'default' ? 'Turn on alerts' : st.off ? 'Alerts off' : 'Alerts on';
+    const tip = st.perm === 'default' ? 'A notification when a chat finishes or needs you while you look elsewhere' : st.off ? 'Click to get a notification when a chat finishes or needs you' : 'You get a notification when a chat finishes or needs you while you look elsewhere. Click to stop.';
+    return `<button type="button" class="chat-archived" data-chat-alerts title="${esc(tip)}" aria-pressed="${st.on}">${label}</button>`;
+  }
+  /** The chats in the sidebar's order, for Alt+Up, Alt+Down and Alt+J. */
+  const order = () => [...el.querySelectorAll('.chat-list [data-chat-open]')].map(b => b.dataset.chatOpen).filter((v, i, a) => a.indexOf(v) === i);
+  const needsYou = sid => { const c = itemOf(sid); return !!(c && (c.waiting || (unread.has(sid) && !c.busy))); };
   function select(session) {
     if (!session && hub) hub.clearDone();
     sel = session || null; conv = null; err = ''; renaming = null; pop = null; help = false; afterOpen = false;
+    if (sel) unread.delete(sel);
     if (phone()) drawer = false;
     side.setSession(sel, itemOf(sel));
     changes.setSession(sel);
@@ -495,7 +534,8 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
     return `<li class="chat-row${c.session === sel ? ' on' : ''}${outside ? ' outside' : ''}${beside ? ' beside' : ''}"><button type="button" class="chat-item${c.session === sel ? ' on' : ''}" data-chat-open="${esc(c.session)}"${c.session === sel ? ' aria-current="true"' : ''} title="Alt-click opens it beside this chat">` +
       `<span class="chat-t">${c.busy ? '<span class="spin" aria-hidden="true"></span>' : ''}${esc(c.title)}</span>` +
       (snippet ? `<span class="chat-snip">${esc(snippet)}</span>` : '') +
-      (c.waiting ? '<span class="chat-dot" title="opencode is asking you something"><span class="sr">Needs you</span></span>' : '') + '</button>' +
+      (c.waiting ? '<span class="chat-dot" title="opencode is asking you something"><span class="sr">Needs you</span></span>'
+        : unread.has(c.session) && !c.busy ? '<span class="chat-dot done" title="Finished while you were away"><span class="sr">Done</span></span>' : '') + '</button>' +
       `<span class="chat-acts">` +
       (archived ? `<button type="button" class="chat-act" data-chat-unarchive="${esc(c.session)}" title="Unarchive" aria-label="Unarchive ${esc(c.title)}">${ICON.box}</button>`
         : `<button type="button" class="chat-act" data-chat-beside="${esc(c.session)}" title="Open beside this chat" aria-label="Open ${esc(c.title)} beside">${ICON.beside}</button>` +
@@ -506,7 +546,7 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
   function sideHtml() {
     const every = showArchived ? archivedItems : listed();
     const shown = every.filter(c => matchChat(c, query));
-    const groups = showArchived ? (shown.length ? [{ label: 'Archived', items: shown }] : []) : groupChats(shown);
+    const groups = showArchived ? (shown.length ? [{ label: 'Archived', items: shown }] : []) : groupChats(shown.map(c => unread.has(c.session) ? { ...c, unread: true } : c));
     let list = groups.map(g => `<h3 class="chat-h">${esc(g.label)}</h3><ul>${g.items.map(c => rowHtml(c, { archived: showArchived })).join('')}</ul>`).join('');
     // Search in messages (Chat 4.1.0): chats whose words match, beyond the titles above.
     const more = hits && hitsFor === query.trim() ? hits.filter(h => !shown.some(c => c.session === h.session) && (!!h.archived === showArchived || !showArchived)) : [];
@@ -523,7 +563,7 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
       `<div class="chat-find"><input type="search" class="chat-search" data-keep="chat-search" data-chat-search placeholder="${all ? 'Search all sessions' : 'Search chats'}" aria-label="Search chats" value="${esc(query)}">` +
       `<button type="button" class="chat-all${all ? ' on' : ''}" data-chat-all="${all ? '0' : '1'}" aria-pressed="${all}" title="${all ? 'Showing every opencode session (runs, PR reviews, the terminal). Click for just your chats.' : 'Show every opencode session in the workspace: runs, PR reviews and the terminal'}">All</button></div>` +
       (listErr ? `<p class="hub-error">${esc(listErr)}</p>` : '') +
-      `<nav class="chat-list">${list}${empty}</nav>${archBtn ? `<div class="chat-side-foot">${archBtn}</div>` : ''}</aside>`;
+      `<nav class="chat-list">${list}${empty}</nav>${(() => { const al = showArchived ? '' : alertsBtn(); return archBtn || al ? `<div class="chat-side-foot">${archBtn}${al}</div>` : ''; })()}</aside>`;
   }
   function topHtml(title, extra = '') {
     const sideBtn = closed || phone()
@@ -884,6 +924,7 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
     else if (d.chatArchive != null) archive(d.chatArchive, true);
     else if (d.chatUnarchive != null) archive(d.chatUnarchive, false);
     else if (d.chatArchived != null) { showArchived = d.chatArchived === '1'; draw(); loadList(); }
+    else if (d.chatAlerts != null) toggleAlerts();
     else if (d.chatSuggest != null) takeSuggestion();
     else if (d.chatAttach != null) {
       const input = document.createElement('input');
@@ -946,6 +987,18 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
     const pdfs = docsIn(e.dataTransfer);
     if (files.length || pdfs.length) { e.preventDefault(); if (files.length) takePictures(files); if (pdfs.length) takeDocs(pdfs); }
   });
+  // Several chats (Chat 4.2.0): Alt+N new chat, Alt+Up/Down the chat above or below, Alt+J the next that needs you.
+  document.addEventListener('keydown', e => {
+    if (!visible) return;
+    const k = chatKey(e);
+    if (!k) return;
+    if (e.target && e.target.closest && e.target.closest('.monaco-editor, .xterm')) return; // the editor and terminal keep their keys
+    e.preventDefault();
+    if (k === 'new') { leaveRewrite(); select(null); return; }
+    const to = k === 'jump' ? nextNeedy(order(), sel, needsYou) : stepChat(order(), sel, k === 'prev' ? -1 : 1);
+    if (k === 'jump' && !to) { flash('No chat needs you right now.'); return; }
+    if (to && to !== sel) select(to);
+  });
   // Ctrl+` opens or closes the terminal, as in most editors.
   document.addEventListener('keydown', e => {
     if (!visible || !e.ctrlKey || e.altKey || e.metaKey || (e.key !== '`' && e.code !== 'Backquote')) return;
@@ -955,6 +1008,7 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
   });
   if (typeof window !== 'undefined') window.addEventListener('beforeunload', e => { if (workFiles.unsaved().length) { e.preventDefault(); e.returnValue = ''; } });
 
+  ws.on('visible', p => { inView = !!(p && p.visible); });
   if (rewrite) rewrite.setBar({ picks: picksHtml, pop: popHtml });
   draw();
   bench.start();

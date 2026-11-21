@@ -229,10 +229,10 @@ export function makeV1(url) {
       return r.ok && Array.isArray(r.data) ? r.data.filter((x) => typeof x === "string") : [];
     },
     /* ---------- Chat's workbench (Chat 4.0.0): side chats, pasted images and terminals ---------- */
-    /** A message that answers when the agent is done: the reply's text (Chat's suggested prompt, connector 1.29.0). */
-    async promptWait(id, { text, agent, model }) {
+    /** A message that answers when the agent is done: the reply's text (Chat's suggested prompt, connector 1.29.0; Review code, 1.30.0, waits longer). */
+    async promptWait(id, { text, agent, model, timeout = 60000 }) {
       const body = { parts: [{ type: "text", text }], ...(agent ? { agent } : {}), ...(model ? { model: { providerID: model.provider, modelID: model.id } } : {}) };
-      const r = await call(`/session/${id}/message`, { method: "POST", body, timeout: 60000 });
+      const r = await call(`/session/${id}/message`, { method: "POST", body, timeout });
       if (!r.ok || !r.data) throw httpError(502, `opencode did not answer (${errText(r)}).`);
       const parts = (r.data.parts || []).filter((p) => p && p.type === "text" && !p.synthetic);
       return parts.map((p) => p.text).join("\n").trim();

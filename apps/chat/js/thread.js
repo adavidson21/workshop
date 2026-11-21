@@ -31,11 +31,13 @@ const DAY = 86400000;
 export function groupChats(items, now = Date.now()) {
   const d = new Date(now); d.setHours(0, 0, 0, 0);
   const today = d.getTime();
-  const groups = [['Today', []], ['Yesterday', []], ['Previous 7 days', []], ['Older', []]];
+  // Chat 4.2.0: chats waiting on you, or finished while you were away (`unread`), come first.
+  const groups = [['Needs you', []], ['Today', []], ['Yesterday', []], ['Previous 7 days', []], ['Older', []]];
   const list = (Array.isArray(items) ? items : []).slice().sort((a, b) => (b.last || b.at || 0) - (a.last || a.at || 0));
   for (const c of list) {
     const t = c.last || c.at || 0;
-    groups[t >= today ? 0 : t >= today - DAY ? 1 : t >= today - 7 * DAY ? 2 : 3][1].push(c);
+    if (c.waiting || (c.unread && !c.busy)) { groups[0][1].push(c); continue; }
+    groups[t >= today ? 1 : t >= today - DAY ? 2 : t >= today - 7 * DAY ? 3 : 4][1].push(c);
   }
   return groups.filter(g => g[1].length).map(([label, items]) => ({ label, items }));
 }

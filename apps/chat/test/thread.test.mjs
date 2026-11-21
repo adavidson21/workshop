@@ -44,6 +44,10 @@ test('the Chat sidebar: groups by day, newest first, and search by every word', 
   assert.deepEqual(groupChats(items, now).map(g => [g.label, g.items.map(c => c.session)]),
     [['Today', ['d', 'a']], ['Yesterday', ['c']], ['Previous 7 days', ['e']], ['Older', ['b']]]);
   assert.deepEqual(groupChats([], now), []);
+  // Chat 4.2.0: waiting on you, or finished while away (and not busy again), first.
+  const needy = items.map(c => c.session === 'b' ? { ...c, waiting: true } : c.session === 'c' ? { ...c, unread: true } : c.session === 'd' ? { ...c, unread: true, busy: true } : c);
+  assert.deepEqual(groupChats(needy, now).map(g => [g.label, g.items.map(c => c.session)]),
+    [['Needs you', ['c', 'b']], ['Today', ['d', 'a']], ['Previous 7 days', ['e']]]);
   assert.equal(matchChat(items[0], 'api SAMPLE'), true);
   assert.equal(matchChat(items[0], 'api billing'), false);
   assert.equal(matchChat(items[0], '  '), true);

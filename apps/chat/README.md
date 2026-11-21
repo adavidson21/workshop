@@ -18,6 +18,8 @@ The **Hub** agent (first in New chat's list) is the one box that asks Tandem or 
 
 **Chat 4.1.0** (connector 1.29.0) adds a context meter in the composer, a suggested next prompt (Right arrow takes it), **Changes** (what the chat changed, with line comments sent back as one message) and a **Second chat** beside the first in the workbench, **Archive**, search in what was said, and PDF attachments (paperclip, paste or drop). See [docs/chat.md](../../docs/chat.md), Chat 4.1.0.
 
+**Chat 4.2.0** (connector 1.30.0) adds **Review code** in Changes (a read-only agent's findings at their lines, with Fix this and Fix all), alerts and a dot when a chat finishes or needs you while you look elsewhere, a **Needs you** group at the top of the list, and keys for several chats: Alt+N, Alt+Up and Alt+Down, Alt+J. See [docs/chat.md](../../docs/chat.md).
+
 The top bar's **Capture** is the quick add (rules only, no AI); Chat is where you ask.
 
 ## Routes

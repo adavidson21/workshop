@@ -1527,6 +1527,21 @@ def agents_checks(b, watch):
         r = ask({'requests': True})
         back = [x['body']['parts'][0]['text'] for x in r['bodies'] if x['route'] == 'POST /session/ses_tui0/prompt_async' and x['body']['parts'][0].get('text', '').startswith('Please address')]
         check('Send to chat sends every comment to the chat as one message', len(back) == 1 and '`gateway/headers.txt:2`' in back[0] and '> limit = 100' in back[0] and 'Read the limit from options' in back[0])
+        # Chat 4.2.0: Review code lists a read-only agent's findings at their lines; Fix this sends one back.
+        ask({'idle': 'ses_tui0'}); pg.wait_for_timeout(1200)
+        ask({'reply': 'SHOULD FIX | gateway/headers.txt:2 | Read the limit from settings, not a constant.\nSUMMARY | One thing to change.'})
+        cf.click('[data-rv-start]'); pg.wait_for_timeout(4500)
+        check('Review code shows its findings above the files and at their line', seen(cf, '.rv') and '1 should fix' in cf.inner_text('.rv-head') and 'One thing to change.' in cf.inner_text('.rv')
+              and seen(cf, '.ch-finding') and 'Read the limit from settings' in cf.inner_text('.ch-finding'))
+        r = ask({'requests': True})
+        scratch = [x for x in r['bodies'] if x['route'].endswith('/message') and x['route'].startswith('POST /session/') and 'Review the uncommitted changes' in x['body']['parts'][0].get('text', '')]
+        check('the review runs in a scratch session, not the chat, with the diff', len(scratch) == 1 and 'ses_tui0' not in scratch[0]['route'] and '+limit = 100' in scratch[0]['body']['parts'][0]['text'])
+        cf.click('.rv [data-rv-fix]'); pg.wait_for_timeout(1500)
+        r = ask({'requests': True})
+        fix = [x['body']['parts'][0]['text'] for x in r['bodies'] if x['route'] == 'POST /session/ses_tui0/prompt_async' and x['body']['parts'][0].get('text', '').startswith('Please fix')]
+        check('Fix this sends the finding to the chat as one message', len(fix) == 1 and 'Should fix: `gateway/headers.txt:2`' in fix[0])
+        check('a sent finding leaves the list', cf.locator('.rv .rv-f').count() == 0 and '1 sent' in cf.inner_text('.rv-head'))
+        ask({'reply': 'NONE'})
         with open(gw_file, 'w') as fh: fh.write(gw_was)
         ask({'idle': 'ses_tui0'}); pg.wait_for_timeout(500)
         # All lists the workspace's other sessions too, so there is a chat to put beside this one.

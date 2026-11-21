@@ -24,6 +24,9 @@ The Chat app (`apps/chat`, its own rail app since Loom 4.8.0; before that Loom's
 | Paste or drop a picture | It goes with the message (Pictures below) |
 | Ctrl+` | Open or close the Terminal beside the chat |
 | Ctrl+S (in Files) | Save the file |
+| Alt+N | New chat (Chat 4.2.0; browsers keep Ctrl+N for a new window) |
+| Alt+Up, Alt+Down | The chat above or below in the sidebar |
+| Alt+J | The next chat that needs you |
 
 Your message shows in the thread as soon as you send it, even before opencode has stored it (opencode takes prompts asynchronously, so its first reads can miss it); a New chat shows it with Starting... while the session is made (Chat 2.4.0). A message sent while opencode is working waits in a queue under the thread and goes when it is done (Stop clears the queue). Undo takes back your last message and its file changes and puts its text back in the box; the turns stay hidden until Redo, and your next message drops them, as in the TUI.
 
@@ -96,6 +99,8 @@ A workbench tab (`js/changes.js`, the connector's `chat.changes`): the files thi
 - Hover a line and click **+** to comment on it (Ctrl+Enter adds it). Comments wait under their lines, counted on the Changes button, until you **Send to chat**: every comment goes to the chat as one message (file, line, the line itself and what you asked), so the agent addresses them together. Queued while the chat works.
 - Comments are kept per chat in the page, not saved.
 
+- **Review code** (Chat 4.2.0, connector 1.30.0, `chat.review`): a read-only agent (Tandem's `chat`, or opencode's `plan`) reviews everything the chat changed, in a scratch session that is deleted after, so nothing lands in the chat. It can take minutes; keep working. Findings (Blocker, Should fix, Nit) show above the files and at their lines in the diff, with **Fix this** and **Fix all** (one message to the chat naming each finding, queued while it works) and **Dismiss**. When the files change after the review, it says so and offers **Review again**. One review per chat at a time; the last one is kept until Workshop restarts. Like the `/code-review` card in Claude's desktop app; factory builds keep Loom's own code review at Publish.
+
 ### Two chats side by side
 
 The workbench's **Second chat** tab (`js/split.js`): another chat beside the one in view, with its own thread, prompts and box. Pick it there, Alt-click a chat in the sidebar, or use the chat's **Open beside** button. Its messages go to its own last agent and model. **Make it the main chat** swaps it into the middle. With no other chat listed, turn on **All** to pick any session in the workspace.
@@ -108,6 +113,12 @@ The workbench's **Second chat** tab (`js/split.js`): another chat beside the one
 ### PDFs
 
 Attach a PDF with the paperclip, or paste or drop it on the composer, next to pictures. It goes up in pieces (`chat.attach`, since Workshop's agent takes 1 MB per request) into the data folder (`chat/attachments/`, mode 0600), then with the message as a file part opencode passes to the model, and the file is deleted. Up to 3 per message, 20 MB each; pieces nobody sent are deleted after an hour. Whether the model can read PDFs is up to the model. Other files: put them in the workspace and type `@`.
+
+### Several chats at once (Chat 4.2.0)
+
+- A chat that finishes, or starts waiting on you, while you look elsewhere (another chat, another app, or the window in the background) gets a dot in the sidebar until you open it, and those chats sit in a **Needs you** group at the top.
+- **Turn on alerts** at the bottom of the sidebar: the browser asks once, then a notification comes when a chat finishes or needs you and Chat is out of sight; clicking it opens the chat. **Alerts on** turns them off again (kept in this browser). Tandem's runs and PR reviews (sessions from outside Chat) are left to Loom, which alerts for those.
+- Keys: Alt+N, Alt+Up and Alt+Down, Alt+J (Keys above). Not while typing in Files or the Terminal.
 
 ## Sources
 
@@ -144,7 +155,9 @@ When an answer ends with a `Sources:` list (Tandem's hub and chat agents always 
 | `chat.rename` | no | `session`, `title` | `{ok, title}`: renames it in Chat's list. The opencode session keeps its own title |
 | `chat.archive` | no | `session`, optional `archived` (false brings it back) | `{ok, archived}` (1.29.0). `chat.list` leaves archived chats out and counts them (`archived`); `chat.list {archived: true}` lists them |
 | `chat.search` | no | `query` (2 letters or more), optional `all` | `{items: [{session, title, from, last, archived?, snippet}]}` (1.29.0): titles and messages, up to 30 |
-| `chat.changes` | no | `session` | `{files: [{path, repo, status: modified \| added \| deleted \| clean \| binary, additions, deletions, diff, cut?}], at}` (1.29.0) |
+| `chat.changes` | no | `session` | `{files: [{path, repo, status: modified \| added \| deleted \| clean \| binary, additions, deletions, diff, cut?}], key, at}` (1.29.0; `key`, a fingerprint of the diffs, 1.30.0) |
+| `chat.review` | no | `session`, optional `model` (`provider/model`) | Starts Review code and answers at once with its state, `running` (1.30.0). 409 while one runs for this chat, or when the chat changed nothing |
+| `chat.review.state` | no | `session` | `{status: none \| running \| done \| failed, key, at, doneAt, summary, findings: [{id, severity: blocker \| should-fix \| nit, path, line, known, text}], error, files, agent}` (1.30.0). `key` is `chat.changes`' key when it started: a different key now means the files changed since. `line` is null for the whole file; `known` is false for a path the chat did not change |
 | `chat.suggest` | no | `session` | `{text}` or `{text: null}` (1.29.0); `{off: true}` when Settings turned it off |
 | `chat.attach` | yes | `data` (base64, up to 700,000 characters), then `id`; the first piece also `name`, `mime: "application/pdf"` | `{id, bytes}` (1.29.0). `chat.start` and `chat.send` take `attachments: [{id}]` |
 

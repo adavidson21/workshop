@@ -93,6 +93,7 @@ a { color: inherit; text-underline-offset: 2px; }
 .chat-t { flex: 1; min-width: 0; display: flex; gap: 6px; align-items: center; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; display: block; }
 .chat-t .spin { display: inline-block; vertical-align: -2px; margin-right: 6px; }
 .chat-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); }
+.chat-dot.done { background: var(--ok); }
 .chat-acts { display: none; gap: 0; padding-right: 4px; }
 .chat-row:hover .chat-acts, .chat-row:focus-within .chat-acts { display: flex; }
 .chat-act { display: inline-grid; place-items: center; width: 26px; height: 26px; border: 0; border-radius: var(--r-sm); background: transparent; color: var(--muted); cursor: pointer; }
@@ -524,6 +525,26 @@ button.att-chip:hover { border-color: var(--accent); }
 .ch-edit .row { display: flex; gap: 6px; margin-top: 6px; }
 .ch-tools { margin: 6px 10px 0; font-size: 12px; }
 .ch-foot { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-top: 1px solid var(--line); font-size: 13px; }
+/* Review code (Chat 4.2.0): findings above the files, and at their lines in the diff */
+.rv { margin: 8px 10px; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--panel); font-size: 13px; }
+.rv-run { display: flex; align-items: center; gap: 8px; }
+.rv-run p, .rv-verdict, .rv-stale { margin: 0; }
+.rv-head { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.rv-sum { color: var(--muted); }
+.rv-verdict { color: var(--ink); margin-bottom: 6px; }
+.rv-stale { margin-bottom: 6px; color: var(--warn); }
+.rv-f { display: grid; grid-template-columns: auto 1fr; gap: 2px 8px; align-items: baseline; padding: 6px 0 6px 8px; border-left: 3px solid var(--line); margin-top: 4px; }
+.rv-f p { grid-column: 1 / -1; margin: 0; white-space: pre-wrap; }
+.rv-f .rv-acts { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; }
+.rv-sev { font-size: 11px; font-weight: 600; color: var(--muted); }
+.rv-loc { justify-self: start; font-size: 12px; overflow-wrap: anywhere; }
+.rv-blocker { border-left-color: var(--danger); }
+.rv-blocker .rv-sev { color: var(--danger); }
+.rv-should-fix { border-left-color: var(--warn); }
+.rv-should-fix .rv-sev { color: var(--warn); }
+.ch-finding td { padding: 2px 10px 6px 60px; background: var(--panel); font-family: var(--sans); }
+.ch-finding .rv-f { margin-top: 2px; }
+.rv-k { background: var(--warn); }
 .split-pick { flex: 1; min-width: 0; }
 .split-pick select { width: 100%; min-height: 30px; padding: 3px 8px; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--bg); color: var(--ink); font: 13px var(--sans); }
 .split .side-scroll { flex: 1; min-height: 0; overflow: auto; padding: 8px 12px; }

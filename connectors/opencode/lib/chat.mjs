@@ -150,7 +150,7 @@ function cleanAgent(agent) {
   return a;
 }
 const MODEL_PART = /^[A-Za-z0-9._:@/+-]{1,200}$/;
-function cleanModel(model) {
+export function cleanModel(model) {
   if (model == null || model === "") return null;
   const m = typeof model === "string" ? { provider: model.split("/")[0], id: model.split("/").slice(1).join("/") } : model;
   if (!m || !MODEL_PART.test(String(m.provider || "")) || !MODEL_PART.test(String(m.id || ""))) throw httpError(400, "Bad model.");
@@ -418,7 +418,8 @@ export async function chatOptions({ config } = {}) {
     defaults: models.defaults,
     commands: commands.slice(0, 300).map((c) => ({ name: c.name, description: String(c.description).slice(0, 300) })),
     can: { shell: !!oc.api.shell, undo: !!oc.api.revert, compact: !!oc.api.summarize, files: !!oc.api.findFiles, images: oc.kind === "v1", side: !!oc.api.fork, terminal: !!oc.api.ptyCreate,
-      pdf: oc.kind === "v1", changes: !!oc.api.richMessages, suggest: !!(oc.api.promptWait && oc.api.deleteSession) && !(config && config.suggestPrompts === false) },
+      pdf: oc.kind === "v1", changes: !!oc.api.richMessages, suggest: !!(oc.api.promptWait && oc.api.deleteSession) && !(config && config.suggestPrompts === false),
+      review: !!(oc.api.promptWait && oc.api.createSession && oc.api.deleteSession && oc.api.richMessages) },
   };
 }
 
