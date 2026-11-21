@@ -318,5 +318,6 @@ export function splitRevert(turns, revertId) {
 export const HELP = [
   ['Enter', 'Send'], ['Shift+Enter', 'New line'], ['Tab, Shift+Tab', 'Switch agent'], ['/', 'Commands (yours and opencode\'s)'],
   ['@', 'Attach a workspace file'], ['!', 'Run a shell command in the workspace'], ['Up', 'Last message (empty box)'], ['Esc twice', 'Stop opencode'],
-  ['Paste or drop a picture', 'Send it with the message'], ['Ctrl+`', 'Terminal beside the chat'], ['Ctrl+S', 'Save the file open in Files']
+  ['Paste or drop a picture', 'Send it with the message'], ['Ctrl+`', 'Terminal beside the chat'], ['Ctrl+S', 'Save the file open in Files'],
+  ['Alt+N', 'New chat'], ['Alt+Up, Alt+Down', 'The chat above or below'], ['Alt+J', 'Next chat that needs you']
 ];

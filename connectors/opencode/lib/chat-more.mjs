@@ -10,6 +10,7 @@
 // it asks Tandem's chat agent, or opencode's plan agent. Off in Settings (opencode connector, Suggest a next prompt).
 
 import { execFile } from "node:child_process";
+import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { httpError, log, opt } from "./context.mjs";
@@ -83,7 +84,14 @@ export async function fileChange(ws, rel) {
   return text == null ? out("binary") : out("added", allAdded(text));
 }
 
-/** What a chat changed (chat.changes): {files: [fileChange], at}. */
+/** A short fingerprint of what the chat changed (1.30.0), so Chat can tell a review of it went stale. */
+export function changesKey(files) {
+  const h = crypto.createHash("sha1");
+  for (const f of files || []) h.update(`${f.path}\0${f.status}\0${f.diff || ""}\0`);
+  return h.digest("hex").slice(0, 12);
+}
+
+/** What a chat changed (chat.changes): {files: [fileChange], key, at}. */
 export async function chatChanges({ session }) {
   const sid = chatSessionOf(session);
   if (!oc.connected || !oc.api || !oc.api.richMessages) throw httpError(503, "opencode is not connected.");
@@ -98,7 +106,7 @@ export async function chatChanges({ session }) {
     if (total > TOTAL_MAX) { f.diff = ""; f.cut = true; }
     files.push(f);
   }
-  return { files, at: new Date().toISOString() };
+  return { files, key: changesKey(files), at: new Date().toISOString() };
 }
 
 /* ---------- suggested next prompt ---------- */

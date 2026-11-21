@@ -76,6 +76,7 @@ import { MAX_PROMPT as VOICE_MAX, KINDS as VOICE_KINDS, resetVoice, runVoice, vo
 import { MAX_FILES as CHAT_FILES, MAX_IMAGES, MAX_IMAGE_DATA, MAX_TEXT as CHAT_MAX, archiveChat, chatFiles, chatImage, chatMessages, chatOptions, commandChat, compactChat, listChats, redoChat, removeChat, renameChat, resetChats, resetSearch, searchChats, sendChat, shellChat, sideChat, startChat, undoChat } from "./lib/chat.mjs";
 import { MAX_ATTACHMENTS, MAX_PIECE, attachPiece } from "./lib/chat-attach.mjs";
 import { chatChanges, chatSuggest, resetSuggest } from "./lib/chat-more.mjs";
+import { chatReview, chatReviewState } from "./lib/chat-review.mjs";
 import { MAX_INPUT as TERM_INPUT, resetTerms, termClose, termInput, termList, termOpen, termRead, termResize, termResume } from "./lib/pty.mjs";
 import { MAX_EDIT, filesRead, filesStat, filesTree, filesWrite } from "./lib/workfiles.mjs";
 import { MAX_FILE, PM_FOLDER, approveFolder, startHandoff, startRefine, startScope, startShape, startSlice, startTriage, writePmFile } from "./lib/slate.mjs";
@@ -1086,6 +1087,24 @@ const actions = {
     async run(args) {
       needReady();
       return chatSuggest(args, { config: ctxRef && ctxRef.config });
+    },
+  },
+  "chat.review": {
+    title: "Review code: a read-only agent reviews what a chat changed and lists findings at their lines",
+    write: false,
+    argsSchema: obj(["session"], { session, model: str("Model (provider/model; empty for the agent's or opencode's default)", { maxLength: 200 }) }),
+    async run(args) {
+      needReady();
+      return chatReview(args);
+    },
+  },
+  "chat.review.state": {
+    title: "Where a chat's code review stands, with its findings",
+    write: false,
+    argsSchema: obj(["session"], { session }),
+    async run(args) {
+      needReady();
+      return chatReviewState(args);
     },
   },
   "chat.attach": {
