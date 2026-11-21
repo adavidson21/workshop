@@ -43,6 +43,7 @@ test("evalsHome needs Invoke-Evals.ps1; listCases reads names, lift and steps, a
     assert.deepEqual(cases[0].needs, ["dotnet"]);
     assert.equal(cases[1].lift, false);
     assert.equal(cases[1].command, "spec");
+    assert.equal(cases[1].answers, 0);
   } finally { fs.rmSync(src, { recursive: true, force: true }); }
 });
 

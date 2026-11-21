@@ -41,7 +41,7 @@ export function evalsHome(source) {
   return { source, root, script, cases: path.join(root, "cases"), results: path.join(root, "results") };
 }
 
-/** Every case: name, what it checks, whether it can show a lift (has a baseline prompt), its steps and needs. */
+/** Every case: name, what it checks, whether it can show a lift (has a baseline prompt), its steps, needs and answers. */
 export function listCases(home) {
   if (!home) return [];
   let names;
@@ -69,6 +69,8 @@ export function listCases(home) {
         steps,
         lift: !!(c.baseline && typeof c.baseline.prompt === "string" && c.baseline.prompt.trim()),
         needs: Array.isArray(c.needs) ? c.needs.filter((x) => typeof x === "string").slice(0, 5) : [],
+        // eng-agents Core 4.16.0: scripted answers for a command that stops to ask (the case's, or its steps').
+        answers: (Array.isArray(c.answers) ? c.answers.length : 0) + (Array.isArray(c.steps) ? c.steps.reduce((n, st) => n + (st && Array.isArray(st.answers) ? st.answers.length : 0), 0) : 0),
       };
     })
     .filter(Boolean)
@@ -196,8 +198,9 @@ export function readResult(home, file) {
       cost: r.usageKnown === true ? num(r.cost) : null,
       questions: num(r.questions),
       verifyFails: num(r.verifyFails),
+      answered: num(r.answered),
       failed: (Array.isArray(r.failed) ? r.failed : []).slice(0, 40).map((f) => ({ check: text(f.check, 200) || "", detail: text(f.detail, 600) || "" })),
-      steps: (Array.isArray(r.steps) ? r.steps : []).slice(0, 40).map((st) => ({ step: text(st.step, 200) || "", ok: st.ok === true, seconds: num(st.seconds), timedOut: st.timedOut === true, tokens: r.usageKnown === true ? num(st.tokens) : null })),
+      steps: (Array.isArray(r.steps) ? r.steps : []).slice(0, 40).map((st) => ({ step: text(st.step, 200) || "", ok: st.ok === true, seconds: num(st.seconds), timedOut: st.timedOut === true, tokens: r.usageKnown === true ? num(st.tokens) : null, ...(st.answered != null ? { answered: num(st.answered), stillAsking: st.stillAsking === true } : {}) })),
       log: text(r.log, 500),
     })),
   })).filter((c) => c.case);

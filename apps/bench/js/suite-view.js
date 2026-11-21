@@ -125,7 +125,7 @@ export function runHtml(st) {
   const s = st.settings;
   const presets = Object.entries(PRESET_TEXT).map(([id, [label]]) => `<button type="button" class="chip" data-act="preset" data-preset="${id}" aria-pressed="${f.preset === id}">${esc(label)}</button>`).join('');
   const cases = (st.cases || []).map((c) => `<li class="pick"><label><input type="checkbox" name="case" value="${esc(c.name)}"${f.cases.includes(c.name) ? ' checked' : ''}>
-      <span class="pick-main"><code>${esc(c.name)}</code> <span class="tag${c.lift ? ' accent' : ''}">${esc(c.kind || 'behavior')}</span>${(c.commands || []).map((x) => ` <span class="tag">/${esc(x)}</span>`).join('')}${c.needs.map((n) => ` <span class="tag">needs ${esc(n)}</span>`).join('')}
+      <span class="pick-main"><code>${esc(c.name)}</code> <span class="tag${c.lift ? ' accent' : ''}">${esc(c.kind || 'behavior')}</span>${(c.commands || []).map((x) => ` <span class="tag">/${esc(x)}</span>`).join('')}${c.needs.map((n) => ` <span class="tag">needs ${esc(n)}</span>`).join('')}${c.answers ? ` <span class="tag" title="Answers the command's questions with ${c.answers} scripted answer${c.answers === 1 ? '' : 's'}">answers ${c.answers}</span>` : ''}
       <span class="pick-desc soft">${esc(c.description)}</span></span></label></li>`).join('');
   const affected = (st.affected || []).length;
   return `<form id="runForm" class="runform" novalidate>

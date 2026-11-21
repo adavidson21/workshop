@@ -92,3 +92,10 @@ test('version 3: Lift adds tokens per run and per passing run; a run shows token
   assert.match(d, /1 failed verify/);
   assert.match(d, /1m 00s, 8k tokens/);
 });
+
+test('answersNote: answers sent to a command that asked, and whether it still asked (eng-agents Core 4.16.0)', async () => {
+  const { answersNote } = await import('../js/view.js');
+  assert.equal(answersNote({ step: '/start new' }), '');
+  assert.equal(answersNote({ answered: 1 }), ', 1 answer sent');
+  assert.equal(answersNote({ answered: 2, stillAsking: true }), ', 2 answers sent, still asking');
+});
