@@ -3,6 +3,12 @@
 import { commandHtml, improveHtml, overviewHtml, runHtml } from './suite-view.js';
 import { armTotals, caveats, compare, efficiency, fmtCost, fmtDay, fmtPoints, fmtSeconds, fmtTokens, headline, latestWithLift, tandemRate } from './model.js';
 
+/** A step that scripted answers to its questions (eng-agents Core 4.16.0): how many went, and if it still asked. */
+export function answersNote(s) {
+  if (!s || s.answered == null) return '';
+  return `, ${s.answered} answer${s.answered === 1 ? '' : 's'} sent${s.stillAsking ? ', still asking' : ''}`;
+}
+
 export const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const pct = (r) => (r == null ? 'n/a' : `${r}%`);
 const ARM = { tandem: 'Tandem', baseline: 'Plain prompt' };
@@ -153,7 +159,7 @@ export function resultHtml(st) {
     if (c.skipped) return `<section class="case"><h3 class="case-h"><code>${esc(c.case)}</code> <span class="tag">${esc(ARM[c.arm])}</span></h3><p class="soft">Skipped: ${esc(c.skipped)}</p></section>`;
     const runs = c.runs.map((run) => `<li class="run">
         <div class="run-h">${pass(run.pass, run.pass ? 'Pass' : run.timedOut ? 'Timed out' : 'Fail')}<span class="soft">Run ${esc(run.run)}</span><span class="num soft">${esc(fmtSeconds(run.seconds))}</span>${run.tokens != null ? `<span class="num soft">${esc(fmtTokens(run.tokens))} tokens${run.cost ? `, ${esc(fmtCost(run.cost))}` : ''}</span>` : ''}${run.questions ? `<span class="tag warn">${esc(run.questions)} question${run.questions === 1 ? '' : 's'} asked</span>` : ''}${run.verifyFails ? `<span class="tag">${esc(run.verifyFails)} failed verify</span>` : ''}${run.log ? `<button type="button" class="lnk" data-act="copy" data-text="${esc(run.log)}">Copy log path</button>` : ''}</div>
-        ${run.steps.length > 1 ? `<ol class="steps">${run.steps.map((s) => `<li class="${s.ok ? 'ok' : 'bad'}"><span class="sr">${s.ok ? 'done' : 'failed'}: </span>${esc(s.step)} <span class="soft num">${esc(fmtSeconds(s.seconds))}${s.tokens ? `, ${esc(fmtTokens(s.tokens))} tokens` : ''}</span></li>`).join('')}</ol>` : ''}
+        ${run.steps.length > 1 || run.steps.some((s) => s.answered != null) ? `<ol class="steps">${run.steps.map((s) => `<li class="${s.ok ? 'ok' : 'bad'}"><span class="sr">${s.ok ? 'done' : 'failed'}: </span>${esc(s.step)} <span class="soft num">${esc(fmtSeconds(s.seconds))}${s.tokens ? `, ${esc(fmtTokens(s.tokens))} tokens` : ''}${answersNote(s)}</span></li>`).join('')}</ol>` : ''}
         ${run.failed.length ? `<ul class="fails">${run.failed.map((f) => `<li><b>${esc(f.check)}</b>${f.detail ? `<span class="soft"> ${esc(f.detail)}</span>` : ''}</li>`).join('')}</ul>` : ''}
       </li>`).join('');
     return `<section class="case">
