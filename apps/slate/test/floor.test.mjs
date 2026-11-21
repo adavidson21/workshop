@@ -388,3 +388,30 @@ test('needs you (Loom 6.15.0): each line says how many cards wait on you', () =>
   assert.match(html, /<section class="fl-line fl-code"[^]*?<span class="fl-need"><span class="fl-ndot" aria-hidden="true"><\/span>\d+ needs? you<\/span>[^]*?<section class="fl-line fl-paper"/);
   assert.match(html, /<section class="fl-line fl-paper"[^]*?<span class="fl-need">/);
 });
+
+test("Loom 6.17.0: the open card shows its docs (Folio's links, Loom's own, the product note); Link a doc opens a search", async () => {
+  const { readFolio, linksOf, withLink, blank } = await import('../js/dispatch/docs.js');
+  S.products = [{ id: 'p_shop', name: 'Shop', slug: 'shop', repos: [], areas: [] }];
+  S.docs = {
+    folio: readFolio({ schema: 'notes.summary', version: 1, items: [
+      { id: 'docs', kind: 'list', title: 'Docs', rows: [{ id: 'plans/limits.md', title: 'Rate limits plan', note: 'Plan', product: 'shop' }, { id: 'products/shop.md', title: 'Shop', note: 'Product note', product: 'shop' }] },
+      { id: 'mentions', kind: 'list', title: 'M', rows: [{ id: 'x', title: 'Rate limits plan', route: 'plans/limits.md', note: 'slate/41610' }] }] }),
+    links: linksOf(withLink(blank(), '41610-rate-limit-headers', 'plans/more.md', true))
+  };
+  S.ui.laneSel = '41610-rate-limit-headers';
+  let html = lanesHtml();
+  assert.match(html, /class="dc-row" aria-label="Docs"/);
+  assert.match(html, /data-doc-open="products\/shop.md"/, "the plan doc's product names the product note");
+  assert.match(html, /data-doc-open="plans\/limits.md"/);
+  assert.match(html, /data-doc-unlink="plans\/more.md"/);
+  assert.doesNotMatch(html, /data-doc-unlink="plans\/limits.md"/, 'a link written in the doc is changed in the doc');
+  assert.doesNotMatch(html, /dc-pick/);
+  S.ui.docPick = '41610-rate-limit-headers';
+  html = lanesHtml();
+  assert.match(html, /class="ln-pick dc-pick"/);
+  // Without Folio: no Link a doc, and nothing when nothing is linked.
+  S.docs = { folio: readFolio(null), links: new Map() };
+  S.products = [];
+  assert.doesNotMatch(lanesHtml(), /class="dc-row"/);
+  delete S.docs; S.ui.docPick = null;
+});

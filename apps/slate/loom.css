@@ -471,3 +471,20 @@ body[data-loom-tab=lanes] #runs-root .page:has(.fl-body) { max-width: none; }
   0%, 100% { box-shadow: inset 3px 0 0 var(--nr), 0 0 0 2px color-mix(in srgb, var(--nr) 14%, transparent); }
   50% { box-shadow: inset 3px 0 0 var(--nr), 0 0 0 6px color-mix(in srgb, var(--nr) 26%, transparent); }
 }
+
+/* Loom 6.17.0: a card's docs (docs.js): product note and plan doc chips, Link a doc, the epic tracker's chips. */
+#runs-root .dc-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; border-top: 1px solid var(--line); padding-top: 8px; }
+#runs-root .dc-h { font: 600 12px/1 var(--sans); color: var(--muted); margin-right: 2px; }
+#runs-root .dc-none { font: 400 12.5px/1.2 var(--sans); color: var(--muted); }
+#runs-root .dc-chip { display: inline-flex; align-items: center; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); max-width: 100%; }
+#runs-root .dc-chip.k-product { border-color: color-mix(in srgb, var(--merlot) 40%, var(--line)); }
+#runs-root .dc-open { display: inline-flex; align-items: center; gap: 5px; border: 0; background: none; color: inherit; font: 500 12.5px/1.2 var(--sans); padding: 4px 9px; cursor: pointer; min-width: 0; }
+#runs-root .dc-open span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 220px; }
+#runs-root .dc-open:hover span { text-decoration: underline; }
+#runs-root .dc-x { border: 0; background: none; color: var(--muted); font: 600 14px/1 var(--sans); padding: 2px 8px 2px 0; cursor: pointer; }
+#runs-root .dc-x:hover { color: var(--ink, inherit); }
+#runs-root .dc-add { border: 1px dashed var(--line); background: none; color: var(--muted); border-radius: 999px; font: 500 12.5px/1.2 var(--sans); padding: 4px 10px; cursor: pointer; }
+#runs-root .dc-add:hover { color: inherit; border-style: solid; }
+#runs-root .dc-pick { margin-top: 6px; }
+#runs-root .dc-epic { display: inline-flex; gap: 4px; flex-wrap: wrap; }
+#runs-root .dc-epic .dc-open { padding: 2px 8px; font-size: 12px; }

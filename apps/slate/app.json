@@ -2,7 +2,7 @@
   "manifestVersion": 1,
   "id": "slate",
   "name": "Loom",
-  "version": "6.16.0",
+  "version": "6.17.0",
   "description": "Tandem's runs on a floor: a code line and a research line of stations, or a list, plus Health. Drop in a story, an error log, a question or a hand-off; a card stops only when it needs you.",
   "icon": "icon.svg",
   "entry": "index.html",
@@ -159,7 +159,8 @@
   "data": [
     "items",
     "handoffs",
-    "summary"
+    "summary",
+    "doc-links"
   ],
   "privateFiles": [
     "reports"
@@ -201,6 +202,7 @@
     "js/dispatch/start-prefill.js",
     "js/loom.js",
     "js/app.js",
-    "loom.css"
+    "loom.css",
+    "js/dispatch/docs.js"
   ]
 }

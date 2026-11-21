@@ -93,7 +93,7 @@ export function buildIndex(list) {
     const f = facts(n.content, stem(n.path));
     // Templates go by their name (template-info.js), not their "# {{title}}" heading.
     const tpl = isTemplate(n.path) ? templateInfo(n.path, n.content) : null;
-    notes.set(n.path, { path: n.path, title: tpl ? tpl.name : f.title || stem(n.path), aliases: f.aliases || [], use: tpl ? tpl.use : undefined, tags: f.tags, headings: f.headings, code: f.code, tasks: f.tasks, review: f.review, raw: f, mtime: n.mtime, size: n.size });
+    notes.set(n.path, { path: n.path, title: tpl ? tpl.name : f.title || stem(n.path), aliases: f.aliases || [], use: tpl ? tpl.use : undefined, tags: f.tags, headings: f.headings, code: f.code, tasks: f.tasks, review: f.review, doc: f.doc || { kind: '', product: '' }, raw: f, mtime: n.mtime, size: n.size });
   }
   const byTitle = titleMap(notes);
   const backlinks = new Map(), tags = new Map(), missing = new Map();

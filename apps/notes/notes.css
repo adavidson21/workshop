@@ -730,3 +730,19 @@ dialog{border:0;border-radius:var(--r-lg);box-shadow:0 20px 60px rgb(34 25 28/.2
 .plink-list a .name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .plink-list a:hover .name{text-decoration:underline}
 .dlg.link-form{display:flex;flex-direction:column;gap:.7rem}
+
+/* Folio 4.11.0: Loom items for a plan doc or product note (loom.js), and a ws:slate chip saying where its item is. */
+.in-loom .loom-progress{display:flex;align-items:center;gap:.5rem;margin:.2rem 0 .4rem}
+.in-loom .loom-bar{flex:1;height:5px;border-radius:999px;background:var(--line);overflow:hidden}
+.in-loom .loom-bar i{display:block;height:100%;background:var(--sec-products,#5E7A4F)}
+.in-loom .loom-group{font:600 .72rem/1.2 var(--sans);color:var(--muted);margin:.5rem 0 .15rem}
+.loom-rows{list-style:none;margin:0;padding:0}
+.loom-row{display:grid;grid-template-columns:auto 1fr;column-gap:.45rem;align-items:center;font-size:.82rem;line-height:1.35;color:var(--ink);text-decoration:none;padding:.25rem .4rem;margin-inline:-.4rem;border-radius:4px}
+.loom-row:hover{background:var(--hover)}
+.loom-row .r-line{grid-column:2}
+.loom-row .dot,.app-chip .dot{width:7px;height:7px;border-radius:50%;background:var(--muted);display:inline-block}
+.loom-row.s-you .dot,.app-chip.s-you .dot{background:var(--warn)}
+.loom-row.s-moving .dot,.app-chip.s-moving .dot{background:var(--accent)}
+.loom-row.s-done .dot,.app-chip.s-done .dot{background:var(--sec-products,#5E7A4F)}
+.app-chip.s-you,.app-chip.s-moving,.app-chip.s-done{display:inline-flex;align-items:center;gap:.3rem}
+.app-chip.s-you{color:var(--ink)}

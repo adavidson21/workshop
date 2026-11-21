@@ -1,6 +1,7 @@
 /* Notes: HTML for the page. Pure functions of state; every piece of note text is escaped here or by
    markdown.js. main.js owns events and the editor. */
 import { esc, plainText, safeHref } from './markdown.js';
+import { inLoomHtml } from './loom.js';
 import { KINDS, LINKS, filterLinks, hostOf } from './links.js';
 import { filterOptions } from '../../../shared/products.js';
 import { age, baseName, dirOf, stem, wordCount } from './model.js';
@@ -381,6 +382,7 @@ export function panel(state) {
         return `<li><a href="#" data-open="${esc(b.from)}" data-line="${b.line}"><span class="r-title">${esc(from ? from.title : b.from)}</span><span class="r-line">${esc(line.slice(0, 160))}</span></a></li>`;
       }).join('')}</ul>` : ''}</section>` : ''}
     ${mentionsHtml(state)}
+    ${state.loomInfo && state.loomOn ? inLoomHtml(state.loomInfo, { loomOn: true, open: ui.loomOpen !== false }) : ''}
     ${productLinksHtml(state)}
     ${sendHtml(state, n)}
     ${state.versions ? `<section><h2 class="section-label">History</h2>

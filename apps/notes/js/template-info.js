@@ -20,6 +20,7 @@ export const TEMPLATE_INFO = {
   architecture: { name: 'Architecture overview', use: 'How a system fits together: context and container diagrams, data and operations.' },
   postmortem: { name: 'Postmortem', use: 'After an incident: impact, a timeline diagram, root cause and action items.' },
   daily: { name: 'Daily note', use: "Used by Today's note: the day's plan (your Docket tasks), notes and wins." },
+  plan: { name: 'Plan (PRD)', use: 'A feature plan for Loom: problem, goals, scope and milestones. Links its builds; In Loom shows where each one is.' },
   product: { name: 'Product note', use: 'What you and Tandem know about one product. New ones go in products/.' }
 };
 

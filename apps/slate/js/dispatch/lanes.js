@@ -18,6 +18,7 @@ import { reviewsHtml } from './pr-reviews.js';
 import { noticedHtml, noticedCount } from './noticed.js';
 import { floorHtml, epicPanelHtml, rowsHtml, onboardPickHtml, coverPickHtml } from './floor.js';
 import { liveHtml } from './live.js';
+import { docsFor, docsRowHtml, docPickHtml } from './docs.js';
 import { teachHtml, teachCount, teachBlocking, publishOf, adoLinkOf, adoLinkHtml, adoNoticeHtml } from './factory.js';
 // Set by pages.js (it imports this module): the onboarding guide and an ask's source, for Loom 6.0.0's Lanes.
 // var, no initializer: pages.js may run this setter before this module's body (they import each other).
@@ -244,6 +245,19 @@ const CHAT = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke
 const X = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>';
 /** A card's key in the lanes (its folder; board:<id>, reviews or session:<id> for the rest). */
 export const keyOf = c => c.folder || (c.board ? 'board:' + c.board : c.reviews ? 'reviews' : 'session:' + c.session);
+/** A card's docs (Loom 6.17.0, docs.js): its product note and plan docs, from Folio's summary and Loom's own links. */
+export function docsInfo(it) {
+  const d = S.docs || {};
+  return docsFor(it, { folio: d.folio, links: d.links, products: S.products || [], items: (S.D && S.D.items) || [] });
+}
+function docsHtml(it) {
+  const d = S.docs || {};
+  const on = !!(d.folio && d.folio.on);
+  const info = docsInfo(it);
+  const picking = on && S.ui.docPick === it.folder;
+  const linked = [...info.plans.map(p => p.path), info.product ? info.product.path : ''].filter(Boolean);
+  return docsRowHtml(it, info, { folioOn: on, picking, pick: picking ? docPickHtml(it.folder, d.folio.docs, S.ui.drafts['docs:q'] || '', linked) : '' });
+}
 function panelHtml(key, data) {
   // The Review card opens even when no teammate's PR waits (the old Reviews address, Review a link).
   const c = data.cards.find(x => keyOf(x) === key) || (key === 'reviews' ? { reviews: true, kind: 'review', lane: 'ready', title: "Teammates' PRs", id: null } : null);
@@ -257,7 +271,7 @@ function panelHtml(key, data) {
     body = `<div class="ln-reviews">${reviewsHtml()}</div>`;
   } else if (c.it) {
     if (hasFirstLook(c.it)) body += `<div class="ln-first"><p class="ln-fh">First look</p>${fileInline(c.it, 'first-look.md')}</div>`;
-    body += `<div class="loom-run ln-run">${runCardHtml(c.folder)}</div>` + epicPanelHtml(c.it) +
+    body += `<div class="loom-run ln-run">${runCardHtml(c.folder)}</div>` + epicPanelHtml(c.it) + docsHtml(c.it) +
       adoLinkHtml(c.it, adoOn()) +
       `<div class="ln-foot"><button type="button" class="btn ghost" data-open-run="${h(c.folder)}">Open the run</button>${projectChip(c.it)}` +
       (c.sid ? `<button type="button" class="ibtn" data-open-chat="${h(c.sid)}" aria-label="Open the conversation in Chat" title="Open the conversation in Chat">${CHAT}</button>` : '') + '</div>';

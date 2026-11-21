@@ -27,7 +27,8 @@ import { S } from './state.js';
 import { h, plural, itemSession, isBusy, itemAuto, ago } from './view.js';
 import { hasProjects, projectById, projectOf, projectName, sw } from './projects.js';
 import { flowOf, stepIndex, stepsOf } from './flows.js';
-import { KINDS, keyOf } from './lanes.js';
+import { KINDS, keyOf, docsInfo } from './lanes.js';
+import { epicDocsHtml } from './docs.js';
 import { publishAllHtml, publishOf } from './factory.js';
 import { afterOf } from './summary.js';
 
@@ -339,12 +340,17 @@ function handoffHtml(fd, sel) {
   const epic = e => {
     const segs = e.stories.map(x => `<i class="fl-seg at-${h(x.at)}" title="${h((x.story ? x.story + ' ' : '') + x.title + ': ' + x.atName)}"></i>`).join('');
     const rows = e.stories.map(x => `<li><button type="button" class="fl-srow${sel === x.folder ? ' on' : ''}" data-lane-open="${h(x.folder)}"><span class="fl-sid">${h(x.story || x.id)}</span><span class="fl-stitle">${h(x.title)}</span><span class="fl-sat at-${h(x.at)}">${h(x.atName)}</span></button></li>`).join('');
-    return `<article class="fl-epic" aria-label="${h('Epic ' + e.title)}"><header><span class="fl-ekind">Epic</span><h3>${h(e.title)}</h3><span class="fl-eready">${h(e.ready + ' of ' + e.total)} ready</span></header>` +
+    return `<article class="fl-epic" aria-label="${h('Epic ' + e.title)}"><header><span class="fl-ekind">Epic</span><h3>${h(e.title)}</h3><span class="fl-eready">${h(e.ready + ' of ' + e.total)} ready</span>${epicDocs(e)}</header>` +
       `<div class="fl-segs" aria-hidden="true">${segs}</div><ul class="fl-srows" role="list">${rows}</ul></article>`;
   };
   return `<section class="fl-handoff" aria-label="Epics handing off to builds">${belt}${fd.epics.length ? `<div class="fl-epics">${fd.epics.map(epic).join('')}</div>` : ''}</section>`;
 }
 
+/** The epic tracker's plan doc chips (Loom 6.17.0): the epic item's docs. */
+function epicDocs(e) {
+  const it = ((S.D && S.D.items) || []).find(x => x && x.folder === e.folder);
+  return it ? epicDocsHtml(docsInfo(it)) : '';
+}
 /** Where a card is on the floor, for the popup's stamp: its station's name and how it moves. */
 function whereOf(fd, key) {
   for (const [line, list] of [['code', fd.code], ['paper', fd.paper]]) for (const st of list) {

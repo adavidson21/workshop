@@ -11,10 +11,13 @@
    - `targets` (id `folders`, capture `note`): where quick capture can put a note: a `today` row (today's note),
      then folders with notes in them, most recently used first, up to 199 (Workshop's "n <folder>: ..."). Leaves out
      templates/, daily/, history/ and attachments/.
+   - `list` (id `docs`, Folio 4.11.0): plan docs (newest first), then product notes, up to 200 (loom.js docsCard): `id`
+     and `route` the path, `note` `Plan` or `Product note`, and an extra `product` field. Loom's Link a doc lists them.
    Templates are left out. Pure: no DOM and no SDK. */
 import { appRefs } from './applinks.js';
 import { DAILY, TEMPLATES } from './templates.js';
 import { toReview } from './products.js';
+import { docsCard } from './loom.js';
 
 const RECENT = 10;
 const FOLDERS = 199;
@@ -63,6 +66,7 @@ export function notesCards(index) {
       rows: byTime.slice(0, RECENT).map(n => ({ id: n.path, title: n.title.slice(0, 200), route: n.path })) },
     { id: 'mentions', kind: 'list', title: 'Notes about other apps', count: unique.length, rows },
     { id: 'folders', kind: 'targets', title: 'Notes folders', capture: 'note', rows: captureFolders(notes) },
-    { id: 'review', kind: 'count', title: 'Product notes to review', count: toReview(index).filter(n => !n.path.startsWith(`${TEMPLATES}/`)).length, route: 'review' }
+    { id: 'review', kind: 'count', title: 'Product notes to review', count: toReview(index).filter(n => !n.path.startsWith(`${TEMPLATES}/`)).length, route: 'review' },
+    docsCard(index)
   ];
 }

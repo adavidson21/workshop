@@ -2,7 +2,7 @@
   "manifestVersion": 1,
   "id": "notes",
   "name": "Folio",
-  "version": "4.10.1",
+  "version": "4.11.0",
   "description": "Folio, your notebook: notes, daily notes, product notes, templates, Tandem's documents and a Links directory, as Markdown files. Diagrams, backlinks, tags, search and images.",
   "icon": "icon.svg",
   "entry": "index.html",
@@ -130,7 +130,8 @@
     "js/view.js",
     "notes.css",
     "vendor/codemirror.js",
-    "vendor/mermaid.min.js"
+    "vendor/mermaid.min.js",
+    "js/loom.js"
   ],
   "aliases": [
     "folio",
