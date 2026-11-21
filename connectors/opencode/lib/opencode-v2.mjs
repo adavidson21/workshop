@@ -124,12 +124,12 @@ export function makeV2(url, password) {
       wsSessions.add(r.data.data.id);
       return { id: r.data.data.id, title: r.data.data.title || title };
     },
-    async runCommand(id, name, args) {
-      const r = await call(`/api/session/${id}/command`, { method: "POST", body: { name, text: args }, timeout: 30000 });
+    async runCommand(id, name, args, model) {
+      const r = await call(`/api/session/${id}/command`, { method: "POST", body: { name, text: args, ...(model ? { model: { providerID: model.provider, modelID: model.id } } : {}) }, timeout: 30000 });
       return r.ok ? null : errText(r);
     },
-    async prompt(id, text, agent) {
-      const r = await call(`/api/session/${id}/prompt`, { method: "POST", body: { text, ...(agent ? { agent } : {}) } });
+    async prompt(id, text, agent, model) {
+      const r = await call(`/api/session/${id}/prompt`, { method: "POST", body: { text, ...(agent ? { agent } : {}), ...(model ? { model: { providerID: model.provider, modelID: model.id } } : {}) } });
       if (!r.ok) throw httpError(502, `opencode did not take the reply (${errText(r)}).`);
     },
     async abort(id) {

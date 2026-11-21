@@ -231,6 +231,10 @@
         "x-workshop-multiline": {
           "type": "boolean"
         },
+        "x-workshop-models": {
+          "type": "boolean",
+          "description": "A select of the models opencode can use (provider/model), from the opencode connector's chat.options, with a blank first option for opencode's default."
+        },
         "x-workshop-hosted": {
           "type": "boolean"
         },

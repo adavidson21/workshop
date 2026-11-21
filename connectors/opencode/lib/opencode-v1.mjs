@@ -123,14 +123,15 @@ export function makeV1(url) {
       return { id: r.data.id, title: r.data.title || title };
     },
     // The 1.x command endpoint answers only when the agent finishes, so the caller does not wait for it.
-    async runCommand(id, name, args) {
-      const r = await call(`/session/${id}/command`, { method: "POST", body: { command: name, arguments: args }, timeout: 0 });
+    // `model` ({provider, id}, 1.32.0): Settings' model for agent runs; without it the agent's or opencode's default.
+    async runCommand(id, name, args, model) {
+      const r = await call(`/session/${id}/command`, { method: "POST", body: { command: name, arguments: args, ...(model ? { model: `${model.provider}/${model.id}` } : {}) }, timeout: 0 });
       return r.ok ? null : errText(r);
     },
     // `agent` names the agent for this message (chat.mjs always passes "chat"); without it opencode uses the
     // session's last agent or its default.
-    async prompt(id, text, agent) {
-      const r = await call(`/session/${id}/prompt_async`, { method: "POST", body: { ...(agent ? { agent } : {}), parts: [{ type: "text", text }] } });
+    async prompt(id, text, agent, model) {
+      const r = await call(`/session/${id}/prompt_async`, { method: "POST", body: { ...(agent ? { agent } : {}), ...(model ? { model: { providerID: model.provider, modelID: model.id } } : {}), parts: [{ type: "text", text }] } });
       if (!r.ok) throw httpError(502, `opencode did not take the reply (${errText(r)}).`);
     },
     async abort(id) {

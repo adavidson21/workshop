@@ -61,7 +61,7 @@ export async function runCommand({ folder, command }, { fresh = false, fromAuto 
   broadcastLive();
 
   oc.api
-    .runCommand(sid, cmd.name, cmd.args)
+    .runCommand(sid, cmd.name, cmd.args, opt.runModel)
     .then((err) => {
       if (err) {
         upsertSession(sid, { status: "idle", activity: null, error: commandError(cmd.name, err) });
@@ -110,7 +110,7 @@ export async function startItem({ id, lane, project }) {
   linkFrom(sid, () => folderForToken(wid), `/start ${args}`);
   broadcastLive();
   oc.api
-    .runCommand(sid, "start", args)
+    .runCommand(sid, "start", args, opt.runModel)
     .then((err) => {
       if (err) {
         upsertSession(sid, { status: "idle", activity: null, error: commandError("start", err) });
@@ -193,7 +193,7 @@ export async function reply({ session, text }) {
     const folder = folderForSession(session);
     if (folder) return runCommand({ folder, command: t });
   }
-  await oc.api.prompt(session, t);
+  await oc.api.prompt(session, t, undefined, opt.runModel);
   upsertSession(session, { status: "busy", busySince: Date.now(), activity: "Reading your reply", error: null, text: null });
   autoOnReply(session);
   broadcastLive();
