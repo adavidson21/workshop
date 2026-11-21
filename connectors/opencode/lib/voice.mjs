@@ -6,7 +6,7 @@
 // instructions cannot make the agent edit files or run commands. voice.result reads the reply back: the last
 // assistant message of that session. Nothing is written to disk here; the samples and rules are Settings' data.
 
-import { httpError, log } from "./context.mjs";
+import { httpError, log, opt } from "./context.mjs";
 import { needAi } from "./chat.mjs";
 import { oc, sessions, upsertSession } from "./opencode-state.mjs";
 
@@ -45,7 +45,7 @@ export async function runVoice({ kind, prompt }, { config } = {}) {
   upsertSession(sid, { title: created.title || title, status: "busy", busySince: Date.now(), activity: `Starting ${title}`, error: null, text: null, command: title });
   runs.set(sid, { kind, at: Date.now() });
   try {
-    await oc.api.prompt(sid, text, agentFor(oc.agents));
+    await oc.api.prompt(sid, text, agentFor(oc.agents), opt ? opt.runModel : null);
   } catch (e) {
     upsertSession(sid, { status: "idle", activity: null, error: `${title}: ${e.message}` });
     throw e;

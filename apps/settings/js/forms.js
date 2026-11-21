@@ -4,6 +4,8 @@
 
      string                      text field (format: uri -> url; x-workshop-multiline -> textarea)
      string + enum               select (x-workshop-labels for option labels)
+     string + x-workshop-models  select of opencode's models (provider/model), blank for opencode's default; the
+                                 list comes from opts.models(), an async {models: [{provider, providerName, id, name}]}
      string + x-workshop-env     environment variable name field: whether a token is there, and Add token
                                  (saves it in this computer's secret store under that name; opts.onSecret)
      string + x-workshop-secret  secret name field: whether it is saved and until when, and Add token / Replace
@@ -269,6 +271,7 @@ function leafField(schema, value, env, o) {
   }
 
   // string
+  if (schema['x-workshop-models']) return modelsField(holder, schema, value, o);
   if (Array.isArray(schema.enum)) {
     const sel = document.createElement('select'); sel.className = 'cfg-input';
     const labels = schema['x-workshop-labels'];
@@ -298,6 +301,43 @@ function leafField(schema, value, env, o) {
   if (ro) input.disabled = true;
   holder.appendChild(input);
   holder.readValue = () => input.value;
+  return holder;
+}
+
+/* A model picker: blank (opencode's default) first, then opencode's models grouped by provider. The saved value
+   stays selectable even when opencode is off or no longer offers it, so opening and saving the page keeps it. */
+function modelsField(holder, schema, value, o) {
+  const saved = value != null ? String(value) : (schema.default || '');
+  const sel = document.createElement('select'); sel.className = 'cfg-input';
+  const status = document.createElement('span'); status.className = 'cfg-env-status';
+  const fill = (models, note) => {
+    const keep = sel.options.length ? sel.value : saved;
+    sel.innerHTML = '';
+    const add = (parent, v, label) => { const opt = document.createElement('option'); opt.value = v; opt.textContent = label; parent.appendChild(opt); };
+    add(sel, '', "Opencode's default");
+    const groups = new Map();
+    for (const m of models) {
+      if (!m || !m.provider || !m.id) continue;
+      if (!groups.has(m.provider)) { const g = document.createElement('optgroup'); g.label = m.providerName || m.provider; groups.set(m.provider, g); sel.appendChild(g); }
+      add(groups.get(m.provider), `${m.provider}/${m.id}`, m.name || m.id);
+    }
+    if (keep && ![...sel.options].some(x => x.value === keep)) add(sel, keep, `${keep} (not offered now)`);
+    sel.value = keep;
+    status.textContent = note || '';
+    status.className = 'cfg-env-status' + (note ? ' warn' : '');
+  };
+  fill([], '');
+  if (o.readOnly) sel.disabled = true;
+  holder.appendChild(sel);
+  holder.appendChild(status);
+  if (o.models) {
+    status.textContent = 'reading opencode\'s models...';
+    Promise.resolve().then(() => o.models()).then(r => {
+      const list = (r && Array.isArray(r.models)) ? r.models : [];
+      fill(list, list.length ? '' : 'opencode has no models signed in yet');
+    }, () => fill([], 'opencode is not connected, so only the saved choice shows'));
+  }
+  holder.readValue = () => sel.value;
   return holder;
 }
 

@@ -776,6 +776,9 @@ async function saveKeys(id, keys, value) {
    those forms current when a token is saved or removed on the Tokens & sign-ins page. Adding a value needs
    Workshop on this computer; a hosted page only shows what is saved. */
 let secretStore = '';
+/* For x-workshop-models fields (Settings 7.11.0): opencode's models, as Chat's picker gets them. */
+const modelLister = () => ws.connectors.call('opencode', 'chat.options');
+
 function secretOpener() {
   if (ws.backend !== 'agent' || ws.mode !== 'local') return null;
   return async opts => {
@@ -1165,8 +1168,8 @@ function formCard(info, pg) {
     form.className = 'cfg';
     form.dataset.track = '';
     const node = single
-      ? renderForm({ ...props[single], title: undefined, description: undefined }, value[single], cc.env, { readOnly, fold: false, secrets: cc.secrets, connector: id, onSecret: secretOpener() })
-      : renderForm(P.subSchema(cc.schema, keys), value, cc.env, { readOnly, fold: isMain, page: pg, secrets: cc.secrets, connector: id, onSecret: secretOpener() });
+      ? renderForm({ ...props[single], title: undefined, description: undefined }, value[single], cc.env, { readOnly, fold: false, secrets: cc.secrets, connector: id, onSecret: secretOpener(), models: modelLister })
+      : renderForm(P.subSchema(cc.schema, keys), value, cc.env, { readOnly, fold: isMain, page: pg, secrets: cc.secrets, connector: id, onSecret: secretOpener(), models: modelLister });
     form.appendChild(node);
     form.insertAdjacentHTML('beforeend', `<div class="acts"><span class="msg" aria-live="polite">${esc(lastMsg)}</span>${readOnly ? '' : '<button class="btn primary">Save</button>'}</div>`);
     sec.appendChild(form);

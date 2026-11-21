@@ -17,7 +17,7 @@ import { factoryOptions, writeFactoryFile } from "./factory.mjs";
 export const HERE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 export const MAX_AUTO_RUNS = 5; // the hard cap: more mostly competes for the model's rate limits and the CPU (3 until 1.21.0)
 export const DEFAULT_AUTO_RUNS = 2;
-export const VERSION = "1.31.0"; // the connector's version (index.mjs exports it)
+export const VERSION = "1.32.0"; // the connector's version (index.mjs exports it)
 export const APP = "eng-agents-dashboard"; // the shell status shape keeps this name (README, `status`)
 export const FRESH_SESSION = new Set(["do-task", "check-docs"]); // the pipeline says: run these in a new session
 export const isWin = process.platform === "win32";
@@ -65,6 +65,12 @@ export function loopbackUrl(u) {
  * Sets the options from the connector config. Returns a problem in plain words, or null.
  * Never throws: the connector reports a bad config in status().
  */
+/** "provider/model" as {provider, id}, or null for blank or anything else. */
+export function runModelOf(v) {
+  const m = /^([A-Za-z0-9._-]{1,100})\/(\S{1,200})$/.exec(String(v || "").trim());
+  return m ? { provider: m[1], id: m[2] } : null;
+}
+
 export function configure(c) {
   ctx = c;
   generation++;
@@ -95,6 +101,8 @@ export function configure(c) {
     fairSlots: !cfg.autopilot || cfg.autopilot.fairSlots !== false,
     // 1.21.0: the software factory's settings, also written to .work/factory.json for Tandem.
     factory: factoryOptions(cfg.factory),
+    // 1.32.0: the model Tandem's runs use (provider/model), or null for the agent's or opencode's own default.
+    runModel: runModelOf(cfg.runModel),
     username: env(oc.usernameEnv) || "opencode",
     password: env(oc.passwordEnv) || null,
   };

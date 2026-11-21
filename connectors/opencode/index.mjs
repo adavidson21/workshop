@@ -233,6 +233,16 @@ export const configSchema = {
         mergeOnly: { type: "string", title: "Merge only these repos", description: "With Merge, no PR: the repo folders that merge, comma separated. Blank for every repo. A build that touches any other repo opens PRs.", maxLength: 2000, default: "", "x-workshop-hosted": true },
       },
     },
+    runModel: {
+      type: "string",
+      title: "Model for agent runs",
+      description: "The model Tandem's runs use: Loom builds, autopilot, replies to a run, Writing and other jobs Workshop starts. Opencode's default leaves it to each agent's own model, or opencode's. Chat keeps its own picker. The list shows the models of the providers opencode is signed in to.",
+      maxLength: 300,
+      pattern: "^$|^[A-Za-z0-9._-]{1,100}/\\S{1,200}$",
+      default: "",
+      "x-workshop-models": true,
+      "x-workshop-hosted": true,
+    },
     suggestPrompts: {
       type: "boolean",
       title: "Suggest a next prompt in Chat",

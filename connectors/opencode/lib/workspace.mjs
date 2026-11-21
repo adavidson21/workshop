@@ -143,7 +143,7 @@ export async function runLoose(name, args, find) {
   if (find) linkFrom(sid, find, command);
   broadcastLive();
   oc.api
-    .runCommand(sid, name, args)
+    .runCommand(sid, name, args, opt.runModel)
     .then((err) => {
       if (err) {
         upsertSession(sid, { status: "idle", activity: null, error: commandError(name, err) });
@@ -171,7 +171,7 @@ export async function promptLoose(title, text, agent) {
   loose.set(sid, { command: title, at: Date.now() });
   broadcastLive();
   try {
-    await oc.api.prompt(sid, text, agent);
+    await oc.api.prompt(sid, text, agent, opt.runModel);
   } catch (e) {
     upsertSession(sid, { status: "idle", activity: null, error: `${title}: ${e.message}` });
     broadcastLive();
