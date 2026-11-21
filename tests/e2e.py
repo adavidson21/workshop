@@ -569,7 +569,9 @@ def notes_append(page, nf, text):
     """Add text at the end of the open note. Folio 3.3 edits in CodeMirror, which continues lists and closes brackets
     as you type, so set the whole text at once (as Folio's own e2e does) instead of typing it."""
     notes_write(page, nf)
-    nf.fill('.cm-content', nf.input_value('#editor') + text)
+    # Not fill(): on a slow runner it replaces only the lines CodeMirror has drawn. Insert at the end instead.
+    nf.click('.cm-content'); nf.press('.cm-content', 'Control+End')
+    page.keyboard.insert_text(text)
     nf.press('.cm-content', 'Control+End')
     page.wait_for_timeout(150)
 

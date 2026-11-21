@@ -112,3 +112,38 @@ test('other apps: Notes never lists or reads their files (Rapport 1:1 notes stay
   assert.equal(asked.some(([, app]) => app && app !== 'notes'), false);
   assert.equal('loadOthers' in n || 'readOther' in n || 'others' in n, false);
 });
+
+test('an outside-change read that finishes after a newer save does not put the older text back (Folio 4.11.1)', async () => {
+  const fs = new FakeFolder();
+  const ws = wsOver(fs);
+  const seen = [];
+  const n = createNotes(ws, { onExternal: (e) => seen.push(e) });
+  await n.load();
+  const made = await n.create('plan.md', '# Plan\n');
+  const first = await n.save('plan.md', '# Plan\n\nfirst', made.mtime);
+  // The watcher reports the first save; its read is slow and only returns once a second save has finished.
+  const realRead = ws.files.read;
+  let release;
+  const gate = new Promise(r => { release = r; });
+  ws.files.read = async (path, o) => { const f = await realRead(path, o); await gate; return f; };
+  ws.fire({ path: 'plan.md', mtime: first.mtime + 1 }); // a later mtime than known, so the read starts
+  ws.files.read = realRead;
+  await new Promise(r => setTimeout(r, 5));
+  const second = await n.save('plan.md', '# Plan\n\nsecond', first.mtime);
+  release();
+  await new Promise(r => setTimeout(r, 5));
+  assert.equal(n.texts.get('plan.md').content, '# Plan\n\nsecond');
+  assert.equal(n.texts.get('plan.md').mtime, second.mtime);
+  assert.deepEqual(seen, [], 'not reported as an outside change');
+  // Our own save echoed back is not read again or reported.
+  ws.fire({ path: 'plan.md', mtime: second.mtime });
+  await new Promise(r => setTimeout(r, 5));
+  assert.deepEqual(seen, []);
+  // A real outside change still comes through.
+  fs.write('notes/plan.md', '# Plan\n\nfrom elsewhere');
+  const now = await realRead('plan.md');
+  ws.fire({ path: 'plan.md', mtime: now.mtime });
+  await new Promise(r => setTimeout(r, 5));
+  assert.equal(n.texts.get('plan.md').content, '# Plan\n\nfrom elsewhere');
+  assert.deepEqual(seen, [{ path: 'plan.md', gone: false }]);
+});

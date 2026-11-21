@@ -25,8 +25,14 @@ export function createNotes(ws, { onChange = () => {}, onExternal = () => {} } =
     onChange();
   }
 
-  async function readNote(path) {
+  /** Read a note and keep its text. `newerOnly` (outside changes): a read older than the text known by now (a save
+   *  finished while it was on its way) is dropped and resolves null. */
+  async function readNote(path, { newerOnly = false } = {}) {
     const f = await ws.files.read(path);
+    if (newerOnly && f) {
+      const known = texts.get(path);
+      if (known && typeof known.mtime === 'number' && typeof f.mtime === 'number' && f.mtime <= known.mtime) return null;
+    }
     if (!f) { texts.delete(path); files.delete(path); return null; }
     files.set(path, { mtime: f.mtime, size: f.size });
     texts.set(path, { content: f.content, mtime: f.mtime });
@@ -65,7 +71,11 @@ export function createNotes(ws, { onChange = () => {}, onExternal = () => {} } =
     }
     if (isImagePath(path)) { files.set(path, { mtime: ev.mtime, size: 0 }); dropImage(path); onChange(); return; }
     if (!isNote(path)) { files.set(path, { mtime: ev.mtime, size: 0 }); return; } // history/ and the like: known, not read
-    try { await readNote(path); } catch { return; }
+    // Our own save comes back here too. Its text is already known, and a read that finishes after a newer save
+    // must not put the older text back (Folio 4.11.1): on a slow computer the editor lost what you just typed.
+    const known = texts.get(path);
+    if (known && typeof ev.mtime === 'number' && typeof known.mtime === 'number' && ev.mtime <= known.mtime) return;
+    try { if (!(await readNote(path, { newerOnly: true }))) return; } catch { return; }
     rebuild(); onExternal({ path, gone: false });
   });
 

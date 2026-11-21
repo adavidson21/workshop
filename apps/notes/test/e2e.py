@@ -48,10 +48,18 @@ def wait_js(pg, expr, timeout=15000):
 
 
 def fill_editor(pg, text):
-    """Replace the note's text, as typing would (CodeMirror's editable element). From Preview, goes to Edit first."""
+    """Replace the note's text, as typing would (CodeMirror's editable element). From Preview, goes to Edit first.
+    Select all is CodeMirror's own command (the whole document). page.fill() on the contenteditable replaced only the
+    lines CodeMirror had drawn, so on a slow runner a long note kept its old text (the flaky Folio dev docs checks)."""
     if 'mode-preview' in (pg.get_attribute('#body', 'class') or ''):
         pg.click('[data-mode=edit]'); pg.wait_for_timeout(200)
-    pg.fill('.cm-content', text)
+    pg.click('.cm-content')
+    pg.keyboard.press('Control+a')
+    if text: pg.keyboard.insert_text(text)
+    else: pg.keyboard.press('Delete')
+    for _ in range(30):
+        if pg.evaluate("document.getElementById('editor').editor.value") == text: break
+        pg.wait_for_timeout(100)
     pg.wait_for_timeout(150)
 
 
