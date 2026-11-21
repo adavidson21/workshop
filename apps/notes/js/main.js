@@ -28,6 +28,7 @@ import { PRODUCTS, baselineFor, blocksToMark, changedLines, markReviewed, needsR
 import { actionItems, forRapport, offerFor, offerId, rapportOffers, readOffers, sentIds, withOffer } from './offers.js';
 import { planImport, linkMaps, rewriteNote } from './vault.js';
 import { notesCards } from './summary-cards.js';
+import { readLoom, loomFor, chipStatus } from './loom.js';
 import { docketPlan } from './daily.js';
 import { SOURCES, matchRecords, recordLink, recordsFrom } from './records.js';
 import { dataUrl, inlineImages, pageHtml, wikiHtml, wikiMarkdown } from './export.js';
@@ -187,8 +188,12 @@ function state() {
     text: ui.path ? editor.value : '', mentions: tdoc ? [] : mentionsNow(), canWindow: Boolean(ui.path) && !isPhone(), bookmarks: bookmarks.list, bookmarked: Boolean(ui.path && bookmarks.has(ui.path)),
     doc: tdoc, brief: tdoc ? briefNow() : null, outline: tdoc ? facts(editor.value).headings : null, phone: isPhone(), hintSeen: store('hint-send') === '1',
     isStarter: isTpl && Object.prototype.hasOwnProperty.call(STARTERS, ui.path), tplFields: isTpl ? templateFields(editor.value) : null,
-    links: { groups: linkGroups(), found: ui.section === 'links' ? linksFound() : [] }, ...productLinksNow() };
+    links: { groups: linkGroups(), found: ui.section === 'links' ? linksFound() : [] }, ...productLinksNow(),
+    loomInfo: ui.path && !tdoc ? loomFor(notes.index.notes.get(ui.path), loom) : null, loomOn: !!(loom && loom.on) };
 }
+/* Loom's Tandem items (loom.js readLoom, from slate.summary's `items` card): a plan doc's and a product note's In Loom
+   section, and where a ws:slate chip's item is. Read when Folio starts and whenever Loom writes its summary. */
+var loom = readLoom(null); // eslint-disable-line no-var -- var: a paint may run before this line
 
 /* ---------- Links (links.js) ---------- */
 
@@ -412,6 +417,7 @@ function noteCtx(from) {
   const ix = notes.index;
   return {
     appName: (id) => appNames[id] || id,
+    appStatus: (app, path) => chipStatus(loom, app, path),
     person: (h) => { const it = dir && dir.items.find(x => !x.archived && x.handle === h); return it ? it.name : null; },
     resolveLink(href) {
       const loc = localHref(href);
@@ -1787,6 +1793,7 @@ async function linkMentionAt(k) {
 panelEl.addEventListener('toggle', (e) => {
   if (e.target.matches && e.target.matches('.mentions details')) ui.mentionsOpen = e.target.open;
   if (e.target.matches && e.target.matches('.plinks details')) ui.plinksOpen = e.target.open;
+  if (e.target.matches && e.target.matches('.in-loom details')) ui.loomOpen = e.target.open;
 }, true);
 side.addEventListener('toggle', (e) => { if (e.target.matches && e.target.matches('details.found')) ui.foundOpen = e.target.open; }, true);
 
@@ -2068,6 +2075,12 @@ if (canSend && ws.people) {
   const gotDir = (d) => { dir = d; paintChrome(); paintPreview(true); };
   ws.people.get().then(gotDir, () => {});
   ws.people.subscribe(gotDir);
+}
+// Loom's items (loom.js): In Loom sections and live chips. Loom switched off or never opened: nothing shows.
+if (canSend) {
+  const readLoomNow = () => ws.data.get('summary', { app: 'slate' }).then(e => { loom = readLoom(e); paintChrome(); paintPreview(true); }, () => {});
+  readLoomNow();
+  try { ws.data.subscribe('summary', readLoomNow, { app: 'slate' }); } catch { /* no subscriptions here */ }
 }
 // Other apps' records for the [[ picker (records.js), where Notes can read their summaries.
 if (canSend) for (const s of SOURCES) {

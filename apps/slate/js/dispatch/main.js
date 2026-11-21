@@ -32,16 +32,62 @@ import { digestCard, digestHtml } from './digest.js';
 import { createHolder, heldFor, lastEndedFocusSpan, watchFocus, dateStr, toMin } from '../../../../shared/focus.js';
 import { readCards } from '../../../../shared/summary.js';
 import * as Products from '../../../../shared/products.js';
+import * as Docs from './docs.js';
+import { lanesData, laneOf } from './lanes.js';
+import { rowsData } from './floor.js';
 
 const OC = 'opencode';
 const app = document.getElementById('app');
 const ws = await getWs();
 // Azure DevOps on or off (shared/ado.js): flows say it only while it is on, and every ADO control hides while off.
 watchAdo(ws, on => { setFlowsAdo(on); try { render(); } catch { /* first paint comes later */ } });
-// Your products from Settings (Loom 6.6.0's Onboard a product picker). Read when the picker opens.
+// Your products from Settings (Loom 6.6.0's Onboard a product picker; 6.17.0 also each card's product note).
 S.products = [];
 function readProducts() {
-  ws.data.get(Products.COLLECTION, { app: Products.APP }).then(env => { S.products = Products.list(env); schedule(); }, () => { S.products = []; });
+  ws.data.get(Products.COLLECTION, { app: Products.APP }).then(env => { S.products = Products.list(env); schedule(); publishSummary(); }, () => { S.products = []; });
+}
+readProducts();
+try { ws.data.subscribe(Products.COLLECTION, readProducts, { app: Products.APP }); } catch { /* no data backend */ }
+// Loom 6.17.0 (docs.js): Folio's plan docs and product notes, and the docs Loom linked to cards itself.
+S.docs = { folio: Docs.readFolio(null), env: null, links: new Map() };
+function readFolioDocs() {
+  ws.data.get('summary', { app: 'notes' }).then(env => { S.docs.folio = Docs.readFolio(env); schedule(); }, () => { S.docs.folio = Docs.readFolio(null); });
+}
+function readDocLinks() {
+  ws.data.get(Docs.COLLECTION).then(env => { if (!Docs.readable(env)) return; S.docs.env = env; S.docs.links = Docs.linksOf(env); schedule(); publishSummary(); }, () => {});
+}
+readFolioDocs(); readDocLinks();
+try { ws.data.subscribe('summary', readFolioDocs, { app: 'notes' }); } catch { /* no data backend */ }
+try { ws.data.subscribe(Docs.COLLECTION, readDocLinks); } catch { /* no data backend */ }
+/** Link (or unlink) a doc to a card, in Loom's own doc-links collection. */
+async function setDocLink(folder, path, on) {
+  let after = Docs.withLink(S.docs.env || Docs.blank(), folder, path, on);
+  if (!after) return false;
+  const before = S.docs.env || Docs.blank();
+  ws.data.stamp(before, after);
+  let res;
+  try { res = await ws.data.put(Docs.COLLECTION, after); }
+  catch (e) {
+    if (e.code !== 'conflict' || !e.current) throw e;
+    after = ws.data.merge(after, e.current);
+    res = await ws.data.put(Docs.COLLECTION, after);
+  }
+  S.docs.env = { ...after, rev: res && res.rev != null ? res.rev : after.rev };
+  S.docs.links = Docs.linksOf(S.docs.env);
+  publishSummary();
+  return true;
+}
+/** The items card's entries: every Tandem item with where it is on the floor, across projects (not the filter). */
+function itemEntries() {
+  const saved = S.view && S.view.project;
+  if (S.view) S.view.project = 'all';
+  let rows = [];
+  try { rows = rowsData(lanesData('all')); } catch { rows = []; } finally { if (S.view) S.view.project = saved; }
+  const out = [];
+  const seen = new Set();
+  for (const g of rows) for (const r of g.rows) if (r.c && r.c.it) { seen.add(r.c.it.folder); out.push({ it: r.c.it, where: r.where || r.c.status, mine: !!r.c.mine, action: r.c.action || '' }); }
+  for (const it of ((S.D && S.D.items) || [])) if (it && it.kind === 'item' && !seen.has(it.folder) && laneOf(it) === 'done') out.push({ it, done: true });
+  return out;
 }
 S.mode = ws.mode;
 // Loom opens on Lanes (Loom 5.0.0): the drop box and the four lanes; a route can open another tab.
@@ -155,6 +201,11 @@ function publishSummary() {
     const cards = summaryCards({ items: (S.D && S.D.items) || [], prompts: prompts(), prs: S.inbox.items || [], now: Date.now(), publish: (S.D && S.D.publish) || {}, gaps: (S.D && S.D.gaps && S.D.gaps.open) || [] });
     const held = holder && holder.card();
     if (held) cards.push(Object.assign({ updatedAt: Date.now() }, held));
+    // Loom 6.17.0: every item with where it is, its product, epic and the docs Loom linked, for Folio.
+    if (S.D && S.D.items) {
+      const items = S.D.items;
+      cards.push(Docs.itemsCard(itemEntries(), { links: S.docs.links, docsOf: it => Docs.docsFor(it, { folio: S.docs.folio, links: S.docs.links, products: S.products, items }) }));
+    }
     const key = JSON.stringify(cards.map(c => ({ ...c, updatedAt: 0 })));
     if (key === summaryKey) return;
     // Loom writes one summary for both halves (loom.js mergeCards).
@@ -1069,6 +1120,15 @@ listen('click', ev => {
     act(() => write('product.onboard', { product }), () => { ui().onboardPick = false; toast(`Tandem is onboarding ${product}. Its steps show as a new line on the floor.`); }, 'onboard');
     return;
   }
+  // Loom 6.17.0 (docs.js): open a doc in Folio, Link a doc, unlink one Loom linked.
+  const dOpen = t.closest('[data-doc-open]');
+  if (dOpen) { ws.open({ app: 'notes', path: dOpen.getAttribute('data-doc-open') }).catch(() => toast('Folio is not on. Turn it on in Settings, Apps.', true)); return; }
+  const dPick = t.closest('[data-doc-pick]');
+  if (dPick) { const f = dPick.getAttribute('data-doc-pick'); ui().docPick = ui().docPick === f ? null : f; if (ui().docPick) readFolioDocs(); paint(); if (ui().docPick) { const q = document.getElementById('dc-q'); if (q) q.focus(); } return; }
+  const dLink = t.closest('[data-doc-link]');
+  if (dLink) { const f = dLink.getAttribute('data-doc-folder'); const path = dLink.getAttribute('data-doc-link'); act(() => setDocLink(f, path, true), () => { ui().docPick = null; if (ui().drafts) ui().drafts['docs:q'] = ''; toast('Linked. The doc shows this card in Folio.'); }, 'doc:' + f); return; }
+  const dUn = t.closest('[data-doc-unlink]');
+  if (dUn) { const f = dUn.getAttribute('data-doc-folder'); act(() => setDocLink(f, dUn.getAttribute('data-doc-unlink'), false), () => toast('Unlinked'), 'doc:' + f); return; }
   const fmore = t.closest('[data-floor-more]');
   if (fmore) { const k = fmore.getAttribute('data-floor-more'); ui().floorOpen = { ...(ui().floorOpen || {}), [k]: !(ui().floorOpen || {})[k] }; paint(); return; }
   if (t.closest('[data-lane-start]')) { dropGo(); return; }
@@ -1419,7 +1479,7 @@ listen('toggle', ev => {
 listen('input', ev => {
   const k = ev.target.getAttribute('data-draft');
   if (k) ui().drafts[k] = ev.target.value;
-  if (k === 'lanes:adoq') schedule();
+  if (k === 'lanes:adoq' || k === 'docs:q') schedule();
   if (k === 'lanes:drop') {
     // The kind picker shows once there is text, preset to the guess; repaint only when that changes.
     if (!ev.target.value.trim()) ui().dropKind = null;

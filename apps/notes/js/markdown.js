@@ -23,9 +23,10 @@ export function safeHref(raw) {
 
 /* ---------- frontmatter ---------- */
 
-/** {data: {title?, tags?: [], aliases?: [], reviewed?, tandemChanged?, template?, description?}, body, offset} where offset is the number of lines the
+/** {data: {title?, tags?: [], aliases?: [], reviewed?, tandemChanged?, template?, description?, kind?, product?}, body, offset} where offset is the number of lines the
     frontmatter took. `reviewed` and `tandem-changed` are the product-note review fields (products.js), as written; `template` and
-    `description` name a template and say what it is for (template-info.js). */
+    `description` name a template and say what it is for (template-info.js). `kind` (lower case) and `product` mark a
+    plan doc and the product it is for (loom.js, Folio 4.11.0). */
 export function frontmatter(text) {
   const src = String(text || '').replace(/^﻿/, '');
   const m = /^---[ \t]*\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/.exec(src);
@@ -57,6 +58,8 @@ export function frontmatter(text) {
     else if (key === 'tandem-changed') data.tandemChanged = unquote(val);
     else if (key === 'template') data.template = unquote(val);
     else if (key === 'description') data.description = unquote(val);
+    else if (key === 'kind') data.kind = unquote(val).toLowerCase();
+    else if (key === 'product') data.product = unquote(val);
   }
   return { data, body: src.slice(m[0].length), offset: m[0].split('\n').length - (m[0].endsWith('\n') ? 1 : 0) };
 }
@@ -311,7 +314,13 @@ function linkHtml(href, labelHtml, ctx) {
   const ext = safeHref(href);
   if (ext) return `<a href="${esc(ext)}" target="_blank" rel="noopener noreferrer">${labelHtml}</a>`;
   const app = appLink(href);
-  if (app) return `<a href="#" class="app-link" data-app="${esc(app.app)}" data-app-path="${esc(app.path)}" title="Open in ${esc(ctx.appName ? ctx.appName(app.app) : app.app)}">${labelHtml}<span class="app-chip">${esc(ctx.appName ? ctx.appName(app.app) : app.app)}</span></a>`;
+  if (app) {
+    // Folio 4.11.0: a Loom item's chip says where it is (ctx.appStatus, loom.js chipStatus).
+    const st = ctx.appStatus ? ctx.appStatus(app.app, app.path) : null;
+    const name = esc(ctx.appName ? ctx.appName(app.app) : app.app);
+    const chip = st ? `<span class="app-chip s-${esc(st.state)}"><span class="dot" aria-hidden="true"></span>${esc(st.text)}</span>` : `<span class="app-chip">${name}</span>`;
+    return `<a href="#" class="app-link" data-app="${esc(app.app)}" data-app-path="${esc(app.path)}" title="Open in ${name}">${labelHtml}${chip}</a>`;
+  }
   const r = ctx.resolveLink ? ctx.resolveLink(href) : null;
   if (r && r.kind === 'note') return `<a href="#" data-note="${esc(r.path)}"${r.anchor ? ` data-anchor="${esc(r.anchor)}"` : ''} class="note-link">${labelHtml}</a>`;
   if (r && r.kind === 'anchor') return `<a href="#" data-anchor="${esc(r.anchor)}" class="note-link">${labelHtml}</a>`;
@@ -453,7 +462,8 @@ export function facts(md, fallbackTitle = '') {
   walk(blocks(body));
   const h1 = headings.find(h => h.level === 1);
   return { title: data.title || (h1 && h1.text) || fallbackTitle, aliases: data.aliases || [], tags: [...tags].sort(), links, wikilinks, headings, code: [...code], tasks,
-    review: { reviewed: data.reviewed || '', tandemChanged: data.tandemChanged || '', flags: flagCount(body) } };
+    review: { reviewed: data.reviewed || '', tandemChanged: data.tandemChanged || '', flags: flagCount(body) },
+    doc: { kind: data.kind || '', product: data.product || '' } };
 }
 
 /** Lines Tandem flagged as contradicted by the code: they end with "(check: <why>, <date>, <source>)" (docs/knowledge.md). */
