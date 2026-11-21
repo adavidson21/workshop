@@ -809,7 +809,7 @@
         "manifestVersion": 1,
         "id": "notes",
         "name": "Folio",
-        "version": "4.11.0",
+        "version": "4.11.1",
         "description": "Folio, your notebook: notes, daily notes, product notes, templates, Tandem's documents and a Links directory, as Markdown files. Diagrams, backlinks, tags, search and images.",
         "icon": "icon.svg",
         "entry": "index.html",
