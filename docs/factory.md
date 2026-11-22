@@ -15,7 +15,7 @@ Saved in the opencode connector's config (`autopilot`, `factory`) and written to
 
 | Setting | Default | Means |
 | --- | --- | --- |
-| Builds at once | 2 (up to 5) | More start queued. |
+| Builds at once | 2 (up to 5) | More start queued. Always 1 while Local model is on ([local-models.md](local-models.md)). |
 | Every project gets a turn | on | A free slot goes first to a project with nothing running, then by project order. |
 | Files per task | 6 | Test files do not count. |
 | Tasks in a Quick change | 3 | More steps up to a feature. |

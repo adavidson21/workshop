@@ -190,7 +190,7 @@ export const configSchema = {
         maxRuns: {
           type: "integer",
           title: "Builds at once",
-          description: "How many items autopilot builds at the same time (1 to 5). More start queued and begin when one finishes. Each build has its own git worktree, so builds on one repo do not collide. Default 2.",
+          description: "How many items autopilot builds at the same time (1 to 5). More start queued and begin when one finishes. Each build has its own git worktree, so builds on one repo do not collide. Default 2. Always 1 while Local model is on.",
           minimum: 1,
           maximum: 5,
           default: 2,
@@ -243,10 +243,19 @@ export const configSchema = {
       "x-workshop-models": true,
       "x-workshop-hosted": true,
     },
+    localModel: {
+      type: "string",
+      title: "Local model",
+      description: "Is the model Tandem's runs use on your own hardware or your company's own server (Ollama, LM Studio, llama.cpp, vLLM and the like)? Then builds run one at a time, Chat suggests no next prompt, and a run whose prompt cannot fit the model's context window is refused instead of failing quietly. Automatic recognizes Ollama, LM Studio, llama.cpp and vLLM; pick On for a company server. See docs/local-models.md.",
+      enum: ["auto", "on", "off"],
+      "x-workshop-labels": ["Automatic", "On", "Off"],
+      default: "auto",
+      "x-workshop-hosted": true,
+    },
     suggestPrompts: {
       type: "boolean",
       title: "Suggest a next prompt in Chat",
-      description: "After each answer, Chat shows one short message you might send next (Right arrow takes it). The chat's model writes it from the last exchange only, in a scratch session that is deleted right after, so each answer costs one small extra request.",
+      description: "After each answer, Chat shows one short message you might send next (Right arrow takes it). The chat's model writes it from the last exchange only, in a scratch session that is deleted right after, so each answer costs one small extra request. Off while Local model is on.",
       default: true,
       "x-workshop-hosted": true,
     },
@@ -1096,7 +1105,7 @@ const actions = {
     argsSchema: obj(["session"], { session }),
     async run(args) {
       needReady();
-      return chatSuggest(args, { config: ctxRef && ctxRef.config });
+      return chatSuggest(args, { config: ctxRef && ctxRef.config, local: !!(opt && opt.local) });
     },
   },
   "chat.review": {

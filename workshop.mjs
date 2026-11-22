@@ -61,6 +61,7 @@ import { APP_FOLDERS } from './shared/app-folders.js';
 import { enableStartAtLogin, disableStartAtLogin, startAtLoginStatus } from './agent/lib/login.mjs';
 import { main as adoDoctorMain } from './connectors/ado/doctor.mjs';
 import { checkProviders } from './connectors/opencode/lib/providers.mjs';
+import { checkLocalModels } from './connectors/opencode/lib/local-model.mjs';
 import { verifyPinned, describeBuild, uiDirOf } from './agent/lib/pinned.mjs';
 import { buildRegistry as registryOf, findApp, pinApps, readOff, writeOff, readAreasOff, writeAreasOff, appSwitches } from './agent/lib/apps.mjs';
 import { ENV_NAME, liveEnv, readWindowsUserEnv } from './agent/lib/userenv.mjs';
@@ -337,6 +338,10 @@ export async function doctorReport({ repo = REPO, home = resolveHome(), env = pr
     const r = checkProviders({ approved: oc.approvedProviders, workspace: oc.workspace, env, platform, home: userHome });
     for (const l of r.lines) lines.push(l);
     if (r.state === 'bad') bad = true;
+    // Local and self-hosted models: is each one's context window known and big enough for Tandem (docs/local-models.md)?
+    const lm = checkLocalModels({ workspace: oc.workspace, setting: oc.localModel, env, platform, home: userHome });
+    for (const l of lm.lines) lines.push(l);
+    if (lm.state === 'bad') bad = true;
   }
   // Tandem: what opencode loads should match the checkout next to Workshop (a stale install has missing agents).
   if (oc || findEngAgents(repo, { userHome })) {

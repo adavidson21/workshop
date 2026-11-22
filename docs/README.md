@@ -29,7 +29,7 @@ These documents define every interface between the parts of Workshop. Code is wr
 | Hub request and answer | [hub.md](hub.md) | `route.json` v1 | `hub-route` | `tests/check-contracts.mjs` (examples) |
 | Conversations (hub threads, Chat tab) | [chat.md](chat.md) | `chats.json` v1 (connector only) | none | `connectors/opencode/test/chat.test.mjs` |
 
-Also here, not contracts: [team-testing.md](team-testing.md) (prerequisites before testing with work data), [security.md](security.md) and [for-security-teams.md](for-security-teams.md).
+Also here, not contracts: [local-models.md](local-models.md) (running Tandem on a model you host), [team-testing.md](team-testing.md) (prerequisites before testing with work data), [security.md](security.md) and [for-security-teams.md](for-security-teams.md).
 
 ## Layout
 

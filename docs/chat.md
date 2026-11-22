@@ -90,7 +90,7 @@ In the composer's bar: how full the model's context window is (a ring and a perc
 
 ### Suggested next prompt
 
-After an answer, one short message you might send next shows above the box: click it, or press Right arrow in the empty box, to put it in the box (it is never sent for you). The connector's `chat.suggest` asks the chat's model in a scratch session that sees only the last exchange (your message and the answer, cut short), never the chat or the files, with Tandem's read-only `chat` agent (or opencode's `plan`), then deletes that session. One small request per answer; the same answer is never asked twice. Turn it off in Settings, opencode connector, **Suggest a next prompt in Chat**.
+After an answer, one short message you might send next shows above the box: click it, or press Right arrow in the empty box, to put it in the box (it is never sent for you). The connector's `chat.suggest` asks the chat's model in a scratch session that sees only the last exchange (your message and the answer, cut short), never the chat or the files, with Tandem's read-only `chat` agent (or opencode's `plan`), then deletes that session. One small request per answer; the same answer is never asked twice. Turn it off in Settings, opencode connector, **Suggest a next prompt in Chat**. It is off while **Local model** is on ([local-models.md](local-models.md)).
 
 ### Changes
 
