@@ -13,5 +13,7 @@
   "routes": [
     { "pattern": "workshop.alexisdavidson.org", "custom_domain": true },
     { "pattern": "dispatch.alexisdavidson.org", "custom_domain": true }
-  ]
+  ],
+  // Pull requests get a Preview (wrangler preview), which needs this block even when empty.
+  "previews": {}
 }

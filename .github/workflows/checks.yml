@@ -60,11 +60,12 @@ jobs:
             run: |
               python apps/prioritizer/test/e2e.py
               python apps/prioritizer/test/focus-e2e.py
-          - name: focus, popout, switches
+          - name: focus, popout, rail, switches
             run: |
               python tests/focus-e2e.py
               python tests/transitions-e2e.py
               python tests/popout-e2e.py
+              python tests/rail-e2e.py
               python tests/switches-e2e.py
           - name: with Azure DevOps off
             run: python tests/no-ado-e2e.py

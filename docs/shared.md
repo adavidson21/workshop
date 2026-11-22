@@ -78,4 +78,5 @@ The shell and the SDK use these. Apps do not.
 | File | What it is |
 | --- | --- |
 | `shared/app-settings.js` | App settings rules; apps use `ws.appSettings` ([app-settings.md](app-settings.md)). |
+| `shared/rail-order.js` | Rail order: arranging the rail in the order a person dragged it into ([apps.md](apps.md), Rail order). |
 | `shared/screenshots/` | Images for the install dialog. |
