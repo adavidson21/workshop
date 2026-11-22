@@ -139,8 +139,9 @@ export function cleanSuggestion(text) {
 }
 
 /** chat.suggest: {text | null}. The same last answer gives the same suggestion without asking again. */
-export async function chatSuggest({ session }, { config } = {}) {
-  if (config && config.suggestPrompts === false) return { text: null, off: true };
+export async function chatSuggest({ session }, { config, local = false } = {}) {
+  // 1.33.0: off for a local or self-hosted model too, where one more request per answer queues behind the chat.
+  if ((config && config.suggestPrompts === false) || local) return { text: null, off: true };
   const sid = chatSessionOf(session);
   if (!oc.connected || !oc.api || !oc.api.promptWait || !oc.api.deleteSession) return { text: null };
   const list = await oc.api.messages(sid, 12);

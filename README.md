@@ -51,7 +51,7 @@ Open https://workshop.alexisdavidson.org in Chrome or Edge. That's it. Your data
      curl -fsSL https://workshop.alexisdavidson.org/install.sh | bash
      ```
    It installs anything missing (Node, opencode, git), Workshop and Tandem, then starts Workshop and opens it once to sign your browser in. It takes a few minutes.
-2. **Connect an AI provider** (only for Dispatch). On Windows the installer asks. On a Mac or Linux, open a new Terminal and run `opencode auth login`.
+2. **Connect an AI provider** (only for Dispatch). On Windows the installer asks. On a Mac or Linux, open a new Terminal and run `opencode auth login`. Using a model you host (Ollama, or your company's own server)? Follow [Local and self-hosted models](docs/local-models.md) first: its context window setting matters more than anything else.
 3. **Open https://workshop.alexisdavidson.org** in the same browser and click **Connect** on the left rail.
 
 Don't want Dispatch? Run `$env:WORKSHOP_DISPATCH='0'` (PowerShell) or `export WORKSHOP_DISPATCH=0` (Terminal) before the installer.
@@ -146,6 +146,7 @@ Workshop talks only to its own site, `127.0.0.1` on your computer, and the syste
 - [Using Workshop](docs/guide.md): every app in detail
 - [Installing Workshop](docs/install.md): every install option, setting and command
 - [Run modes](docs/run-modes.md): browser, personal and work mode
+- [Local and self-hosted models](docs/local-models.md): running Tandem on Ollama or your company's own model server
 - [Developing Workshop](docs/development.md): code layout, adding an app, tests, shipping
 - [Contracts](docs/README.md): the interfaces between Workshop's parts
 

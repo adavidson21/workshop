@@ -14,6 +14,9 @@ import { currentSession, folderForSession, folderForToken, linkFrom, linkSession
 import { oc, permissions, questions, sessions, upsertSession } from "./opencode-state.mjs";
 import { autoActive, autoOnFail, autoOnReply, autopilot, saveAuto } from "./autopilot.mjs";
 import { broadcastLive } from "./live.mjs";
+import { installInfo } from "./tandem-health.mjs";
+import { evalsHome, readCommands } from "./evals.mjs";
+import { commandSizes, fitMessage, promptFit } from "./local-model.mjs";
 import { assignPending, checkProject, forgetRun } from "./projects.mjs";
 
 export function parseCommand(text) {
@@ -35,6 +38,38 @@ export function needOpencode() {
 }
 
 // fresh: always use a new session (autopilot runs every step in one). fromAuto: autopilot is the caller.
+// 1.33.0 (docs/local-models.md): before a Tandem command starts, check that its prompt fits the model's context
+// window. Sizes come from eng-agents' evals/commands.json; the window from opencode's provider list. Over: refused
+// (the model would lose its instructions); tight: logged. Unknown sizes or window: no check.
+let fitCache = { at: 0, sizes: new Map(), models: null };
+export function resetFit() {
+  fitCache = { at: 0, sizes: new Map(), models: null };
+}
+export async function commandFit(name) {
+  if (!oc.api || !oc.api.modelList) return null;
+  if (Date.now() - fitCache.at > 60e3) {
+    const install = installInfo();
+    const home = install && install.source ? evalsHome(install.source) : null;
+    let models = null;
+    try { models = await oc.api.modelList(); } catch { /* opencode did not answer: no check */ }
+    fitCache = { at: Date.now(), sizes: commandSizes(readCommands(home)), models };
+  }
+  const size = fitCache.sizes.get(name);
+  const list = fitCache.models && Array.isArray(fitCache.models.models) ? fitCache.models.models : [];
+  if (!size || !list.length) return null;
+  // The model for agent runs, or the only model opencode has. Otherwise the agent's own default, which is not known here.
+  const pick = opt && opt.runModel;
+  const m = pick ? list.find((x) => x.provider === pick.provider && x.id === pick.id) : list.length === 1 ? list[0] : null;
+  return m ? promptFit({ ...size, context: m.context }) : null;
+}
+async function guardFit(name) {
+  const fit = await commandFit(name);
+  const msg = fitMessage(name, fit);
+  if (!msg) return;
+  if (fit.state === "over") throw httpError(409, msg);
+  log(msg);
+}
+
 export async function runCommand({ folder, command }, { fresh = false, fromAuto = false } = {}) {
   needOpencode();
   const item = findItem(folder);
@@ -43,6 +78,7 @@ export async function runCommand({ folder, command }, { fresh = false, fromAuto 
   if (!cmd) throw httpError(400, `Not a command: ${command}`);
   if (oc.commands.size && !oc.commands.has(cmd.name)) throw httpError(400, `opencode has no /${cmd.name} command. Re-run Tandem's install.ps1 (eng-agents repo), then restart opencode.`);
   if (!fromAuto && autoActive(folder)) throw httpError(409, "Autopilot is running this item. Stop it first.");
+  await guardFit(cmd.name);
 
   let sid = fresh || FRESH_SESSION.has(cmd.name) ? null : currentSession(folder);
   if (sid) {
@@ -84,6 +120,7 @@ export const starting = new Map(); // id -> { sid, at }, until its folder shows 
 const START_FORGET_MS = 10 * 60e3;
 const pushing = new Set();
 export function resetActions() {
+  resetFit();
   starting.clear();
   pushing.clear();
 }
@@ -99,6 +136,7 @@ export async function startItem({ id, lane, project }) {
   const prev = starting.get(wid);
   if (prev && (sessions.get(prev.sid) || {}).status !== "idle") throw httpError(409, `Work item ${wid} is already starting.`);
   if (oc.commands.size && !oc.commands.has("start")) throw httpError(400, "opencode has no /start command. Re-run Tandem's install.ps1 (eng-agents repo), then restart opencode.");
+  await guardFit("start");
   const pid = checkProject(project);
 
   const args = `${wid} ${lane}`;
