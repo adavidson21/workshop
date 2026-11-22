@@ -304,3 +304,20 @@ test('Right now (6.13.0): the popup shows the newest turn\'s thinking and tool c
   assert.doesNotMatch(lanesHtml(), /data-lane-filter="diagnose"/, 'an empty kind filter hides');
   assert.match(lanesHtml(), /data-lane-filter="mine"/, 'Your turn always shows');
 });
+
+test('without Tandem (Loom 6.18.0): no Getting set up, and text that needs Tandem offers Hand it off', async () => {
+  const { onboardHtml } = await import('../js/dispatch/view.js');
+  S.connector = null;
+  assert.equal(onboardHtml(), '', 'the AI step cannot be read without the connector, so the checklist hides');
+  S.ui.drafts['lanes:drop'] = 'Add CSV export to the billing report page';
+  let html = lanesHtml();
+  assert.match(html, /data-lane-start="1" disabled/);
+  assert.match(html, /Tandem is not connected.*data-drop-handoff="1">Hand it off/s);
+  S.ui.dropKind = 'handoff';
+  html = lanesHtml();
+  assert.doesNotMatch(html, /data-drop-handoff/);
+  assert.doesNotMatch(html, /data-lane-start="1" disabled/, 'Hand off starts without Tandem');
+  S.connector = { state: 'ready', message: null };
+  S.ui.dropKind = null;
+  assert.doesNotMatch(lanesHtml(), /data-drop-handoff/, 'connected: no note');
+});

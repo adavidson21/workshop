@@ -4,6 +4,8 @@ A panel over the app you are in (Home 4.0.0, `"panel": true` in `app.json`, see 
 
 It shows and links; work happens in each app. The **Capture** button in the top bar (or Ctrl+. on any app) is the one place to capture or ask.
 
+**5.7.0 (new-user review).** Get started's first step has a third choice, **Just this browser** (the default until Workshop is connected): nothing to install, and **Keep using this browser** sets the step aside. The installers link to docs/install.md on GitHub, the Personal computer step points people running their own model at docs/local-models.md, and a Mac or Linux computer is told `workshop up`, not the Start menu. **Keep your data backed up** no longer waits for an install: in a browser it opens Settings, Data & backups for **Download a copy**. Pick your apps lists Chat and suggests Bench off without Tandem, and Loom is described as it is without agents (hand-offs only). Slate is called Loom everywhere here.
+
 **5.6.0.** With Azure DevOps off, not installed or in browser mode, Get started leaves out **Connect Azure DevOps** and **Set your team's area paths**, and no other step names it (`shared/ado.js`). Turn it on from Settings, All connections.
 
 **5.2.0 (Workshop UX v1).** Get started is its own place: Needs you opens on your day, with one line at the bottom for setup. Click it and the checklist takes the page; fold it to go back.

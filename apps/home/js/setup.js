@@ -2,7 +2,7 @@
    Workshop on this computer, your name, the ADO connector, a Docket task, a receipt),
    so it works as an interactive guide for someone new. Any step can be skipped. Hiding the checklist and
    skipped steps are saved in Home's own collection `setup` (home.setup v1, no items; meta: {hidden,
-   skipped: [step ids], machine ('work' | 'personal', the Connect step's choice), appsPicked, folded (you folded
+   skipped: [step ids], machine ('work' | 'personal' | 'browser', the Connect step's choice; unset: browser until connected, then work), appsPicked, folded (you folded
    the card to one line), updatedAt}); everything else is read live, read-only.
 
    factsFor() reads, stepsFor() decides (pure), card() builds the HTML (pure), createSetup() loads and
@@ -95,18 +95,20 @@ export async function factsFor(ws) {
 }
 
 /**
- * Pick your apps: one line per app on the rail, with the ones that cannot do much here suggested off. Slate
- * without Azure DevOps and without Dispatch is only a local request board; Dispatch needs its agents.
+ * Pick your apps: one line per app on the rail, with the ones that cannot do much here suggested off. Loom
+ * without Azure DevOps and without coding agents is only a board of hand-offs; Bench needs Tandem.
  */
 export function appSuggestions(f = {}) {
   const ado = f.ado && f.ado.state === 'ready';
   const agents = f.dispatch === 'ready';
   return [
     { id: 'prioritizer', name: 'Docket', why: 'your tasks, today and what you handed over.' },
-    { id: 'slate', name: 'Loom', why: agents ? 'requests from idea to shipped, with coding agents on each card.' : ado ? 'requests from idea to shipped. Coding agents are not set up on this computer.' : adoGone(f) ? 'requests from idea to shipped. Without coding agents it is a local board you fill in by hand.' : 'requests from idea to shipped. Without Azure DevOps or coding agents it is a local board you fill in by hand.', off: !ado && !agents },
+    { id: 'slate', name: 'Loom', why: agents ? 'requests from idea to shipped, with coding agents on each card.' : ado ? 'requests from idea to shipped. Coding agents are not set up on this computer.' : adoGone(f) ? 'requests from idea to shipped. Without coding agents it only tracks work you hand off to people.' : 'requests from idea to shipped. Without Azure DevOps or coding agents it only tracks work you hand off to people.', off: !ado && !agents },
+    { id: 'chat', name: 'Chat', why: agents ? 'opencode with a better screen, and the Hub to ask Tandem or capture.' : 'captures tasks, receipts and notes in plain words. Asking Tandem needs coding agents.' },
     { id: 'receipts', name: 'Rapport', why: '1:1s and evidence for reviews.' },
     { id: 'notes', name: 'Folio', why: 'notes, kept as files.' },
-    { id: 'runway', name: 'Runway', why: 'roadmaps you can share as an image.' }
+    { id: 'runway', name: 'Runway', why: 'roadmaps you can share as an image.' },
+    { id: 'bench', name: 'Bench', why: agents ? "whether Tandem is helping: its eval results." : "Tandem's eval results. Needs Tandem on this computer.", off: !agents }
   ];
 }
 
@@ -116,7 +118,8 @@ export function appSuggestions(f = {}) {
 export const STEPS = [
   { id: 'connect', core: true, title: 'Connect Workshop on this computer' },
   { id: 'name', core: true, title: 'Add yourself' },
-  { id: 'backup', core: true, title: 'Keep your data backed up', needs: 'connect' },
+  // No `needs` (Home 5.7.0): in a browser the step offers Download a copy instead of waiting on an install.
+  { id: 'backup', core: true, title: 'Keep your data backed up' },
   { id: 'ado', core: true, title: 'Connect Azure DevOps', needs: 'connect' },
   { id: 'apps', core: true, title: 'Pick your apps' },
   { id: 'team', core: true, title: 'Add your team' },
@@ -177,6 +180,10 @@ const ICON = {
 };
 const LABEL = { done: 'Done', todo: 'To do', skipped: 'Skipped', blocked: 'Waiting' };
 
+// The install guide on GitHub (the site serves docs/ as plain Markdown).
+const DOCS = `https://github.com/${SITE.repos.workshop}/blob/main/docs/install.md`;
+const docLink = (label, hash) => `<a href="${DOCS}${hash ? '#' + hash : ''}" target="_blank" rel="noopener">${esc(label)}</a>`;
+
 const code = (text, i) => `<div class="su-code"><code>${esc(text)}</code><button type="button" class="btn ghost su-copy" data-copy="${i}">Copy</button></div>`;
 const btn = (label, attrs, primary) => `<button type="button" class="btn${primary ? ' primary' : ' ghost'}" ${attrs}>${esc(label)}</button>`;
 
@@ -200,23 +207,32 @@ function detail(s, ctx) {
     case 'connect': {
       if (f.workMode) return `<p>Work mode is on: Workshop runs from the pinned copy on this computer, so there is nothing to connect. Open it with <code>workshop open</code> and check it with <code>workshop doctor</code>.</p>`;
       const site = /^https:\/\//.test(ctx.origin || '') ? ctx.origin : SITE.workshop;
-      const work = ctx.machine !== 'personal';
-      const pick = (id, label) => `<button type="button" class="btn${(id === 'work') === work ? ' primary' : ' ghost'}" data-machine="${id}" aria-pressed="${(id === 'work') === work}">${label}</button>`;
-      const choose = `<p class="su-pick" role="group" aria-label="Which computer is this?">${pick('work', 'Work computer')}${pick('personal', 'Personal computer')}</p>`;
+      const machine = ['work', 'personal', 'browser'].includes(ctx.machine) ? ctx.machine : f.connected ? 'work' : 'browser';
+      const work = machine === 'work';
+      const pick = (id, label) => `<button type="button" class="btn${id === machine ? ' primary' : ' ghost'}" data-machine="${id}" aria-pressed="${id === machine}">${label}</button>`;
+      const choose = `<p class="su-pick" role="group" aria-label="Where will you use Workshop?">${pick('browser', 'Just this browser')}${pick('work', 'Work computer')}${pick('personal', 'Personal computer')}</p>`;
+      if (machine === 'browser') {
+        return `${choose}<p>Nothing to install. Docket, Rapport, Folio and Runway work fully here, and your data stays in this browser.</p>
+        <p>Loom's coding agents, Chat's Hub and Bench need Workshop on your computer. Pick Work or Personal computer when you want them.</p>
+        <p>${btn('Keep using this browser', 'data-skip="connect"', true)}</p>`;
+      }
       if (work) {
         return `${choose}<p>Install Workshop in work mode, once, for your user only, with no admin rights. It runs only from a copy on your computer, no website can reach it, and your data goes in your company OneDrive:</p>
         ${copy(ctx.platform === 'win' ? `irm ${site}/install-work.ps1 | iex` : `curl -fsSL ${site}/install-work.sh | bash`)}
-        <p class="su-fine">Run it in ${ctx.platform === 'win' ? 'PowerShell (not as admin)' : 'a terminal'}. If your company blocks piping a script, follow "Work mode, by hand" in docs/install.md.</p>
-        <p>It opens Workshop on your computer when it finishes, with this checklist. From then on, open it from the Start menu (<b>Workshop</b>) or with <code>workshop up</code>.</p>`;
+        <p class="su-fine">Run it in ${ctx.platform === 'win' ? 'PowerShell (not as admin)' : 'a terminal'}. If your company blocks piping a script, follow ${docLink('Work mode, by hand', 'work-mode')}.</p>
+        <p>It opens Workshop on your computer when it finishes, with this checklist. From then on, ${ctx.platform === 'win' ? 'open it from the Start menu (<b>Workshop</b>) or run' : 'run'} <code>workshop up</code>.</p>`;
       }
       const cmd = ctx.platform === 'win' ? `irm ${site}/install.ps1 | iex` : `curl -fsSL ${site}/install.sh | bash`;
       return `${choose}<p>Workshop keeps your data in files on your computer${adoGone(f) ? '' : ' and talks to Azure DevOps from there'}. Install it once, for your user only, with no admin rights:</p>
         ${copy(cmd)}
-        <p class="su-fine">Run it in ${ctx.platform === 'win' ? 'PowerShell (not as admin)' : 'a terminal'}. Answer <b>n</b> to the AI model question unless you want Loom. If piping a script is blocked, follow "By hand" in docs/install.md.</p>
+        <p class="su-fine">Run it in ${ctx.platform === 'win' ? 'PowerShell (not as admin)' : 'a terminal'}. Answer <b>n</b> to the AI model question unless you want Loom. Running your own model (Ollama, or a company server)? Read ${`<a href="https://github.com/${SITE.repos.workshop}/blob/main/docs/local-models.md" target="_blank" rel="noopener">Local and self-hosted models</a>`} first. If piping a script is blocked, follow ${docLink('By hand')}.</p>
         <p>The installer opens Workshop on this computer once, which signs this browser in. Then click <b>Connect</b> on the rail and <b>Allow</b> in the small window.</p>
         <p class="su-fine">Already installed? Run <code>workshop restart</code>, then click Connect.</p>`;
     }
     case 'backup': {
+      if (!f.connected && !f.workMode) return `<p>Your data is saved in this browser. Clearing the browser's history or site data can erase it, so download a copy now and then (Settings, Data &amp; backups, <b>Download a copy</b>). Installing Workshop later saves everything as files instead.</p>
+        <p>${btn('Open Data & backups', 'data-open="settings" data-path="data"', true)}</p>
+        <p class="su-fine">Downloaded one? Skip this step.</p>`;
       const where = f.dataDir ? `<code>${esc(f.dataDir)}</code>` : 'your data folder';
       if (onOneDrive(f.dataDir)) return `<p>Your data is in ${where}, so OneDrive backs it up.</p>`;
       if (f.workMode) return `<p>Everything you add is saved as files in ${where}. Workshop never uploads it, so if this computer is replaced, those files are your only copy.</p>
@@ -229,9 +245,9 @@ function detail(s, ctx) {
     case 'team':
       return `<p>Add your direct reports and your manager once. Rapport shows a page per report with 1:1 prep and their receipts, and quick capture on this page knows their names ("john shipped the migration" becomes a receipt for John). A long list can be imported from a spreadsheet.</p><p>${btn('Open People', 'data-open="settings" data-path="people"', true)}</p>`;
     case 'areas':
-      return `<p>The Azure DevOps area paths your team works in. Slate lists your team's backlog from them (its Inbox is empty without them), and Runway's ADO roadmaps and the Loom hub use them too.</p><p>${btn('Open Team area paths', 'data-open="settings" data-path="team"', true)}</p>`;
+      return `<p>The Azure DevOps area paths your team works in. Loom lists your team's backlog from them (its Inbox is empty without them), and Runway's ADO roadmaps and the Loom hub use them too.</p><p>${btn('Open Team area paths', 'data-open="settings" data-path="team"', true)}</p>`;
     case 'name':
-      return `<p>Add yourself in People: your name${adoGone(f) ? '' : ', and the name Azure DevOps knows you by'}, so Docket, Slate and Rapport know what is yours. Home greets you by it too.</p><p>${btn('Add yourself', `data-open="settings" data-path="people/you${f.name ? '/' + esc(encodeURIComponent(f.name)) : ''}"`, true)}</p>`;
+      return `<p>Add yourself in People: your name${adoGone(f) ? '' : ', and the name Azure DevOps knows you by'}, so Docket, Loom and Rapport know what is yours. Home greets you by it too.</p><p>${btn('Add yourself', `data-open="settings" data-path="people/you${f.name ? '/' + esc(encodeURIComponent(f.name)) : ''}"`, true)}</p>`;
     case 'apps': {
       const sug = appSuggestions(f);
       const rows = sug.map(a => `<li><b>${esc(a.name)}</b>: ${esc(a.why)}${a.off ? ' <span class="su-off">Suggested: off</span>' : ''}</li>`).join('');
@@ -254,7 +270,7 @@ function detail(s, ctx) {
       return `<p>${esc(a.message || 'The ADO connector is not ready yet.')}</p><p>${settingsBtn('Open Settings', 'connections')}</p>`;
     }
     case 'task':
-      return `<p>Docket decides what you work on next. It opens with a short tour; <b>Load sample tasks</b> there if you just want to look around.</p><p>${btn('Open Docket', 'data-open="prioritizer"', true)}</p>`;
+      return `<p>Docket decides what you work on next. <b>Take the tour</b> on its empty board shows how; <b>Load sample tasks</b> there if you just want to look around.</p><p>${btn('Open Docket', 'data-open="prioritizer"', true)}</p>`;
     case 'receipt':
       return `<p>Rapport keeps evidence of your and your team's work for reviews, next to your 1:1s. Add one thing you did this week.</p><p>${btn('Open Rapport', 'data-open="receipts" data-path="me"', true)}</p>`;
     case 'dispatch':
@@ -331,7 +347,7 @@ export function card(view, open, ctx) {
  * (tasks: null while the board is unknown). onChange is called after every load or save.
  */
 export function createSetup(ws, { onChange = () => {}, extra = () => ({}) } = {}) {
-  const s = { loaded: false, facts: null, hidden: false, skipped: [], env: null, machine: 'work', appsPicked: false, folded: false };
+  const s = { loaded: false, facts: null, hidden: false, skipped: [], env: null, machine: '', appsPicked: false, folded: false };
 
   async function loadSaved() {
     try {
@@ -339,7 +355,7 @@ export function createSetup(ws, { onChange = () => {}, extra = () => ({}) } = {}
       const m = s.env && s.env.meta || {};
       s.hidden = m.hidden === true;
       s.skipped = Array.isArray(m.skipped) ? m.skipped.filter(id => STEPS.some(x => x.id === id)) : [];
-      s.machine = m.machine === 'personal' ? 'personal' : 'work';
+      s.machine = ['work', 'personal', 'browser'].includes(m.machine) ? m.machine : '';
       s.appsPicked = m.appsPicked === true;
       s.folded = m.folded === true;
     } catch (e) { /* keep what is shown; Home's own waiting state covers the folder */ }
@@ -384,7 +400,7 @@ export function createSetup(ws, { onChange = () => {}, extra = () => ({}) } = {}
     show: () => save({ hidden: false }),
     skip: id => save({ skipped: [...new Set([...s.skipped, id])] }),
     unskip: id => save({ skipped: s.skipped.filter(x => x !== id) }),
-    setMachine: m => save({ machine: m === 'personal' ? 'personal' : 'work' }),
+    setMachine: m => save({ machine: ['work', 'personal', 'browser'].includes(m) ? m : '' }),
     appsOk: () => save({ appsPicked: true }),
     fold: on => save({ folded: !!on })
   };

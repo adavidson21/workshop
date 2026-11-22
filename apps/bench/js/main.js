@@ -6,6 +6,7 @@
    the run budget) in its own `settings` collection.
    Routes: '' (Overview), 'improve', 'history', 'run', 'lift', 'command/<name>', 'result/<file>'. */
 import { connect } from '../../../shared/workshop-sdk.js';
+import { SITE } from '../../../shared/site.js';
 import { runCount } from './model.js';
 import { affectedCases, caseHashes, checkSettings, filesToInspect, readSettings, settingsEnvelope } from './suite.js';
 import { TABS, bodyHtml, esc, tabsHtml } from './view.js';
@@ -33,7 +34,7 @@ function render() {
 }
 
 function setupNote(e) {
-  if (ws.mode === 'browser') return { title: 'Bench needs Workshop on this computer', body: 'It reads Tandem\'s evals from your eng-agents folder, which only Workshop on this computer can see. Install or start Workshop, then open Bench from it.' };
+  if (ws.mode === 'browser') return { title: 'Bench needs Workshop on this computer', body: `It reads Tandem's evals from your eng-agents folder, which only Workshop on this computer can see. <a href="https://github.com/${SITE.repos.workshop}#get-started" target="_blank" rel="noopener">Install Workshop</a> (Personal computer, with Dispatch), then open Bench from it. Not using Tandem? Turn Bench off in Settings, Apps.` };
   const msg = errText(e);
   if ((e && e.code === 'not_found') || (/not (found|running)|stopped|disabled|off/i.test(msg) && /connector/i.test(msg))) return { title: 'Turn on the opencode connector', body: 'Bench reads Tandem\'s evals through it. Settings, Connections, opencode.', action: { act: 'open-settings', label: 'Open Settings' } };
   if (/install record|install Tandem|Update Tandem/i.test(msg)) return { title: 'Install Tandem from its repo', body: `${esc(msg)} Then press Refresh.` };

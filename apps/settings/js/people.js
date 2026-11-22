@@ -64,7 +64,7 @@ export async function mountPeople({ ws, toast, peopleEl, teamEl }) {
         <p class="cfg-help">Optional. Used once Azure DevOps is connected.</p></div>
       <div class="cfg-row"><label for="pRole">Role</label><input id="pRole" name="role" class="cfg-input" maxlength="200" value="${esc(p.role || '')}"></div>
       <div class="cfg-row"><label for="pOwns">Owns</label><input id="pOwns" name="owns" class="cfg-input" maxlength="2000" value="${esc((p.owns || []).join(', '))}" placeholder="Products, repos or area paths, separated by commas">
-        <p class="cfg-help">Slate uses this to suggest who to delegate to, from what a request touches. Facts only: what they own.</p></div>
+        <p class="cfg-help">Loom uses this to suggest who to delegate to, from what a request touches. Facts only: what they own.</p></div>
       ${formActs(p)}
     </form>`;
   }

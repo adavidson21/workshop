@@ -664,9 +664,9 @@ dialog{border:0;border-radius:var(--r-lg);box-shadow:0 20px 60px rgb(34 25 28/.2
 .wc{font:500 .78rem/1.4 var(--sans);white-space:nowrap}
 .props .prop-list{display:flex;flex-direction:column;gap:.3rem}
 .props .prop-list li{display:flex;align-items:center;gap:.3rem}
-.props .prop{flex:1;min-width:0;display:grid;grid-template-columns:minmax(4.5rem,38%) 1fr;align-items:center;gap:.4rem}
+.props .prop{flex:1;min-width:0;display:grid;grid-template-columns:minmax(3.5rem,30%) 1fr;align-items:center;gap:.4rem}
 .props .prop-k{font-size:.74rem;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.props .prop input{min-height:0;padding:.22rem .4rem;font-size:.82rem;border:1px solid transparent;background:transparent;border-radius:4px;width:100%}
+.props .prop input{min-height:0;padding:.22rem .4rem;font-size:.82rem;border:1px solid transparent;background:transparent;border-radius:4px;width:100%;text-overflow:ellipsis}
 .props .prop input:hover{border-color:var(--line)}
 .props .prop input[readonly]{color:var(--muted)}
 .props .linkish{align-self:flex-start}

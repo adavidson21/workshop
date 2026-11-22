@@ -23,9 +23,11 @@ const SAMPLES = [
 ];
 let step = 0, added = [];
 
-/* Startup (main.js): open the tour on a brand new board. */
+/* Startup (main.js): open the tour on a brand new board. Not inside Workshop (Docket 12.3.0): there Needs you opens
+   with Get started on a first visit, and two first-run guides on top of each other hid the tour's buttons. The
+   empty board's Take the tour and ? still open it. */
 function maybeOnboard(){
-  if (isWaiting() || state.onboarded || state.tasks.length) return false;
+  if (embedded || isWaiting() || state.onboarded || state.tasks.length) return false;
   openTour();
   return true;
 }

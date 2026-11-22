@@ -21,7 +21,7 @@ test('noteFile: a free path in inbox/ and a note with where it came from', () =>
   const [o] = acceptedNotes('home', env('home', [H]));
   const f = noteFile(o, new Set(['inbox/retro-ideas.md']));
   assert.equal(f.path, 'inbox/retro-ideas-2.md');
-  assert.match(f.content, /^# Retro ideas\n\nretro ideas\. More async standups\n\nCaptured in Home on 2026-11-03\.\n$/);
+  assert.match(f.content, /^# Retro ideas\n\nretro ideas\. More async standups\n\nCaptured in Quick capture on 2026-11-03\.\n$/);
 });
 
 test('quickEntry and addToQuick: newest first under a heading for the day', () => {

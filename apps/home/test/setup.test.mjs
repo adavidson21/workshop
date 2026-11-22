@@ -13,7 +13,8 @@ const states = v => Object.fromEntries(v.steps.map(s => [s.id, s.state]));
 test('a brand-new browser: Connect is first, steps that need Workshop wait for it', () => {
   const v = stepsFor(fresh);
   // Browser mode has no Azure DevOps, so its step and the area paths step are left out (shared/ado.js).
-  assert.deepEqual(states(v), { connect: 'todo', name: 'todo', backup: 'blocked', apps: 'todo', team: 'todo', task: 'todo', receipt: 'todo', dispatch: 'blocked', login: 'blocked' });
+  // Backup does not wait for Workshop (Home 5.7.0): in a browser it offers Download a copy.
+  assert.deepEqual(states(v), { connect: 'todo', name: 'todo', backup: 'todo', apps: 'todo', team: 'todo', task: 'todo', receipt: 'todo', dispatch: 'blocked', login: 'blocked' });
   assert.equal(v.current, 'connect');
   assert.deepEqual([v.finished, v.total, v.complete], [0, 7, false]);
 });
@@ -76,12 +77,18 @@ test('the card: the current step is open with what to do next, and every command
   const { html, copies } = card(stepsFor(fresh), null, { ...ctx, facts: fresh });
   assert.match(html, /Get started · 0 of 7/);
   assert.match(html, /data-step="connect"[^>]*>\s*<button[^>]*aria-expanded="true"/);
-  assert.deepEqual(copies, ['irm https://workshop.alexisdavidson.org/install-work.ps1 | iex'], 'a work computer is the default: only the work mode installer');
-  assert.match(html, /data-machine="work" aria-pressed="true"/);
-  assert.match(html, /data-copy="0"/);
+  assert.deepEqual(copies, [], 'not connected and no choice yet: Just this browser, nothing to install');
+  assert.match(html, /data-machine="browser" aria-pressed="true"/);
+  assert.match(html, /data-skip="connect"[^>]*>Keep using this browser/);
   assert.match(html, /Skip this step/);
   assert.equal((html.match(/aria-expanded="true"/g) || []).length, 1);
-  const mac = card(stepsFor(fresh), null, { ...ctx, platform: 'mac', origin: 'http://127.0.0.1:4380', facts: fresh });
+  const work = card(stepsFor(fresh), null, { ...ctx, facts: fresh, machine: 'work' });
+  assert.deepEqual(work.copies, ['irm https://workshop.alexisdavidson.org/install-work.ps1 | iex']);
+  assert.match(work.html, /data-copy="0"/);
+  assert.match(work.html, /Start menu/, 'Windows: the Start menu');
+  assert.match(work.html, /href="https:\/\/github\.com\/adavidson21\/workshop\/blob\/main\/docs\/install\.md#work-mode"/);
+  const mac = card(stepsFor(fresh), null, { ...ctx, platform: 'mac', origin: 'http://127.0.0.1:4380', facts: fresh, machine: 'work' });
+  assert.doesNotMatch(mac.html, /Start menu/, 'a Mac has no Start menu');
   assert.deepEqual(mac.copies, ['curl -fsSL https://workshop.alexisdavidson.org/install-work.sh | bash'], 'never an http installer address');
 });
 
@@ -160,7 +167,7 @@ test('createSetup saves hide and skip in home.setup, merges on a conflict, and p
   assert.deepEqual(s.s.skipped, ['receipt'], 'unknown step ids are dropped');
   assert.equal(s.view().current, 'ado');
   await s.skip('ado');
-  assert.deepEqual(ws.puts.at(-1), ['setup', { schema: 'home.setup', version: 1, rev: 3, items: [], deleted: {}, meta: { hidden: false, skipped: ['receipt', 'ado'], machine: 'work', appsPicked: false, folded: false, updatedAt: ws.puts.at(-1)[1].meta.updatedAt } }]);
+  assert.deepEqual(ws.puts.at(-1), ['setup', { schema: 'home.setup', version: 1, rev: 3, items: [], deleted: {}, meta: { hidden: false, skipped: ['receipt', 'ado'], machine: '', appsPicked: false, folded: false, updatedAt: ws.puts.at(-1)[1].meta.updatedAt } }]);
   ws.conflict = true;
   await s.hide();
   assert.equal(ws.puts.at(-1)[1].rev, 7);
@@ -197,14 +204,23 @@ test('team counts active reports and the manager from the people directory', () 
   assert.equal(states(stepsFor({ ...all, team: 0 })).team, 'todo');
 });
 
-test('Connect: Work computer first; Personal computer shows the usual installer', () => {
-  const { copies } = card(stepsFor(fresh), 'connect', { ...ctx, facts: fresh });
+test('Connect: Just this browser until chosen (Work once connected); Personal computer shows the usual installer', () => {
+  assert.deepEqual(card(stepsFor(fresh), 'connect', { ...ctx, facts: fresh }).copies, []);
+  const { copies } = card(stepsFor(fresh), 'connect', { ...ctx, facts: fresh, machine: 'work' });
   assert.deepEqual(copies, ['irm https://workshop.alexisdavidson.org/install-work.ps1 | iex']);
-  const mac = card(stepsFor(fresh), 'connect', { ...ctx, platform: 'mac', facts: fresh });
+  const mac = card(stepsFor(fresh), 'connect', { ...ctx, platform: 'mac', facts: fresh, machine: 'work' });
   assert.deepEqual(mac.copies, ['curl -fsSL https://workshop.alexisdavidson.org/install-work.sh | bash']);
   const home = card(stepsFor(fresh), 'connect', { ...ctx, facts: fresh, machine: 'personal' });
   assert.deepEqual(home.copies, ['irm https://workshop.alexisdavidson.org/install.ps1 | iex']);
   assert.match(home.html, /data-machine="personal" aria-pressed="true"/);
+  assert.match(home.html, /local-models\.md/, 'points people running their own model at the local models guide');
+});
+
+test('backup in a browser: Download a copy in Settings, no install needed', () => {
+  const { html, copies } = card(stepsFor(fresh), 'backup', { ...ctx, settings: { inShell: true }, facts: fresh });
+  assert.deepEqual(copies, []);
+  assert.match(html, /Download a copy/);
+  assert.match(html, /data-open="settings" data-path="data"/);
 });
 
 test('your name: done once People has a You; the step opens People with the name filled in', () => {
@@ -218,8 +234,8 @@ test('your name: done once People has a You; the step opens People with the name
 
 test('Pick your apps: Loom suggested off without ADO and agents; done once confirmed', () => {
   const off = appSuggestions({ ado: { state: 'off' }, dispatch: 'off' });
-  assert.deepEqual(off.filter(a => a.off).map(a => a.id), ['slate']);
-  assert.deepEqual(appSuggestions({ ado: { state: 'ready' }, dispatch: 'off' }).filter(a => a.off).map(a => a.id), []);
+  assert.deepEqual(off.filter(a => a.off).map(a => a.id), ['slate', 'bench']);
+  assert.deepEqual(appSuggestions({ ado: { state: 'ready' }, dispatch: 'off' }).filter(a => a.off).map(a => a.id), ['bench'], 'Bench needs Tandem');
   assert.deepEqual(appSuggestions({ ado: { state: 'ready' }, dispatch: 'ready' }).filter(a => a.off), []);
   assert.equal(states(stepsFor({ ...all, appsPicked: false })).apps, 'todo');
   const f = { ...all, appsPicked: false, ado: { state: 'off' }, dispatch: 'off' };

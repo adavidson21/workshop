@@ -80,7 +80,7 @@ If your company blocks piping a script into PowerShell, use the by-hand steps in
 
 The first time, the **Needs you** panel opens with a **Get started** checklist (it opens from the top bar any time after). Each step ticks itself off when it's done, tells you exactly what to do, and can be skipped:
 
-1. **Connect Workshop:** pick Work computer or Personal computer.
+1. **Connect Workshop:** pick Just this browser (nothing to install), Work computer or Personal computer.
 2. **Add yourself** in Settings, People.
 3. **Back up your data:** company OneDrive at work, or any folder your computer backs up.
 4. **Connect Azure DevOps** (optional): create a personal access token with **Work Items (Read & write)** and **Code (Read)**, then click **Add token** on its connection in Settings (or run `workshop pat`). It goes into this computer's secret store.

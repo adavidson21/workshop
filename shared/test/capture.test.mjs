@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { describe, findMap, findPeople, isCapture, nextKind, parseCapture, parseDay, parseLines, retarget, toHandoff } from '../capture.js';
+import { dayLabel, describe, findMap, findPeople, isCapture, nextKind, parseCapture, parseDay, parseLines, retarget, toHandoff } from '../capture.js';
 
 const people = [
   { id: 'p_me', kind: 'person', name: 'Sam Self', handle: 'sam', relation: 'self' },
@@ -117,7 +117,9 @@ test('toHandoff: an accepted handoff in the docs/handoffs.md shape', () => {
 });
 
 test('describe', () => {
-  assert.equal(describe(parseCapture('w keys from jordan fri !', ctx)), 'Docket, waiting on · Jordan Two · due 2026-11-06 · urgent');
+  assert.equal(describe(parseCapture('w keys from jordan fri !', ctx)), `Docket, waiting on · Jordan Two · due ${dayLabel('2026-11-06')} · urgent`);
+  assert.equal(dayLabel('2026-11-06', new Date(2026, 0, 1)), 'Fri, Nov 6');
+  assert.equal(dayLabel('2027-01-04', new Date(2026, 0, 1)), 'Mon, Jan 4, 2027');
   assert.equal(describe(parseCapture('r growth: x', ctx)), 'Rapport, growth');
   assert.equal(describe(parseCapture('n x', ctx)), 'Notes');
 });

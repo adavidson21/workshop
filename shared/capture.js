@@ -323,20 +323,30 @@ export function toHandoff(p, { sender, id = captureId(), now = new Date() } = {}
   };
 }
 
+/* A YYYY-MM-DD date as people read it: "Fri, Nov 6" (the year only when it is not this year's). */
+export function dayLabel(iso, now = new Date()) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || ''));
+  if (!m) return String(iso || '');
+  const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+  const opts = { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' };
+  if (+m[1] !== now.getFullYear()) opts.year = 'numeric';
+  return d.toLocaleDateString('en-US', opts);
+}
+
 /* One line describing a proposal for the review list: where it goes and what was filled in. */
 export function describe(p) {
   if (!p) return '';
   if (p.kind === 'ask') return 'Ask in Loom';
   if (p.kind === 'go') return 'Go to ' + (TARGET_NAMES[p.app] || p.app);
   const q = p.payload || {};
-  if (p.kind === 'request') return q.ado ? `${TARGET_NAMES[p.to] || 'Slate'} · #${q.ado}${q.note ? ', with a note' : ''}` : `${TARGET_NAMES[p.to] || 'Slate'} · New`;
+  if (p.kind === 'request') return q.ado ? `${TARGET_NAMES[p.to] || 'Loom'} · #${q.ado}${q.note ? ', with a note' : ''}` : `${TARGET_NAMES[p.to] || 'Loom'} · New`;
   if (p.kind === 'idea') return q.map ? `Runway · ${q.mapTitle || 'roadmap'}, unscheduled` : 'Runway · Pending assignment';
   const bits = [p.kind === 'waiting' || q.waiting ? 'Docket, waiting on' : p.kind === 'receipt' ? `Rapport, ${q.kind || 'win'}` : TARGET_NAMES[p.to] || p.to];
   if (p.names && p.names.length) bits.push(p.names.join(', '));
   if (p.kind === 'note' && q.daily) bits.push("today's note");
   else if (p.kind === 'note' && q.folder) bits.push(`${q.folder}/ · new note "${String(q.title || p.title || '').slice(0, 60)}"`);
   if (q.list) bits.push('#' + q.list);
-  if (q.due) bits.push('due ' + q.due);
+  if (q.due) bits.push('due ' + dayLabel(q.due));
   if (q.urgent) bits.push('urgent');
   return bits.join(' · ');
 }

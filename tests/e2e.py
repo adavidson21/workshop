@@ -215,7 +215,7 @@ SDK_BROWSER = """async () => {
 def browser_mode_checks(ctx, pg, frame, watch):
     """Part 1, browser mode (static site, no agent): the platform pieces WS4 added."""
     rail = pg.eval_on_selector_all('.app-btn[data-app]', 'els => els.map(e => e.dataset.app)')
-    check('rail is built from the app registry, Runway on its own button, Loom in place of Slate and Dispatch, Chat off the rail (rail: false), Bench before Settings', rail == ['prioritizer', 'slate', 'receipts', 'notes', 'runway', 'bench', 'settings'])
+    check('rail is built from the app registry, Runway on its own button, Loom in place of Slate and Dispatch, Chat back on the rail after Bench (Chat 4.3.0), Settings last', rail == ['prioritizer', 'slate', 'receipts', 'notes', 'runway', 'bench', 'chat', 'settings'])
     pg.click('#capBtn'); pg.wait_for_timeout(800)
     check('the top bar Capture button opens the capture bar', pg.locator('.capbar').is_visible())
     pg.keyboard.press('Escape'); pg.wait_for_timeout(300)
@@ -375,7 +375,7 @@ def browser_mode_checks(ctx, pg, frame, watch):
               and slf.locator('#reports #reportsBox').count() == 1 and slf.locator('#app .tabs [data-tab=health][aria-current=page]').count() == 1)
         pg.evaluate("location.hash = '#/slate/roadmaps'"); pg.wait_for_timeout(2000)
         check('an old #/slate/roadmaps link opens Runway', pg.url.endswith('#/runway'))
-    pg.keyboard.press('Alt+7'); pg.wait_for_timeout(1200)  # Notes Alt+4, Runway Alt+5, Bench Alt+6 (Chat is off the rail)
+    pg.keyboard.press('Alt+8'); pg.wait_for_timeout(1200)  # Notes Alt+4, Runway Alt+5, Bench Alt+6, Chat Alt+7
     sf = next((f for f in pg.frames if '/apps/settings/' in f.url), None)
     check('Settings opens from the rail', sf is not None and pg.url.endswith('#/settings'))
     check('Settings in browser mode offers the data folder and data, no connectors', sf is not None and 'not running' in sf.inner_text('#content') and sf.locator('[data-export]').count() == 1 and sf.locator('.conn:not(.app-row)').count() == 0)
@@ -1442,7 +1442,7 @@ def agents_checks(b, watch):
         check('and the badge goes back down', pg.inner_text('.app-btn[data-app=slate] .badge') == str(before))
 
         # Chat (its own app since Loom 4.8.0): a sidebar of chats and one chat in view. It opens on New chat, with the hub's box in it.
-        # Off the rail since Chat 3.0.0 (rail: false): its address still opens it (a Loom card's Chat button, the palette).
+        # Back on the rail since Chat 4.3.0 (off it from 3.0.0, where new people could not find it); its address opens it too.
         pg.evaluate("location.hash = '#/chat'"); pg.wait_for_timeout(1500)
         cf = next(f for f in pg.frames if '/apps/chat/' in f.url)
         check('Chat opens from its address on New chat, with the hub box in it', seen(cf, '.chat-newbtn.on') and cf.locator('.chat-home #hub .cap-in').is_visible())
@@ -1798,7 +1798,7 @@ def main():
                 af.click('#hub [data-hub-undo]'); pg.wait_for_timeout(600)  # withdrawn, so Notes later has nothing to add
                 check('Undo in the hub withdraws it', af.locator('#hub .hub-row.sent').count() == 0 and af.evaluate("async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'chat'}); return (await ws.data.get('handoffs')).items.length; }") == 0)
                 af.fill('#hub .cap-in', 'what version is the sample api on?'); af.press('#hub .cap-in', 'Enter'); pg.wait_for_timeout(300)
-                check('a question without Tandem says how to turn the hub on', 'needs Workshop on this computer' in af.inner_text('#hub .hub-card .hub-error'))
+                check('a question without Tandem says what works instead', 'Asking needs Tandem' in af.inner_text('#hub .hub-card .hub-error'))
             check('no frame from another origin: the old dashboard frame is gone', all(f.url.startswith(HUB) or f.url == 'about:blank' for f in pg.frames))
             pg.goto(HUB + '/#/dashboard'); pg.wait_for_timeout(1000)
             check('the old #/dashboard address opens Loom', pg.url.endswith('#/slate') and pg.title() == 'Loom · Workshop')

@@ -228,7 +228,7 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
   function alertsBtn() {
     const st = alertsState(typeof localStorage !== 'undefined' ? localStorage : null, typeof Notification === 'function' ? Notification : null);
     if (st.perm === 'unsupported') return '';
-    if (st.perm === 'denied') return '<button type="button" class="chat-archived" disabled title="Notifications are blocked for this site in your browser settings">Alerts are blocked</button>';
+    if (st.perm === 'denied') return '<button type="button" class="chat-archived" disabled title="Notifications are blocked for this site in your browser settings">Browser notifications are blocked</button>';
     const label = st.perm === 'default' ? 'Turn on alerts' : st.off ? 'Alerts off' : 'Alerts on';
     const tip = st.perm === 'default' ? 'A notification when a chat finishes or needs you while you look elsewhere' : st.off ? 'Click to get a notification when a chat finishes or needs you' : 'You get a notification when a chat finishes or needs you while you look elsewhere. Click to stop.';
     return `<button type="button" class="chat-archived" data-chat-alerts title="${esc(tip)}" aria-pressed="${st.on}">${label}</button>`;
@@ -553,7 +553,7 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
     if (more.length) list += `<h3 class="chat-h">In messages</h3><ul>${more.map(h => rowHtml({ ...h, title: h.title + (h.archived && !showArchived ? ' (archived)' : '') }, { snippet: h.snippet, archived: !!h.archived })).join('')}</ul>`;
     const empty = showArchived && !every.length ? '<p class="chat-empty">No archived chats.</p>'
       : !every.length
-      ? (aiReady().ready ? '<p class="chat-empty">Your chats show here. Send a message to start one.</p>' : `<p class="chat-empty">${esc(aiReady().why || 'Turn on the opencode connector in Settings to talk to opencode.')}</p>`)
+      ? (aiReady().ready ? '<p class="chat-empty">Your chats show here. Send a message to start one.</p>' : '<p class="chat-empty">Your chats show here once opencode is connected.</p>')
       : !shown.length && !more.length ? `<p class="chat-empty">${query.trim().length >= 3 && hitsFor !== query.trim() ? 'Searching...' : `No chats match "${esc(query)}".`}</p>` : '';
     const archBtn = showArchived ? '<button type="button" class="chat-archived on" data-chat-archived="0">Back to chats</button>'
       : archivedCount ? `<button type="button" class="chat-archived" data-chat-archived="1">Archived (${archivedCount})</button>` : '';

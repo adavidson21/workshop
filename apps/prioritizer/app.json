@@ -2,7 +2,7 @@
   "manifestVersion": 1,
   "id": "prioritizer",
   "name": "Docket",
-  "version": "12.2.0",
+  "version": "12.3.0",
   "description": "Decide what to work on next, and plan your day around it.",
   "icon": "icon.svg",
   "entry": "index.html",
@@ -157,8 +157,8 @@
       "id": "personalTasks",
       "type": "boolean",
       "title": "Personal tasks",
-      "description": "Off: Docket is your agent queue (what Tandem's builds need from you, from Loom) and PR reviews; your own tasks are hidden, not deleted. On: everything shows, as before.",
-      "default": false
+      "description": "On: your own tasks show with the agent queue and PR reviews. Off: Docket is only your agent queue (what Tandem's builds need from you, from Loom) and PR reviews; your own tasks are hidden, not deleted.",
+      "default": true
     }
   ],
   "files": [

@@ -310,8 +310,16 @@ function dropMoreHtml() {
   const text = S.ui.drafts['lanes:drop'] || '';
   const list = pickable();
   const out = (S.ui.dropAdo && adoIsOn() && text.trim() ? `<label class="ln-keep"><input type="checkbox" data-drop-keep="1"${S.ui.dropKeep ? ' checked' : ''}> Keep it linked to ADO #${h(S.ui.dropAdo.id)} (otherwise it starts as a local item)</label>` : '') +
-    (S.ui.dropPick && list.length ? pickerHtml(list) : '') + onboardPickHtml() + coverPickHtml();
+    (S.ui.dropPick && list.length ? pickerHtml(list) : '') + onboardPickHtml() + coverPickHtml() + offlineNoteHtml(text);
   return out ? `<div class="ln-drawer">${out}</div>` : '';
+}
+/** Without Tandem only Hand off can start (Loom 6.18.0): say so under the bar, with a button, instead of a bare
+ *  disabled Start. */
+function offlineNoteHtml(text) {
+  if ((S.connector && S.connector.state === 'ready') || !text.trim()) return '';
+  if ((S.ui.dropKind || guessKind(text)) === 'handoff') return '';
+  return `<p class="ln-pnote">Tandem is not connected, so agents can't take this. <b>Hand off</b> still adds it to the board for a person to do. ` +
+    `<button type="button" class="lnk plain" data-drop-handoff="1">Hand it off</button></p>`;
 }
 const PLUS = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>';
 /** The From ADO picker: your team's backlog items nobody has started, newest change first, with a search. */

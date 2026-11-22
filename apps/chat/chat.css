@@ -323,6 +323,8 @@ button.tool-line:hover { background: var(--hover); }
 .hub-box .cap-prompt { display: none; }
 .hub-box .cap-in { font-size: 15px; }
 .hub-box .hub-status { margin: 2px 0 2px; }
+/* Above the box: newest next to it, like a chat (Chat 4.3.0). */
+.hub-anchor .hub-cards { flex-direction: column-reverse; }
 .hub-anchor .hub-cards, .chat-home .hub-anchor .hub-cards { position: absolute; left: 0; right: 0; bottom: calc(100% + 8px); z-index: 2; max-height: min(52vh, 460px); overflow-y: auto; margin: 0; padding: 4px; }
 .chat-after-menu .hub-flows > .hub-meta { display: none; }
 

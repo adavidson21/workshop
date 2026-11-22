@@ -2,7 +2,7 @@
   "manifestVersion": 1,
   "id": "bench",
   "name": "Bench",
-  "version": "2.2.0",
+  "version": "2.2.1",
   "description": "Tandem's test suite: which commands pass, fail or changed, what they cost, the lift over a plain prompt, history, and an improve loop that suggests and tests prompt fixes.",
   "icon": "icon.svg",
   "entry": "index.html",
