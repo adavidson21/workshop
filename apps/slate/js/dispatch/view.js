@@ -1270,6 +1270,9 @@ export function onboardSteps() {
 }
 export function onboardHtml() {
   if (S.view && S.view.hideSetup) return '';
+  // Not connected yet (Loom 6.18.0): the "Tandem is not connected" line above says how. Without the connector the AI
+  // step cannot be read, and it used to show Done.
+  if (!S.connector || S.connector.state !== 'ready' || !S.D) return '';
   const steps = onboardSteps();
   if (steps.every(x => x.done)) return '';
   const open = (steps.find(x => !x.done) || {}).k;

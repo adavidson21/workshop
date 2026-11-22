@@ -1394,6 +1394,7 @@ listen('click', ev => {
     const b = t.closest(`[${attr}]`);
     if (b && ui().start) { ui().start[k] = b.getAttribute(attr); ui().start.error = null; paint(); if (k !== 'timebox') focusFirst('.start-first'); return; }
   }
+  if (t.closest('[data-drop-handoff]')) { ui().dropKind = 'handoff'; paint(); focusFirst('#ln-drop'); return; }
   if (t.closest('[data-repo-open]')) { openRepo(); return; }
   if (t.closest('[data-repo-go]')) { repoGo(); return; }
   const gb = t.closest('[data-guide]');
@@ -1500,7 +1501,7 @@ listen('input', ev => {
   }
 });
 listen('change', ev => {
-  if (ev.target.hasAttribute('data-lane-kind')) { ui().dropKind = ev.target.value; return; }
+  if (ev.target.hasAttribute('data-lane-kind')) { ui().dropKind = ev.target.value; paint(); return; }
   if (ev.target.hasAttribute('data-start-project') && ui().start) { ui().start.project = ev.target.value; return; }
   if (ev.target.hasAttribute('data-proj-folder') && ui().project) { ui().project.folder = ev.target.value; return; }
   if (ev.target.hasAttribute('data-repo-cat')) {

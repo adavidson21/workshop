@@ -22,6 +22,7 @@ import { freePath, newNoteText, slugify, validFolder } from './model.js';
 import { addUnder, writeSection } from './daily.js';
 import { dailyPath, dailyText as starterDaily } from './templates.js';
 
+// Home's sends come from the Capture box (Ctrl+.), so notes say "Quick capture" (Folio 4.12.0), not the app's name.
 export const SENDERS = { home: 'Home', slate: 'Loom', prioritizer: 'Docket' };
 /* Who sends Notes captures: the manifests on this site add to this list (shared/handoffs.js, docs/handoffs.md). */
 export const INBOX = 'inbox';
@@ -41,7 +42,7 @@ export function acceptedNotes(app, env, taken = new Set()) {
       const text = h.text.trim().slice(0, 20000);
       const first = text.split('\n')[0].trim();
       const title = (typeof h.payload.title === 'string' && h.payload.title.trim() ? h.payload.title.trim() : first).replace(/\s+/g, ' ').slice(0, 120) || 'Captured note';
-      const o = { key: `${app}:${h.id}`, app, from: SENDERS[app] || app, id: h.id, date: h.date, at: typeof h.createdAt === 'string' ? h.createdAt : '', title, text };
+      const o = { key: `${app}:${h.id}`, app, from: app === 'home' ? 'Quick capture' : SENDERS[app] || app, id: h.id, date: h.date, at: typeof h.createdAt === 'string' ? h.createdAt : '', title, text };
       if (isDay(h.payload.daily)) {
         o.daily = h.payload.daily;
         const section = typeof h.payload.section === 'string' ? h.payload.section.replace(/[#\n\r]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60) : '';

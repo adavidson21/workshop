@@ -4,7 +4,7 @@
    - Agents on Today: Loom's `agents` summary card (slate.summary, Loom 6.2.0): answer Tandem, teach a gap, approve
      a plan, publish a PR. Rows only, read from Loom; clicking one opens it in Loom. Docket stores nothing for them.
    - Personal tasks: Workshop's Settings shows Docket's `personalTasks` switch (app.json settings, Workshop
-     docs/app-settings.md), off by default. Off: tasks that are not PR reviews are hidden everywhere in Docket (the
+     docs/app-settings.md), on by default since 12.3.0 (off from 12.0.0, which hid a new person's first tasks). Off: tasks that are not PR reviews are hidden everywhere in Docket (the
      shared `shown` filter in state.js); nothing is deleted, and turning it on brings them all back. On Docket's own
      site there is no switch and personal tasks always show.
 
@@ -57,7 +57,7 @@ export function startAgentQueue(ws, embedded, onChange = () => {}) {
   try { ws.data.subscribe('summary', read, { app: 'slate' }); } catch { /* no data backend */ }
   const setFrom = values => {
     const v = values && values[SETTING];
-    const next = typeof v === 'boolean' ? v : false;
+    const next = typeof v === 'boolean' ? v : true; // unset: on (Docket 12.3.0), so a new person's tasks never vanish
     if (next !== personal) { personal = next; onChange(); }
   };
   (async () => {

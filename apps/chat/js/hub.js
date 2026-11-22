@@ -131,7 +131,8 @@ export function startHub(ws, root, { onThread = () => {}, onChange = () => {}, o
     if (!p) return;
     if (p.kind === 'go') { ws.open(p.path ? { app: p.app, path: p.path } : { app: p.app }); return; }
     const card = { id: hubId(), text, at: Date.now(), state: 'rules', rows: [] };
-    if (p.kind === 'ask') { card.state = 'failed'; card.error = status.why || 'Turn on the hub to ask Tandem.'; }
+    // The box already shows status.why: say what does work instead of repeating it (Chat 4.3.0).
+    if (p.kind === 'ask') { card.state = 'failed'; card.error = 'Asking needs Tandem. Captures work now: start with task, note or receipt, for example "task call the vendor Tuesday".'; }
     else card.rows = [{ p, state: 'open' }];
     cards.unshift(card); cards.length = Math.min(cards.length, KEEP_CARDS);
     draw();

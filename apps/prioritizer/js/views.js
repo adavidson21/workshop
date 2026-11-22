@@ -228,7 +228,7 @@ function todayCol(rail){
       <div class="ranklist rows dropzone" data-zone="today">${loose.map(t => row(t, {start: true, crumb: true})).join('') || `<div class="tblk-empty">${TOUCH ? 'Nothing here' : 'Drag from Up next to add to Today'}</div>`}</div></section>`;
   } else {
     body = `<div class="ranklist rows dropzone" data-zone="today">${open.map((t,i) => row(t, {rank: i + 1, top: i < 3, start: true, crumb: true})).join('')
-      || (done.length ? '' : `<div class="focus-empty"><b>What matters today?</b><span class="hint-ic">${TOUCH ? `${ICON.sun} 3 to 5 from Up next` : `Drag 3 to 5 from Up next, or ${ICON.sun} / T`}</span>${state.tasks.length ? '' : '<div class="acts"><button class="btn primary" data-add>Add a task</button><button class="btn" data-tour>Take the tour</button></div>'}</div>`)}</div>`;
+      || (done.length ? '' : `<div class="focus-empty"><b>What matters today?</b><span class="hint-ic">${TOUCH ? `${ICON.sun} 3 to 5 from Up next` : `Drag 3 to 5 from Up next, or ${ICON.sun} / T`}</span></div>`)}</div>`;
   }
   const count = work.filter(t => !t.pr), cdone = count.filter(t => t.done).length;
   // Its left edge resizes it (Docket 9.1.0; events.js todayGrip), saved per browser in ui.todayW.

@@ -21,6 +21,7 @@
 
    Nothing here needs Azure DevOps: without it the ADO pages say what to do in one line, and the rest works. */
 import { connect } from '../../../shared/workshop-sdk.js';
+import { SITE } from '../../../shared/site.js';
 import { watchAdo, adoIsOn, noAdo, ADO_WORDS } from '../../../shared/ado.js';
 import { render as renderForm, readValue } from './forms.js';
 import { mountCloudflareChanges } from './cloudflare-page.js';
@@ -1769,7 +1770,7 @@ async function start() {
   } else {
     // Not paired, or the agent is not running. Pairing is Connect in the shell's rail (https only); its dialog
     // covers signing this browser in (workshop open).
-    card('Workshop on this computer', 'Not connected, so connectors are off. If Workshop is not running, run <code>workshop start</code>. Then '
+    card('Workshop on this computer', `Not connected, so connectors are off. Not installed yet? <a href="https://github.com/${SITE.repos.workshop}#get-started" target="_blank" rel="noopener">Install Workshop</a>. If it is installed but not running, run <code>workshop up</code>. Then `
       + (location.protocol === 'https:' ? 'click <b>Connect</b>.' : 'open Workshop from its site and click <b>Connect</b>.'));
     await appsCard();
     await focusPage();
