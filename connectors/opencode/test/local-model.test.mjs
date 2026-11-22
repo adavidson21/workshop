@@ -137,8 +137,10 @@ test('commandFit: a command whose prompt cannot fit the model for agent runs is 
   fs.writeFileSync(path.join(h, '.config', 'opencode', 'eng-agents', 'manifest.json'), JSON.stringify({ source: src, components: { core: { version: '4.17.0' } } }));
   const ws = path.join(h, 'ws');
   fs.mkdirSync(ws);
-  const was = { home: process.env.HOME, api: oc.api };
+  // os.homedir() reads HOME on Linux and macOS, USERPROFILE on Windows.
+  const was = { home: process.env.HOME, profile: process.env.USERPROFILE, api: oc.api };
   process.env.HOME = h;
+  process.env.USERPROFILE = h;
   const ctx = (config) => ({ config, log() {}, emit() {}, env() {} });
   try {
     oc.api = { modelList: async () => ({ models: [{ provider: 'ollama', id: 'small', context: 4096 }, { provider: 'ollama', id: 'big', context: 131072 }], defaults: {} }) };
@@ -156,7 +158,8 @@ test('commandFit: a command whose prompt cannot fit the model for agent runs is 
     assert.equal(await commandFit('start'), null, 'no model for agent runs and two models: the agent picks, so no check');
     shutdown();
   } finally {
-    process.env.HOME = was.home;
+    if (was.home === undefined) delete process.env.HOME; else process.env.HOME = was.home;
+    if (was.profile === undefined) delete process.env.USERPROFILE; else process.env.USERPROFILE = was.profile;
     oc.api = was.api;
     fs.rmSync(h, { recursive: true, force: true });
   }
