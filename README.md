@@ -99,7 +99,7 @@ When the checklist is done, you're set up. **Hide** puts it away; **Get started*
 - **1:1s:** **Rapport** preps you with what changed since last time.
 - **End of day:** **Wrap up** on Docket's Today. On Fridays, **Weekly status** in Needs you drafts your update.
 
-Shortcuts: `Alt+1`, `Alt+2` and so on switch apps. `Ctrl+K` (`Cmd+K`) opens the command palette.
+Shortcuts: `Alt+1`, `Alt+2` and so on switch apps, in the order they are on the rail (drag them, or `Alt+Shift+Up` and `Down`, to reorder). `Ctrl+K` (`Cmd+K`) opens the command palette.
 
 **Want it in its own window?** In Chrome or Edge, click **Install** on the rail. Workshop then opens like a desktop app, with a taskbar or dock icon, and works offline.
 

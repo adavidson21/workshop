@@ -10,9 +10,10 @@
    switching. Apps talk to the shell only through the SDK: the shell answers their requests (ready, open, route.set,
    toast, badge, notify, status.set, status.clear, commands.register, commands.unregister) and sends them events (theme, route,
    command, visible). Every app is a manifest app; the shell has no app code of its own. */
-import { allowFolder, detectBackend, folderState } from '../shared/workshop-sdk.js';
+import { allowFolder, connect, detectBackend, folderState } from '../shared/workshop-sdk.js';
 import { SITE, onCrumbsDomain } from '../shared/site.js';
 import { appsOffBy, cleanAreas } from '../shared/areas.js';
+import * as RO from '../shared/rail-order.js';
 import { PAIR_HELP, canPair as canPairWith, forgetPairing, pairWith } from '../shared/pair.js';
 import { CAPTURE_ICON, createCaptureBar } from './capture.js';
 import { createFocusShell } from './focus.js';
@@ -24,7 +25,8 @@ const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&a
 let env = { mode: 'browser', backend: 'browser', agentUrl: null, token: null };
 let apps = [];            // [{id, manifest, base, frame?, ...}]
 let byId = {};
-let railApps = [];        // apps with a rail button: every app but the home page
+let railApps = [];        // apps with a rail button: every app but the home page, in the person's order (rail order below)
+let defaultRail = [];     // the same apps in manifest order
 let homeApp = null;       // the app with home: true, opened by the logo and the plain address
 let panelApp = null;      // the app with panel: true, shown over the current app from a top bar button (Needs you)
 let aliasTo = {};         // app names and string aliases -> app id, for addresses like #/docket (docs/app-manifest.md, Addresses)
@@ -137,7 +139,8 @@ async function loadApps() {
   homeApp = apps.find(a => a.manifest.home === true) || null;
   panelApp = apps.find(a => a.manifest.panel === true && a !== homeApp) || null;
   // `rail: false` (Chat since 3.0.0): no rail button or Alt+<n>; its address, commands and ws.open still work.
-  railApps = apps.filter(a => a !== homeApp && a !== panelApp && a.manifest.rail !== false);
+  defaultRail = apps.filter(a => a !== homeApp && a !== panelApp && a.manifest.rail !== false);
+  arrangeRail();
   // Names and aliases as addresses: an id always wins, then the first app by order.
   aliasTo = {};
   const key = w => String(w).toLowerCase().replace(/\s+/g, '');
@@ -167,12 +170,149 @@ const BACK_ICON = svg('<path d="M8.5 16.5h-3a1.5 1.5 0 0 1-1.5-1.5V5a1.5 1.5 0 0
 
 function renderRail() {
   $('#rail').innerHTML = `<a class="mark" href="#/" aria-label="${homeApp ? esc(homeApp.manifest.name) : 'Workshop'}" title="${homeApp ? esc(homeApp.manifest.name) : 'Workshop'}">${MARK}</a>`
-    + railApps.map((a, i) => `<a class="app-btn" href="#/${a.id}" data-app="${a.id}" style="--app-c:var(--c-${esc(a.id)},var(--c-workshop))" title="${esc(a.manifest.name)}${i < 9 ? ` (Alt+${i + 1})` : ''}"><span class="ico" aria-hidden="true">${BLANK_ICON}</span><span class="lbl">${esc(a.manifest.name)}</span><span class="badge" hidden></span></a>`).join('')
-    + `<span class="grow"></span>`
+    + railApps.map((a, i) => `<a class="app-btn" href="#/${a.id}" data-app="${a.id}" style="--app-c:var(--c-${esc(a.id)},var(--c-workshop))" title="${esc(railTitle(a, i))}" aria-describedby="railHint"><span class="ico" aria-hidden="true">${BLANK_ICON}</span><span class="lbl">${esc(a.manifest.name)}</span><span class="badge" hidden></span></a>`).join('')
+    + `<span class="grow"></span><span id="railHint" hidden>Drag to move, or Alt+Shift+Up and Down.</span><span class="sr-only" id="railSay" aria-live="polite"></span>`
     + `<button class="app-btn" id="pairBtn" hidden aria-label="Connect to Workshop on this computer" title="Connect to Workshop on this computer">${LINK_ICON}<span class="lbl">Connect</span></button>`
     + `<button class="app-btn" id="installBtn" hidden aria-label="Install Workshop as a desktop app" title="Install as a desktop app">${INSTALL_ICON}<span class="lbl">Install</span></button>`;
   for (const a of railApps) loadIcon(a);
   $('#pairBtn').hidden = !canPair();
+}
+
+/* ---------- rail order (docs/apps.md, Rail order; shared/rail-order.js) ----------
+   Drag an app's button to move it, or press Alt+Shift+Up and Down (Left and Right on a phone's bottom bar) on it.
+   Alt+<n> follows the order on the rail, so the third button is always Alt+3, and the first app opens at the plain
+   address. The order is Settings' `rail` collection (the shell connects to the SDK as Settings, as focus.js does),
+   so it follows the data folder: this browser in browser mode, files on this computer when installed. A copy in
+   localStorage draws the rail in that order before the data is read. A pop-out window has no rail and leaves it. */
+let railOrder = (() => { try { return RO.cleanOrder(JSON.parse(localStorage.getItem(RO.CACHE_KEY) || '[]')); } catch (e) { return []; } })();
+let railWs = null;
+const railTitle = (a, i) => `${a.manifest.name}${i >= 0 && i < 9 ? ` (Alt+${i + 1})` : ''}`;
+function arrangeRail() {
+  const of = Object.fromEntries(defaultRail.map(a => [a.id, a]));
+  railApps = RO.arrange(defaultRail.map(a => a.id), railOrder).map(id => of[id]);
+}
+// Put the buttons in railApps order without drawing them again (icons, badges and focus stay), and renumber Alt+<n>.
+function placeRail() {
+  const grow = $('#rail .grow');
+  if (!grow) return;
+  railApps.forEach((a, i) => {
+    const b = document.querySelector(`#rail .app-btn[data-app="${a.id}"]`);
+    if (!b) return;
+    grow.before(b);
+    if (!popped.has(a.id)) b.title = railTitle(a, i);
+  });
+}
+/** Show `order` on the rail; `save` keeps it (in the data, and in this browser). */
+function setRailOrder(order, save) {
+  const before = railApps.map(a => a.id).join();
+  railOrder = RO.cleanOrder(order);
+  try { if (railOrder.length) localStorage.setItem(RO.CACHE_KEY, JSON.stringify(railOrder)); else localStorage.removeItem(RO.CACHE_KEY); } catch (e) { /* private window: the data still has it */ }
+  arrangeRail();
+  placeRail();
+  // The first rail app has the plain address. If that changed, the app on screen keeps an address that names it.
+  if (railApps.map(a => a.id).join() !== before && !SOLO && current && byId[current] && !location.hash) {
+    history.replaceState(null, '', addressOf(byId[current]) || location.pathname + location.search);
+  }
+  if (save) saveRailOrder();
+}
+/** Move the rail to show `ids` (every rail app id, in the new order) and save it. */
+function moveRail(ids) {
+  if (ids.join() === railApps.map(a => a.id).join()) { placeRail(); return; }
+  setRailOrder(RO.nextOrder(railOrder, ids), true);
+}
+let railSaving = Promise.resolve();
+function saveRailOrder() { railSaving = railSaving.then(writeRailOrder, writeRailOrder); }
+async function writeRailOrder() {
+  if (!railWs) return;
+  // Read fresh and put; on a conflict (another window wrote) read again. The newest move wins.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    let env = null;
+    try { env = await railWs.data.get(RO.COLLECTION); } catch (e) { toast("Couldn't save the rail order. It's kept in this browser for now.", null, null, 6000, 'error'); return; }
+    if (env && env.schema === RO.SCHEMA && env.version > RO.VERSION) return;   // a newer Workshop owns it
+    try { await railWs.data.put(RO.COLLECTION, RO.withOrder(env, railOrder)); return; }
+    catch (e) { if (!(e && e.code === 'conflict')) { toast("Couldn't save the rail order. It's kept in this browser for now.", null, null, 6000, 'error'); return; } }
+  }
+}
+// Opened at the plain address: until the first read of the data, the first rail app is where this window opens.
+const railBareAtLoad = !SOLO && !location.hash.replace(/^#\/?/, '');
+let railFirstRead = true;
+async function readRailOrder() {
+  const first = railFirstRead; railFirstRead = false;
+  const wasHome = homeId();
+  let env = null;
+  try { env = await railWs.data.get(RO.COLLECTION); } catch (e) { return; }
+  // The data wins over this browser's copy: nothing saved (or data reset) is the usual order.
+  if (env && (env.schema !== RO.SCHEMA || env.version !== RO.VERSION)) return;
+  const order = RO.orderOf(env);
+  if (order.join() !== railOrder.join()) setRailOrder(order, false);
+  // This browser had no copy (or an old one) and the data puts another app first: open that one, as a reload would.
+  if (first && railBareAtLoad && current === wasHome && homeId() !== wasHome) go(homeId());
+}
+async function startRailOrder() {
+  if (SOLO) return;
+  wireRail();
+  try { railWs = await connect({ app: RO.APP }); } catch (e) { return; }
+  await readRailOrder();
+  // Another window, or Workshop on another browser sharing the data folder, moved an app.
+  try { railWs.data.subscribe(RO.COLLECTION, () => readRailOrder()); } catch (e) { /* no events: the next load reads it */ }
+}
+const railSay = (text) => { const el = $('#railSay'); if (el) { el.textContent = ''; setTimeout(() => { el.textContent = text; }, 50); } };
+const railIds = () => [...document.querySelectorAll('#rail .app-btn[data-app]')].map(b => b.dataset.app);
+function wireRail() {
+  const rail = $('#rail');
+  const across = () => getComputedStyle(rail).flexDirection === 'row';   // the bottom bar on a phone
+  let dragging = null;
+  rail.addEventListener('dragstart', e => {
+    const b = e.target.closest && e.target.closest('.app-btn[data-app]');
+    if (!b) return;
+    dragging = b;
+    b.classList.add('dragging');
+    rail.classList.add('sorting');
+    try { e.dataTransfer.effectAllowed = 'move'; } catch (err) { /* older browsers */ }
+  });
+  rail.addEventListener('dragover', e => {
+    if (!dragging) return;
+    e.preventDefault();
+    try { e.dataTransfer.dropEffect = 'move'; } catch (err) { /* older browsers */ }
+    const over = e.target.closest && e.target.closest('.app-btn[data-app]');
+    if (!over || over === dragging) return;
+    const r = over.getBoundingClientRect();
+    const after = across() ? e.clientX > r.left + r.width / 2 : e.clientY > r.top + r.height / 2;
+    if (after) { if (over.nextElementSibling !== dragging) over.after(dragging); }
+    else if (over.previousElementSibling !== dragging) over.before(dragging);
+  });
+  rail.addEventListener('drop', e => {
+    if (!dragging) return;
+    e.preventDefault();
+    const b = dragging;
+    moveRail(railIds());
+    railSay(`${b.querySelector('.lbl').textContent} moved to place ${railApps.findIndex(a => a.id === b.dataset.app) + 1} of ${railApps.length}.`);
+  });
+  rail.addEventListener('dragend', () => {
+    if (!dragging) return;
+    dragging.classList.remove('dragging');
+    rail.classList.remove('sorting');
+    dragging = null;
+    placeRail();   // dropped outside the rail, or Esc: back where it was (after a drop this changes nothing)
+  });
+  rail.addEventListener('keydown', e => {
+    const b = e.target.closest && e.target.closest('.app-btn[data-app]');
+    if (!b || !e.altKey || !e.shiftKey || e.ctrlKey || e.metaKey) return;
+    const by = { ArrowUp: -1, ArrowLeft: -1, ArrowDown: 1, ArrowRight: 1, Home: -999, End: 999 }[e.key];
+    if (!by) return;
+    e.preventDefault(); e.stopPropagation();
+    const id = b.dataset.app, ids = railApps.map(a => a.id);
+    const next = RO.move(ids, id, by);
+    const name = byId[id].manifest.name;
+    if (next === ids) { railSay(`${name} is already ${by < 0 ? 'first' : 'last'}.`); return; }
+    moveRail(next);
+    b.focus();
+    railSay(`${name} moved to place ${next.indexOf(id) + 1} of ${next.length}.`);
+  });
+}
+function resetRailOrder() {
+  setRailOrder([], true);
+  toast('The rail is back in its usual order.');
 }
 
 // Manifest icons are stroke SVGs that use currentColor, so they are inlined (an <img> cannot inherit the
@@ -325,7 +465,7 @@ function markRail() {
     b.classList.toggle('popped', out);
     const name = byId[b.dataset.app] ? byId[b.dataset.app].manifest.name : b.dataset.app;
     if (out) b.title = `${name}: open in its own window (click to bring it forward)`;
-    else if (b.title.endsWith('(click to bring it forward)')) b.title = name;
+    else if (b.title.endsWith('(click to bring it forward)')) b.title = railTitle(byId[b.dataset.app] || { manifest: { name } }, railApps.findIndex(a => a.id === b.dataset.app));
   });
   const mark = $('#rail .mark');
   if (mark) {
@@ -706,6 +846,7 @@ function allCommands() {
   if (SOLO) out.push({ title: 'Back to Workshop (close this window)', run: popIn });
   else if (here && !(homeApp && here === homeApp)) out.push({ title: `Pop out ${here.manifest.name} into its own window`, run: () => popOut(here.id) });
   out.push(...focus.commands());
+  if (!SOLO && railOrder.length) out.push({ title: 'Reset the rail order', run: resetRailOrder });
   if (canPair()) out.push({ title: 'Connect to Workshop on this computer', run: startPairing });
   if (env.mode === 'hosted') out.push({ title: 'Disconnect from Workshop on this computer', run: forgetPairing });
   return out;
@@ -903,4 +1044,5 @@ if (!apps.length) $('#panes').innerHTML = '<div class="notice"><h2>No apps found
 window.addEventListener('hashchange', route);
 route();
 if (!SOLO) mountBackground();
+startRailOrder();
 WorkshopSw.register((msg, label, fn) => toast(msg, label, fn, 30000));

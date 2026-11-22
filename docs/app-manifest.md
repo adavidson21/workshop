@@ -52,7 +52,7 @@ More: [examples/app.prioritizer.json](examples/app.prioritizer.json), [examples/
 | `description` | no | One line, shown in tooltips and Settings. |
 | `icon` | yes | Path to an SVG file in the app folder. 20 by 20 view box, stroke icons using `currentColor`, like today's rail icons. |
 | `entry` | yes | Path to the app's HTML page in the app folder. The shell loads it in a same-origin frame. |
-| `order` | no | Number. Rail position, low first. Ties and missing values sort by `name`. |
+| `order` | no | Number. Default rail position, low first. Ties and missing values sort by `name`. A person can drag the rail into their own order ([apps.md](apps.md), Rail order); an app their order does not name keeps its place from this one. |
 | `home` | no | `true` makes this app the home page. The Workshop logo at the top of the rail and the plain address (no `#`) open it, and it gets no rail button or `Alt+<n>`. If several apps set it, the first by `order` wins. Without a home app, the logo and the plain address open the first app on the rail. |
 | `rail` | no | `false` leaves the app off the rail: no rail button and no `Alt+<n>`. Its address, its palette commands and `ws.open` to it still work, so another app can open it. No app on this site uses it today (Chat did from 3.0.0 to 4.3.0, and new people could not find it). |
 | `panel` | no | `true` shows this app as a panel over the app you are in, opened from a button in the top bar (its icon and name), instead of a page with a rail button. Its `ws.badge` count shows on that button. `#/<id>` and `ws.open` to it open the panel over the current app; `Esc`, the button again or a click outside closes it. Use it for something you glance at from anywhere, like Needs you. Ignored with `home`. |
