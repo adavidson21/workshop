@@ -27,13 +27,78 @@ body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.5 var(--sans
 .app-btn .ico{display:flex}
 .app-btn .ico svg{width:19px;height:19px}
 .app-btn .badge{position:absolute;top:4px;right:7px;min-width:16px;height:16px;padding:0 4px;border-radius:9px;background:var(--accent);color:var(--on-accent);font:700 .66rem/16px var(--sans);font-variant-numeric:tabular-nums;text-align:center}
+/* the rail's head: the mark, and the button that widens it into a sidebar (narrow: the button sits under the mark) */
+.rail-head{display:flex;flex-direction:column;align-items:center;gap:.4rem;margin-bottom:.5rem}
+.rail-head .mark{margin-bottom:0}
+.rail-name{display:none}
+.rail-toggle{display:inline-flex;align-items:center;justify-content:center;width:30px;height:28px;padding:0;border:0;border-radius:var(--r-sm);background:none;color:var(--muted);cursor:pointer;transition:color .15s,background-color .15s}
+.rail-toggle:hover{background:var(--hover);color:var(--ink)}
+.rail-toggle svg{width:17px;height:17px}
+.rail-toggle:focus-visible,.app-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* wide: a desktop app's sidebar, each app a row with its name beside its icon (shell.js setSidebar) */
+.rail-wide .rail{width:228px;align-items:stretch;gap:2px;padding:.75rem .6rem;box-sizing:border-box;transition:width .18s ease}
+.rail-wide .rail-head{flex-direction:row;align-items:center;gap:.6rem;padding:0 .25rem 0 .35rem;margin-bottom:.85rem}
+.rail-wide .rail .mark{width:28px;height:28px;flex:none}
+.rail-wide .rail-name{display:block;flex:1;min-width:0;font:650 1rem/1.2 var(--sans);letter-spacing:-.01em;color:var(--ink)}
+.rail-wide .app-btn{width:auto;min-height:36px;flex-direction:row;justify-content:flex-start;gap:.7rem;padding:0 .7rem;font-size:.9rem;letter-spacing:0;border-radius:8px}
+.rail-wide .app-btn .lbl{flex:1;min-width:0;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left}
+.rail-wide .app-btn .badge{position:static;flex:none}
+.rail-wide .app-btn.on{font-weight:600}
+
+/* the agents dock (shell/flow.js): every piece of agent work and where it is on its line, on every app */
+.flow-dock{width:100%;box-sizing:border-box;margin:.5rem 0 .35rem;padding-top:.6rem;border-top:1px solid var(--line)}
+.flow-dock[hidden]{display:none}
+.fd-head{display:flex;align-items:center;gap:.4rem;width:100%;padding:.25rem .5rem;border:0;border-radius:var(--r-sm);background:none;color:var(--muted);font:inherit;text-align:left;cursor:pointer}
+.fd-head:hover{background:var(--hover);color:var(--ink)}
+.fd-title{font:650 .72rem/1.2 var(--sans);letter-spacing:.04em;text-transform:uppercase}
+.fd-sum{flex:1;min-width:0;display:flex;align-items:center;justify-content:flex-end;gap:.35rem;font-size:.76rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fd-sum.you{color:var(--warn,#b7791f)}
+.fd-n{display:none}
+.fd-pulse,.fd-item.s-run .fd-dot{animation:fdpulse 1.3s ease-in-out infinite}
+.fd-pulse{width:7px;height:7px;border-radius:50%;background:var(--ok,#2f855a);flex:none}
+@keyframes fdpulse{50%{opacity:.3}}
+.fd-list{list-style:none;margin:.2rem 0 0;padding:0;display:flex;flex-direction:column;gap:1px}
+.fd-item{display:flex;align-items:flex-start;gap:.55rem;width:100%;padding:.4rem .5rem;border:0;border-radius:8px;background:none;color:var(--ink);font:inherit;text-align:left;cursor:pointer}
+.fd-item:hover{background:var(--hover)}
+.fd-item:focus-visible,.fd-head:focus-visible,.fd-more:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.fd-dot{width:8px;height:8px;margin-top:.38rem;border-radius:50%;flex:none;background:var(--muted)}
+.fd-item.s-run .fd-dot{background:var(--ok,#2f855a)}
+.fd-item.s-gate .fd-dot{background:var(--warn,#b7791f)}
+.fd-item.s-stuck .fd-dot{background:var(--danger,#c53030)}
+.fd-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.fd-name{font-size:.83rem;font-weight:550;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fd-tag{margin-right:.35rem;color:var(--muted);font-weight:600;font-variant-numeric:tabular-nums}
+.fd-where{font-size:.74rem;color:var(--muted);line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fd-track{display:flex;gap:3px;margin-top:3px}
+.fd-track i{flex:1;max-width:22px;height:4px;border-radius:2px;background:var(--line)}
+.fd-track i.k-done{background:color-mix(in srgb,var(--ok,#2f855a) 55%,var(--line))}
+.fd-track i.k-run{background:var(--ok,#2f855a);animation:fdpulse 1.3s ease-in-out infinite}
+.fd-track i.k-gate{background:var(--warn,#b7791f)}
+.fd-track i.k-stuck{background:var(--danger,#c53030)}
+.fd-track i.k-idle{background:var(--muted)}
+.fd-more{display:block;width:100%;padding:.3rem .5rem;border:0;background:none;color:var(--muted);font:500 .76rem var(--sans);text-align:left;cursor:pointer;border-radius:var(--r-sm)}
+.fd-more:hover{color:var(--ink);background:var(--hover)}
+@media (prefers-reduced-motion:reduce){.fd-pulse,.fd-item.s-run .fd-dot,.fd-track i.k-run{animation:none}}
+/* narrow: the dock is one button, a count with a dot that pulses while agents work */
+body:not(.rail-wide) .flow-dock{width:56px;padding-top:.5rem}
+body:not(.rail-wide) .fd-head{flex-direction:column;justify-content:center;gap:3px;padding:.35rem 0;min-height:44px}
+body:not(.rail-wide) .fd-title{font-size:.58rem;letter-spacing:.02em}
+body:not(.rail-wide) .fd-sum,body:not(.rail-wide) .fd-list,body:not(.rail-wide) .fd-more{display:none}
+body:not(.rail-wide) .fd-n{display:block;font:700 .82rem/1 var(--sans);color:var(--ink);font-variant-numeric:tabular-nums}
+
+/* switching apps: the app fades in, so a switch reads as one motion, not a flash */
+.pane:not([hidden])>iframe{animation:panein .14s ease-out}
+@keyframes panein{from{opacity:.4}}
+@media (prefers-reduced-motion:reduce){.pane:not([hidden])>iframe{animation:none}}
+
 /* rail order (shell.js): the button being dragged fades, and buttons show no hover while one is dragged */
 .app-btn.dragging{opacity:.4}
 .rail.sorting .app-btn:hover{background:none}
 .sr-only{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
 
 /* top bar: crumbs (back up to LifeKit on alexisdavidson.org) and the light/dark toggle, top right */
-.topbar{display:flex;align-items:center;justify-content:space-between;gap:1rem;min-height:60px;padding:0 20px 0 28px;border-bottom:1px solid var(--line)}
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:1rem;min-height:52px;padding:0 16px 0 24px;border-bottom:1px solid var(--line)}
 .crumbs{display:flex;align-items:center;flex-wrap:wrap;min-width:0;font:600 .95rem/1.4 var(--sans);letter-spacing:0;text-transform:none;color:var(--muted)}
 .crumbs a{color:inherit;text-decoration:none;padding:4px 0;border-radius:2px}
 .crumbs a:hover{color:var(--ink)}
@@ -89,7 +154,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.5 var(--sans
   .hub{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) auto}
   .stage{grid-row:1}
   .rail{grid-row:2;width:auto;height:60px;flex-direction:row;justify-content:space-around;padding:0 .5rem env(safe-area-inset-bottom);border-right:0;border-top:1px solid var(--line)}
-  .rail .mark,.rail .grow{display:none}
+  .rail .mark,.rail .grow,.rail-head,.flow-dock{display:none}
   .rail{padding-left:.25rem;padding-right:.25rem;overflow-x:auto;scrollbar-width:none}
   /* every app fits a phone: buttons share the width instead of each taking 64px (8 apps overflowed 390px) */
   .app-btn{width:auto;flex:1 1 0;min-width:40px;max-width:72px;padding:0 .15rem}

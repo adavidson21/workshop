@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { S, resetUi } from '../js/runs/state.js';
 import { lanesData, lanesHtml, laneView } from '../js/runs/lanes.js';
-import { CODE, PAPER, STACK_MAX, motionOf, lineOf, stationOf, floorData, floorHtml, epicPanelHtml, rowsData, rowsHtml, onboardPickHtml, coverPickHtml, testsBadge, toldStep } from '../js/runs/floor.js';
+import { CODE, PAPER, STACK_MAX, motionOf, lineOf, stationOf, floorData, floorHtml, epicPanelHtml, rowsData, rowsHtml, onboardPickHtml, coverPickHtml, testsBadge, toldStep, flowSummary, floorEmpty } from '../js/runs/floor.js';
 import { setBoardFeed } from '../js/board.js';
 import { setAdo } from '../../../shared/ado.js';
 import { setFlowsAdo } from '../js/runs/flows.js';
@@ -414,4 +414,35 @@ test("Builds 6.17.0: the open card shows its docs (Notes' links, Builds' own, th
   S.products = [];
   assert.doesNotMatch(lanesHtml(), /class="dc-row"/);
   delete S.docs; S.ui.docPick = null;
+});
+
+test('flowSummary: the floor for the shell\'s agents dock, every card with its line, station index and state (Builds 6.21.0)', () => {
+  const fd = floorData(lanesData('all'));
+  const f = flowSummary(fd);
+  assert.deepEqual(f.lines.code, CODE.map(s => s.name));
+  assert.deepEqual(f.lines.paper, PAPER.map(s => s.name));
+  const onLines = fd.code.concat(fd.paper).reduce((n, s) => n + s.cards.length, 0) + fd.express.length + fd.belt.length + fd.stuck.length;
+  assert.equal(f.items.length, onLines, 'every card on a line, the belt or the stuck bin; nothing from Also on the floor');
+  for (const it of f.items) {
+    assert.ok(['run', 'gate', 'stuck', 'idle'].includes(it.state), it.state);
+    assert.ok(it.at >= -1 && it.at < f.lines[it.line].length, `${it.title} at ${it.at}`);
+    if (it.at >= 0) assert.equal(it.station, f.lines[it.line][it.at]);
+  }
+  for (const c of fd.stuck) assert.ok(f.items.some(it => it.title === c.title && it.state === 'stuck' && it.at === -1), c.title);
+  const gate = fd.code.concat(fd.paper).flatMap(s => s.cards).find(c => c.mine);
+  if (gate) assert.equal(f.items.find(it => it.title === gate.title).state, 'gate');
+  assert.equal(floorEmpty(fd), false);
+});
+
+test('an empty floor is calm: one row of station names per line, not thirteen stations of 0 (Builds 6.21.0)', () => {
+  S.D.items = [];
+  S.L.sessions = {};
+  const data = lanesData('all');
+  const fd = floorData(data);
+  assert.ok(floorEmpty(fd), JSON.stringify({ other: fd.other.map(c => c.kind), epics: (fd.epics || []).length, onb: (fd.onboarding || []).length }));
+  const html = floorHtml(data, '', '');
+  assert.match(html, /The floor is quiet\./);
+  assert.doesNotMatch(html, /fl-stage/);
+  assert.match(html, /<span class="fl-calm-name">Code line<\/span>/);
+  assert.equal(flowSummary(fd).items.length, 0);
 });

@@ -32,6 +32,7 @@ All methods that talk to the shell or the agent return promises. Failures reject
 | `ws.badge(count, {breakThrough?})` | Count on the app's rail icon. Integer 0 to 999, or `null` to clear. `0` also clears. During a focus or lunch span the shell hides it and restores it after ([focus.md](focus.md)); during focus it shows `breakThrough` instead (the part of `count` that comes only from blocking pull requests), if that is above 0. |
 | `ws.notify({title, body?, route?})` | System notification if the user allowed them, else a toast. Clicking it opens `route` in this app. |
 | `ws.status.set({text, detail?, since?, route?, actions?})` | One line in the shell's top bar about what this app is doing right now, shown on every app (see Status below). Calling it again replaces it. Standalone it rejects with `not_found`, so the app shows its own. |
+| `ws.flow.set({label?, lines, items})`, `ws.flow.clear()` | Where each piece of agent work is, in the agents dock at the bottom of the shell's sidebar (see Flow below). Standalone they do nothing. |
 | `ws.status.clear()` | Removes this app's status. |
 | `ws.commands.register({id, title, shortcut?})` | Adds a command to the shell palette (`Ctrl+K`). Returns an unregister function. `id` is unique within the app; the shell scopes it to the app. Running it sends the app a `command` event. |
 | `ws.theme.current()` | `{key, scheme}`. `key` is a theme from `shared/themes.css` (`light`, `dark`, or `system`); `scheme` is `light` or `dark`. |
@@ -214,6 +215,18 @@ A status is for something ongoing the user should see and act on from any app, l
 | `actions` | Up to four buttons: `{label, command, icon?, primary?, prompt?}`. A click sends this app a `command` event with that id. `icon`: `pause`, `play`, `done`, `note` or `bolt`; an icon button shows only the icon (label in its tooltip), except `pause`, which also shows its label. `primary` is the filled one. `prompt: {title, placeholder?, maxLength?, skip?}` asks for one line first, under the top bar, and sends it as `text`; with `skip` (the default) Esc or Skip still sends the command without text. |
 
 A manifest with `background: true` loads the app hidden when Workshop opens, so its status is there before the first visit.
+
+### Flow
+
+`ws.flow.set({label?, lines, items})` fills the agents dock at the bottom of the shell's sidebar, on every app: each piece of agent work, with a small track of its line's stations and a dot at the one it is at. Builds sends it from its floor. Calling it again replaces it; `ws.flow.clear()` takes it away. Standalone both resolve and do nothing.
+
+| Field | Meaning |
+| --- | --- |
+| `label` | The dock's heading (default Agents). |
+| `lines` | `{<line id>: [station names, in order]}`, up to 8 lines of 16 stations. |
+| `items[]` | Up to 50: `{title, line, at, station?, state, route?, tag?}`. `at` is the station's index on its line (-1: not on it, such as pulled off). `state`: `run` (an agent is working: the dot pulses), `gate` (waits on you: amber), `stuck` (red) or `idle`. A click opens this app at `route`. `tag`: a short label before the title, such as a work item id. |
+
+The dock lists what waits on you first, then stuck, then working, at most 6, with "N more" opening the app. Schema: `flow.set` in [sdk-message](schemas/sdk-message.schema.json).
 
 ## Shell messages
 

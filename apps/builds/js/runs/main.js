@@ -34,7 +34,7 @@ import { readCards } from '../../../../shared/summary.js';
 import * as Products from '../../../../shared/products.js';
 import * as Docs from './docs.js';
 import { lanesData, laneOf } from './lanes.js';
-import { rowsData } from './floor.js';
+import { rowsData, floorData, flowSummary } from './floor.js';
 
 const OC = 'opencode';
 const app = document.getElementById('app');
@@ -567,6 +567,7 @@ function paint() {
   S.yest = dayKey(new Date(S.now - 864e5));
   const html = render();
   runsPainted(); // the board half's panel shows runs too (board.js)
+  publishFlow();
   // Skip a repaint that would draw the same thing: rebuilding the view under the pointer drops and
   // re-applies :hover, which flickers (repaints come with every agent event and on timers).
   if (html === lastHtml && app.firstChild === lastFirst && app.firstChild && !focusWanted) return;
@@ -598,6 +599,22 @@ function paint() {
     const el = app.querySelector(`[data-draft="${CSS.escape(key)}"]`);
     if (el) { el.focus(); if (sel) try { el.setSelectionRange(sel[0], sel[1]); } catch (e) { /* not a text field */ } el.scrollTop = draftTop; }
   }
+}
+/* The shell's agents dock (Builds 6.21.0): where every card is on the floor, on every app. Sent only when it changed,
+   across projects (not the project filter), and cleared while the connector is not there. */
+let flowSent = null;
+function publishFlow() {
+  if (!ws.embedded || !ws.flow) return;
+  let f = null;
+  if (S.D && S.mode !== 'browser') {
+    const saved = S.view && S.view.project;
+    if (S.view) S.view.project = 'all';
+    try { f = flowSummary(floorData(lanesData('all'))); } catch { f = null; } finally { if (S.view) S.view.project = saved; }
+  }
+  const key = f ? JSON.stringify(f) : '';
+  if (key === flowSent) return;
+  flowSent = key;
+  (f ? ws.flow.set(f) : ws.flow.clear()).catch(() => {});
 }
 // Coalesce bursts of updates into one paint per frame. Never repaint mid-click: the button under the
 // pointer would be replaced and the click lost.
