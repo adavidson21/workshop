@@ -46,7 +46,7 @@ Each server-side item has an ID. Tests in `test/` name the ID they cover (search
 | | One main button per step, command in the tooltip, autopilot box only while running or waiting, no terminal hints, simpler header, count chips over 8 items. | | **WS6**, done. Agents: `apps/agents/test/view.test.mjs`, `tests/e2e.py` (part 5) |
 | P-refresh | More menu: Refresh. | `refresh`, plus the `.work` watcher and poll | `connector.test.mjs` |
 | P-events | More menu: alerts (a prompt or question needs you, an agent finished). | `agent.waiting`, `agent.done`, `live`, `model`, `autopilot` events | `connector.test.mjs`, `agent.test.mjs` |
-| P-terminal | More menu: open the TUI, the terminal command. | `terminal`; `state` (`liveMode.live.opencode.attach`, `canOpenTerminal`) | `connector.test.mjs` (refusals, the command). Opening a window on Windows and macOS: by hand, see below. |
+| P-terminal | More menu: open the TUI, the terminal command. | `terminal`; `state` (`liveMode.live.opencode.attach`, `canOpenTerminal`) | `connector.test.mjs` (refusals, the command), `console-window.test.mjs`. A real window on Windows: `tests/console-window.win.mjs` on CI's Windows runner (1.37.0). macOS: by hand, see below. |
 | | More menu: Check for updates; Update available. | | **Not carried over**: connectors make no update checks. eng-agents updates stay in eng-agents. |
 
 ## Dashboard 1.5.0
@@ -54,7 +54,7 @@ Each server-side item has an ID. Tests in `test/` name the ID they cover (search
 | ID | Changelog item | Connector | Covered by |
 | --- | --- | --- | --- |
 | | `Start-LiveDashboard.ps1 -Detach`. | | **Not carried over**: the agent starts and stops the connector. |
-| | The live dashboard keeps `.work/dashboard.html` current. | | **Not carried over**: its template is the eng-agents page. eng-agents' `/dashboard static` still writes it. The Agents app (Dispatch) is live only. Settled by eng-agents Core 2.11.0 (#41). |
+| | The live dashboard keeps `.work/dashboard.html` current. | | **Not carried over**: the Agents app (Dispatch) is live only. Settled by eng-agents Core 2.11.0 (#41); eng-agents retired the static page itself in Core 4.20.0. |
 | | The static page shows whether the live dashboard is running. | | **Done in eng-agents Core 2.11.0** (#41): the static page links to Dispatch instead. |
 
 ## Core 2.1.0

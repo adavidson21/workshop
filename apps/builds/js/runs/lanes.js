@@ -68,10 +68,10 @@ export function laneOf(it) {
     if (it.bucket === 'done') return 'done';
     if (isShip(it)) return 'ready';
     const st = it.stage;
-    // Builds 6.14.0: a running autopilot past the plan (approve, tasks, do-task, review, pr, revise) is Work, even
+    // Builds 6.14.0: a running autopilot past the plan (approve, do-task, review, pr, revise) is Work, even
     // before the item's files catch up (the floor reads the same command, floor.js autoStation).
     const a = itemAuto(it);
-    if (a && a.status === 'running' && /^\/(approve|tasks|do-task|review|pr|revise)\b/.test(String(a.command || a.pending || '').trim())) return 'work';
+    if (a && a.status === 'running' && /^\/(approve|do-task|review|pr|revise)\b/.test(String(a.command || a.pending || '').trim())) return 'work';
     if (!st || st === 'start') return 'clarify';
     if (['spec', 'plan', 'tasks', 'quick', 'bug'].includes(st)) {
       // /spec asks its questions before it writes the spec: while it asks, the card is still clarifying.

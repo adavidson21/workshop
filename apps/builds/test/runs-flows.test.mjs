@@ -151,7 +151,7 @@ test('the file to read at a gate: the Inbox card opens it on Read, then Read all
   const both = { ...item('41207-fix-login-timeout'), stage: 'plan', gates: { spec: 'DRAFT', plan: 'DRAFT' }, files: ['spec.md', 'plan.md', 'tasks.md'], next: { stage: 'plan', command: '/approve 41207', needsYou: true } };
   assert.equal(gateFile(both), 'spec.md');
   assert.equal(sendBackCommand(both), '/spec 41207');
-  assert.equal(sendBackCommand({ ...both, gates: { spec: 'APPROVED', plan: 'DRAFT' } }), '/plan 41207', 'an older item with the spec approved alone');
+  assert.equal(sendBackCommand({ ...both, gates: { spec: 'APPROVED', plan: 'DRAFT' } }), '/spec 41207 plan', 'an older item with the spec approved alone');
   assert.equal(gateFile(folder('scope-x', 'scope', { state: 'Milestones in review', files: ['milestones.md'] })), 'milestones.md');
   assert.equal(gateFile(folder('tsd-x', 'tsd', { state: 'Draft, fact-checked', files: ['tsd.md', 'check.md'] })), 'check.md', 'the final read: what the fact-check found');
   assert.equal(gateFile(folder('tsd-x', 'tsd', { state: 'Draft, not fact-checked', files: ['tsd.md'] })), 'tsd.md', 'the first read: the draft');

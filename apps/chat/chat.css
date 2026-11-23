@@ -550,3 +550,18 @@ button.att-chip:hover { border-color: var(--accent); }
 .split-pick { flex: 1; min-width: 0; }
 .split-pick select { width: 100%; min-height: 30px; padding: 3px 8px; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--bg); color: var(--ink); font: 13px var(--sans); }
 .split .side-scroll { flex: 1; min-height: 0; overflow: auto; padding: 8px 12px; }
+
+/* Actions on one message (Chat 4.6.0): Copy, Undo from here, Fork from here. Shown on hover or focus, always on touch. */
+.chat-pane .turn.you { flex-wrap: wrap; }
+.turn-acts { display: flex; gap: 12px; margin-top: 4px; font-size: 12px; opacity: 0; transition: opacity .12s; }
+.chat-pane .turn.you .turn-acts { flex-basis: 100%; justify-content: flex-end; }
+.turn:hover .turn-acts, .turn:focus-within .turn-acts { opacity: 1; }
+.turn-acts .lnk { color: var(--muted); }
+.turn-acts .lnk:hover, .turn-acts .lnk:focus-visible { color: var(--ink); }
+@media (hover: none) { .turn-acts { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .turn-acts { transition: none; } }
+/* /status (Chat 4.6.0) */
+.chat-status-l { list-style: none; margin: 0 0 6px; padding: 0; display: grid; gap: 4px; }
+.chat-status .st { font-size: 12px; color: var(--muted); }
+.chat-status .st-connected { color: var(--ok); }
+.chat-status .st-failed, .chat-status .st-error { color: var(--danger); }

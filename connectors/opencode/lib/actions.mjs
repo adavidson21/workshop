@@ -8,7 +8,7 @@
 import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import { APP, FRESH_SESSION, VERSION, commandError, httpError, isWin, log, opt, sameDir, workRoot } from "./context.mjs";
+import { APP, FRESH_SESSION, VERSION, commandError, httpError, log, opt, sameDir, workRoot } from "./context.mjs";
 import { model, modelError, refresh, scheduleRefresh } from "./model.mjs";
 import { currentSession, folderForSession, folderForToken, linkFrom, linkSession, links, saveLinks } from "./links.mjs";
 import { oc, permissions, questions, sessions, upsertSession } from "./opencode-state.mjs";
@@ -18,6 +18,7 @@ import { installInfo } from "./tandem-health.mjs";
 import { evalsHome, readCommands } from "./evals.mjs";
 import { commandSizes, fitMessage, promptFit } from "./local-model.mjs";
 import { assignPending, checkProject, forgetRun } from "./projects.mjs";
+import { openConsole } from "./console-window.mjs";
 
 export function parseCommand(text) {
   const m = /^\/([a-z0-9][a-z0-9-]*)(?:\s+([\s\S]*))?$/i.exec(String(text || "").trim());
@@ -426,31 +427,15 @@ export function terminalCommand(cmd, args) {
   return ["&", q(cmd), ...args.map(q)].join(" ");
 }
 
-// Opens a terminal window with the opencode TUI on a session (Windows and macOS).
-export function openTerminal({ session }) {
+// Opens a terminal window with the opencode TUI on a session (Windows, macOS and Linux; lib/console-window.mjs).
+export async function openTerminal({ session }, { open = openConsole } = {}) {
   needOpencode();
   if (session && !/^ses_[A-Za-z0-9]+$/.test(session)) throw httpError(400, "Bad session id.");
   const args = oc.api.terminalArgs(session);
-  const tui = [opt.opencodeCmd, ...args].join(" ");
-  if (isWin) {
-    // A detached child gets its own console window. No -EncodedCommand and no hidden launcher: endpoint security
-    // tools commonly block both, which left the button doing nothing.
-    return new Promise((resolve, reject) => {
-      let child;
-      try {
-        child = spawn("powershell.exe", ["-NoLogo", "-NoExit", "-Command", terminalCommand(opt.opencodeCmd, args)], { cwd: opt.workspace, detached: true, stdio: "ignore", windowsHide: false });
-      } catch (e) {
-        return reject(httpError(500, `Could not open a terminal (${e.message}). Copy the command instead.`));
-      }
-      child.once("error", (e) => reject(httpError(500, `Could not open a terminal (${e.message}). Copy the command instead.`)));
-      child.once("spawn", () => { child.unref(); resolve({ ok: true }); });
-    });
+  const sh = [opt.opencodeCmd, ...args].map((a) => `'${String(a).replace(/'/g, "'\\''")}'`).join(" ");
+  try {
+    return await open({ cwd: opt.workspace, ps: terminalCommand(opt.opencodeCmd, args), sh, title: "opencode" });
+  } catch (e) {
+    throw httpError(e.status || 500, e.message);
   }
-  if (process.platform === "darwin") {
-    const sh = `cd '${opt.workspace.replace(/'/g, "'\\''")}' && ${tui}`;
-    const as = `tell application "Terminal" to do script "${sh.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"\ntell application "Terminal" to activate`;
-    spawn("osascript", ["-e", as], { detached: true, stdio: "ignore" }).unref();
-    return { ok: true };
-  }
-  throw httpError(501, "Opening a terminal is only supported on Windows and macOS. Copy the command instead.");
 }

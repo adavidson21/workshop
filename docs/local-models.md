@@ -67,6 +67,7 @@ Set **Model for agent runs** too. Workshop checks prompts against that model's w
 - **PR first-pass reviews** stop reviewing each new PR and commit as soon as they are found (Settings, Azure DevOps, Pull requests, turn it on there to keep it), so Tasks no longer holds PRs back waiting for a review. Review all and the nightly run still work, and a review waits while a build runs.
 - **No retro after a merge.** Run `/retro <id>` when you want one.
 - Approving a story draft in Builds is no longer a model run, and the hub answers a `?` question without routing it first.
+- **Chat** (4.5.0): answers stream as the model writes them, and a question gets a **Quick answer**: the notes that fit are looked up in code and sent with it, and the model answers in one request with no tools (Tandem's `quick` agent keeps the whole request near 2,000 characters). With Local model on, Quick sends at most 6,000 characters of notes. See [chat.md](chat.md).
 
 ## What still depends on you
 

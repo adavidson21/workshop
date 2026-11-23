@@ -31,6 +31,8 @@ import { broadcastLive } from "./live.mjs";
 import { oc, permissions, questions, sessions, upsertSession } from "./opencode-state.mjs";
 import { IMAGE_URL } from "./chat-parts.mjs";
 import { dropAttachments, readAttachments } from "./chat-attach.mjs";
+import { watchChat } from "./chat-live.mjs";
+import { docsFor } from "./quick.mjs";
 
 /** Hub threads' follow-ups default to this read-only agent (eng-agents Core 2.14.0). */
 export const AGENT = "chat";
@@ -139,6 +141,13 @@ function needOc() {
   if (!oc.connected || !oc.api) throw httpError(503, "opencode is not connected.");
 }
 const AGENT_RE = /^[A-Za-z0-9._-]{1,64}$/;
+/** Reasoning effort (connector 1.39.0): one of the model's variants, by name; opencode checks it against the model. */
+function cleanVariant(v) {
+  if (v == null || v === "") return null;
+  const s = String(v);
+  if (!/^[A-Za-z0-9._-]{1,40}$/.test(s)) throw httpError(400, "Bad reasoning effort.");
+  return s;
+}
 function cleanAgent(agent) {
   if (agent == null || agent === "") return null;
   const a = String(agent);
@@ -257,18 +266,18 @@ function errOf(r) {
   return m ? String(m).slice(0, 300) : `HTTP ${r ? r.status : "?"}`;
 }
 
-async function send(session, { text, agent, model, files, images, attachments }) {
+async function send(session, { text, agent, model, files, images, attachments, tools, system, variant }) {
   const extra = attachments || [];
   if (((images && images.length) || extra.length) && oc.kind !== "v1") throw httpError(501, "This opencode cannot take pasted images or PDFs from Chat.");
   // PDFs (connector 1.29.0) go the way pictures do: a file part with a data: URL.
-  if (oc.api.promptRich) await oc.api.promptRich(session, { text, agent, model, files, images: (images || []).concat(extra.map(({ mime, name, data }) => ({ mime, name, data }))) });
+  if (oc.api.promptRich) await oc.api.promptRich(session, { text, agent, model, files, tools, system, variant, images: (images || []).concat(extra.map(({ mime, name, data }) => ({ mime, name, data }))) });
   else await oc.api.prompt(session, text, agent);
   dropAttachments(extra);
   markBusy(session, "Reading your message");
 }
 function opts(args, { forHub = false } = {}) {
   const agent = cleanAgent(args.agent != null && args.agent !== "" ? args.agent : forHub ? AGENT : null);
-  return { agent, model: cleanModel(args.model), files: cleanFiles(args.files), images: cleanImages(args.images), attachments: readAttachments(args.attachments) };
+  return { agent, model: cleanModel(args.model), variant: cleanVariant(args.variant), files: cleanFiles(args.files), images: cleanImages(args.images), attachments: readAttachments(args.attachments) };
 }
 async function newSession(title, now) {
   const created = await oc.api.createSession(titleOf(title));
@@ -308,10 +317,48 @@ export async function sendChat(args, { config, now = Date.now() } = {}) {
   needOc();
   const o = opts(args, { forHub: c.from === "hub" });
   needIdle(c.session);
+  // A quick chat whose session has tools switched off (no Tandem quick agent): this agent needs them, so the message
+  // starts a new chat, and the page opens it (1.38.0).
+  if (c.toolsOff) {
+    const sid = await newSession(t, now);
+    await send(sid, { text: t, ...o });
+    return { ok: true, session: sid, moved: true };
+  }
   await send(c.session, { text: t, ...o });
   touch(adopt(c, now), now);
   return { ok: true };
 }
+
+/**
+ * Quick answer (connector 1.38.0, lib/quick.mjs): the notes that fit the question are looked up here and sent with it,
+ * to an agent with no tools, so the model answers in one request. In a new chat without `session`, else in that one.
+ * Agent: Tandem's `quick` when installed (its short prompt replaces opencode's long one), else `plan` or `chat`.
+ */
+export async function quickChat(args, { config, now = Date.now() } = {}) {
+  needAi(config);
+  const t = cleanText(args.text);
+  needOc();
+  const model = cleanModel(args.model);
+  const agent = QUICK_AGENTS.find((a) => oc.agents.has(a));
+  // Tandem's quick agent denies every tool itself. Any other agent gets tools switched off for this message, which
+  // opencode keeps for the whole session, so that chat is marked and another agent's message goes to a new one.
+  const lock = agent !== "quick";
+  const { system, sources } = docsFor(t, { dataDir: ctx && ctx.dataDir, workspace: opt.workspace, local: !!opt.local });
+  let sid, c = null;
+  if (args.session) {
+    c = known(args.session);
+    needIdle(c.session);
+    sid = c.session;
+  } else sid = await newSession(t, now);
+  const entry = load().get(sid);
+  if (entry) { entry.quick = true; if (lock) entry.toolsOff = true; save(); }
+  await send(sid, { text: t, ...(agent ? { agent } : {}), ...(model ? { model } : {}), ...(lock ? { tools: QUICK_TOOLS } : {}), system });
+  if (c) touch(adopt(c, now), now);
+  log(`quick answer in ${sid} with ${sources.length} note${sources.length === 1 ? "" : "s"}`);
+  return { session: sid, sources };
+}
+export const QUICK_AGENTS = ["quick", "plan", "chat"];
+export const QUICK_TOOLS = { "*": false };
 
 /** A slash command (/name args), in a chat or in a new one. */
 export async function commandChat(args, { config, now = Date.now() } = {}) {
@@ -352,7 +399,7 @@ export async function shellChat(args, { config, now = Date.now() } = {}) {
 }
 
 /** /undo: takes back the last message and the file changes after it (opencode's revert). */
-export async function undoChat({ session }, { config } = {}) {
+export async function undoChat({ session, message }, { config } = {}) {
   needAi(config);
   const c = known(session);
   needOc();
@@ -362,8 +409,9 @@ export async function undoChat({ session }, { config } = {}) {
   const turns = await oc.api.richMessages(c.session, MAX_TURNS * 2);
   const users = turns.filter((m) => m.role === "user" && m.id);
   const stop = info.revert ? turns.findIndex((m) => m.id === info.revert) : turns.length;
-  const target = users.filter((m) => turns.indexOf(m) < (stop < 0 ? turns.length : stop)).pop();
-  if (!target) throw httpError(400, "Nothing to undo.");
+  // message (connector 1.39.0): Undo from here, on one of your messages: it and everything after it.
+  const target = message ? users.find((m) => m.id === String(message)) : users.filter((m) => turns.indexOf(m) < (stop < 0 ? turns.length : stop)).pop();
+  if (!target) throw httpError(message ? 404 : 400, message ? "That message is not in this chat any more." : "Nothing to undo.");
   await oc.api.revert(c.session, target.id);
   broadcastLive();
   return { ok: true, text: target.text };
@@ -419,7 +467,8 @@ export async function chatOptions({ config } = {}) {
     commands: commands.slice(0, 300).map((c) => ({ name: c.name, description: String(c.description).slice(0, 300) })),
     can: { shell: !!oc.api.shell, undo: !!oc.api.revert, compact: !!oc.api.summarize, files: !!oc.api.findFiles, images: oc.kind === "v1", side: !!oc.api.fork, terminal: !!oc.api.ptyCreate,
       pdf: oc.kind === "v1", changes: !!oc.api.richMessages, suggest: !!(oc.api.promptWait && oc.api.deleteSession) && !(config && config.suggestPrompts === false),
-      review: !!(oc.api.promptWait && oc.api.createSession && oc.api.deleteSession && oc.api.richMessages) },
+      review: !!(oc.api.promptWait && oc.api.createSession && oc.api.deleteSession && oc.api.richMessages), quick: !!oc.api.promptRich && oc.kind === "v1",
+      fork: !!oc.api.fork, status: !!oc.api.toolStatus, effort: oc.kind === "v1" },
   };
 }
 
@@ -442,6 +491,7 @@ export async function chatMessages({ session }, { config } = {}) {
   needAi(config);
   const c = known(session);
   needOc();
+  watchChat(c.session); // its stream comes to the page as chat.text and chat.changed events (lib/chat-live.mjs)
   const rich = !!oc.api.richMessages;
   let turns = rich ? await oc.api.richMessages(c.session, MAX_TURNS * 2) : await oc.api.messages(c.session, MAX_TURNS * 2);
   if (c.from === "hub") {
@@ -471,6 +521,7 @@ export async function chatMessages({ session }, { config } = {}) {
   return {
     session: c.session,
     from: c.from,
+    ...(c.quick ? { quick: true } : {}),
     title: c.title || (info && info.title) || "Chat",
     listed: !c.unlisted,
     busy: busy(c.session),
@@ -598,7 +649,7 @@ export function removeChat({ session }, { config } = {}) {
   return { ok: true };
 }
 
-/** Renames a conversation in the Chat list (the opencode session keeps its own title). */
+/** Renames a chat, in Chat's list and (connector 1.39.0) in opencode, so its own sessions list shows the same name. */
 export function renameChat({ session, title }, { config, now = Date.now() } = {}) {
   needAi(config);
   const c = adopt(known(session), now);
@@ -606,7 +657,62 @@ export function renameChat({ session, title }, { config, now = Date.now() } = {}
   if (!t) throw httpError(400, "Type a name first.");
   c.title = t.slice(0, TITLE_MAX);
   save();
+  if (oc.api && oc.api.setTitle) {
+    upsertSession(c.session, { title: c.title });
+    oc.api.setTitle(c.session, c.title).catch(() => {});
+  }
   return { ok: true, title: c.title };
+}
+
+/* ---------- fork and status (connector 1.39.0, Chat 4.6.0) ---------- */
+
+/**
+ * chat.fork: a new chat that starts as a copy of this one, like opencode's /fork. With `message`, only up to and
+ * including that message (Fork from here); the rest is left out. The chat itself is not changed.
+ */
+export async function forkChat({ session, message }, { config, now = Date.now() } = {}) {
+  needAi(config);
+  const c = known(session);
+  needOc();
+  if (!oc.api.fork) throw httpError(501, "This opencode cannot copy a chat.");
+  let before = null;
+  if (message) {
+    const turns = await oc.api.richMessages(c.session, MAX_TURNS * 2);
+    const i = turns.findIndex((m) => m.id === String(message));
+    if (i < 0) throw httpError(404, "That message is not in this chat any more.");
+    // opencode copies the messages before the one it is given, so give it the next one (none: the whole chat).
+    before = (turns.slice(i + 1).find((m) => m.id) || {}).id || null;
+  }
+  const f = await oc.api.fork(c.session, before);
+  const base = c.title || (sessions.get(c.session) || {}).title || "Chat";
+  const title = titleOf(/\(copy\)$/.test(base) ? base : `${base} (copy)`);
+  load().set(f.id, { session: f.id, from: "you", title, at: now, last: now, replies: 0, forkOf: c.session });
+  save();
+  upsertSession(f.id, { title, status: "idle" });
+  if (oc.api.setTitle) oc.api.setTitle(f.id, title).catch(() => {});
+  log(`chat ${f.id} copied from ${c.session}${before ? ` before ${before}` : ""}`);
+  broadcastLive();
+  return { ok: true, session: f.id, title };
+}
+
+/** chat.status: opencode's MCP servers, language servers and formatters, like its /status. */
+export async function chatStatus({ config } = {}) {
+  needAi(config);
+  needOc();
+  if (!oc.api.toolStatus) throw httpError(501, "This opencode cannot show its status in Chat.");
+  return { version: oc.version || null, ...(await oc.api.toolStatus()) };
+}
+
+/** chat.mcp: connect or disconnect one of opencode's MCP servers. */
+export async function chatMcp({ name, on }, { config } = {}) {
+  needAi(config);
+  needOc();
+  if (!oc.api.mcpSwitch) throw httpError(501, "This opencode cannot switch MCP servers from Chat.");
+  const n = String(name || "");
+  const st = await oc.api.toolStatus();
+  if (!st.mcp.some((m) => m.name === n)) throw httpError(404, `opencode has no MCP server named ${n}.`);
+  await oc.api.mcpSwitch(n, !!on);
+  return { ok: true, ...(await oc.api.toolStatus()) };
 }
 
 /* ---------- side chats (connector 1.27.0, Chat 4.0.0) ---------- */

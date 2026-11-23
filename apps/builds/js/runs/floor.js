@@ -127,7 +127,7 @@ export function transitBadge(it) {
 /** What a running autopilot is doing right now (Builds 6.14.0), from the command it runs: the item's .work stage only
     catches up after a step writes its files, so a build approved and running read as still at the Plan desk.
     /quick, /start and /spec are planning (''), /pr-fix after Publish keeps it in transit (''). */
-const AUTO_STATION = { approve: 'build', tasks: 'build', 'do-task': 'build', review: 'review', pr: 'review', revise: 'fix' };
+const AUTO_STATION = { approve: 'build', 'do-task': 'build', review: 'review', pr: 'review', revise: 'fix' };
 export function autoStation(it) {
   const a = itemAuto(it);
   if (!a || a.status !== 'running') return '';

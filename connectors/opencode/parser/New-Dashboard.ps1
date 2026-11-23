@@ -27,9 +27,9 @@
 
     With -AsJson it writes nothing: it prints the data as one line of JSON (ASCII only,
     other characters escaped) and exits. Workshop's opencode connector (Dispatch) runs this copy
-    with -AsJson. eng-agents keeps the original for its static page (/dashboard static); this copy
-    differs on purpose: it finds repos in category folders (up to 4 deep) and lists repoCategories, and it leaves out
-    the static page's coreVersion and dispatchUrl. Sync parsing and next-step rule changes both ways.
+    with -AsJson only in test/workparser.test.mjs, against lib/workparser.mjs. eng-agents retired its original with
+    the static page in Core 4.20.0, so a parsing or next-step change goes into both of these copies. The next-step
+    rules follow eng-agents' commands/status.md.
 
 .EXAMPLE
     .\New-Dashboard.ps1 -WorkRoot .work
@@ -541,6 +541,8 @@ function Get-CommandText {
     if (-not $Command) { return $null }
     $p = $Command -split '\s+'
     $name = $p[0].TrimStart('/')
+    # /spec <id> plan|tasks redoes one part (eng-agents Core 4.20.0).
+    if ($name -eq "spec" -and $p.Count -ge 3 -and ($p[2] -eq "plan" -or $p[2] -eq "tasks")) { $name = $p[2] }
     if ($name -eq "do-task" -and $p.Count -ge 3) {
         $n = [int]$p[2]
         $t = @($I.tasks.list | Where-Object { $_.n -eq $n }) | Select-Object -First 1
@@ -564,16 +566,17 @@ function Get-NextStep {
     if (-not $I.hasRepos) { return (& $step "start" "/start $id $lane" $null $null $false) }
     if ($lane -eq "feature" -and $null -eq $g.spec) { return (& $step "spec" "/spec $id" $null $null $false) }
     if ($g.spec -eq "DRAFT" -and $g.plan -eq "DRAFT") { return (& $step "plan" "/approve $id" "Review spec.md, plan.md and tasks.md" "Approves the spec and the plan together. After approval: start a new session (/new), then /do-task $id 1" $true) }
-    if ($g.spec -eq "DRAFT") { return (& $step "spec" "/approve $id" "Review spec.md" "Answer its open questions first. After approval: /plan $id" $true) }
-    if ($lane -eq "feature" -and $null -eq $g.plan) { return (& $step "plan" "/plan $id" $null $null $false) }
-    if ($g.plan -eq "DRAFT") { return (& $step "plan" "/approve $id" "Review plan.md" "After approval: /tasks $id" $true) }
+    if ($g.spec -eq "DRAFT") { return (& $step "spec" "/approve $id" "Review spec.md" "Answer its open questions first. After approval: /spec $id plan" $true) }
+    if ($lane -eq "feature" -and $null -eq $g.plan) { return (& $step "plan" "/spec $id plan" $null $null $false) }
+    if ($g.plan -eq "DRAFT") { return (& $step "plan" "/approve $id" "Review plan.md" "After approval: /spec $id tasks" $true) }
     if ($lane -eq "bug" -and $null -eq $g.bug) { return (& $step "bug" "/bug $id" $null $null $false) }
     if ($g.bug -eq "DRAFT") { return (& $step "bug" "/approve $id" "Review bug.md and tasks.md" "After approval: start a new session (/new), then /do-task $id 1" $true) }
     if ($lane -eq "quick" -and $null -eq $g.quick) { return (& $step "quick" "/quick $id" $null $null $false) }
     if ($g.quick -eq "DRAFT") { return (& $step "quick" "/approve $id" "Review quick.md and tasks.md" "After approval: start a new session (/new), then /do-task $id 1" $true) }
     if ($I.tasks.total -eq 0 -and -not (Test-Path -LiteralPath $tasksPath)) {
-        $st = $(if ($lane -eq "bug") { "bug" } else { "tasks" })
-        return (& $step $st "/tasks $id" $null $null $false)
+        $st = $(if ($lane -eq "bug") { "bug" } elseif ($lane -eq "quick") { "quick" } else { "tasks" })
+        $cmd = $(if ($lane -eq "bug") { "/bug $id" } elseif ($lane -eq "quick") { "/quick $id" } else { "/spec $id tasks" })
+        return (& $step $st $cmd $null $null $false)
     }
     $open = @($I.tasks.list | Where-Object { -not $_.done } | Sort-Object { $_.n })
     if ($open.Count -gt 0) {
@@ -917,7 +920,7 @@ $data = [ordered]@{
     gitAvailable = $script:GitOk
     configFound = (Test-Path -LiteralPath $ConfigPath)
     stepWords = $script:StepWords
-    refreshCommand = "/dashboard static"
+    refreshCommand = "/dashboard"
     refreshShell = "$psExe -NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`" -WorkRoot `"$workRootFull`""
     items = @($items | Sort-Object -Property @{ Expression = { $_.modifiedMs }; Descending = $true })
     repos = @($repos)

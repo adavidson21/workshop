@@ -1,6 +1,6 @@
 # People
 
-Receipts, 1:1s and goals for you, your reports and your manager. People was called Rapport until November 2026, and Receipts before 2.0.0, when it took in the 1:1s app; its app id is still `people`, so its data, folder and links did not move. Full guide: [README.md](README.md).
+Receipts, 1:1s and goals for you, your reports and your manager. People was called Rapport until November 2026, and Receipts before 2.0.0, when it took in the 1:1s app; its app id is `people` now, and data, links and addresses saved under the old id `receipts` still work. Full guide: [README.md](README.md).
 
 - **People** (home): My team, you, your reports, your manager and the peers you meet with, whoever is due for a 1:1 first.
 - **The Log box** on every page adds a receipt: about the open page's person, the About you pick, or `@handle` at the start.

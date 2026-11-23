@@ -20,7 +20,7 @@ Append a new entry at the bottom after every command. Never edit or delete old e
 
 - Did: Approved spec.md.
 - Stats: gate=edited file=spec
-- Next: `/plan 41207`
+- Next: `/spec 41207 plan`
 
 ## 2026-10-13 | /plan | planner
 
@@ -32,7 +32,7 @@ Append a new entry at the bottom after every command. Never edit or delete old e
 
 - Did: Approved plan.md.
 - Stats: gate=unchanged file=plan
-- Next: `/tasks 41207`
+- Next: `/spec 41207 tasks`
 
 ## 2026-10-13 | /tasks | planner
 

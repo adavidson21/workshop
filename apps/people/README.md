@@ -19,7 +19,7 @@ Your private notebook about the people you work with, next to Lattice. Lattice i
 
 Gone in 5.0.0: the Me, Reports, 1:1s, Goals, Upward, Review and Settings tabs, the Upward switch (your manager is a person like anyone else), adding or editing reports in People, People and links, Add on each report, Build review, Copy as quick-add lines, and Tidy notes as its own step (Wrap up asks Tandem when Tandem is on). Old addresses (`team/<id>`, `1on1s`, `goals`, `review`, `up`, `settings`) still open the right place.
 
-People was called People until 2.0.0, when it took in Workshop's 1:1s app. The app id stays `people`, so nothing you saved moved. An app in Workshop (`apps/people/`). Open it from the rail, or in its own window with **Pop out**.
+People (app id `people`) was called Rapport until November 2026, and Receipts before 2.0.0, when it took in Workshop's 1:1s app. Data saved under the old id `receipts` or the old folders moves over on its own (Workshop docs/data-format.md, App folders). An app in Workshop (`apps/people/`). Open it from the rail, or in its own window with **Pop out**.
 
 **Its look:** Workshop's look (`shared/themes.css`) with People's own color.
 

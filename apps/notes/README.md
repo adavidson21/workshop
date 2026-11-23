@@ -1,6 +1,6 @@
 # Notes
 
-Your notebook, as plain `.md` files: the **sections** (places), the open section's **pages**, and the page. Notes was called Notes, then Notebook. The app id and address stay `notes`, so links and Workshop keep working; its folder in the Workshop folder is `folio/` (renamed from `notes/` by Workshop on start, see Workshop docs/data-format.md, App folders). Notes is an app in [Workshop](https://github.com/adavidson21/workshop) (`apps/notes/`, moved from adavidson21/notes on Nov 11, 2026). Open it from the rail, or in its own window with **Pop out**.
+Your notebook, as plain `.md` files: the **sections** (places), the open section's **pages**, and the page. Notes (app id `notes`) was called Folio until November 2026, and Notebook before that. Its folder in the Workshop folder is `notes/`; a `folio/` folder from before is renamed by Workshop on start (Workshop docs/data-format.md, App folders). Notes is an app in [Workshop](https://github.com/adavidson21/workshop) (`apps/notes/`, moved from adavidson21/notes on Nov 11, 2026). Open it from the rail, or in its own window with **Pop out**.
 
 Nothing leaves your device: no accounts, no server, no analytics.
 

@@ -31,6 +31,16 @@ jobs:
       - run: node --test "connectors/*/test/*.test.mjs"
       - name: Every app can be pulled out (docs/shared.md, B8)
         run: node tests/check-extract.mjs
+  # Open in terminal on a real Windows computer (opencode connector 1.37.0): a console window opens and runs the command.
+  windows-terminal:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: node tests/console-window.win.mjs
+      - run: node --test connectors/opencode/test/console-window.test.mjs connectors/opencode/test/terminal.test.mjs connectors/opencode/test/evals.test.mjs
   # The browser tests, split into runs of about the same length that go side by side. e2e.py's two halves: E2E_PART.
   e2e:
     name: e2e (${{ matrix.name }})
@@ -71,6 +81,12 @@ jobs:
               python tests/rename-e2e.py
           - name: with Azure DevOps off
             run: python tests/no-ado-e2e.py
+          # Real opencode and a stand-in model that writes slowly: answers stream, Quick answers (Chat 4.5.0).
+          - name: Chat with real opencode
+            run: |
+              npm i -g opencode-ai@1.19.6
+              python tests/chat-e2e.py
+              python tests/chat-e2e.py --quick-agent
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup

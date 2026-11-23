@@ -4,7 +4,7 @@
 // A turn: {id, role: "user" | "assistant", text, at, agent, model: {provider, id} | null, tokens, cost, error,
 // parts: [...]}. `text` is the turn's plain text (what Save as note and the hub's threads use); `parts` is what the
 // Chat app draws, in order:
-//   {type: "text", text}
+//   {type: "text", text, id?}   (`id`: opencode's part id, which chat.text events name while it streams)
 //   {type: "reasoning", text}
 //   {type: "tool", tool, status: "pending" | "running" | "completed" | "error", title, input, output, error, diff,
 //    todos: [{content, status}], child}
@@ -130,7 +130,7 @@ export function v1Turn(m, root) {
   (m && Array.isArray(m.parts) ? m.parts : []).forEach((p, i) => {
     if (!p || typeof p !== "object") return;
     if (p.type === "text") {
-      if (!p.synthetic && !p.ignored && p.text) parts.push({ type: "text", text: String(p.text).slice(0, TEXT_MAX) });
+      if (!p.synthetic && !p.ignored && p.text) parts.push({ type: "text", text: String(p.text).slice(0, TEXT_MAX), ...(p.id ? { id: p.id } : {}) });
     } else if (p.type === "reasoning") {
       if (p.text) parts.push({ type: "reasoning", text: cut(p.text, OUT_MAX) });
     } else if (p.type === "tool") {

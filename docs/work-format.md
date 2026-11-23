@@ -33,10 +33,10 @@ To find an item by id, list `.work/` and match the one folder that starts with `
 | `repos.md` | `/start` | `Lane`, the repo table |
 | `brief.md` | `/start` (skipped with `--cold`) | Nothing is parsed: shown as Markdown for the person (Tandem Core 2.7.0 and later) |
 | `spec.md` | `/spec` | `Status:` gate |
-| `plan.md` | `/spec` (eng-agents Core 4.0.0), or `/plan` | `Status:` gate |
+| `plan.md` | `/spec` (eng-agents Core 4.0.0), or `/spec <id> plan` | `Status:` gate |
 | `bug.md` | `/bug` | `Status:` gate |
 | `quick.md` | `/quick` (quick lane, Tandem Core 2.25.0 and later) | `Status:` gate |
-| `tasks.md` | `/tasks`, `/bug`, `/review` fixes | Task headings with checkboxes, `Repo:` per task |
+| `tasks.md` | `/spec`, `/bug`, `/quick`, `/review` fixes | Task headings with checkboxes, `Repo:` per task |
 | `review.md` | `/review` | `Verdict:` |
 | `pr.md` | `/pr` | One section per repo: `Branch`, `Title`, `Description` |
 | `paused.md` | `/pause`, `/resume` | `Status:` (`PAUSED` or `RESUMED`), `Paused`, `Reason`, `In progress`, sections |
@@ -169,13 +169,13 @@ The first matching rule wins. This mirrors `commands/status.md` in eng-agents an
 | 2 | Lane `feature`, no `spec.md` | `spec` | `/spec <id>` | no |
 | 3a | `spec.md` and `plan.md` are both `DRAFT` (one feature gate, eng-agents Core 4.0.0: `/spec` drafts spec, plan and tasks; checked before rule 3) | `plan` | `/approve <id>` (action: "Review spec.md, plan.md and tasks.md") | yes |
 | 3 | `spec.md` is `DRAFT` | `spec` | `/approve <id>` (action: "Review spec.md") | yes |
-| 4 | Lane `feature`, no `plan.md` | `plan` | `/plan <id>` | no |
+| 4 | Lane `feature`, no `plan.md` | `plan` | `/spec <id> plan` | no |
 | 5 | `plan.md` is `DRAFT` | `plan` | `/approve <id>` (action: "Review plan.md") | yes |
 | 6 | Lane `bug`, no `bug.md` | `bug` | `/bug <id>` | no |
 | 7 | `bug.md` is `DRAFT` | `bug` | `/approve <id>` (action: "Review bug.md and tasks.md") | yes |
 | 8 | Lane `quick`, no `quick.md` | `quick` | `/quick <id>` | no |
 | 9 | `quick.md` is `DRAFT` | `quick` | `/approve <id>` (action: "Review quick.md and tasks.md") | yes |
-| 10 | No tasks and no `tasks.md` | `tasks` (`bug` in the bug lane) | `/tasks <id>` | no |
+| 10 | No tasks and no `tasks.md` | `tasks` (`bug` in the bug lane, `quick` in the quick lane) | `/spec <id> tasks` (`/bug <id>`, `/quick <id>`; eng-agents Core 4.20.0 folded `/plan` and `/tasks` into `/spec`) | no |
 | 11 | An unchecked task exists, and the item is blocked | `build` | `/do-task <id> <first unchecked n>` | yes |
 | 12 | An unchecked task exists | `build` | `/do-task <id> <first unchecked n>` | no |
 | 13 | No `review.md`, or `tasks.md` was modified after `review.md` | `review` | `/review <id>` | no |
