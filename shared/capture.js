@@ -17,6 +17,8 @@
                 "#1234", is a request for that ADO work item
      ? <text>   a question for the Loom hub (a line that ends in "?" too)
      > <app>    go to an app ("> 1:1s" opens Rapport's 1:1s tab)
+     "clean up this document" (or "tidy up my note", "polish this article"): Folio cleans up the open note
+                (apps/notes/js/cleanup.js); "... and overwrite it" (or "in place") replaces it instead of a copy
 
    Dates (tasks): today, tomorrow, a weekday, M/D, YYYY-MM-DD, optionally after "by", "on" or "due".
    "!" on its own, or "!!", marks a task urgent. */
@@ -179,6 +181,17 @@ export function findMap(text, maps = []) {
    ctx: {today: 'YYYY-MM-DD', people: the directory's items (people and groups), lists: Docket list names, maps: Runway roadmaps [{id, title}],
    folders: Notes' folders [{id, title}] (with a row id 'today' for today's note)}.
    Returns {kind, to, text, title, payload} for a capture, {kind: 'ask', text} or {kind: 'go', app, text}. */
+/**
+ * "clean up this document" and the like: {replace} when the line asks Folio to clean up a note, else null. The
+ * original is kept (a cleaned copy is saved next to it) unless the words say to overwrite it.
+ */
+export function cleanupAsk(line) {
+  const s = String(line || '').replace(/\s+/g, ' ').trim().toLowerCase().replace(/[.!]+$/, '');
+  const m = /^(?:please\s+|can you\s+|could you\s+)?(?:clean\s*up|tidy\s*up|clean|tidy|polish)\s+(?:up\s+)?(?:this|the|my|that)\s+(?:document|doc|note|article|page|draft|write-?up)\b(.*)$/.exec(s);
+  if (!m) return null;
+  return { replace: /\b(overwrite|in place|replace (?:it|the original|the note|the document)|don'?t keep (?:a copy|the original)|no copy)\b/.test(m[1]) };
+}
+
 export function parseCapture(line, ctx = {}) {
   let s = String(line || '').replace(/\s+/g, ' ').trim().slice(0, MAX_TEXT);
   if (!s) return null;
@@ -186,6 +199,9 @@ export function parseCapture(line, ctx = {}) {
   let kind = null, rkind = 'win';
 
   let m;
+  // "clean up this document": Folio's Clean up on the open note (a question mark does not make it a question).
+  const clean = TARGETS.note === 'notes' ? cleanupAsk(s.replace(/\?$/, '')) : null;
+  if (clean) return { kind: 'go', app: 'notes', path: clean.replace ? 'cleanup/replace' : 'cleanup', text: s };
   if ((m = /^>\s*(.+)$/.exec(s))) {
     const word = m[1].trim().toLowerCase();
     const key = PLACES[word] ? word : word.replace(/^the\s+/, '');
@@ -337,6 +353,7 @@ export function dayLabel(iso, now = new Date()) {
 export function describe(p) {
   if (!p) return '';
   if (p.kind === 'ask') return 'Ask in Loom';
+  if (p.kind === 'go' && /^cleanup/.test(p.path || '')) return `Clean up the open note in ${TARGET_NAMES[p.app] || 'Folio'}${p.path === 'cleanup/replace' ? ', replacing it' : ', as a copy'}`;
   if (p.kind === 'go') return 'Go to ' + (TARGET_NAMES[p.app] || p.app);
   const q = p.payload || {};
   if (p.kind === 'request') return q.ado ? `${TARGET_NAMES[p.to] || 'Loom'} · #${q.ado}${q.note ? ', with a note' : ''}` : `${TARGET_NAMES[p.to] || 'Loom'} · New`;

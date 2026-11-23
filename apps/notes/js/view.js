@@ -272,6 +272,7 @@ export function header(state) {
     ['rename', 'Rename or move', 'F2'],
     ['bookmark', state.bookmarked ? 'Remove bookmark' : 'Bookmark'],
     ...(state.canWindow ? [['window', 'Open in new window']] : []),
+    ...(state.canCleanup ? [['cleanup', 'Clean up this document']] : []),
     ...(n && n.use === undefined ? [['save-template', 'Save as template']] : []),
     ...(state.isStarter ? [['reset-template', 'Reset to starter']] : []),
     ...(state.versions ? [['history', 'History']] : []),
@@ -286,7 +287,7 @@ export function header(state) {
       <button class="ibtn trash-btn" data-act="trash" title="Move to the trash" aria-label="Trash">${ICON.trash}</button>
       ${menuHtml(ui, items)}${panelBtn(ui)}
     </div></div>
-    ${conflictBar(ui) || review || stale || tpl || startBar(state.start)}`;
+    ${cleaningBar(state.cleaning)}${conflictBar(ui) || review || stale || tpl || startBar(state.start)}`;
 }
 /* Word count and reading time, beside the save status. */
 function countHtml(state) {
@@ -518,6 +519,31 @@ export function linkFormHtml({ title, ok = 'Save', link = {}, group = '', groups
     <p class="soft small">Saved in <code>links.md</code>. A group or tag named after a product shows the link on that product's note.</p>
     <p class="dlg-err bad" hidden></p>
     <div class="dlg-actions"><button class="btn" value="cancel" formnovalidate>Cancel</button><button class="btn primary" value="ok">${esc(ok)}</button></div></form>`;
+}
+
+/** While a clean up runs: what the model has written so far (it streams), so a slow local model shows it is moving. */
+export function cleaningBar(c) {
+  if (!c) return '';
+  const secs = Math.max(0, Math.round((Date.now() - c.started) / 1000));
+  const pct = c.chars && c.expect ? Math.min(99, Math.round(100 * c.chars / c.expect)) : 0;
+  const what = c.chars ? `writing, about ${pct}% done` : 'waiting for the model to start';
+  return `<div class="bar" role="status"><span class="bar-msg"><b>Cleaning up ${esc(c.title)}:</b> ${what} (${secs}s). You can keep working.</span></div>`;
+}
+
+/** Clean up this document (cleanup.js): the template to shape it to (best first, the sure one checked), its own
+    shape, and whether to replace the original. */
+export function cleanupHtml({ title, path = '', ranked = [], pick = '', replace = false, sure = false }) {
+  const row = (value, name, note, checked) => `<label class="check"><input type="radio" name="tpl" value="${esc(value)}"${checked ? ' checked' : ''}>
+      <span>${esc(name)}${note ? ` <span class="soft small">${esc(note)}</span>` : ''}</span></label>`;
+  const top = ranked.slice(0, 3);
+  return `<form method="dialog" class="dlg"><h2>Clean up ${esc(title)}</h2>${path ? `<p class="soft small mono">${esc(path)}</p>` : ''}
+    <p class="soft small">Shapes it to a template, revises the writing and adds feedback at the top. ${sure ? 'This template fits best.' : 'No template is a clear fit, so check the one picked.'}</p>
+    <fieldset class="updates"><legend>Shape it to</legend>
+      ${top.map((t, i) => row(t.path, t.name, i === 0 ? (sure ? 'best fit' : 'closest') : '', t.path === pick)).join('')}
+      ${row('', 'Keep its own shape', 'only revise it', pick === '')}
+    </fieldset>
+    <label class="check"><input type="checkbox" name="replace"${replace ? ' checked' : ''}><span>Replace the original instead of saving a copy (the original stays in History)</span></label>
+    <div class="dlg-actions"><button class="btn" value="cancel">Cancel</button><button class="btn primary" value="ok">Clean up</button></div></form>`;
 }
 
 export function confirmHtml({ title, body, ok = 'OK', danger = false }) {

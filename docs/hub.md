@@ -99,6 +99,8 @@ Each capture kind (`task`, `waiting`, `receipt`, `note`, `idea`, `request`) goes
 
 `> <place>` matches an app's `id`, `name` or one of its `aliases`.
 
+"clean up this document" (also "tidy up my note", "polish this article"; `cleanupAsk` in `shared/capture.js`) is a rule too, in Capture and in the hub before anything goes to Tandem: it opens Folio at `cleanup` (or `cleanup/replace` when the words say "overwrite it", "in place" or "replace the original"), and Folio cleans up its open note (Folio 4.13.0, `apps/notes/README.md`).
+
 ## Rules
 
 1. **Local only.** A capture fills fields on a record inside Workshop. Nothing in the hub assigns, creates or changes anything in Azure DevOps, git or a running agent by itself. `act` is a button the person clicks, and the action it calls keeps its own `confirm: true`.

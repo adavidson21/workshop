@@ -243,3 +243,15 @@ test('requests need Slate on this site', async () => {
     assert.equal(C.parseCapture('#1234 look', ctx).to, 'slate');
   } finally { C.useApps(null); }
 });
+
+test('"clean up this document" goes to Folio\'s Clean up, as a copy unless the words say overwrite', async () => {
+  const { cleanupAsk, parseCapture, describe } = await import('../capture.js');
+  for (const s of ['clean up this document', 'Clean up this doc.', 'please tidy up my note', 'polish this article', 'cleanup the draft', 'can you clean up this document?'])
+    assert.deepEqual(parseCapture(s), { kind: 'go', app: 'notes', path: 'cleanup', text: parseCapture(s).text }, s);
+  assert.equal(parseCapture('clean up this document and overwrite it').path, 'cleanup/replace');
+  assert.equal(parseCapture('clean up this note in place').path, 'cleanup/replace');
+  assert.equal(cleanupAsk('clean up the garage'), null);
+  assert.equal(parseCapture('t clean up this document').kind, 'task', 'a prefix still wins');
+  assert.equal(parseCapture('clean the kitchen tomorrow').kind, 'task');
+  assert.match(describe(parseCapture('clean up this document')), /^Clean up the open note in .+, as a copy$/);
+});
