@@ -15,6 +15,8 @@
                 "p <roadmap>: <text>" with a roadmap's name goes to that roadmap; otherwise to Runway's Pending page
      s <text>   a request for Slate's New ("request: ..." works too). "s #1234 <note>", or a line that starts with
                 "#1234", is a request for that ADO work item
+     b <text>   build it with Tandem: Loom's drop box, filled in, its kind guessed (build, diagnose a log, or ask),
+                started at once when Tandem is connected ("build: ..." works too, "build ..." is a task; a pasted block after "b " is one item)
      ? <text>   a question for the Loom hub (a line that ends in "?" too)
      > <app>    go to an app ("> 1:1s" opens Rapport's 1:1s tab)
      "clean up this document" (or "tidy up my note", "polish this article"): Folio cleans up the open note
@@ -26,11 +28,12 @@
 /* Where each capture kind goes, app names, and places for "> <name>". These are the built-in defaults; useApps()
    replaces them in place from the manifests on this site (ws.apps.list(); docs/app-manifest.md capture and
    aliases, docs/hub.md "Which app takes a capture"), so every function here follows the apps that are there. */
-export const TARGETS = { task: 'prioritizer', waiting: 'prioritizer', receipt: 'receipts', note: 'notes', idea: 'runway', request: 'slate' };
+export const TARGETS = { task: 'prioritizer', waiting: 'prioritizer', receipt: 'receipts', note: 'notes', idea: 'runway', request: 'slate', build: 'slate' };
 export const TARGET_NAMES = { prioritizer: 'Docket', receipts: 'Rapport', notes: 'Notes', runway: 'Runway', slate: 'Loom' };
 export const RECEIPT_KINDS = ['win', 'feedback', 'growth', 'concern', 'note'];
 export const KINDS = ['task', 'waiting', 'receipt', 'note', 'idea', 'request'];
 const MAX_TEXT = 2000;
+const MAX_BUILD = 8000; // the drop box's description cap (Loom lanes.js dropStart)
 
 /* Places "> name" can go: words people use to the app id. */
 export const PLACES = {
@@ -192,7 +195,20 @@ export function cleanupAsk(line) {
   return { replace: /\b(overwrite|in place|replace (?:it|the original|the note|the document)|don'?t keep (?:a copy|the original)|no copy)\b/.test(m[1]) };
 }
 
+/** "b <text>" or "build: <text>": {text} to hand to Tandem (whitespace and line breaks kept), else null. */
+export function buildAsk(text) {
+  // "build" needs its colon: "Build the Q4 deck" is still a task.
+  const m = /^\s*(?:b(?::|[ \t]|\r?\n)|build:)[ \t]*\r?\n?([\s\S]+)$/i.exec(String(text || ''));
+  const body = m ? m[1].trim().slice(0, MAX_BUILD) : '';
+  return body ? { text: body } : null;
+}
+/** A build as a proposal: open Loom's drop box filled in, started there (Loom's start/go route). */
+const buildGo = (text) => ({ kind: 'go', app: TARGETS.build, path: 'start/go/' + encodeURIComponent(text), text, build: true });
+
 export function parseCapture(line, ctx = {}) {
+  // Build with Tandem: before the line is squeezed to one line, so a pasted story keeps its shape.
+  const built = TARGETS.build ? buildAsk(line) : null;
+  if (built) return buildGo(built.text);
   let s = String(line || '').replace(/\s+/g, ' ').trim().slice(0, MAX_TEXT);
   if (!s) return null;
   const today = isYmd(ctx.today || '') ? ctx.today : ymd(new Date());
@@ -309,6 +325,9 @@ export function parseCapture(line, ctx = {}) {
 
 /* Several pasted lines to proposals, one per non-empty line. */
 export function parseLines(text, ctx) {
+  // "b " then a pasted story, log or question: the whole paste is one thing to build, not one item per line.
+  const built = TARGETS.build ? buildAsk(text) : null;
+  if (built) return [buildGo(built.text)];
   return String(text || '').split(/\r?\n/).map(l => parseCapture(l, ctx)).filter(Boolean);
 }
 
@@ -353,6 +372,7 @@ export function dayLabel(iso, now = new Date()) {
 export function describe(p) {
   if (!p) return '';
   if (p.kind === 'ask') return 'Ask in Loom';
+  if (p.kind === 'go' && p.build) return `Build with Tandem in ${TARGET_NAMES[p.app] || 'Loom'}: starts when you press Enter`;
   if (p.kind === 'go' && /^cleanup/.test(p.path || '')) return `Clean up the open note in ${TARGET_NAMES[p.app] || 'Folio'}${p.path === 'cleanup/replace' ? ', replacing it' : ', as a copy'}`;
   if (p.kind === 'go') return 'Go to ' + (TARGET_NAMES[p.app] || p.app);
   const q = p.payload || {};

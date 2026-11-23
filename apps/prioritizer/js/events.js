@@ -6,7 +6,7 @@ import { openSortRun } from './sort-run.js';
 import { closeCmd, cmd, cmdOpen, openCmd } from './command-bar.js';
 import { EMBEDDED, NAV_KEYS } from './constants.js';
 import { takePasted } from './paste.js';
-import { closeDrawer, copyTaskLink, drawerId, drawerOverlay, focusSel, markSel, moveSel, openDrawer } from './drawer.js';
+import { buildTask, closeDrawer, copyTaskLink, drawerId, drawerOverlay, focusSel, markSel, moveSel, openDrawer } from './drawer.js';
 import { engOpen } from './eng.js';
 import { prAiOpen } from './pr-ai.js';
 import { askText, closeMenu, closeModal, confirmBox, menuEl, modal, openListMenu, openScopeMenu, openThemeMenu, popMenu, showHelp, suggestPreview, toast, trapTab } from './overlays.js';
@@ -238,6 +238,7 @@ document.addEventListener('keydown', e => {
   else if (k === 's'){ e.preventDefault(); startNext(); }
   else if (k === 'i'){ e.preventDefault(); logInterrupt(); }
   else if (k === 'l' && sel){ e.preventDefault(); copyTaskLink(findTask(sel)); }
+  else if (k === 'b' && sel && !e.shiftKey){ if (buildTask(findTask(sel)) !== false) e.preventDefault(); }
   else if (k === '?'){ showHelp(); }
 });
 let lastDay = todayStr();

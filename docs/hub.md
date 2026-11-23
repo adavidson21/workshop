@@ -99,6 +99,8 @@ Each capture kind (`task`, `waiting`, `receipt`, `note`, `idea`, `request`) goes
 
 `> <place>` matches an app's `id`, `name` or one of its `aliases`.
 
+**Build with Tandem.** `b <text>` (or `build: <text>`) in Capture, the hub, or the palette's **Build with Tandem** sends the text to Loom's drop box at `start/go/<text>` (`buildAsk` in `shared/capture.js`), which guesses the kind (a build, an error log to diagnose, a question to look into) and starts it once Tandem is ready. Enter is the approval; there is no form. A log pasted after `b` stays one item. `Build the Q4 deck` (no colon) is still a task. Without Tandem the drop box keeps the text and says what works instead. A Docket task does the same from its details (**Build with Tandem**, or `B`), with its first step, notes and a link back (Docket 12.4.0). Tested end to end by `tests/drop-e2e.py`.
+
 "clean up this document" (also "tidy up my note", "polish this article"; `cleanupAsk` in `shared/capture.js`) is a rule too, in Capture and in the hub before anything goes to Tandem: it opens Folio at `cleanup` (or `cleanup/replace` when the words say "overwrite it", "in place" or "replace the original"), and Folio cleans up its open note (Folio 4.13.0, `apps/notes/README.md`).
 
 ## Rules

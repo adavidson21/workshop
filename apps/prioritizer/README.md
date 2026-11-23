@@ -285,6 +285,8 @@ When Workshop runs on this computer with the opencode connector on (see [Agents]
 
 An ADO task not started yet gets **Start as feature** or **Start as bug** in its details. That runs `/start` in opencode for you.
 
+**Build with Tandem (12.4.0).** Any other open task can go to Loom's agents too: **Build with Tandem** in its details, or `B` on a selected task. Loom's drop box gets the title, first step, notes and a link back to the task, guesses whether it is a build, a log to diagnose or a question, and starts it once Tandem is ready. The click or key is the approval. Inside Workshop only, while Loom is on (`js/tandem-build.js`).
+
 Stages update when the connector reports a change, and when you switch back to the page. Without the connector (browser mode, or the connector off) nothing changes.
 
 ## Install it as a desktop app

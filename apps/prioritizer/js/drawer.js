@@ -22,6 +22,7 @@ import { notesFor, shown, taskLink } from './notes-link.js';
 import { slateFor, slateLabel } from './slate-link.js';
 import { toast } from './overlays.js';
 import { embedded, ws } from './ws.js';
+import { canBuild, loomOn, sendToTandem } from './tandem-build.js';
 import { copyHandoff, followDate, gotBackTask, nudgedTask, openAssign } from './delegate.js';
 import { reportRoute } from './route.js';
 
@@ -104,6 +105,7 @@ function renderDrawer(){
       ${shownItem(t.item) ? `<div class="dado"><a href="${esc(t.item.url)}" target="_blank" rel="noopener" data-fk="adolink">Open ${esc(t.item.type || 'item')} ${esc(itemRef(t.item))} in ${trackerName(t.item.system)}</a><span>${esc(t.item.state)}${t.item.project && t.item.system !== 'github' ? ' · ' + esc(t.item.project) : ''}</span>${t.item.gone ? `<span class="chip">${goneText(t.item.gone, t.item.system)}</span>` : ''}</div>` : ''}
       ${shownItem(t.item) ? slateDrawer(t) : ''}
       ${shownItem(t.item) ? engDrawer(t) : ''}
+      ${buildHtml(t)}
       ${shownItem(t.pr) ? `<div class="dado"><a href="${esc(t.pr.url)}" target="_blank" rel="noopener" data-fk="prlink">Open PR #${t.pr.id} in ${trackerName(t.pr.system)}</a><span>${esc(t.pr.system === 'github' ? t.pr.project || t.pr.repo : t.pr.repo)}${t.pr.author ? ' · by ' + esc(t.pr.author) : ''}</span>${t.pr.gone ? `<span class="chip">${PR_GONE[t.pr.gone]}</span>` : `<span class="chip">${t.pr.waiting ? (t.pr.system === 'github' ? 'Changes requested' : 'Waiting for author') : PR_TIER[t.pr.tier].label}</span>`}</div>` : ''}
       ${shownItem(t.pr) ? prAiDrawer(t) : ''}
       ${sortHtml(t)}${focusDrawerHtml(t)}
@@ -153,6 +155,18 @@ function slateDrawer(t){
   const sl = embedded && t.item.system !== 'github' ? slateFor(t.item.id) : null;
   if (!sl) return '';
   return `<div class="dado dslate"><button class="lnk" data-d="open-slate" data-path="${esc(sl.route)}" data-fk="slatelink" title="Shaping, defining or building it happens there">Open in Slate</button><span>${esc(slateLabel(sl))}</span></div>`;
+}
+/* Build with Tandem (tandem-build.js): any open task to Loom's agents. An ADO item with Tandem set up has Start as
+   feature or bug instead (eng.js), which keeps the ADO link. */
+function buildHtml(t){
+  const adoItem = shownItem(t.item) && !!engDrawer(t);
+  if (!canBuild(t, {embedded, loomOn: loomOn(), adoItem})) return '';
+  return `<div class="dado dbuild"><button class="btn" data-d="build" data-fk="build" data-tip="Loom's agents take it from here: a build, a fix or a question (B)">Build with Tandem</button><span>Starts in Loom</span></div>`;
+}
+/* B on a selected task, or the drawer's button. */
+function buildTask(t){
+  if (!canBuild(t, {embedded, loomOn: loomOn(), adoItem: shownItem(t && t.item) && !!engDrawer(t)})) return false;
+  return sendToTandem(ws, t);
 }
 /* The notes in Notes that link to this task, and Copy link (notes-link.js). One quiet line under the task's own notes. */
 function aboutHtml(t){
@@ -246,6 +260,7 @@ drawer.addEventListener('click', e => {
   if (a === 'done') return toggleDone(t.id);
   if (a === 'eng-open') return engOpen(t.item.id);
   if (a === 'eng-start') return engStart(t, b.dataset.lane, b);
+  if (a === 'build') return buildTask(t);
   if (a === 'prai-open') return prAiOpen(t);
   if (a === 'prai-again') return prAiAgain(t, b);
   if (a === 'copy-link') return copyTaskLink(t);
@@ -258,4 +273,4 @@ drawer.addEventListener('click', e => {
 });
 }
 
-export { copyTaskLink, drawerInit, closeDrawer, drawerId, drawerOverlay, flushText, focusSel, markSel, moveSel, openDrawer, renderMainOnly, syncDrawer };
+export { buildTask, copyTaskLink, drawerInit, closeDrawer, drawerId, drawerOverlay, flushText, focusSel, markSel, moveSel, openDrawer, renderMainOnly, syncDrawer };
