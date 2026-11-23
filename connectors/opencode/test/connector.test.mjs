@@ -9,6 +9,7 @@ import oc from "../index.mjs";
 import { startFakeOpencode } from "./fake-opencode.mjs";
 import { autoTiming, autoWatch } from "../lib/autopilot.mjs";
 import { sessions } from "../lib/opencode-state.mjs";
+import { linuxTerminal } from "../lib/console-window.mjs";
 import { EXAMPLE_WORK, configFor, fakeCtx, hasGit, hasPowerShell, makeFakeCli, makeWorkspace, waitFor } from "./harness.mjs";
 
 const skip = false; // the connector reads .work itself since 1.6.0; PowerShell is not needed
@@ -441,12 +442,17 @@ for (const kind of ["v1", "v2"]) {
       await finish(r.session);
     });
 
-    test("[P-terminal] terminal refuses a bad session id; elsewhere than Windows and macOS it says to copy the command", async () => {
+    test("[P-terminal] terminal refuses a bad session id; on Linux with no terminal program it says to copy the command", async () => {
       await rejects(call("terminal", { session: "ses_1; rm -rf ~" }, ctx()), "bad_request", /Bad session id/);
       const s = await call("state", {}, ctx());
-      assert.equal(s.liveMode.live.canOpenTerminal, process.platform === "win32" || process.platform === "darwin");
-      // Opening a real terminal window is checked by hand (PARITY.md); here only where it cannot open one.
-      if (process.platform === "linux") await rejects(call("terminal", {}, ctx()), "bad_request", /Copy the command instead/);
+      assert.equal(s.liveMode.live.canOpenTerminal, process.platform === "win32" || process.platform === "darwin" || !!linuxTerminal());
+      // A real window: tests/console-window.win.mjs on CI's Windows runner (1.37.0), macOS by hand (PARITY.md).
+      if (process.platform === "linux") {
+        const path = process.env.PATH;
+        process.env.PATH = "/nothing-here";
+        try { await rejects(call("terminal", {}, ctx()), "bad_request", /Copy the command instead/); }
+        finally { process.env.PATH = path; }
+      }
     });
 
     test("[P-autopilot] autopilot runs the next step in a fresh session and stops when asked", async () => {

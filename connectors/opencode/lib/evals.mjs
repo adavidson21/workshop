@@ -9,6 +9,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
+import { openConsole } from "./console-window.mjs";
 
 export const RESULTS_VERSIONS = [1, 2, 3, 4];
 export const PRESETS = ["custom", "affected", "release", "lift"];
@@ -353,39 +354,9 @@ export function commandFor(home, args, platform = process.platform, script = nul
   return ["pwsh", "-NoProfile", "-File", shq(file), ...args.map((a) => (a.startsWith("-") ? a : shq(a)))].join(" ");
 }
 
-/** Opens a terminal window you can see, in the eng-agents folder, running the evals. Windows and macOS. */
-export function openEvalsTerminal({ home, args, platform = process.platform, run = spawn, script = null }) {
+/** Opens a terminal window you can see, in the eng-agents folder, running the evals (lib/console-window.mjs). */
+export async function openEvalsTerminal({ home, args, platform = process.platform, run = spawn, script = null, terminal }) {
   const cmd = commandFor(home, args, platform, script);
-  let exe, argv;
-  if (platform === "win32") {
-    exe = "powershell.exe";
-    argv = ["-NoLogo", "-NoExit", "-Command", cmd];
-  } else if (platform === "darwin") {
-    const sh = `cd ${shq(home.source)} && ${cmd}`;
-    exe = "osascript";
-    argv = ["-e", `tell application "Terminal" to do script "${sh.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"\ntell application "Terminal" to activate`];
-  } else {
-    const e = new Error("Opening a terminal works on Windows and macOS. Copy the command instead.");
-    e.status = 501;
-    return Promise.reject(e);
-  }
-  return new Promise((resolve, reject) => {
-    const failed = (err) => {
-      const e = new Error(`Could not open a terminal (${err.message}). Copy the command instead.`);
-      e.status = 500;
-      reject(e);
-    };
-    let child;
-    try {
-      child = run(exe, argv, { cwd: home.source, detached: true, stdio: "ignore", windowsHide: false });
-    } catch (err) {
-      failed(err);
-      return;
-    }
-    child.once("error", failed);
-    child.once("spawn", () => {
-      child.unref();
-      resolve({ ok: true, command: cmd });
-    });
-  });
+  const r = await openConsole({ cwd: home.source, ps: cmd, sh: cmd, title: "Bench", platform, run, ...(terminal ? { terminal } : {}) });
+  return { ...r, command: cmd };
 }
