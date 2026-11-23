@@ -120,6 +120,23 @@ Attach a PDF with the paperclip, or paste or drop it on the composer, next to pi
 - **Turn on alerts** at the bottom of the sidebar: the browser asks once, then a notification comes when a chat finishes or needs you and Chat is out of sight; clicking it opens the chat. **Alerts on** turns them off again (kept in this browser). Tandem's runs and PR reviews (sessions from outside Chat) are left to Loom, which alerts for those.
 - Keys: Alt+N, Alt+Up and Alt+Down, Alt+J (Keys above). Not while typing in Files or the Terminal.
 
+## Chat 4.6.0 (connector 1.39.0): the rest of opencode's terminal
+
+What the TUI does that Chat did not, now in Chat:
+
+| opencode TUI | Chat |
+| --- | --- |
+| Variant (reasoning effort) cycle | A picker beside the model, shown when the model has variants (`chat.options` `models[].variants`). `chat.start` and `chat.send` take `variant` |
+| `/fork`, fork from a message | `/fork`, and **Fork from here** on an answer: `chat.fork` |
+| Revert to a message | **Undo from here** on one of your messages: `chat.undo` with `message`. Redo brings it back, as for `/undo` |
+| Copy a message | **Copy** on every message |
+| `/copy`, `/export` | `/copy` (the whole chat as Markdown); Save as note stays `/export` |
+| `/rename` | `/rename <name>`, or `/rename` alone to edit the name in the sidebar. A rename now changes the opencode session's title too |
+| `/status`, `/mcp` | `/status`: MCP servers with Connect and Disconnect, language servers, formatters (`chat.status`, `chat.mcp`) |
+| `/share` | Left out on purpose: it publishes the chat on opencode's site |
+
+`tests/chat-e2e.py` checks the effort reaching the model, Fork from here, Undo from here and `/status` with real opencode.
+
 ## Chat 4.5.0 (connector 1.38.0): live answers and Quick answers
 
 ### Live answers
@@ -150,7 +167,7 @@ When an answer ends with a `Sources:` list (Tandem's hub and chat agents always 
 
 | Action | Write | Args | Result |
 | --- | --- | --- | --- |
-| `chat.options` | no | | `{kind, version, agents, subagents, models, defaults, commands, can: {shell, undo, compact, files, images, side, terminal, pdf, changes, suggest}}`. Agents are opencode's primary agents (hidden ones left out); models are those of connected providers, each with `context` (its window in tokens) when opencode knows it (1.29.0) |
+| `chat.options` | no | | `{kind, version, agents, subagents, models, defaults, commands, can: {shell, undo, compact, files, images, side, terminal, pdf, changes, suggest, review, quick, fork, status, effort}}`. Agents are opencode's primary agents (hidden ones left out); models are those of connected providers, each with `context` (its window in tokens) when opencode knows it (1.29.0) and `variants` (its reasoning efforts) when it has any (1.39.0) |
 | `chat.start` | yes | `text`, optional `agent`, `model: {provider, id}`, `files`, `images` | `{session}`: a new session with its first message |
 | `chat.send` | yes | `session`, `text`, optional `agent`, `model`, `files`, `images` | `{ok}`. 409 while opencode is still working (Chat queues instead). Any session in the workspace; sending in one from All sessions lists it. `images`: up to 4 `{name, mime, data}` (base64; PNG, JPEG, GIF or WebP, checked against their first bytes), at most 920,000 characters together |
 | `chat.side` | yes | `session`, `text`, optional `side`, `agent`, `model`, `images` | `{side}`: asks in the chat's side chat. Without `side`, copies the chat first (opencode's fork). Default agent: Tandem's `chat`, else `plan` |
@@ -168,14 +185,17 @@ When an answer ends with a `Sources:` list (Tandem's hub and chat agents always 
 | `chat.quick` | yes | `text`, optional `session`, `model` | `{session, sources}` (1.38.0): a quick answer from your notes, in that chat or a new one (Quick answers above). `chat.messages` says `quick: true` for such a chat. `chat.send` in a quick chat whose session has tools off answers `{ok, session, moved: true}`: the message went to a new chat |
 | `chat.command` | yes | `name`, optional `session`, `args`, `agent`, `model` | `{session}`: runs `/name args`, in a new chat when there is no session. Returns at once; an error from opencode shows on the chat |
 | `chat.shell` | yes | `command`, optional `session`, `agent`, `model` | `{session}`: `!command` through opencode, as above |
-| `chat.undo` | yes | `session` | `{ok, text}`: reverts the last message not yet undone (and its file changes); `text` is that message |
+| `chat.undo` | yes | `session`, optional `message` | `{ok, text}`: reverts the last message not yet undone (and its file changes), or (1.39.0) one of your messages and everything after it; `text` is that message |
+| `chat.fork` | no | `session`, optional `message` | `{ok, session, title}` (1.39.0): a new chat copied from this one, whole or up to and including `message` (opencode's fork). Titled "... (copy)" |
+| `chat.status` | no | | `{version, mcp: [{name, status, error?}], lsp: [{name, status, root}], formatters: [{name, on, extensions}]}` (1.39.0): opencode's `/mcp`, `/lsp` and `/formatter` |
+| `chat.mcp` | yes | `name`, `on` | `chat.status`'s result after connecting or disconnecting that MCP server (1.39.0) |
 | `chat.redo` | yes | `session` | `{ok}`: brings back what undo took back |
 | `chat.compact` | yes | `session`, optional `model` | `{ok}`: opencode summarizes the session (the chat's last model when none is given) |
 | `chat.files` | no | `query` | `{files}`: up to 50 workspace paths for `@` |
 | `chat.messages` | no | `session` | `{session, from, title, listed, busy, waiting, prompts, activity, revert, parent, agent, model, totals: {cost, context}, error?, turns}`. Each turn: `{id, role: "you" \| "tandem", text, at, agent, model, tokens, cost, error, parts}` (parts: `connectors/opencode/lib/chat-parts.mjs`). A hub thread leaves out the /hub run itself. `prompts` are the permission prompts and questions of the session and its subagents, answered with the connector's `answer` action |
 | `chat.list` | no | optional `hubs`, `all` | `{items}`: chats, hub messages that are not a capture or go, and continued sessions, newest activity first; with `all: true` also every other top-level session in the workspace (`from: "opencode"`); with `hubs: true`, the 12 newest hub threads |
 | `chat.remove` | no | `session` | Stops listing it. The opencode session is kept |
-| `chat.rename` | no | `session`, `title` | `{ok, title}`: renames it in Chat's list. The opencode session keeps its own title |
+| `chat.rename` | no | `session`, `title` | `{ok, title}`: renames it in Chat's list and (1.39.0) the opencode session's title |
 | `chat.archive` | no | `session`, optional `archived` (false brings it back) | `{ok, archived}` (1.29.0). `chat.list` leaves archived chats out and counts them (`archived`); `chat.list {archived: true}` lists them |
 | `chat.search` | no | `query` (2 letters or more), optional `all` | `{items: [{session, title, from, last, archived?, snippet}]}` (1.29.0): titles and messages, up to 30 |
 | `chat.changes` | no | `session` | `{files: [{path, repo, status: modified \| added \| deleted \| clean \| binary, additions, deletions, diff, cut?}], key, at}` (1.29.0; `key`, a fingerprint of the diffs, 1.30.0) |
