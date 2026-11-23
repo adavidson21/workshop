@@ -61,11 +61,16 @@ export function resetState() {
   promptsTimer = null;
 }
 
-export function upsertSession(id, patch) {
+// progress false: news that is not progress (opencode retrying a model request), so the stall watchdog keeps counting.
+export function upsertSession(id, patch, progress = true) {
   if (!id) return {};
   const s = sessions.get(id) || { id, title: null, status: "idle", activity: null, text: null, error: null, updated: null };
+  // Progress for the stall watchdog: new text, a tool or thinking, a status change, an error. A title or timestamp
+  // update, or opencode retrying a request, is not.
+  const moved = progress && ("text" in patch || "error" in patch || (patch.status !== undefined && patch.status !== s.status)
+    || (typeof patch.activity === "string" && !/^Retrying/.test(patch.activity)));
   for (const [k, v] of Object.entries(patch)) if (v !== undefined) s[k] = v;
-  s.seenAt = Date.now(); // the last word from opencode about it (autopilot's stall watchdog)
+  if (moved || !s.seenAt) s.seenAt = Date.now(); // the last progress opencode reported (autopilot's stall watchdog)
   sessions.set(id, s);
   return s;
 }

@@ -300,9 +300,12 @@ export function makeV1(url) {
           break;
         case "session.status": {
           const type = (p.status && p.status.type) || "idle";
+          const retry = type === "retry" ? { activity: `Retrying (attempt ${p.status.attempt}): ${p.status.message || ""}` } : null;
           if (type === "idle") upsertSession(sid, { status: "idle" });
+          // A retry of a busy step is not progress: the stall watchdog keeps counting (1.34.0).
+          else if (retry && (sessions.get(sid) || {}).status === "busy") upsertSession(sid, retry, false);
           else setBusy(sid);
-          if (type === "retry") upsertSession(sid, { activity: `Retrying (attempt ${p.status.attempt}): ${p.status.message || ""}` });
+          if (retry) upsertSession(sid, retry, false);
           break;
         }
         case "session.idle":
