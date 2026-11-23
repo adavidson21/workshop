@@ -12,6 +12,7 @@ import { needsReview, productNotes, staleWhy, toReview } from './products.js';
 import { SECTIONS, dailyGroups, visibleSections } from './sections.js';
 import { PLACEHOLDERS, placeholdersFor, templatesIn } from './templates.js';
 import { docName, findDoc, groupItems, itemLabel, parseTandem, tandemPath } from './tandem.js';
+import { splitRuns } from './tandem-archive.js';
 import { lensLabel } from './lenses.js';
 
 const ICON = {
@@ -30,6 +31,7 @@ const ICON = {
   refresh: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path d="M13 8a5 5 0 1 1-1.5-3.6M13 2.5v3h-3"/></svg>',
   copy: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><rect x="5.2" y="5.2" width="8.6" height="8.6" rx="1.5"/><path d="M10.8 5.2V3.6a1.4 1.4 0 0 0-1.4-1.4H3.6a1.4 1.4 0 0 0-1.4 1.4v5.8a1.4 1.4 0 0 0 1.4 1.4h1.6"/></svg>',
   unpin: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>',
+  archive: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 3.5h11v2.5h-11zM3.5 6v6.5h9V6M6.5 8.5h3"/></svg>',
   chev: '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>'
 };
 
@@ -194,17 +196,24 @@ function tandemHtml(state) {
   const { tandem, ui } = state;
   if (!tandem.loaded) return '<p class="side-note">Reading .work.</p>';
   if (!tandem.items.length) return '<p class="side-note">No documents yet. Plans, specs and reviews show here as Tandem writes them in Builds.</p>';
-  const { review, rest } = groupItems(tandem.items);
-  const group = (it) => {
+  // Archived runs (tandem-archive.js) fold into one group at the bottom until they need you again.
+  const { shown, archived } = splitRuns(tandem.items, state.archivedAt || new Map());
+  const { review, rest } = groupItems(shown);
+  const group = (it, back = false) => {
     const open = ui.path && ui.path.startsWith(tandemPath(it.folder, ''));
-    return `<li class="run${it.review ? ' waiting' : ''}"><details${open || it.review ? ' open' : ''}><summary class="row" style="--d:0"><span class="name" title="${esc(itemLabel(it))}">${esc(itemLabel(it))}</span>${it.busy ? `<span class="pill working" title="${esc(it.busy)}">Working</span>` : ''}</summary>
+    const label = esc(itemLabel(it));
+    const arch = back
+      ? `<button class="ibtn mini run-arch" data-act="tandem-unarchive" data-folder="${esc(it.folder)}" title="Unarchive" aria-label="Unarchive ${label}">${ICON.archive}</button>`
+      : it.review ? '' : `<button class="ibtn mini run-arch" data-act="tandem-archive" data-folder="${esc(it.folder)}" title="Archive: hide it until Tandem changes it" aria-label="Archive ${label}">${ICON.archive}</button>`;
+    return `<li class="run${it.review ? ' waiting' : ''}${back ? ' archived' : ''}"><details${open || it.review ? ' open' : ''}><summary class="row" style="--d:0"><span class="name" title="${label}">${label}</span>${it.busy ? `<span class="pill working" title="${esc(it.busy)}">Working</span>` : ''}${arch}</summary>
       <ul>${it.files.map(f => {
         const p = tandemPath(it.folder, f.file), cur = ui.path === p;
         return `<li class="note${cur ? ' current' : ''}"><a class="row" href="#" data-open="${esc(p)}" style="--d:1"${cur ? ' aria-current="page"' : ''}><span class="name">${esc(docName(f.file))}</span>${it.review === f.file ? '<span class="pill review" title="Waiting on your review">Review</span>' : ''}</a></li>`;
       }).join('')}</ul></details></li>`;
   };
-  return `${review.length ? `<p class="section-label">Waiting on you <span class="count">${review.length}</span></p><ul class="tree runs">${review.map(group).join('')}</ul>` : ''}
-    ${rest.length ? `<p class="section-label">Runs <span class="count">${rest.length}</span></p><ul class="tree runs">${rest.map(group).join('')}</ul>` : ''}`;
+  return `${review.length ? `<p class="section-label">Waiting on you <span class="count">${review.length}</span></p><ul class="tree runs">${review.map(it => group(it)).join('')}</ul>` : ''}
+    ${rest.length ? `<p class="section-label">Runs <span class="count">${rest.length}</span></p><ul class="tree runs">${rest.map(it => group(it)).join('')}</ul>` : ''}
+    ${archived.length ? `<details class="arch-runs"${archived.some(it => ui.path && ui.path.startsWith(tandemPath(it.folder, ''))) ? ' open' : ''}><summary class="section-label">Archived <span class="count">${archived.length}</span></summary><ul class="tree runs">${archived.map(it => group(it, true)).join('')}</ul></details>` : ''}`;
 }
 
 function treeHtml(state) {

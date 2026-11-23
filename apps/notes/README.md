@@ -4,6 +4,8 @@ Your notebook, as plain `.md` files: the **sections** (places), the open section
 
 Nothing leaves your device: no accounts, no server, no analytics.
 
+**4.14.0 (Archive Tandem runs).** In the Tandem section, hover a run and press **Archive** to move it out of view once you have read it and acted on it. Nothing in `.work` changes: archived runs fold under **Archived** at the bottom, **Unarchive** brings one back, and a run comes back by itself when Tandem waits on your review or changes a file in it (`js/tandem-archive.js`, Notes' `tandem-archive` collection).
+
 **4.13.0 (Clean up this document).** Say "clean up this document" in Capture (Ctrl+.) or the hub, or pick **Clean up this document** in the note's `⋯` menu or the palette: Notes shapes the open note to the template that fits it, revises the writing, and saves a cleaned copy next to it with the feedback at the top. The original stays as it is unless you say "overwrite it" (or tick Replace), and then the old text is in History. Details under What it does.
 
 **4.12.0 (new-user review).** Notes captured with Capture (Ctrl+.) say they came from Quick capture, not Home. The team handbook starts with an example under each heading, as Markdown comments (not shown in Preview, not read as facts). Property values get more room and end in an ellipsis when cut off.

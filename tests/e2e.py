@@ -1337,6 +1337,10 @@ def agents_checks(b, watch):
         check('a card on the floor opens the same panel as the lanes', af.locator('.fl-body .ln-panel .icard.gate').count() == 1)
         if os.environ.get('LOOM_SHOTS'):
             pg.screenshot(path='/tmp/builds-pop.png')
+            pg.evaluate("localStorage.setItem('workshop.theme','dark')"); pg.emulate_media(color_scheme='dark'); pg.wait_for_timeout(600); pg.screenshot(path='/tmp/builds-pop-dark.png')
+            af.click('.ln-panel [data-lane-close]'); pg.wait_for_timeout(300); pg.screenshot(path='/tmp/builds-floor-dark.png')
+            af.click('.fl-code .st-plan [data-lane-open="41300-export-retry-fails"]'); pg.wait_for_timeout(300)
+            pg.evaluate("localStorage.setItem('workshop.theme','light')"); pg.emulate_media(color_scheme='light'); pg.wait_for_timeout(300)
             af.click('.ln-panel [data-lane-close]'); af.click('.ln-drop .ln-more summary'); pg.wait_for_timeout(200); pg.screenshot(path='/tmp/builds-menu.png')
             af.click('.ln-drop .ln-more summary'); af.click('.fl-code .st-plan [data-lane-open="41300-export-retry-fails"]'); pg.wait_for_timeout(300)
         af.click('.ln-panel [data-lane-close]'); pg.wait_for_timeout(200)

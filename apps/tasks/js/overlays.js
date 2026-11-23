@@ -4,7 +4,7 @@ import { applyOrder } from './actions.js';
 import { hideTip } from './events.js';
 import { byScore, fmtScore, isTriaged, score } from './model.js';
 import { setScope } from './render.js';
-import { childrenOf, commit, listById, orderedLists, productPick, scopeOpen, state, topLists } from './state.js';
+import { childrenOf, commit, listById, orderedLists, productPick, scopeOpen, shown, state, topLists } from './state.js';
 import { activeProducts } from './products-link.js';
 import { $, esc, plural, uid } from './util.js';
 /* Tasks: Modal, menus, list and scope menus, theme menu, toast, and the Suggest order preview. */
@@ -137,12 +137,13 @@ function openScopeMenu(anchor){
   const prodHtml = prods.length ? `<div class="sep"></div><div class="mhead">Products</div>` + popt('all', 'All products')
     + prods.map(p => popt(p.id, p.name, state.tasks.filter(t => !t.done && t.product === p.id).length)).join('') : '';
   // Lists live here (Tasks 9.0.0), not in the sidebar: pick one, open its options, or add a new one.
-  const open = ids => state.tasks.filter(t => !t.done && ids.includes(t.listId)).length;
+  // Counts are what picking it shows (the same filters as the lists), so a number never points at hidden tasks.
+  const open = ids => state.tasks.filter(t => !t.done && ids.includes(t.listId) && (shown(t) || state.prs === 'none' && ids.includes(state.tracker.prListId))).length;
   const n = l => open(l.parentId ? [l.id] : [l.id, ...childrenOf(l.id).map(c => c.id)]);
   const item = l => `<div class="mrow${l.parentId ? ' sub' : ''}"><button data-sc="${l.id}" role="menuitemradio" aria-checked="${state.scope === l.id}"${state.scope === l.id ? ' class="on"' : ''}><i class="dot lc${listColor(l.id)}"></i><span class="grow">${esc(l.name)}</span><span class="mut">${n(l) || ''}</span></button>`
     + `<button class="mopt" data-lm="${l.id}" aria-label="Options for ${esc(l.name)}">${ICON.dots}</button></div>`;
   const one = state.lists.length === 1;
-  popMenu(`<div class="mhead">Lists</div>` + (one ? '' : `<button data-sc="all" role="menuitemradio" aria-checked="${state.scope === 'all'}"${state.scope === 'all' ? ' class="on"' : ''}><i class="dot"></i><span class="grow">All lists</span><span class="mut">${state.tasks.filter(t => !t.done).length || ''}</span></button>`)
+  popMenu(`<div class="mhead">Lists</div>` + (one ? '' : `<button data-sc="all" role="menuitemradio" aria-checked="${state.scope === 'all'}"${state.scope === 'all' ? ' class="on"' : ''}><i class="dot"></i><span class="grow">All lists</span><span class="mut">${state.tasks.filter(t => !t.done && shown(t)).length || ''}</span></button>`)
     + orderedLists().map(item).join('') + `<button data-newlist>${ICON.plus}<span>New list</span></button>` + prodHtml + prHtml, anchor)
     .addEventListener('click', e => {
       const pd = e.target.closest('[data-prod]');

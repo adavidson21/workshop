@@ -2,7 +2,7 @@
   "manifestVersion": 1,
   "id": "tasks",
   "name": "Tasks",
-  "version": "12.4.0",
+  "version": "12.5.0",
   "description": "Decide what to work on next, and plan your day around it.",
   "icon": "icon.svg",
   "entry": "index.html",
@@ -17,6 +17,10 @@
     {
       "path": "today",
       "title": "Today"
+    },
+    {
+      "path": "all",
+      "title": "All tasks"
     },
     {
       "path": "inbox",
@@ -219,6 +223,8 @@
     "js/summary.js",
     "js/util.js",
     "js/views.js",
-    "js/ws.js"
+    "js/ws.js",
+    "js/all-model.js",
+    "js/all-view.js"
   ]
 }

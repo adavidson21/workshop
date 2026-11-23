@@ -81,7 +81,7 @@ ready.then(ws => {
     if (path === 'shutdown') openShutdown();
     // A view, Plan week with a lens, or an old name (Triage and Prioritize are Today's Inbox and Plan week since Tasks 6.0).
     const V = {today: 'today', inbox: 'triage', triage: 'triage', 'plan-week': 'week', 'plan-week/list': 'rank', 'plan-week/eisenhower': 'eisen', 'plan-week/value-effort': 've', week: 'week',
-      ranked: 'prio', prioritize: 'prio', list: 'rank', eisenhower: 'eisen', 'value-effort': 've', done: 'archive', people: 'people'};
+      ranked: 'prio', prioritize: 'prio', list: 'rank', eisenhower: 'eisen', 'value-effort': 've', done: 'archive', people: 'people', all: 'all'};
     // Team reports moved to Roadmaps (Tasks 4.18.0); an old link opens them there.
     if (path === 'reports') ws.open({app: 'roadmaps', path: 'reports'}).catch(() => {});
     if (Object.hasOwn(V, path)) setView(V[path]);

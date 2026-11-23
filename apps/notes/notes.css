@@ -750,3 +750,12 @@ dialog{border:0;border-radius:var(--r-lg);box-shadow:0 20px 60px rgb(34 25 28/.2
 .builds-row.s-done .dot,.app-chip.s-done .dot{background:var(--sec-products,#5E7A4F)}
 .app-chip.s-you,.app-chip.s-moving,.app-chip.s-done{display:inline-flex;align-items:center;gap:.3rem}
 .app-chip.s-you{color:var(--ink)}
+
+/* Archived Tandem runs (Notes 4.14.0, tandem-archive.js): an Archive button on a run's row, and one folded group. */
+.tree.runs .run>details>summary.row{position:relative;padding-right:1.9rem}
+.tree.runs .run-arch{position:absolute;right:.3rem;top:50%;transform:translateY(-50%)}
+.tree.runs .run>details>summary.row:hover .run-arch{opacity:1}
+.arch-runs{margin-top:.4rem}
+.arch-runs>summary{cursor:pointer;list-style:none}
+.arch-runs>summary::-webkit-details-marker{display:none}
+.tree.runs .run.archived .name{color:var(--muted)}

@@ -1,3 +1,8 @@
+/* Merlot as text (Builds 6.22.0): the brand merlot is a dark fill, so in dark mode labels drawn in it (Your turn,
+   N need you, the popup's station stamp) were near invisible. Text uses this; fills keep --merlot. */
+#runs-root { --merlot-text: var(--merlot); }
+:root[data-theme=dark] #runs-root { --merlot-text: #E59AAE; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme]) #runs-root { --merlot-text: #E59AAE; } }
 /* Builds: the page that holds both halves (js/board.js). The runs half (#runs-root, runs.css) draws the tab bar
    and its pages; the board half (#board-root, builds.css) is Board and Health. Each stylesheet is scoped to its
    half with :where(), so their class names never meet and specificity stays as it was. */
@@ -136,7 +141,7 @@ body[data-builds-tab=lanes] #runs-root > #hub { display: none; }
 #runs-root .ln-mi:hover, #runs-root .ln-mi:focus-visible { background: var(--panel); outline: none; }
 #runs-root .ln-chips { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; }
 #runs-root .ln-chips .chip { min-height: 30px; padding: 4px 10px; font-size: 13px; }
-#runs-root .ln-chips .chip.hot:not(.on) { border-color: var(--merlot, var(--accent)); color: var(--merlot, var(--accent)); }
+#runs-root .ln-chips .chip.hot:not(.on) { border-color: var(--merlot, var(--accent)); color: var(--merlot-text, var(--accent)); }
 #runs-root .ln-drawer { display: flex; flex-direction: column; gap: 8px; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
 #runs-root .ln-drawer .ln-pick { border-top: 0; padding-top: 0; }
 #runs-root .ln-drawer .ln-pick + .ln-pick { border-top: 1px solid var(--line); padding-top: 8px; }
@@ -303,13 +308,13 @@ body[data-builds-tab=lanes] #runs-root .page:has(.fl-body) { max-width: none; }
 #runs-root .fl-handoff { display: flex; flex-direction: column; gap: 10px; }
 #runs-root .fl-handbelt { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px; align-items: center; padding: 8px 10px; border-radius: 10px;
   background: color-mix(in srgb, var(--merlot) 7%, var(--surface)); border: 1px solid color-mix(in srgb, var(--merlot) 45%, var(--line)); }
-#runs-root .fl-hlabel { font: 700 12px/1.2 var(--sans); color: var(--merlot); white-space: nowrap; }
+#runs-root .fl-hlabel { font: 700 12px/1.2 var(--sans); color: var(--merlot-text); white-space: nowrap; }
 #runs-root .fl-epics { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 10px; }
 #runs-root .fl-epic { background: var(--surface); border: 1.5px solid var(--merlot); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
 #runs-root .fl-epic header { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
-#runs-root .fl-ekind { font: 700 11px/1 var(--sans); color: var(--merlot); }
+#runs-root .fl-ekind { font: 700 11px/1 var(--sans); color: var(--merlot-text); }
 #runs-root .fl-epic h3 { margin: 0; font: 700 15px/1.25 var(--serif, var(--sans)); flex: 1; min-width: 0; }
-#runs-root .fl-eready { font: 700 13px/1 var(--serif, var(--sans)); color: var(--merlot); font-variant-numeric: tabular-nums; }
+#runs-root .fl-eready { font: 700 13px/1 var(--serif, var(--sans)); color: var(--merlot-text); font-variant-numeric: tabular-nums; }
 #runs-root .fl-segs { display: flex; gap: 3px; }
 #runs-root .fl-seg { flex: 1; height: 6px; border-radius: 3px; background: color-mix(in srgb, var(--ink) 10%, var(--surface)); }
 #runs-root .fl-seg.at-dock, #runs-root .fl-seg.at-done { background: var(--merlot); }
@@ -319,7 +324,7 @@ body[data-builds-tab=lanes] #runs-root .page:has(.fl-body) { max-width: none; }
 #runs-root .fl-srow { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 8px; align-items: center; width: 100%; text-align: left; padding: 4px 6px; border: 0; border-radius: 6px; background: none; color: var(--ink); font: 500 12.5px/1.3 var(--sans); cursor: pointer; }
 #runs-root .fl-srow:hover, #runs-root .fl-srow.on { background: var(--hover); }
 #runs-root .fl-srow:focus-visible { outline: 2px solid var(--accent); }
-#runs-root .fl-sid { font: 600 11px/1 var(--mono, monospace); color: var(--merlot); }
+#runs-root .fl-sid { font: 600 11px/1 var(--mono, monospace); color: var(--merlot-text); }
 #runs-root .fl-stitle { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #runs-root .fl-sat { font: 600 11px/1 var(--sans); padding: 3px 7px; border-radius: 999px; background: color-mix(in srgb, var(--ink) 7%, var(--surface)); color: var(--muted); white-space: nowrap; }
 #runs-root .fl-sat.at-dock { background: var(--merlot); color: var(--merlot-ink); }
@@ -352,7 +357,7 @@ body[data-builds-tab=lanes] #runs-root .page:has(.fl-body) { max-width: none; }
   padding: 9px 12px; border: 0; background: none; color: var(--ink); font: 500 13px/1.3 var(--sans); cursor: pointer; }
 #runs-root .fl-rowb:hover, #runs-root .fl-rowb.on { background: var(--hover); }
 #runs-root .fl-rowb:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
-#runs-root .fl-rowb.story .fl-rid { color: var(--merlot); }
+#runs-root .fl-rowb.story .fl-rid { color: var(--merlot-text); }
 #runs-root .fl-rid { display: inline-flex; align-items: center; font: 600 12px/1 var(--mono, monospace); color: var(--muted); }
 #runs-root .fl-rtitle { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
 #runs-root .fl-rtitle .fl-type { font-weight: 700; margin-right: 4px; }
@@ -444,7 +449,7 @@ body[data-builds-tab=lanes] #runs-root .page:has(.fl-body) { max-width: none; }
 #runs-root .fl-stamp { display: inline-flex; align-items: center; gap: 7px; margin: 6px 0 10px; padding: 3px 9px 3px 8px; border-radius: 999px; background: color-mix(in srgb, currentColor 10%, var(--surface)); color: var(--pk); font: 700 11px/1.2 var(--sans); text-transform: uppercase; letter-spacing: .04em; }
 #runs-root .fl-sword { font-weight: 500; text-transform: none; letter-spacing: 0; color: var(--muted); }
 #runs-root .fl-sdot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
-#runs-root .fl-stamp.m-gate { color: var(--merlot); }
+#runs-root .fl-stamp.m-gate { color: var(--merlot-text); }
 #runs-root .fl-stamp.m-stuck { color: var(--stop); }
 #runs-root .fl-stamp.m-idle .fl-sdot { background: none; border: 1.5px solid currentColor; box-sizing: border-box; }
 @media (prefers-reduced-motion: no-preference) {
@@ -459,13 +464,13 @@ body[data-builds-tab=lanes] #runs-root .page:has(.fl-body) { max-width: none; }
    With reduced motion the ring stays still. */
 #runs-root .fl-card.mine { --nr: var(--merlot); box-shadow: inset 3px 0 0 var(--nr), 0 0 0 3px color-mix(in srgb, var(--nr) 20%, transparent); }
 #runs-root .fl-card.mine.m-stuck { --nr: var(--stop); }
-#runs-root .fl-need { display: inline-flex; align-items: center; gap: 6px; font: 650 12px/1 var(--sans); color: var(--merlot); background: color-mix(in srgb, var(--merlot) 10%, var(--surface)); border: 1px solid color-mix(in srgb, var(--merlot) 35%, transparent); border-radius: 999px; padding: 4px 10px 4px 8px; }
+#runs-root .fl-need { display: inline-flex; align-items: center; gap: 6px; font: 650 12px/1 var(--sans); color: var(--merlot-text); background: color-mix(in srgb, var(--merlot) 10%, var(--surface)); border: 1px solid color-mix(in srgb, var(--merlot) 35%, transparent); border-radius: 999px; padding: 4px 10px 4px 8px; }
 #runs-root .fl-ndot { width: 7px; height: 7px; border-radius: 50%; background: var(--merlot); }
 @media (prefers-reduced-motion: no-preference) {
   #runs-root .fl-card.mine { animation: flBreathe 2.4s ease-in-out infinite; animation-delay: var(--ph); }
   #runs-root .fl-card.mine.m-run { animation: flBob 1.2s ease-in-out infinite, flBreathe 2.4s ease-in-out infinite; animation-delay: var(--ph), var(--ph); }
   #runs-root .fl-card.mine:hover { animation-play-state: paused; }
-  #runs-root .fl-ndot { animation: flPulse 2.4s ease-in-out infinite; animation-delay: var(--ph); color: var(--merlot); }
+  #runs-root .fl-ndot { animation: flPulse 2.4s ease-in-out infinite; animation-delay: var(--ph); color: var(--merlot-text); }
 }
 @keyframes flBreathe {
   0%, 100% { box-shadow: inset 3px 0 0 var(--nr), 0 0 0 2px color-mix(in srgb, var(--nr) 14%, transparent); }

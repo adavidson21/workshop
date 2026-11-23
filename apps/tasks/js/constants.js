@@ -22,7 +22,7 @@ const VQ = {
   pit:   {title: 'Money pits', sub: 'Low value, high effort'}
 };
 // Views with a page of their own. Triage and Prioritize (List, Eisenhower, Value / Effort) are columns of Today.
-const VIEWS = ['today','day','people','archive'];
+const VIEWS = ['today','day','all','people','archive'];
 // Week's two lenses (Tasks 9.0.0): the ranked list and the Eisenhower matrix. Value / Effort was retired; its old
 // names open the matrix.
 const LENSES = {rank: 'Ranked', eisen: 'Matrix'};
@@ -101,10 +101,10 @@ function initials(name){
   const cap = [...s.slice(1)].find(c => c >= 'A' && c <= 'Z' || c >= '0' && c <= '9');
   return (s[0] + (cap || s[1] || '')).toUpperCase();
 }
-// [key, label, icon, shortcut]. Three places (Tasks 10.5.0): Today, People, Done. Week is Today's range toggle
+// [key, label, icon, shortcut]. Places: Today, All tasks (Tasks 12.5.0: every open task, so nothing off a day is lost), People, Done. Week is Today's range toggle
 // (Today | This week in Today's header, or 4; render.js planWeek), not a place of its own. The Day view is Today's
 // plan for a date (the arrows on Today, Plan the day, and the 2 key). 3 focuses Today's To sort column.
-const NAV = [['today','Today',ICON.today,'1'],['people','Handed off',ICON.people,'5'],['archive','Done',ICON.archive,'6']];
-const NAV_KEYS = {1: 'today', 2: 'day', 3: 'triage', 4: 'prio', 5: 'people', 6: 'archive'};
+const NAV = [['today','Today',ICON.today,'1'],['all','All tasks',ICON.prio,'7'],['people','Handed off',ICON.people,'5'],['archive','Done',ICON.archive,'6']];
+const NAV_KEYS = {1: 'today', 2: 'day', 3: 'triage', 4: 'prio', 5: 'people', 6: 'archive', 7: 'all'};
 
 export { OLD_VIEWS, initials, listColor, LIST_COLORS, NAV_KEYS, TRACKER_SYNC_MAX, TRACKER_SYNC_MIN, TRACKER_SYNC_MINUTES, COLORS, EFFORTS, EMBEDDED, EQ, ICON, KEY, LENSES, NAV, NAV_OF, POINTS, PR_SLOT_DEFAULTS, PR_TIER_DEFAULTS, TIERS, TOUCH, UI_KEY, VALUE, PRI, PRI_ORDER, VIEWS, VQ, WINDOW };

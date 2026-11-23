@@ -43,7 +43,21 @@ export const isShip = it => it.kind === 'item' && (it.stage === 'ship' || it.buc
 /** Everything a flow knows, plus folders no flow knows (not PR reviews, which are on Reviews, and not Builds' own). */
 export const workItems = () => all().filter(it => it.kind !== 'pr' && !isSlateFolder(it));
 /** Sessions Dispatch started that have no .work folder yet: a spike, epic, doc or TSD before its folder exists, and repo guides. */
-export const startingSessions = () => looseSessions().filter(o => !isReviewSession(o) && !isHubCommand(o.command));
+/** Runs that never make a folder and are not work on a line (Builds 6.22.0): a Teach answer, product notes, a 1:1
+ *  draft, and prompts with no command (People's Tidy notes). They showed at the Plan desk for a day. */
+const OFF_LINE = /^\/(teach|product-notes|one-on-one)\b/;
+const MAKES_FOLDER = /^\/(spike|docs|tsd|scope|shape|triage|refine|slice|handoff|start|quick|bug)\b/;
+/** Whether a loose session is still starting: working, asking you, or stopped with an error. One that finished without
+ *  a folder is done; it left the floor instead of sitting at the Plan desk until the connector forgot it (24 hours). */
+export function stillStarting(o, asks = 0) {
+  const c = String((o && o.command) || ''), s = (o && o.s) || {};
+  if (!c.startsWith('/') || OFF_LINE.test(c)) return false;
+  if (isBusy(s) || s.error || asks > 0) return true;
+  // A run that makes a folder and stopped without one replied instead (a spike asking what you mean): yours to answer.
+  return MAKES_FOLDER.test(c) && !!s.text;
+}
+const asksOf = sid => (L() ? L().permissions.filter(p => p.sessionID === sid).length + L().questions.filter(q => q.sessionID === sid).length : 0);
+export const startingSessions = () => looseSessions().filter(o => !isReviewSession(o) && !isHubCommand(o.command) && stillStarting(o, asksOf(o.session)));
 
 // ------------------------------------------------------------------ Inbox
 /** Everything waiting on you. asks: agent prompts and questions from any session. gates: runs at a gate (a work item
@@ -245,11 +259,11 @@ function codeRow(it) {
 }
 /** A run inside its card on the board (Builds, .builds-run): at a gate, its gate card (file, Approve, Send back); stopped,
  *  its next step; otherwise its row (step, whose turn, main button). '' when there is no such run. */
-export function runCardHtml(folder) {
+export function runCardHtml(folder, expanded = false) {
   const it = itemForFolder(folder);
   if (!it || it.kind === 'pr') return '';
   const d = inboxData();
-  if (d.gates.includes(it)) return gateCard(it);
+  if (d.gates.includes(it)) return gateCard(it, expanded);
   if (d.failed.includes(it)) return failedCard(it);
   // A ready build's Publish gate (Builds 6.2.0) sits under its row, in the lanes' panel too.
   // Try it (connector 1.28.0) while it builds; at Publish it sits in the Publish block.
@@ -433,6 +447,22 @@ export function stepRel(it, step) {
   if (i >= steps.length) return j === steps.length - 1 && !isFinished(it) ? 'here' : 'done';
   return j < i ? 'done' : j === i ? 'here' : 'later';
 }
+/** The document to preview on the floor (Builds 6.22.0): the file waiting on you, else the current step's file, else
+ *  the last thing a step wrote. Only a file the folder has; null when there is nothing to read yet. */
+export function previewFile(it) {
+  if (!it || it.kind === 'pr' || !flowOf(it)) return null;
+  const files = it.files || [];
+  const g = gateFile(it);
+  if (g && files.includes(g)) return g;
+  const steps = stepsOf(flowOf(it), it.lane);
+  for (let j = steps.length - 1; j >= 0; j--) {
+    const rel = stepRel(it, steps[j]);
+    if (rel === 'later') continue;
+    const name = stepFile(it, steps[j], rel);
+    if (name && files.includes(name)) return name;
+  }
+  return null;
+}
 /** The file a step shows inline. Here: the file to read at a gate, else the step's own. Done: what the step wrote. */
 export function stepFile(it, step, rel) {
   if (!step) return null;
@@ -524,7 +554,8 @@ export function wantedFiles() {
   if (pr && pr.kind !== 'pr' && atGate(pr)) add(pr, gateFile(pr));
   // The run open in the lanes' panel: its gate's file, shown inline there (Builds 5.0.0).
   const lr = t === 'lanes' && !S.ui.run && laneRun();
-  if (lr && lr.kind !== 'pr' && atGate(lr)) add(lr, gateFile(lr));
+  // On the floor the open card previews its document (Builds 6.22.0): the gate's file, or the latest one written.
+  if (lr && lr.kind !== 'pr') add(lr, previewFile(lr));
   // A spike's first look (Core 4.6.0), shown at the top of its panel.
   if (lr && lr.kind === 'spike' && (lr.files || []).includes('first-look.md') && !(lr.files || []).includes('findings.md')) add(lr, 'first-look.md');
   if (S.ui.run && (BOARD_TABS.includes(t) || t === 'work' || t === 'inbox' || t === 'lanes')) {

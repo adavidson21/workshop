@@ -1370,3 +1370,14 @@ button.hpill:hover{color:var(--ink);background:var(--surface);border-color:var(-
 .tagents .agent-open { text-align: left; display: block; width: 100%; padding: 6px 0; }
 .tagents .agent.urgent b { color: var(--stop, #a33); }
 .agent-hint { margin: 6px 0; }
+
+/* All tasks (Tasks 12.5.0, all-view.js): every open task in the picked lists, grouped by list. */
+.allview{max-width:860px;padding-bottom:3rem}
+.allview .allf{margin:.2rem 0 1rem;flex-wrap:wrap}
+.allview .allf .num{color:var(--muted);font-size:.8em;margin-left:.2rem}
+.allview .adorow{margin-bottom:.8rem}
+.allview .allhid{margin:0 0 .8rem}
+.allgrp{margin:0 0 1.4rem}
+.allgrp-h{display:flex;align-items:baseline;gap:.6rem;padding:.2rem 0 .4rem;border-bottom:1px solid var(--line)}
+.allgrp-h b{font:600 1.05rem/1.3 var(--serif)}
+.allgrp-h .num{font-size:.82rem;color:var(--muted)}

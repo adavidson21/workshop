@@ -11,7 +11,7 @@ import { adoIsOn } from '../../../../shared/ado.js';
 import { S } from './state.js';
 import { h, plural, asking, itemSession, isBusy, autoIs, itemAuto, itemForFolder, adoOn, openAttr } from './view.js';
 import { flowOf, stepIndex, isFinished, turnHtml, stepLine } from './flows.js';
-import { workItems, startingSessions, inboxData, inboxFolders, isShip, runCardHtml, asksFor, fileInline } from './pages.js';
+import { workItems, startingSessions, inboxData, inboxFolders, isShip, runCardHtml, asksFor, fileInline, previewFile } from './pages.js';
 import { pickable, boardFeed } from '../board.js';
 import { projectFilterHtml, inProject, projectFilter, projectChip } from './projects.js';
 import { reviewsHtml } from './pr-reviews.js';
@@ -155,8 +155,8 @@ export function lanesData(filter = 'all') {
     const s = o.s || {};
     const kind = /^\/spike\b/.test(o.command || '') ? (/--log\b/.test(o.command || '') ? 'diagnose' : 'ask') : /^\/(docs|tsd)\b/.test(o.command || '') ? 'docs' : /^\/scope\b/.test(o.command || '') ? 'epic' : 'build';
     const perms = S.L ? S.L.permissions.filter(p => p.sessionID === o.session).length + S.L.questions.filter(q => q.sessionID === o.session).length : 0;
-    cards.push({ it: null, session: o.session, folder: '', kind, lane: 'clarify', mine: perms > 0, title: s.title || o.command || 'Starting', id: null,
-      status: perms ? 'Tandem has a question for you' : isBusy(s) ? 'Taking a first look' : 'Starting', action: perms ? 'Answer' : '', dots: laneDots(kind, 'clarify'), at: o.at || 0 });
+    cards.push({ it: null, session: o.session, folder: '', kind, lane: 'clarify', mine: perms > 0, title: s.title || o.command || 'Starting', id: null, error: !isBusy(s) && !perms && s.error ? String(s.error) : '',
+      status: perms ? 'Tandem has a question for you' : isBusy(s) ? 'Taking a first look' : s.error ? 'Stopped before it started' : 'Starting', action: perms ? 'Answer' : '', dots: laneDots(kind, 'clarify'), at: o.at || 0 });
   }
   // Prompts and questions from sessions no card holds (Chat, a PR review, the terminal): a card each, in Clarify,
   // so nothing that waits on you is only in a retired Inbox (Builds 6.0.0).
@@ -271,7 +271,9 @@ function panelHtml(key, data) {
     body = `<div class="ln-reviews">${reviewsHtml()}</div>`;
   } else if (c.it) {
     if (hasFirstLook(c.it)) body += `<div class="ln-first"><p class="ln-fh">First look</p>${fileInline(c.it, 'first-look.md')}</div>`;
-    body += `<div class="builds-run ln-run">${runCardHtml(c.folder)}</div>` + epicPanelHtml(c.it) + docsHtml(c.it) +
+    // The document reads right here (Builds 6.22.0): a gate's file opens in its card, anything else under it.
+    const pf = previewFile(c.it), gate = inboxData().gates.includes(c.it);
+    body += `<div class="builds-run ln-run">${runCardHtml(c.folder, true)}</div>` + (pf && !gate ? `<div class="ln-preview">${fileInline(c.it, pf, true)}</div>` : '') + epicPanelHtml(c.it) + docsHtml(c.it) +
       adoLinkHtml(c.it, adoOn()) +
       `<div class="ln-foot"><button type="button" class="btn ghost" data-open-run="${h(c.folder)}">Open the run</button>${projectChip(c.it)}` +
       (c.sid ? `<button type="button" class="ibtn" data-open-chat="${h(c.sid)}" aria-label="Open the conversation in Chat" title="Open the conversation in Chat">${CHAT}</button>` : '') + '</div>';

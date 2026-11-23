@@ -18,6 +18,7 @@ import { dayHead, renderDay } from './day-view.js';
 import { dp } from './dayplan.js';
 import { fmt12, repeatLabel, sprintInfo, sprintsOn } from './dayplan-model.js';
 import { peopleFilter, renderArchive, renderPeople, renderToday } from './views.js';
+import { renderAll } from './all-view.js';
 import { activeTask, isActive, nextTask, renderNow, rowCrumb } from './focus.js';
 import { namesOf } from './directory-model.js';
 import { rowShown } from './row-fields-model.js';
@@ -106,6 +107,7 @@ function render(){
   if (v === 'today') renderToday();
   else if (v === 'people') renderPeople();
   else if (v === 'archive') renderArchive();
+  else if (v === 'all') renderAll();
   else if (v === 'day') renderDay();
   markSel();
   syncDrawer();
@@ -180,7 +182,7 @@ function renderHead(){
   const week = v === 'today' && planWeek();
   // Today's page is named for the day (Tasks 9.0.0): "Wednesday", with the date beside it.
   const now = new Date();
-  const title = week ? 'This week' : v === 'today' ? now.toLocaleDateString(undefined, {weekday: 'long'}) : {people: 'Handed off', archive: 'Done'}[v];
+  const title = week ? 'This week' : v === 'today' ? now.toLocaleDateString(undefined, {weekday: 'long'}) : {people: 'Handed off', archive: 'Done', all: 'All tasks'}[v];
   if (v === 'day') return dayHead();
   let sub = esc(scopeLabel()), tools = '', date = '', pills = '';
   // Today and This week are one page at two ranges (Tasks 10.5.0), so sorting and ranking never need a tab switch.

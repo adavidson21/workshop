@@ -35,6 +35,7 @@ import { dataUrl, inlineImages, pageHtml, wikiHtml, wikiMarkdown } from './expor
 import { EMBED_DEPTH, embedHtml, embedSpec, expandEmbeds, sectionText } from './embeds.js';
 import { noteMap, nodeAt } from './map.js';
 import { createBookmarks } from './bookmarks.js';
+import { createArchive } from './tandem-archive.js';
 import { buildPrompt, cleanedPath, compose, defaultPick, parseReply, rankTemplates, sureTemplate, titleOf } from './cleanup.js';
 import { KINDS, LINKS, addLink, allLinks, createIgnored, filterLinks, foundInNotes, groupNames, hostOf, linkLine, linksForProduct, nameFromUrl, parseLinks, removeLink, tagsFrom, updateLink } from './links.js';
 import { removeProp, setProp, validKey } from './props.js';
@@ -109,6 +110,8 @@ let pendingRoute = null;    // a route that came before the notes were read
 const notes = createNotes(ws, { onChange: () => { paintChrome(); if (notes.loaded) summary.schedule(); }, onExternal });
 // Bookmarks (bookmarks.js): notes pinned under Quick Notes, in Notes' own collection.
 const bookmarks = createBookmarks(ws, { onChange: () => paintChrome() });
+// Archived Tandem runs (tandem-archive.js): hidden from the Tandem section, not deleted.
+const tarchive = createArchive(ws, { onChange: () => paintChrome() });
 // Links (links.js): links.md's directory, and the Found in notes suggestions you said no to (Notes' own collection).
 const ignored = createIgnored(ws, { onChange: () => paintChrome() });
 // The Tandem section (tandem.js): .work documents through the opencode connector, where it runs.
@@ -190,7 +193,7 @@ function state() {
   const tdoc = ui.path && isTandem(ui.path) ? { item: doc && doc.item, busy: tandem.busy(ui.path) } : null;
   const isTpl = ui.path && !tdoc && sectionOf(ui.path) === 'templates';
   return { live: hasLive, notes, ui, found, tree: tree(productPaths(notesPaths(notes.texts.keys())), Products.picked(products, ui.product) ? [] : [...ui.extraFolders]), products, product: Products.picked(products, ui.product), where: whereSaved(), sent, canSend, dir,
-    versions: ui.path && !tdoc ? notes.history(ui.path).length : 0, start: startOffer(), tandem: tandem.state, today: dayOf(new Date()),
+    versions: ui.path && !tdoc ? notes.history(ui.path).length : 0, start: startOffer(), tandem: tandem.state, archivedAt: tarchive.at, today: dayOf(new Date()),
     text: ui.path ? editor.value : '', mentions: tdoc ? [] : mentionsNow(), canWindow: Boolean(ui.path) && !isPhone(), canCleanup: Boolean(ui.path) && !tdoc && !isTpl && canCleanup(), cleaning, bookmarks: bookmarks.list, bookmarked: Boolean(ui.path && bookmarks.has(ui.path)),
     doc: tdoc, brief: tdoc ? briefNow() : null, outline: tdoc ? facts(editor.value).headings : null, phone: isPhone(), hintSeen: store('hint-send') === '1',
     isStarter: isTpl && Object.prototype.hasOwnProperty.call(STARTERS, ui.path), tplFields: isTpl ? templateFields(editor.value) : null,
@@ -1774,6 +1777,7 @@ document.addEventListener('click', async (e) => {
   else if (act === 'reset-template') resetTemplate();
   else if (act === 'insert-ph') insertPlaceholder(x.dataset.ph);
   else if (act === 'new-product') newProduct();
+  else if (act === 'tandem-archive' || act === 'tandem-unarchive') { e.preventDefault(); archiveRun(x.dataset.folder, act === 'tandem-archive'); }
   else if (act === 'tandem-refresh') tandem.refresh().then(() => ws.toast('Read .work again.'));
   else if (act === 'open-builds') openBuilds();
   else if (act === 'hint-seen') { store('hint-send', '1'); paintChrome(); }
@@ -1928,6 +1932,16 @@ document.addEventListener('mouseout', (e) => {
 });
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && pop.el) hidePop(); }, true);
 document.addEventListener('scroll', () => { if (pop.el) hidePop(); }, true);
+
+/* ---------- archived Tandem runs ---------- */
+
+async function archiveRun(folder, on) {
+  if (!folder) return;
+  try {
+    if (!(await tarchive.set(folder, on))) return;
+    ws.toast(on ? 'Archived. It is under Archived, and comes back when Tandem changes it.' : 'Back in Runs.', { kind: 'success' }).catch(() => {});
+  } catch (e) { toastErr(e); }
+}
 
 /* ---------- bookmarks and properties ---------- */
 

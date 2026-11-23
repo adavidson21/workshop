@@ -144,6 +144,8 @@ export function stationOf(c) {
   const line = lineOf(c);
   const it = c && c.it;
   if (isStuck(it)) return 'stuck';
+  // A run that stopped before it had a folder (Builds 6.22.0): pulled off the line, not left at the Plan desk.
+  if (c && !it && c.error) return 'stuck';
   if (line === 'code') {
     // A running autopilot says where the build is before the item's files catch up (in transit stays in transit).
     const auto = it && shippedState(it) !== 'transit' ? autoStation(it) : '';
