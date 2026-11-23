@@ -11,10 +11,13 @@ import { needAi } from "./chat.mjs";
 import { oc, sessions, upsertSession } from "./opencode-state.mjs";
 
 export const MAX_PROMPT = 60000; // characters
-export const KINDS = ["style", "rewrite", "learn"];
-const TITLES = { style: "Writing: build style guide", rewrite: "Writing: rewrite a draft", learn: "Writing: learn from an edit" };
+// "cleanup" (1.35.0): Folio's Clean up this document (apps/notes/js/cleanup.js builds the prompt). Same read-only
+// agent, same one prompt in, one reply out: no tools to call, which a small local model handles best.
+export const KINDS = ["style", "rewrite", "learn", "cleanup"];
+const TITLES = { style: "Writing: build style guide", rewrite: "Writing: rewrite a draft", learn: "Writing: learn from an edit", cleanup: "Folio: clean up a document" };
 const MAX_REPLY = 40000;
 export const READ_ONLY_AGENT = "plan";
+export const NO_TOOLS = { "*": false };
 
 // session id -> {kind, at}, for this start of the connector.
 const runs = new Map();
@@ -45,7 +48,9 @@ export async function runVoice({ kind, prompt }, { config } = {}) {
   upsertSession(sid, { title: created.title || title, status: "busy", busySince: Date.now(), activity: `Starting ${title}`, error: null, text: null, command: title });
   runs.set(sid, { kind, at: Date.now() });
   try {
-    await oc.api.prompt(sid, text, agentFor(oc.agents), opt ? opt.runModel : null);
+    // Clean up needs no tools: switching them all off keeps their definitions out of the prompt (about 9K characters
+    // with opencode 1.19), which a local model would otherwise read before every clean up (1.35.0).
+    await oc.api.prompt(sid, text, agentFor(oc.agents), opt ? opt.runModel : null, kind === "cleanup" ? NO_TOOLS : undefined);
   } catch (e) {
     upsertSession(sid, { status: "idle", activity: null, error: `${title}: ${e.message}` });
     throw e;
@@ -58,7 +63,8 @@ export async function runVoice({ kind, prompt }, { config } = {}) {
 export async function voiceResult({ session }, { config } = {}) {
   needAi(config);
   if (!runs.has(session)) throw httpError(404, "That Writing run is not known. Start it again.");
-  if (busy(session)) return { state: "running" };
+  // While it runs, how much of the reply has streamed in, so a long clean up on a slow model can show progress.
+  if (busy(session)) { const s = sessions.get(session); return { state: "running", chars: s && typeof s.text === "string" ? s.text.length : 0 }; }
   const s = sessions.get(session);
   if (s && s.error) return { state: "failed", error: s.error };
   if (!oc.connected || !oc.api) throw httpError(503, "opencode is not connected.");

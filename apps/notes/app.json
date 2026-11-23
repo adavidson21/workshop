@@ -2,7 +2,7 @@
   "manifestVersion": 1,
   "id": "notes",
   "name": "Folio",
-  "version": "4.12.0",
+  "version": "4.13.0",
   "description": "Folio, your notebook: notes, daily notes, product notes, templates, Tandem's documents and a Links directory, as Markdown files. Diagrams, backlinks, tags, search and images.",
   "icon": "icon.svg",
   "entry": "index.html",
@@ -96,6 +96,7 @@
   "files": [
     "js/applinks.js",
     "js/bookmarks.js",
+    "js/cleanup.js",
     "js/daily.js",
     "js/data.js",
     "js/diagram-kits.js",

@@ -35,6 +35,7 @@ import { dataUrl, inlineImages, pageHtml, wikiHtml, wikiMarkdown } from './expor
 import { EMBED_DEPTH, embedHtml, embedSpec, expandEmbeds, sectionText } from './embeds.js';
 import { noteMap, nodeAt } from './map.js';
 import { createBookmarks } from './bookmarks.js';
+import { buildPrompt, cleanedPath, compose, defaultPick, parseReply, rankTemplates, sureTemplate, titleOf } from './cleanup.js';
 import { KINDS, LINKS, addLink, allLinks, createIgnored, filterLinks, foundInNotes, groupNames, hostOf, linkLine, linksForProduct, nameFromUrl, parseLinks, removeLink, tagsFrom, updateLink } from './links.js';
 import { removeProp, setProp, validKey } from './props.js';
 import { esc, facts, inline, render, headingId } from './markdown.js';
@@ -44,7 +45,7 @@ import {
   APP, MAX_FOLDERS, SEG, baseName, dirOf, freePath, isImagePath, localHref, movedPath, newNoteText, relativeLink,
   linkMention, relink, resolvePath, resolveWiki, search, slugify, stem, tree, unlinkedMentions, validFolder, wikiPath
 } from './model.js';
-import { confirmHtml, diagramPickerHtml, empty, header, linkFormHtml, mapHtml, historyHtml, importHtml, linkUpdatesHtml, panel, pickerHtml, promptHtml, sectionsHtml, sidebar } from './view.js';
+import { cleanupHtml, confirmHtml, diagramPickerHtml, empty, header, linkFormHtml, mapHtml, historyHtml, importHtml, linkUpdatesHtml, panel, pickerHtml, promptHtml, sectionsHtml, sidebar } from './view.js';
 
 const $ = (id) => document.getElementById(id);
 const side = $('side'), head = $('head'), bodyEl = $('body'), preview = $('preview');
@@ -98,6 +99,11 @@ function savedMode() {
 phoneQuery.addEventListener('change', () => { ui.mode = savedMode(); ui.drawer = false; paintChrome(); paintPreview(true); });
 function setMode(m) { ui.mode = m; store(modeKey(), m); }
 let found = [];
+/* Clean up this document (cleanup.js): it needs a model, the opencode connector through Workshop's agent here. */
+const canCleanup = () => !!(ws.connectors && ws.backend === 'agent');
+const CLEAN_WAIT = 15 * 60 * 1000; // a local model on one GPU can take minutes for a long note
+const CLEAN_POLL = 2000;
+let cleaning = null; // {title, started, chars, expect} while a clean up runs (the header's progress bar)
 let pendingRoute = null;    // a route that came before the notes were read
 
 const notes = createNotes(ws, { onChange: () => { paintChrome(); if (notes.loaded) summary.schedule(); }, onExternal });
@@ -185,7 +191,7 @@ function state() {
   const isTpl = ui.path && !tdoc && sectionOf(ui.path) === 'templates';
   return { live: hasLive, notes, ui, found, tree: tree(productPaths(notesPaths(notes.texts.keys())), Products.picked(products, ui.product) ? [] : [...ui.extraFolders]), products, product: Products.picked(products, ui.product), where: whereSaved(), sent, canSend, dir,
     versions: ui.path && !tdoc ? notes.history(ui.path).length : 0, start: startOffer(), tandem: tandem.state, today: dayOf(new Date()),
-    text: ui.path ? editor.value : '', mentions: tdoc ? [] : mentionsNow(), canWindow: Boolean(ui.path) && !isPhone(), bookmarks: bookmarks.list, bookmarked: Boolean(ui.path && bookmarks.has(ui.path)),
+    text: ui.path ? editor.value : '', mentions: tdoc ? [] : mentionsNow(), canWindow: Boolean(ui.path) && !isPhone(), canCleanup: Boolean(ui.path) && !tdoc && !isTpl && canCleanup(), cleaning, bookmarks: bookmarks.list, bookmarked: Boolean(ui.path && bookmarks.has(ui.path)),
     doc: tdoc, brief: tdoc ? briefNow() : null, outline: tdoc ? facts(editor.value).headings : null, phone: isPhone(), hintSeen: store('hint-send') === '1',
     isStarter: isTpl && Object.prototype.hasOwnProperty.call(STARTERS, ui.path), tplFields: isTpl ? templateFields(editor.value) : null,
     links: { groups: linkGroups(), found: ui.section === 'links' ? linksFound() : [] }, ...productLinksNow(),
@@ -1006,6 +1012,68 @@ async function saveAsTemplate() {
   try { await notes.create(path, asTemplate(editor.value, name)); ws.toast(`Saved the template ${name}.`, { kind: 'success', action: undefined }); paintChrome(); }
   catch (e) { toastErr(e); }
 }
+/* ---------- Clean up this document (cleanup.js; Folio 4.13.0) ---------- */
+
+
+/** Clean up the open note: pick a template (asking when unsure), one model call, then save a copy next to it (or
+    replace it, kept in History). Nothing is written when the reply has no document. */
+async function cleanupNote({ replace = false } = {}) {
+  const path = ui.path;
+  if (!path || isTandem(path) || sectionOf(path) === 'templates') { ws.toast('Open the note to clean up first, then ask again.', { kind: 'warn' }); return; }
+  if (!canCleanup()) { ws.toast('Clean up needs Workshop on this computer with the opencode connector on (Settings, Connectors).', { kind: 'warn' }); return; }
+  if (cleaning) { ws.toast('A clean up is already running.', { kind: 'warn' }); return; }
+  if (ui.status.kind === 'dirty' || ui.status.kind === 'saving') await saveNow();
+  const original = editor.value;
+  const contentOf = (p) => notes.texts.get(p)?.content ?? null;
+  const list = templatesIn(notes.files.keys(), (p) => contentOf(p) || '', { starters: true })
+    .map(t => ({ ...t, text: templateText(t.path, contentOf) }));
+  const ranked = rankTemplates(original, list);
+  const sure = sureTemplate(ranked);
+  const title = titleOf(original, path);
+  const form = await showDialog(cleanupHtml({ title, path, ranked, pick: defaultPick(ranked), replace, sure: !!sure }));
+  if (!form) return;
+  const template = ranked.find(t => t.path === form.get('tpl')) || null;
+  const inPlace = form.get('replace') === 'on';
+  const built = buildPrompt({ doc: original, path, template });
+  if (built.error) { ws.toast(built.error, { kind: 'warn' }); return; }
+  // The reply is about as long as the note plus a few lines of feedback: enough for a rough percentage.
+  cleaning = { title, started: Date.now(), chars: 0, expect: original.length + 400 };
+  paintHead();
+  let reply;
+  try {
+    const { session } = await ws.connectors.call('opencode', 'voice.run', { kind: 'cleanup', prompt: built.prompt }, { confirm: true });
+    const until = Date.now() + CLEAN_WAIT;
+    for (;;) {
+      if (Date.now() > until) throw new Error('The model took more than 15 minutes. Nothing was saved. Try again, or split the note.');
+      await new Promise(r => setTimeout(r, CLEAN_POLL));
+      const r = await ws.connectors.call('opencode', 'voice.result', { session });
+      if (r.state === 'done') { reply = r.text; break; }
+      if (r.state === 'running') { cleaning.chars = r.chars || 0; paintHead(); }
+      if (r.state === 'failed') throw new Error(`${r.error || 'The model failed.'} Nothing was saved.`);
+    }
+  } catch (e) { cleaning = null; paintHead(); toastErr(e); return; }
+  const took = Math.round((Date.now() - cleaning.started) / 1000);
+  cleaning = null; paintHead();
+  const parsed = parseReply(reply, { doc: original, path, template });
+  if (!parsed.ok) { ws.toast(parsed.error, { kind: 'error' }); return; }
+  const text = compose({ original, path, parsed, template, copy: !inPlace });
+  try {
+    if (inPlace) {
+      const open = ui.path === path;
+      const cur = open ? { content: editor.value, mtime: ui.base.mtime } : notes.texts.get(path);
+      if (!cur || cur.content !== original) { ws.toast('The note changed while it was being cleaned up. Nothing was saved. Try again.', { kind: 'warn' }); return; }
+      const r = await notes.save(path, text, cur.mtime, { keep: true });
+      if (open) { editor.value = text; ui.base = { content: text, mtime: r.mtime }; setStatus('saved'); paintChrome(); paintPreview(true); }
+      ws.toast(`Cleaned up in ${took}s. The version before is in History.`, { kind: 'success' });
+    } else {
+      const copy = cleanedPath(path, new Set(notes.files.keys()));
+      await notes.create(copy, text);
+      await openNote(copy);
+      ws.toast(`Cleaned up in ${took}s and saved as ${copy}. The original is unchanged.`, { kind: 'success' });
+    }
+  } catch (e) { toastErr(e); }
+}
+
 /* Reset to starter: the starter's text back, the current text kept in history first. */
 async function resetTemplate() {
   if (!ui.path || !Object.prototype.hasOwnProperty.call(STARTERS, ui.path)) return;
@@ -1701,6 +1769,7 @@ document.addEventListener('click', async (e) => {
   else if (act === 'send-all') send(x.dataset.kind, null);
   else if (act === 'edit-template') editTemplate(x.dataset.tpl);
   else if (act === 'new-template') newTemplate();
+  else if (act === 'cleanup') cleanupNote();
   else if (act === 'save-template') saveAsTemplate();
   else if (act === 'reset-template') resetTemplate();
   else if (act === 'insert-ph') insertPlaceholder(x.dataset.ph);
@@ -1920,6 +1989,11 @@ function setQuery(q) {
 }
 /* Show a search in the sidebar's box, as if typed. */
 let pendingSearch = null;
+let pendingCleanup = null; // a cleanup route that came before the notes were read
+/* The address goes back to the note, so a reload does not ask to clean up again. */
+function clearCleanupRoute() {
+  try { const r = ws.route && ws.route.set(ui.path || store('last') || '', { replace: true }); if (r && r.catch) r.catch(() => {}); } catch { /* standalone without a shell */ }
+}
 function showSearch(q) {
   setQuery(q);
   const box = side.querySelector('[data-search]');
@@ -2005,6 +2079,7 @@ ws.commands.register({ id: 'window', title: 'Open this note in a new window' });
 ws.commands.register({ id: 'bookmark', title: 'Bookmark this note (or remove it)' });
 ws.commands.register({ id: 'links', title: 'Find a link' });
 ws.commands.register({ id: 'add-link', title: 'Add a link' });
+ws.commands.register({ id: 'cleanup', title: 'Clean up this document' });
 ws.on('command', (p) => {
   if (p.id === 'reload-new' && swReload) { swReload(); return; }
   if (p.id === 'undo-trash') { undoTrash(); return; }
@@ -2018,6 +2093,7 @@ ws.on('command', (p) => {
   else if (p.id === 'search') side.querySelector('[data-search]')?.focus();
   else if (p.id === 'links') findLink();
   else if (p.id === 'add-link') linkDialog();
+  else if (p.id === 'cleanup') cleanupNote();
 });
 /** The Links place with its filter box ready: type, arrows, Enter opens the link. */
 function findLink() {
@@ -2033,6 +2109,9 @@ function route(raw) {
   if (path === 'today') { if (notes.loaded) openToday(); else pendingRoute = 'today'; return; }
   if (path === 'review') { showSection('products'); setQuery('is:review'); return; }
   if (path === 'links') { findLink(); return; }
+  // cleanup or cleanup/replace: "clean up this document" from Capture or the hub (shared/capture.js) cleans up the
+  // open note, or the last one opened when Folio was not open yet. The dialog names it, so nothing runs unseen.
+  if (path === 'cleanup' || path === 'cleanup/replace') { const o = { replace: path === 'cleanup/replace' }; if (notes.loaded) cleanupNote(o); else pendingCleanup = o; clearCleanupRoute(); return; }
   // tandem/<folder>/<file>: a Tandem document (Dispatch's Open in Notebook, to be renamed Open in Folio).
   if (path.startsWith('tandem/')) { const d = parseTandem(path.slice(7)); if (d) { const t = tandemPath(d.folder, d.file); if (notes.loaded) openNote(t); else pendingRoute = t; } return; }
   // search/<words>: Notes opened on a search (Docket's "+N" opens the notes that link to a task).
@@ -2096,3 +2175,4 @@ async function openLast() {
   else paintChrome();
 }
 await openLast();
+if (pendingCleanup) { const o = pendingCleanup; pendingCleanup = null; cleanupNote(o); }

@@ -23,7 +23,7 @@
    Since Chat 2.2.0 there is no AI switch here: AI is on whenever the opencode connector is on and ready (turn the
    connector off in Settings to stop it). When it cannot run, a line under the input says why. */
 import { createCaptureStore } from '../../../shared/capture-box.js';
-import { TARGET_NAMES, describe, isCapture, nextKind, parseCapture, retarget } from '../../../shared/capture.js';
+import { TARGETS, TARGET_NAMES, cleanupAsk, describe, isCapture, nextKind, parseCapture, retarget } from '../../../shared/capture.js';
 import { HUB_GIVE_UP_MS, actAllowed, answerHtml, checkRoute, esc, flowCardsHtml, flowRoute, hubContext, hubId, isLow, repairRoute, toProposal } from './hub-model.js';
 import { keepFocus, lastTandem } from './thread.js';
 
@@ -77,6 +77,9 @@ export function startHub(ws, root, { onThread = () => {}, onChange = () => {}, o
   async function send(text) {
     text = String(text || '').trim();
     if (!text) return;
+    // "clean up this document" is a rule, not a question for Tandem: Folio cleans up its open note (Folio 4.13.0).
+    const clean = TARGETS.note === 'notes' && cleanupAsk(text.replace(/\?$/, ''));
+    if (clean) { ws.open({ app: 'notes', path: clean.replace ? 'cleanup/replace' : 'cleanup' }); return; }
     if (!status.ready) return rulesOnly(text);
     const card = { id: hubId(), text, state: 'running', at: Date.now(), rows: [] };
     cards.unshift(card); cards.length = Math.min(cards.length, KEEP_CARDS);

@@ -14,7 +14,7 @@ beforeEach(() => {
   oc.agents = new Set(["build", "plan", "chat"]);
   oc.api = {
     async createSession(title) { made++; return { id: `ses_${made}`, title }; },
-    async prompt(id, text, agent) { prompts.push({ id, text, agent }); },
+    async prompt(id, text, agent, model, tools) { prompts.push({ id, text, agent, ...(tools ? { tools } : {}) }); },
     async messages(id) { return turns[id] || []; },
   };
 });
@@ -28,7 +28,9 @@ test("a run uses the read-only plan agent and returns the last reply once idle",
   const r = await runVoice({ kind: "rewrite", prompt: "  Rewrite this  " }, on);
   assert.deepEqual(r, { session: "ses_1" });
   assert.deepEqual(prompts, [{ id: "ses_1", text: "Rewrite this", agent: "plan" }]);
-  assert.deepEqual(await voiceResult({ session: "ses_1" }, on), { state: "running" });
+  assert.deepEqual(await voiceResult({ session: "ses_1" }, on), { state: "running", chars: 0 });
+  upsertSession("ses_1", { text: "Short" });
+  assert.deepEqual(await voiceResult({ session: "ses_1" }, on), { state: "running", chars: 5 });
   upsertSession("ses_1", { status: "idle" });
   turns.ses_1 = [{ role: "user", text: "Rewrite this" }, { role: "assistant", text: "first" }, { role: "assistant", text: "Shorter draft." }];
   assert.deepEqual(await voiceResult({ session: "ses_1" }, on), { state: "done", text: "Shorter draft." });
@@ -53,4 +55,11 @@ test("bad input and unknown runs are refused; a run with no reply fails", async 
   assert.deepEqual(await voiceResult({ session: "ses_1" }, on), { state: "failed", error: "boom" });
   oc.connected = false;
   await rejects(runVoice({ kind: "style", prompt: "x" }, on), "unavailable");
+});
+
+test("Folio's Clean up runs as its own kind, titled for it, with the read-only agent (1.35.0)", async () => {
+  const r = await runVoice({ kind: "cleanup", prompt: "Clean up the document at the end." }, on);
+  assert.equal(sessions.get(r.session).title, "Folio: clean up a document");
+  assert.equal(prompts[0].agent, "plan");
+  assert.deepEqual(prompts[0].tools, { "*": false }, "no tool definitions go to the model");
 });

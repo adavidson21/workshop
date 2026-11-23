@@ -1,5 +1,7 @@
 # Chat
 
+**Chat 4.3.1**: "clean up this document" in the Hub opens Folio's Clean up on the open note (a rule, so it never goes to Tandem as a question; Folio 4.13.0).
+
 **Chat 4.3.0** is back on the rail, after Bench (new people could not find it otherwise). In the Hub, the newest card sits next to the box, a question without Tandem says what works instead of repeating the box's notice, and capture dates read "Tue, Nov 24". The sidebar's empty state and the blocked-notifications button say plainly what they mean.
 
 **Chat 3.0.0** leaves the rail (`rail: false`, Loom 5.1.0): fewer apps to pick from. It opens from a Loom card's Chat button (that run's conversation), from the palette (New chat, Rewrite a draft) and from Capture's ask. Its address, `#/chat`, still works.

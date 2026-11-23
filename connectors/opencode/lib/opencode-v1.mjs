@@ -130,8 +130,10 @@ export function makeV1(url) {
     },
     // `agent` names the agent for this message (chat.mjs always passes "chat"); without it opencode uses the
     // session's last agent or its default.
-    async prompt(id, text, agent, model) {
-      const r = await call(`/session/${id}/prompt_async`, { method: "POST", body: { ...(agent ? { agent } : {}), ...(model ? { model: { providerID: model.provider, modelID: model.id } } : {}), parts: [{ type: "text", text }] } });
+    // `tools` (1.35.0): opencode's per-message tool switches, e.g. {"*": false} for a reply that needs no tools, so
+    // the tool definitions are not sent to the model at all (a smaller prompt, and nothing for a weak model to misuse).
+    async prompt(id, text, agent, model, tools) {
+      const r = await call(`/session/${id}/prompt_async`, { method: "POST", body: { ...(agent ? { agent } : {}), ...(model ? { model: { providerID: model.provider, modelID: model.id } } : {}), ...(tools ? { tools } : {}), parts: [{ type: "text", text }] } });
       if (!r.ok) throw httpError(502, `opencode did not take the reply (${errText(r)}).`);
     },
     async abort(id) {
