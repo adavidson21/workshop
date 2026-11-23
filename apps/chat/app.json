@@ -2,7 +2,7 @@
   "manifestVersion": 1,
   "id": "chat",
   "name": "Chat",
-  "version": "4.6.0",
+  "version": "4.7.0",
   "description": "opencode with a better screen: live answers, Quick answers from your notes, any agent and model, /commands, @files, Review code, and a Terminal, Files and Changes beside it.",
   "icon": "icon.svg",
   "entry": "index.html",

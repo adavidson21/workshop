@@ -137,6 +137,14 @@ What the TUI does that Chat did not, now in Chat:
 
 `tests/chat-e2e.py` checks the effort reaching the model, Fork from here, Undo from here and `/status` with real opencode.
 
+## Chat 4.7.0 (connector 1.41.0): warm up
+
+A new chat's first answer used to come in bursts: the text stopped for about a second, two or three times, then jumped. The cause is in opencode, not the chat: the first answer after opencode starts is when it loads its plugins and model catalog, and that work holds up its text stream. Every answer after it streams smoothly, new chats included. A local model server has a cold start of its own: Ollama unloads a model after 5 idle minutes and takes seconds to load it again.
+
+So the connector warms both up in the background (`lib/warm.mjs`): one tiny answer ("OK") in a scratch session, which it deletes right after. It uses opencode's read-only `plan` agent with its tools on, because a warm up with tools off loads the plugins but leaves the tool setup for your first answer, which then still pauses. It runs once each time opencode connects, and again (`chat.warm`) when Chat comes into view or you click into it after a local model sat idle for 4 minutes. It skips while any session is working. Settings, Connectors, opencode, **Warm up the model** turns it off.
+
+Measured with opencode 1.19.6 and the stand-in model: without the warm up, the first answer had three pauses of 0.7 to 1.2 seconds while streaming; after it, none.
+
 ## Chat 4.5.0 (connector 1.38.0): live answers and Quick answers
 
 ### Live answers
