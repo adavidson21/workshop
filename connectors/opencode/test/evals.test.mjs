@@ -126,9 +126,16 @@ test("commandFor quotes for PowerShell and for sh; openEvalsTerminal opens a win
   assert.match(calls[0].argv[1], /cd '\/Users\/me\/eng-agents' && pwsh -NoProfile -File/);
   const win = await openEvalsTerminal({ home, args, platform: "win32", run: fakeRun });
   assert.equal(win.ok, true);
-  assert.equal(calls[1].exe, "powershell.exe");
-  assert.deepEqual(calls[1].argv.slice(0, 3), ["-NoLogo", "-NoExit", "-Command"]);
-  await assert.rejects(openEvalsTerminal({ home, args, platform: "linux", run: fakeRun }), (e) => e.status === 501);
+  // A new console window through cmd.exe's start (a detached powershell.exe got no window at all, 1.37.0).
+  assert.match(calls[1].exe, /cmd\.exe$/i);
+  assert.deepEqual(calls[1].argv.slice(0, 3), ["/d", "/s", "/c"]);
+  assert.match(calls[1].argv[3], /^"start "Bench" powershell\.exe -NoLogo -NoExit -Command "& '.*Invoke-Evals\.ps1' -Case 'feature-outcome'.*""$/);
+  assert.equal(calls[1].o.windowsVerbatimArguments, true);
+  await assert.rejects(openEvalsTerminal({ home, args, platform: "linux", run: fakeRun, terminal: () => null }), (e) => e.status === 501);
+  const lin = await openEvalsTerminal({ home, args, platform: "linux", run: fakeRun, terminal: () => ["/usr/bin/xterm", ["-e"]] });
+  assert.equal(lin.ok, true);
+  assert.equal(calls[2].exe, "/usr/bin/xterm");
+  assert.deepEqual(calls[2].argv.slice(0, 3), ["-e", "sh", "-c"]);
   const boom = () => { throw new Error("blocked"); };
   await assert.rejects(openEvalsTerminal({ home, args, platform: "win32", run: boom }), (e) => e.status === 500);
 });

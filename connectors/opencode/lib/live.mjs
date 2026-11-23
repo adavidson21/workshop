@@ -12,6 +12,7 @@ import { currentSession, folderForSession, folderForToken, links } from "./links
 import { projectsData } from "./projects.mjs";
 import { oc, permissions, questions, sessions } from "./opencode-state.mjs";
 import { attachCommand } from "./actions.mjs";
+import { linuxTerminal } from "./console-window.mjs";
 import { autoData, autoOptions, autopilot } from "./autopilot.mjs";
 import { adoConfigured, loose, looseData } from "./workspace.mjs";
 import { reviewSummary } from "./review.mjs";
@@ -43,7 +44,7 @@ export function liveData() {
     autopilot: autoData(),
     others: looseData(), // spikes and repo guides started from Dispatch (lib/workspace.mjs)
     prQueue: prQueueData(), // Review all and the nightly PR review run (lib/pr-queue.mjs)
-    canOpenTerminal: isWin || process.platform === "darwin",
+    canOpenTerminal: isWin || process.platform === "darwin" || !!linuxTerminal(), // 1.37.0: Linux too, with a terminal on PATH
   };
 }
 
