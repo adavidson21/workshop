@@ -623,7 +623,14 @@ function mountFrame(app, pane) {
   });
   mounted.add(app.id);
 }
-function focusFrame(app) { if (app.frame) setTimeout(() => { try { app.frame.contentWindow.focus(); } catch (e) { /* not loaded yet */ } }); }
+// Unless something in the shell took focus meanwhile (a palette command that opens Capture), so typing goes there.
+function focusFrame(app) {
+  if (app.frame) setTimeout(() => {
+    const a = document.activeElement;
+    if (a && a.matches && a.matches('input, textarea, [contenteditable]')) return;
+    try { app.frame.contentWindow.focus(); } catch (e) { /* not loaded yet */ }
+  });
+}
 
 /* ---------- the SDK message protocol, shell side ---------- */
 window.addEventListener('message', e => {
@@ -841,6 +848,8 @@ function allCommands() {
     for (const [id, c] of app.runtimeCommands || []) if (!seen.has(id)) out.push({ app, id, title: c.title });
   }
   out.unshift({ title: 'Capture or ask (Ctrl+.)', run: () => capture().open() });
+  // Build with Tandem (Loom 6.20.0): Capture opened on "b ", so whatever you type or paste goes to Loom's agents.
+  if (byId.slate) out.splice(1, 0, { title: 'Build with Tandem (Ctrl+. then b)', run: () => capture().open('b ') });
   for (const a of apps) out.push({ title: `Open ${a.manifest.name}`, run: () => go(a.id) });
   const here = byId[current];
   if (SOLO) out.push({ title: 'Back to Workshop (close this window)', run: popIn });

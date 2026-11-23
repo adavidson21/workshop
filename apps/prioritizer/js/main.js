@@ -33,6 +33,7 @@ import { boot, dstore } from './storage.js';
 import { showHelp, toast } from './overlays.js';
 import { startNotesLink } from './notes-link.js';
 import { startSlateLink } from './slate-link.js';
+import { watchLoom } from './tandem-build.js';
 import { startAgentQueue } from './agent-queue.js';
 import { startProductsLink } from './products-link.js';
 import { findTask } from './state.js';
@@ -59,6 +60,8 @@ ready.then(ws => {
   startNotesLink(ws, embedded, () => loaded.then(syncDrawer));
   // Where ADO tasks stand on Slate's board, for the In Slate chip and the drawer (slate-link.js).
   startSlateLink(ws, embedded, () => loaded.then(() => { render(); syncDrawer(); }));
+  // Build with Tandem on any task needs Loom on this site (tandem-build.js).
+  if (embedded) watchLoom(ws, () => loaded.then(syncDrawer));
   startAgentQueue(ws, embedded, () => loaded.then(() => { render(); syncDrawer(); }));
   // Your products from Workshop Settings, for +product and the Product field (products-link.js).
   startProductsLink(ws, () => loaded.then(() => { render(); syncDrawer(); }));

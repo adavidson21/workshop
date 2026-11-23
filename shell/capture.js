@@ -48,11 +48,12 @@ export function createCaptureBar(anchor, { go, onClose = () => {} } = {}) {
       onAsk: text => { close(); go('chat', 'hub/' + text); },
       onGo: t => { close(); go(t.app, t.path || ''); },
       placeholder: "What's on your mind? Ask with ?",
-      hint: '<kbd>t</kbd> task · <kbd>w</kbd> waiting on · <kbd>r</kbd> receipt · <kbd>n</kbd> note · <kbd>p</kbd> roadmap idea · <kbd>?</kbd> ask · <kbd>&gt;</kbd> go · <kbd>Esc</kbd> close'
+      hint: `<kbd>t</kbd> task · <kbd>w</kbd> waiting on · <kbd>r</kbd> receipt · <kbd>n</kbd> note · <kbd>p</kbd> roadmap idea${TARGETS.build ? ' · <kbd>b</kbd> build with Tandem' : ''} · <kbd>?</kbd> ask · <kbd>&gt;</kbd> go · <kbd>Esc</kbd> close`
     });
   }
 
-  function open() {
+  // open(prefill): with text, the box starts with it (the palette's Build with Tandem opens it on "b ").
+  function open(prefill) {
     if (!panel) {
       panel = document.createElement('div');
       panel.className = 'capbar';
@@ -70,7 +71,10 @@ export function createCaptureBar(anchor, { go, onClose = () => {} } = {}) {
     panel.hidden = false;
     if (!ready) ready = setup().catch(() => { panel.querySelector('.cb-box').innerHTML = '<p class="cb-err">Capture is not available right now. Try again in a moment.</p>'; });
     else if (refresh) refresh();
-    ready.then(() => { const i = panel && panel.querySelector('.cap-in'); if (i) i.focus(); });
+    ready.then(() => {
+      if (typeof prefill === 'string' && box) { box.fill(prefill); return; }
+      const i = panel && panel.querySelector('.cap-in'); if (i) i.focus();
+    });
   }
   function close() {
     if (!panel || panel.hidden) return;

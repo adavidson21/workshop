@@ -489,6 +489,19 @@ function wantFocus(path) {
   if (/^reviews\/?$/.test(p)) { setTab('reviews'); return; }
   // teach: the Teach chip (Loom 6.2.0), where Docket's agent queue sends a knowledge gap.
   if (/^teach\/?$/.test(p)) { ui().laneFilter = 'teach'; setTab('lanes'); return; }
+  // start/drop/<text> and start/go/<text> (Loom 6.20.0): the drop box filled in with any text, its kind guessed.
+  // `go` also starts it, as Enter would, once Tandem answers ready: the click or Enter that sent it here (Build with
+  // Tandem on a Docket task, Capture's `b`) is the approval. Without Tandem it stays filled, with the offline note.
+  const dm = /^start\/(drop|go)(?:\/([\s\S]*))?$/.exec(p);
+  if (dm) {
+    const text = dm[2] ? safeDecode(dm[2]).trim() : '';
+    setTab('lanes');
+    if (text) ui().drafts['lanes:drop'] = text;
+    ui().dropKind = null; ui().dropAdo = null; ui().dropGuess = text ? guessKind(text) : null;
+    paint(); focusFirst('#ln-drop');
+    if (dm[1] === 'go' && text) dropWhenReady(text);
+    return;
+  }
   // start/<flow>[/<text>]: Start work on that flow's card, filled in with the text (Chat's flow suggestions).
   const sm = /^start(?:\/([a-z]+))?(?:\/([\s\S]*))?$/.exec(p);
   if (sm) {
@@ -719,6 +732,16 @@ async function dropGo() {
   ui().dropBusy = false;
   fetchSoon();
   schedule();
+}
+/** start/go/<text>: start the drop box once the connector's status is known (it may still be loading when the route
+ *  arrives). Only while the box still holds that text, so nothing typed since is started. Gives up after 20 s. */
+function dropWhenReady(text, until = Date.now() + 20000) {
+  if (ws.backend !== 'agent') return;
+  if ((ui().drafts['lanes:drop'] || '').trim() !== text) return;
+  if (S.connector && S.connector.state === 'ready') { dropGo(); return; }
+  // Known not ready (stopped, error, disabled, missing): leave it filled; the offline note says what to do.
+  if (S.connector && S.connector.state !== 'starting') return;
+  if (Date.now() < until) setTimeout(() => dropWhenReady(text, until), 300);
 }
 /** A spike's findings fork: write closed.md ("Closed: <what came of it>"), which takes it off the Inbox (workparser). */
 async function closeSpike(folder, line) {

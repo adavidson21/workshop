@@ -5,7 +5,7 @@
    No DOM, so Node tests drive it with a fake `ws` (shared/test/capture-box.test.mjs).
 
    mountCapture draws the input, a live preview of what Enter will do, and a Recent list with Undo. Keys:
-     Enter          accept the preview (a question goes to onAsk, "> app" opens it)
+     Enter          accept the preview (a question goes to onAsk, "> app" opens it, "b ..." goes to Tandem)
      Tab            change what the preview is (task, waiting on, receipt, note, roadmap idea)
      Ctrl+Enter     send the line to onAsk as a question, whatever it looks like
      Escape         clear the input
@@ -109,7 +109,7 @@ export function mountCapture(root, opts) {
 
   const ctx = () => (opts.context ? opts.context() : {}) || {};
   const current = () => {
-    if (pending.length > 1) return pending;
+    if (pending.length) return pending;
     const p = parseCapture(input.value, ctx());
     if (!p) return [];
     return [override && isCapture(p) ? retarget(p, override, ctx()) : p];
@@ -161,12 +161,14 @@ export function mountCapture(root, opts) {
     } catch (e) { fail(e); }
   }
 
-  input.addEventListener('input', () => { if (pending.length > 1) pending = []; override = null; drawPreview(); });
+  input.addEventListener('input', () => { if (pending.length) pending = []; override = null; drawPreview(); });
   input.addEventListener('paste', e => {
     const text = (e.clipboardData || window.clipboardData).getData('text');
     if (!/\r?\n/.test(text.trim())) return;
     e.preventDefault();
-    pending = parseLines(text, ctx());
+    // "b " typed, then a story or log pasted: one thing for Tandem, with its line breaks (capture.js buildAsk).
+    const lead = /^\s*(?:b|build:)\s*$/i.test(input.value) ? 'b\n' : '';
+    pending = parseLines(lead + text, ctx());
     input.value = '';
     drawPreview();
   });
