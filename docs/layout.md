@@ -2,6 +2,10 @@
 
 How every Workshop app lays out its page, so they look like one product in half a screen and full screen. The tokens live in `shared/themes.css` and the pieces in `shared/ui.css`. Plan: `claude/desktop-layout-v1-plan.md` in the Workshop project.
 
+## The sidebar
+
+The shell's rail is a sidebar, like a desktop app's (Workshop 7.52.0): wide, with each app's name beside its icon and the agents dock at the bottom (every piece of agent work and where it is on its line, docs/sdk.md Flow), or narrow, icons only, with the dock as a count. It is wide by default from a 1360px window, so the app beside it keeps the Desktop size; the button at its top, Ctrl+\\ and the palette switch it, and the choice is kept per browser. Under 1000px it is always narrow. An app starts loading when the pointer rests on its button, so the click opens it at once.
+
 ## Sizes
 
 Measured on the app's own frame (inside the shell, after the rail), so plain media queries work.

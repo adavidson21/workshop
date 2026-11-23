@@ -227,6 +227,27 @@ export function floorData(data) {
   return { code, paper, express: express.sort(order), stuck: stuck.sort(order), other: other.sort(order), belt: belt.sort((a, b) => String(a.it.story.story).localeCompare(String(b.it.story.story))), epics, onboarding, slots, delivered, mine: data.counts.mine || 0 };
 }
 
+/** The floor as the shell's agents dock shows it on every app (Builds 6.21.0, ws.flow.set, docs/sdk.md Flow): both
+    lines' station names, and each card on them with its station index and state. Belt stories sit before the code
+    line's first station (-1), and stuck cards are off the line (-1, state stuck). Pure, for tests. */
+const DOCK_STATE = { run: 'run', gate: 'gate', stuck: 'stuck', idle: 'idle' };
+export function flowSummary(fd) {
+  const lines = { code: CODE.map(s => s.name), paper: PAPER.map(s => s.name) };
+  const items = [];
+  const add = (c, line, at, station, state) => {
+    if (!c || !c.title) return;
+    items.push({ title: String(c.title).slice(0, 120), line, at, station, state: DOCK_STATE[state] || 'idle',
+      route: c.it ? (c.it.id ? String(c.it.id) : c.it.folder || '') : '', ...(c.id ? { tag: '#' + String(c.id).slice(0, 20) } : {}) });
+  };
+  for (const [line, list, stations] of [['code', fd.code, CODE], ['paper', fd.paper, PAPER]]) {
+    list.forEach((s, i) => { for (const c of s.cards) add(c, line, i, s.name, motionOf(c)); });
+  }
+  for (const c of fd.express) { const i = CODE.findIndex(s => s.id === c.station); add(c, 'code', i, i >= 0 ? CODE[i].name : '', motionOf(c)); }
+  for (const c of fd.belt) add(c, 'code', -1, 'On the belt', 'idle');
+  for (const c of fd.stuck) add(c, c.line === 'paper' ? 'paper' : 'code', -1, 'Pulled off the line', 'stuck');
+  return { label: 'Agents', lines, items };
+}
+
 // ------------------------------------------------------------------ drawing
 const TYPE = c => (c.it && c.it.story) ? 'Story ' + (c.it.story.story || '') : (c.it && c.it.trial) ? 'Trial' : (c.it && c.it.coverage) ? 'Tests' : c.quick ? 'Quick' : c.kind === 'build' ? (c.it && c.it.lane === 'bug' ? 'Bug' : 'Feature') : KINDS[c.kind] ? KINDS[c.kind].name : 'Run';
 /** The card's project color (Builds 6.6.0), once you have projects: the same swatch as the project filter. */
@@ -371,8 +392,22 @@ function popHtml(fd, sel, panel) {
 }
 /** The floor: the two lines (and the hand-off belt between them) are the stage, the page's focal point; everything else
     sits under it, and the open card pops out of its box. */
+/** Nothing on the floor at all (Builds 6.21.0): no card on a line, the belt, the bins or a new line. */
+export function floorEmpty(fd) {
+  const cards = fd.code.concat(fd.paper).reduce((n, s) => n + s.cards.length, 0);
+  return !cards && !fd.express.length && !fd.belt.length && !fd.stuck.length && !fd.other.length && !(fd.epics || []).length && !(fd.onboarding || []).length;
+}
+/** The quiet floor: the two lines as one calm row of names each, instead of thirteen stations that all say 0. */
+function calmHtml(data, fd) {
+  const line = (name, end, list) => `<div class="fl-calm-line"><span class="fl-calm-name">${h(name)}</span><ol>${list.map(s => `<li>${h(s.name)}</li>`).join('')}</ol><span class="fl-calm-end">${h(end)}</span></div>`;
+  return `<div class="ln-body fl-body"><div class="fl-floor fl-calm"><p class="fl-calm-h">The floor is quiet.</p>` +
+    `<p class="dim">Drop a story, an error log or a question in the box above. Agents take it down one of these lines, and you can watch where it is here or in the sidebar on any app.</p>` +
+    line('Code line', 'Ends in a PR', CODE.filter(s => s.id !== 'transit')) + line('Research line', 'Ends in a brief', PAPER) +
+    `${shippedHtml(data.doneList, fd.delivered)}</div></div>`;
+}
 export function floorHtml(data, sel, panel) {
   const fd = floorData(data);
+  if (floorEmpty(fd) && !sel) return calmHtml(data, fd);
   const code = lineHtml('code', 'Code line', 'Feature, bug and quick change. Ends in a PR.', fd.code, sel, fd.slots, expressHtml(fd, sel), readyItems(fd));
   const paper = lineHtml('paper', 'Research line', 'Investigate, error log, docs and epics. Ends in a brief or a breakdown.', fd.paper, sel, null, '');
   const stuck = fd.stuck.length ? `<section class="fl-stuck" aria-label="Pulled off the line"><h2>Pulled off the line</h2><div class="fl-row">${fd.stuck.map(c => chipHtml(c, sel)).join('')}</div></section>` : '';

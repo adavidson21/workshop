@@ -572,6 +572,136 @@
         "workshop",
         "kind",
         "id",
+        "method",
+        "params"
+      ],
+      "properties": {
+        "workshop": {
+          "const": 1
+        },
+        "kind": {
+          "const": "request"
+        },
+        "id": {
+          "$ref": "#/$defs/msgId"
+        },
+        "method": {
+          "const": "flow.set"
+        },
+        "params": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "lines",
+            "items"
+          ],
+          "properties": {
+            "label": {
+              "type": "string",
+              "maxLength": 40
+            },
+            "lines": {
+              "type": "object",
+              "propertyNames": {
+                "pattern": "^[a-z][a-z0-9-]{0,30}$"
+              },
+              "additionalProperties": {
+                "type": "array",
+                "maxItems": 16,
+                "items": {
+                  "type": "string",
+                  "maxLength": 40
+                }
+              }
+            },
+            "items": {
+              "type": "array",
+              "maxItems": 50,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "title"
+                ],
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "line": {
+                    "type": "string",
+                    "maxLength": 31
+                  },
+                  "at": {
+                    "type": "integer",
+                    "minimum": -1,
+                    "maximum": 15
+                  },
+                  "station": {
+                    "type": "string",
+                    "maxLength": 40
+                  },
+                  "state": {
+                    "enum": [
+                      "run",
+                      "gate",
+                      "stuck",
+                      "idle"
+                    ]
+                  },
+                  "route": {
+                    "type": "string",
+                    "maxLength": 300
+                  },
+                  "tag": {
+                    "type": "string",
+                    "maxLength": 24
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "workshop",
+        "kind",
+        "id",
+        "method",
+        "params"
+      ],
+      "properties": {
+        "workshop": {
+          "const": 1
+        },
+        "kind": {
+          "const": "request"
+        },
+        "id": {
+          "$ref": "#/$defs/msgId"
+        },
+        "method": {
+          "const": "flow.clear"
+        },
+        "params": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {}
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "workshop",
+        "kind",
+        "id",
         "ok"
       ],
       "properties": {

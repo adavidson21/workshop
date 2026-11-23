@@ -1287,6 +1287,8 @@ function makeShellChannel(ctx) {
       case 'commands.unregister': return Promise.resolve(null);
       // Standalone there is no top bar: the app shows its own status. Rejecting tells it so.
       case 'status.set': case 'status.clear': return Promise.reject(new WorkshopError('not_found', 'There is no shell top bar on a standalone page.'));
+      // No sidebar on a standalone page: the agents dock is the shell's, so a flow has nowhere to go.
+      case 'flow.set': case 'flow.clear': return Promise.resolve(null);
       default: return Promise.resolve(null);
     }
   }
@@ -1483,6 +1485,11 @@ export async function connect(options) {
     status: {
       set(st) { return shell.request('status.set', st); },
       clear() { return shell.request('status.clear', {}); }
+    },
+    // Where each piece of agent work is, for the agents dock in the shell's sidebar (docs/sdk.md, Flow).
+    flow: {
+      set(f) { return shell.request('flow.set', f); },
+      clear() { return shell.request('flow.clear', {}); }
     },
     commands: {
       register(cmd) {

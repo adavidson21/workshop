@@ -8,7 +8,7 @@
 
    A manifest app is a same-origin page in a frame, kept loaded while hidden so its state survives
    switching. Apps talk to the shell only through the SDK: the shell answers their requests (ready, open, route.set,
-   toast, badge, notify, status.set, status.clear, commands.register, commands.unregister) and sends them events (theme, route,
+   toast, badge, notify, status.set, status.clear, flow.set, flow.clear, commands.register, commands.unregister) and sends them events (theme, route,
    command, visible). Every app is a manifest app; the shell has no app code of its own. */
 import { allowFolder, connect, detectBackend, folderState } from '../shared/workshop-sdk.js';
 import { SITE, onCrumbsDomain } from '../shared/site.js';
@@ -18,6 +18,7 @@ import * as RO from '../shared/rail-order.js';
 import { PAIR_HELP, canPair as canPairWith, forgetPairing, pairWith } from '../shared/pair.js';
 import { CAPTURE_ICON, createCaptureBar } from './capture.js';
 import { createFocusShell } from './focus.js';
+import { createFlowDock } from './flow.js';
 
 const $ = s => document.querySelector(s);
 const svg = d => `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
@@ -169,15 +170,41 @@ const BLANK_ICON = svg('<rect x="4" y="4" width="12" height="12" rx="2.5"/>');
 const POP_ICON = svg('<path d="M11.5 3.5h5v5M16.5 3.5L10 10"/><path d="M14 11.5v3.5a1.5 1.5 0 0 1-1.5 1.5h-7.5A1.5 1.5 0 0 1 3.5 15V7.5A1.5 1.5 0 0 1 5 6h3.5"/>');
 const BACK_ICON = svg('<path d="M8.5 16.5h-3a1.5 1.5 0 0 1-1.5-1.5V5a1.5 1.5 0 0 1 1.5-1.5h9A1.5 1.5 0 0 1 16 5v3"/><path d="M17 11.5l-5 5M12 12.5v4h4"/>');
 
+const SIDEBAR_ICON = svg('<rect x="3" y="4" width="14" height="12" rx="2.2"/><path d="M8 4v12"/>');
 function renderRail() {
-  $('#rail').innerHTML = `<a class="mark" href="#/" aria-label="${homeApp ? esc(homeApp.manifest.name) : 'Workshop'}" title="${homeApp ? esc(homeApp.manifest.name) : 'Workshop'}">${MARK}</a>`
+  $('#rail').innerHTML = `<div class="rail-head"><a class="mark" href="#/" aria-label="${homeApp ? esc(homeApp.manifest.name) : 'Workshop'}" title="${homeApp ? esc(homeApp.manifest.name) : 'Workshop'}">${MARK}</a>`
+    + `<span class="rail-name" aria-hidden="true">Workshop</span>`
+    + `<button type="button" class="rail-toggle" id="railToggle" aria-controls="rail" aria-keyshortcuts="Control+Backslash">${SIDEBAR_ICON}</button></div>`
     + railApps.map((a, i) => `<a class="app-btn" href="#/${a.id}" data-app="${a.id}" style="--app-c:var(--c-${esc(a.id)},var(--c-workshop))" title="${esc(railTitle(a, i))}" aria-describedby="railHint"><span class="ico" aria-hidden="true">${BLANK_ICON}</span><span class="lbl">${esc(a.manifest.name)}</span><span class="badge" hidden></span></a>`).join('')
     + `<span class="grow"></span><span id="railHint" hidden>Drag to move, or Alt+Shift+Up and Down.</span><span class="sr-only" id="railSay" aria-live="polite"></span>`
+    + `<section class="flow-dock" id="flowDock" aria-label="Agents" hidden></section>`
     + `<button class="app-btn" id="pairBtn" hidden aria-label="Connect to Workshop on this computer" title="Connect to Workshop on this computer">${LINK_ICON}<span class="lbl">Connect</span></button>`
     + `<button class="app-btn" id="installBtn" hidden aria-label="Install Workshop as a desktop app" title="Install as a desktop app">${INSTALL_ICON}<span class="lbl">Install</span></button>`;
   for (const a of railApps) loadIcon(a);
   $('#pairBtn').hidden = !canPair();
+  $('#railToggle').addEventListener('click', () => setSidebar(!sidebarWide(), true));
+  flowDock = createFlowDock($('#flowDock'), { go: (id, path) => go(id, path), esc, names: id => byId[id] ? byId[id].manifest.name : id });
+  setSidebar(sidebarWide(), false);
 }
+
+/* ---------- the sidebar: wide (icons and names in rows, like a desktop app) or narrow (icons) ----------
+   Wide by default when the window has room for it and a full desktop-size app beside it (1360px and up); the toggle at its top, Ctrl+\ and the palette switch it,
+   and the choice is kept in this browser. Under 1000px it is always narrow, so the app keeps its width. */
+const SIDEBAR_KEY = 'workshop.sidebar';
+let flowDock = null;
+function sidebarSaved() { try { const v = localStorage.getItem(SIDEBAR_KEY); return v === 'wide' || v === 'narrow' ? v : null; } catch (e) { return null; } }
+function sidebarWide() {
+  if (window.innerWidth < 1000) return false;
+  const saved = sidebarSaved();
+  return saved ? saved === 'wide' : window.innerWidth >= 1360;
+}
+function setSidebar(wide, save) {
+  if (save) { try { localStorage.setItem(SIDEBAR_KEY, wide ? 'wide' : 'narrow'); } catch (e) { /* private window: this session only */ } }
+  document.body.classList.toggle('rail-wide', !!wide);
+  const b = $('#railToggle');
+  if (b) { const t = wide ? 'Collapse the sidebar (Ctrl+\\)' : 'Expand the sidebar (Ctrl+\\)'; b.title = t; b.setAttribute('aria-label', t); b.setAttribute('aria-expanded', String(!!wide)); }
+}
+window.addEventListener('resize', () => { if (document.body.classList.contains('rail-wide') !== sidebarWide()) setSidebar(sidebarWide(), false); });
 
 /* ---------- rail order (docs/apps.md, Rail order; shared/rail-order.js) ----------
    Drag an app's button to move it, or press Alt+Shift+Up and Down (Left and Right on a phone's bottom bar) on it.
@@ -532,6 +559,24 @@ function paneOf(app) {
 function mountBackground() {
   for (const app of apps) if (app.manifest.background && !mounted.has(app.id)) ensureMounted(app, paneOf(app));
 }
+/* An app starts loading as soon as the pointer rests on its rail button (or the button gets keyboard focus), so by the
+   click it is usually there and opens at once, as in a desktop app. Only what you reach for loads, nothing else. */
+function preloadRail() {
+  const rail = $('#rail');
+  if (!rail) return;
+  let timer = null;
+  const want = e => {
+    const b = e.target.closest && e.target.closest('.app-btn[data-app]');
+    clearTimeout(timer);
+    if (!b) return;
+    const app = byId[b.dataset.app];
+    if (!app || mounted.has(app.id) || missingConnector(app) || popped.has(app.id)) return;
+    timer = setTimeout(() => { if (!mounted.has(app.id)) ensureMounted(app, paneOf(app)); }, e.type === 'focusin' ? 0 : 60);
+  };
+  rail.addEventListener('pointerover', want);
+  rail.addEventListener('focusin', want);
+  rail.addEventListener('pointerleave', () => clearTimeout(timer));
+}
 function route() {
   let parsed = parseHash();
   // #/<panel app>: open the panel over the app you are in (or the first one, on a fresh load).
@@ -723,6 +768,13 @@ function handleRequest(app, method, p) {
     case 'commands.unregister': { if (app.runtimeCommands) app.runtimeCommands.delete(p.id); return null; }
     case 'status.set': setStatus(app, p); return null;
     case 'status.clear': clearStatus(app); return null;
+    // The agents dock in the sidebar (shell/flow.js, docs/sdk.md Flow): where each piece of agent work is.
+    case 'flow.set': {
+      if (!flowDock) return null;
+      try { flowDock.set(app.id, p); } catch (e) { throw fail('bad_request', e.message); }
+      return null;
+    }
+    case 'flow.clear': { if (flowDock) flowDock.clear(app.id); return null; }
     default: throw fail('not_found', `The shell does not know "${method}".`);
   }
 }
@@ -858,6 +910,7 @@ function allCommands() {
   else if (here && !(homeApp && here === homeApp)) out.push({ title: `Pop out ${here.manifest.name} into its own window`, run: () => popOut(here.id) });
   out.push(...focus.commands());
   if (!SOLO && railOrder.length) out.push({ title: 'Reset the rail order', run: resetRailOrder });
+  if (!SOLO) out.push({ title: sidebarWide() ? 'Collapse the sidebar (Ctrl+\\)' : 'Expand the sidebar (Ctrl+\\)', run: () => setSidebar(!sidebarWide(), true) });
   if (canPair()) out.push({ title: 'Connect to Workshop on this computer', run: startPairing });
   if (env.mode === 'hosted') out.push({ title: 'Disconnect from Workshop on this computer', run: forgetPairing });
   return out;
@@ -920,6 +973,7 @@ function onKey(e) {
   if (e.key === 'Escape' && panelOpen()) { e.preventDefault(); e.stopPropagation(); closePanel(); return; }
   if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.code === 'Period') { e.preventDefault(); e.stopPropagation(); closePalette(); capture().toggle(); return; }
   if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.code === 'KeyK') { e.preventDefault(); e.stopPropagation(); palette ? closePalette() : openPalette(); return; }
+  if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.code === 'Backslash' && !SOLO) { e.preventDefault(); e.stopPropagation(); setSidebar(!sidebarWide(), true); return; }
   const digit = /^Digit([1-9])$/.exec(e.code);
   if (digit && e.altKey && !e.ctrlKey && !e.metaKey && !SOLO) {
     const a = railApps[+digit[1] - 1];
@@ -1054,6 +1108,6 @@ folderBar();
 if (!apps.length) $('#panes').innerHTML = '<div class="notice"><h2>No apps found</h2><p>There is no app list for this site. If you publish Workshop as static files, run <code>node shell/registry.mjs</code> first.</p></div>';
 window.addEventListener('hashchange', route);
 route();
-if (!SOLO) mountBackground();
+if (!SOLO) { mountBackground(); preloadRail(); }
 startRailOrder();
 WorkshopSw.register((msg, label, fn) => toast(msg, label, fn, 30000));

@@ -280,11 +280,12 @@
         "manifestVersion": 1,
         "id": "builds",
         "name": "Builds",
-        "version": "6.20.0",
+        "version": "6.21.0",
         "description": "Tandem's runs on a floor: a code line and a research line of stations, or a list, plus Health. Drop in a story, an error log, a question or a hand-off; a card stops only when it needs you.",
         "icon": "icon.svg",
         "entry": "index.html",
         "order": 15,
+        "background": true,
         "modes": [
           "local",
           "hosted",
