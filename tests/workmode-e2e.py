@@ -67,7 +67,9 @@ def main():
             pg.wait_for_function("() => document.documentElement.dataset.mode === 'local'", timeout=15000)
             check(pg.url.rstrip('/') == url or pg.url.startswith(url + '/#') or pg.url == url + '/', 'signing in lands on the hub, served by this computer')
             rail = pg.inner_text('#rail')
-            for name in ['Builds', 'Settings'] + (['Tasks'] if with_docket else []) + (['People'] if with_receipts else []) + (['Roadmaps'] if with_runway else []):
+            # Builds is a tab inside Tasks (manifest tabOf), so it is not on the rail by itself.
+            check(pg.locator('#apptabs [data-tab-app="builds"]').count() > 0, 'Builds is a tab inside Tasks')
+            for name in ['Settings'] + (['Tasks'] if with_docket else []) + (['People'] if with_receipts else []) + (['Roadmaps'] if with_runway else []):
                 check(name in rail or pg.locator(f'#rail [title*="{name}"], #rail [aria-label*="{name}"]').count() > 0, f'{name} is on the rail')
 
             pg.goto(f'{url}/#/settings')

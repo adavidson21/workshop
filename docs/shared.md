@@ -31,6 +31,7 @@ Apps may use these. Each module's header comment says what it exports and how to
 | File | What it is |
 | --- | --- |
 | `shared/workshop-sdk.js` | The SDK: everything that leaves an app goes through it ([sdk.md](sdk.md)). |
+| `shared/doc-html.js` | `docHtml(text)`: a Tandem document (plan.md, spec.md, findings.md...) as safe HTML, for Builds' file sheet and floor previews and Tasks' agent previews. |
 | `shared/theme.js` | Applies and remembers the theme. Load it in `<head>`. |
 | `shared/themes.css` | The themes: Workshop's names for the brand tokens, app colors (`data-app-color`) and layout sizes, for the shell and every app. |
 | `shared/brand/` | A copy of the brand library (tools.alexisdavidson.org/brand/v2): `tokens.css` (colors, fonts, scales, jewel accents, imported by `themes.css`), its fonts, and `AGENTS.md`, `tokens.json` and `components.json` for agents. Update it with `node ../personal-tools/brand/scripts/sync.mjs shared/brand`; never edit it here. |

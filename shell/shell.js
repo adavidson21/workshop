@@ -30,6 +30,11 @@ let byId = {};
 let railApps = [];        // apps with a rail button: every app but the home page, in the person's order (rail order below)
 let defaultRail = [];     // the same apps in manifest order
 let homeApp = null;       // the app with home: true, opened by the logo and the plain address
+let tabsOf = {};          // host app id -> the apps shown as its tabs (manifest tabOf)
+/** The app an app is a tab of, when that app is on; else null. */
+const hostOfTab = id => { const a = byId[id], t = a && a.manifest.tabOf; return t && tabsOf[t.app] && tabsOf[t.app].includes(a) ? t.app : null; };
+/** The rail button an app lights: its own, or its host's when it is a tab. */
+const railIdOf = id => hostOfTab(id) || id;
 let panelApp = null;      // the app with panel: true, shown over the current app from a top bar button (Needs you)
 let aliasTo = {};         // app names and string aliases -> app id, for addresses like #/docket (docs/app-manifest.md, Addresses)
 let hostedBy = {};        // hosted app id -> {host, path}: shown inside another app (docs/app-manifest.md, Hosted apps)
@@ -140,8 +145,12 @@ async function loadApps() {
   byId = Object.fromEntries(apps.map(a => [a.id, a]));
   homeApp = apps.find(a => a.manifest.home === true) || null;
   panelApp = apps.find(a => a.manifest.panel === true && a !== homeApp) || null;
+  // `tabOf` (Builds since 6.23.0, docs/app-manifest.md, Tabs): an app shown as a tab of another, beside it in the top
+  // bar. While the other app is on it has no rail button of its own; its address, commands and ws.open still work.
+  tabsOf = {};
+  for (const a of apps) { const t = a.manifest.tabOf; if (t && byId[t.app] && t.app !== a.id && !byId[t.app].manifest.tabOf) (tabsOf[t.app] = tabsOf[t.app] || []).push(a); }
   // `rail: false` (Chat since 3.0.0): no rail button or Alt+<n>; its address, commands and ws.open still work.
-  defaultRail = apps.filter(a => a !== homeApp && a !== panelApp && a.manifest.rail !== false);
+  defaultRail = apps.filter(a => a !== homeApp && a !== panelApp && a.manifest.rail !== false && !hostOfTab(a.id));
   arrangeRail();
   // Names and aliases as addresses: an id always wins, then the first app by order.
   aliasTo = {};
@@ -379,13 +388,14 @@ function renderTopbar() {
   const crumbs = SOLO ? `<span class="here" aria-current="page"></span>`
     : `${LIFEKIT.map(c => `<a href="${c.href}">${esc(c.title)}</a><span aria-hidden="true">/</span>`).join('')}`
       + `<a href="#/" class="ws">Workshop</a><span class="here-sep" aria-hidden="true">/</span><span class="here" aria-current="page"></span>`;
-  bar.innerHTML = `<nav class="crumbs" aria-label="Breadcrumb">${crumbs}</nav>`
+  bar.innerHTML = `<nav class="crumbs" aria-label="Breadcrumb">${crumbs}</nav><div class="apptabs" id="apptabs" role="tablist" aria-label="Views" hidden></div>`
     + `<div class="wstatus" id="wstatus" role="region" aria-label="Status" hidden></div>`
     + (panelApp && !SOLO ? `<button type="button" class="panelbtn" id="panelBtn" data-app="${panelApp.id}" aria-expanded="false" aria-controls="spanel" title="${esc(panelApp.manifest.description || panelApp.manifest.name)}"><span class="ico" aria-hidden="true">${BLANK_ICON}</span><span class="lbl">${esc(panelApp.manifest.name)}</span><span class="badge num" hidden></span></button>` : '')
     + `<button type="button" class="capbtn" id="capBtn" title="Capture or ask (Ctrl+.)" aria-keyshortcuts="Control+Period">${CAPTURE_ICON}<span>Capture</span></button>`
     + (SOLO ? `<button type="button" class="popbtn" id="popBtn" title="Put this app back in the Workshop window and close this one">${BACK_ICON}<span>Back to Workshop</span></button>`
       : `<button type="button" class="popbtn" id="popBtn" hidden>${POP_ICON}<span>Pop out</span></button>`)
     + WorkshopTheme.toggleHtml();
+  $('#apptabs').addEventListener('click', e => { const b = e.target.closest('[data-tab-app]'); if (b && b.dataset.tabApp !== current) go(b.dataset.tabApp); });
   $('#capBtn').addEventListener('click', () => capture().toggle());
   if ($('#panelBtn')) { $('#panelBtn').addEventListener('click', togglePanel); loadIcon(panelApp); }
   $('#popBtn').addEventListener('click', () => SOLO ? popIn() : popOut(current));
@@ -402,7 +412,8 @@ function markTopbar() {
   if (!here) return;
   const app = byId[current];
   const show = !!app && !(homeApp && current === homeApp.id);
-  here.textContent = show ? app.manifest.name : '';
+  // A tab (manifest tabOf) is named by its group: the tab bar beside the crumbs says which tab.
+  here.textContent = show ? (byId[railIdOf(current)] || app).manifest.name : '';
   here.hidden = !show;
   const sep = $('#topbar .here-sep');
   if (sep) sep.hidden = !show;
@@ -484,8 +495,9 @@ function togglePanel() { panelOpen() ? closePanel() : openPanel(); }
 
 function markRail() {
   markTopbar();
+  markTabs();
   document.querySelectorAll('.app-btn[data-app]').forEach(b => {
-    const on = b.dataset.app === current;
+    const on = b.dataset.app === railIdOf(current);
     b.classList.toggle('on', on);
     if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
     // An app open in its own window (Pop out): marked, and a click brings that window forward (route()).
@@ -510,12 +522,37 @@ function setBadge(appId, count, breakThrough) {
 }
 function renderBadges() { for (const id of badgeRaw.keys()) paintBadge(id); }
 function paintBadge(appId) {
-  const el = document.querySelector(`.app-btn[data-app="${appId}"] .badge, #panelBtn[data-app="${appId}"] .badge`);
+  const n = badgeN(appId);
+  const tab = document.querySelector(`#apptabs [data-tab-app="${appId}"] .badge`);
+  if (tab) { tab.hidden = n === 0; tab.textContent = n ? String(n) : ''; }
+  // A tab's count adds to its host's rail button, so the rail still says what waits on you.
+  const host = railIdOf(appId);
+  const el = document.querySelector(`.app-btn[data-app="${host}"] .badge, #panelBtn[data-app="${host}"] .badge`);
   if (!el) return;
+  const sum = [host, ...(tabsOf[host] || []).map(a => a.id)].reduce((t, id) => t + badgeN(id), 0);
+  el.hidden = sum === 0;
+  el.textContent = sum ? String(Math.min(999, sum)) : '';
+}
+function badgeN(appId) {
+  if (!badgeRaw.has(appId)) return 0;
   const count = focus.badgeFor(badgeRaw.get(appId));
-  const n = Number.isInteger(count) ? Math.max(0, Math.min(999, count)) : 0;
-  el.hidden = n === 0;
-  el.textContent = n ? String(n) : '';
+  return Number.isInteger(count) ? Math.max(0, Math.min(999, count)) : 0;
+}
+/* ---------- tabs (manifest tabOf): an app and its tabs as one place, switched from the top bar ---------- */
+function markTabs() {
+  const bar = $('#apptabs');
+  if (!bar) return;
+  const host = current && railIdOf(current);
+  const group = host && tabsOf[host] && !SOLO ? [byId[host], ...tabsOf[host]] : null;
+  bar.hidden = !group;
+  if (!group) { bar.innerHTML = ''; bar.dataset.group = ''; return; }
+  if (bar.dataset.group !== host) {
+    bar.dataset.group = host;
+    bar.innerHTML = group.map(a => `<button type="button" role="tab" data-tab-app="${a.id}" title="${esc(a.manifest.description || a.manifest.name)}">`
+      + `<span>${esc(a === byId[host] ? a.manifest.name : (a.manifest.tabOf.name || a.manifest.name))}</span><span class="badge num" hidden></span></button>`).join('');
+    group.forEach(a => paintBadge(a.id));
+  }
+  bar.querySelectorAll('[data-tab-app]').forEach(b => { const on = b.dataset.tabApp === current; b.setAttribute('aria-selected', String(on)); b.classList.toggle('on', on); });
 }
 
 /* ---------- routing: #/<app>[/<path>]. The home page (or the first rail app) has the bare address, no #. ---------- */

@@ -250,6 +250,18 @@ export function flowSummary(fd) {
   return { label: 'Agents', lines, items };
 }
 
+/** Where each run is (Builds 6.23.0, for Tasks' agent progress): its key (folder, or session:<id> while starting) ->
+ *  {station, state, it}, from the same floor the dock shows. */
+export function whereMap(fd) {
+  const out = new Map();
+  const add = (c, station, state) => { if (c) out.set(keyOf(c), { station, state: DOCK_STATE[state] || 'idle', it: c.it || null }); };
+  for (const [list] of [[fd.code], [fd.paper]]) list.forEach(s => { for (const c of s.cards) add(c, s.name, motionOf(c)); });
+  for (const c of fd.express) { const i = CODE.findIndex(s => s.id === c.station); add(c, i >= 0 ? CODE[i].name : '', motionOf(c)); }
+  for (const c of fd.belt) add(c, 'On the belt', 'idle');
+  for (const c of fd.stuck) add(c, 'Pulled off the line', 'stuck');
+  return out;
+}
+
 // ------------------------------------------------------------------ drawing
 const TYPE = c => (c.it && c.it.story) ? 'Story ' + (c.it.story.story || '') : (c.it && c.it.trial) ? 'Trial' : (c.it && c.it.coverage) ? 'Tests' : c.quick ? 'Quick' : c.kind === 'build' ? (c.it && c.it.lane === 'bug' ? 'Bug' : 'Feature') : KINDS[c.kind] ? KINDS[c.kind].name : 'Run';
 /** The card's project color (Builds 6.6.0), once you have projects: the same swatch as the project filter. */

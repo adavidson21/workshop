@@ -285,3 +285,13 @@ body:not(.rail-wide) .fd-n{display:block;font:700 .82rem/1 var(--sans);color:var
 .solo .topbar{box-shadow:inset 0 3px 0 var(--accent)}
 .solo .crumbs .here{display:inline-flex;align-items:center;gap:.5rem}
 .solo .crumbs .here::before{content:"";width:10px;height:10px;border-radius:3px;background:var(--accent);flex:none}
+
+/* Tabs (manifest tabOf, Tasks and its Agents floor): one place, two views, switched beside the crumbs. */
+.apptabs{display:inline-flex;align-items:center;gap:2px;margin-left:1rem;padding:3px;border-radius:999px;background:var(--hover,rgba(0,0,0,.05))}
+.apptabs[hidden]{display:none}
+.apptabs button{display:inline-flex;align-items:center;gap:.35rem;min-height:1.9rem;padding:.2rem .85rem;border:0;border-radius:999px;background:transparent;font:600 .86rem/1 var(--sans);color:var(--muted);cursor:pointer}
+.apptabs button:hover{color:var(--ink)}
+.apptabs button.on{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.apptabs .badge{min-width:16px;height:16px;padding:0 4px;border-radius:9px;background:var(--accent);color:var(--on-accent);font:700 .66rem/16px var(--sans);font-variant-numeric:tabular-nums;text-align:center}
+.apptabs .badge[hidden]{display:none}
+@media (max-width:640px){.apptabs{margin-left:.5rem}.apptabs button{padding:.2rem .6rem}}

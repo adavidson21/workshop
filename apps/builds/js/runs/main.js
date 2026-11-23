@@ -34,7 +34,9 @@ import { readCards } from '../../../../shared/summary.js';
 import * as Products from '../../../../shared/products.js';
 import * as Docs from './docs.js';
 import { lanesData, laneOf } from './lanes.js';
-import { rowsData, floorData, flowSummary } from './floor.js';
+import { rowsData, floorData, flowSummary, whereMap } from './floor.js';
+import * as TaskRuns from './task-runs.js';
+import { previewFile } from './pages.js';
 
 const OC = 'opencode';
 const app = document.getElementById('app');
@@ -76,6 +78,43 @@ async function setDocLink(folder, path, on) {
   S.docs.links = Docs.linksOf(S.docs.env);
   publishSummary();
   return true;
+}
+/* Runs started from a task in Tasks (Builds 6.23.0, task-runs.js): the links, and where each run is for Tasks. */
+S.taskRuns = { env: null, links: [] };
+function readTaskRuns() {
+  ws.data.get(TaskRuns.COLLECTION).then(env => { if (!TaskRuns.readable(env)) return; S.taskRuns = { env, links: TaskRuns.linksOf(env) }; publishSummary(); }, () => {});
+}
+readTaskRuns();
+try { ws.data.subscribe(TaskRuns.COLLECTION, readTaskRuns); } catch { /* no data backend */ }
+async function linkTaskRun(task, part, res) {
+  let after = TaskRuns.withRun(S.taskRuns.env || TaskRuns.blank(), { task, part, res });
+  if (!after) return;
+  const before = S.taskRuns.env || TaskRuns.blank();
+  ws.data.stamp(before, after);
+  let out;
+  try { out = await ws.data.put(TaskRuns.COLLECTION, after); }
+  catch (e) {
+    if (e.code !== 'conflict' || !e.current) throw e;
+    after = ws.data.merge(after, e.current);
+    out = await ws.data.put(TaskRuns.COLLECTION, after);
+  }
+  S.taskRuns = { env: { ...after, rev: out && out.rev != null ? out.rev : after.rev }, links: TaskRuns.linksOf(after) };
+  publishSummary();
+}
+/** The summary's `tasks` card: where each run started from a task is, with the document to preview. */
+function tasksCard() {
+  const links = S.taskRuns.links;
+  if (!links.length) return null;
+  const saved = S.view && S.view.project;
+  if (S.view) S.view.project = 'all';
+  let where = new Map();
+  try {
+    for (const [k, w] of whereMap(floorData(lanesData('all')))) where.set(k, { station: w.station, state: w.state, file: w.it ? previewFile(w.it) || '' : '' });
+  } catch { where = new Map(); } finally { if (S.view) S.view.project = saved; }
+  const items = (S.D && S.D.items) || [];
+  const done = new Set(items.filter(it => laneOf(it) === 'done').map(it => it.folder));
+  const rows = TaskRuns.taskRows(links, { where, done, sessions: (S.L && S.L.sessions) || {}, items });
+  return { id: 'tasks', kind: 'list', title: 'Runs started from your tasks', rows, count: rows.length };
 }
 /** The items card's entries: every Tandem item with where it is on the floor, across projects (not the filter). */
 function itemEntries() {
@@ -201,6 +240,8 @@ function publishSummary() {
     const cards = summaryCards({ items: (S.D && S.D.items) || [], prompts: prompts(), prs: S.inbox.items || [], now: Date.now(), publish: (S.D && S.D.publish) || {}, gaps: (S.D && S.D.gaps && S.D.gaps.open) || [] });
     const held = holder && holder.card();
     if (held) cards.push(Object.assign({ updatedAt: Date.now() }, held));
+    const tc = tasksCard();
+    if (tc) cards.push(Object.assign({ updatedAt: Date.now() }, tc));
     // Builds 6.17.0: every item with where it is, its product, epic and the docs Builds linked, for Notes.
     if (S.D && S.D.items) {
       const items = S.D.items;
@@ -494,7 +535,11 @@ function wantFocus(path) {
   // Tandem on a Tasks task, Capture's `b`) is the approval. Without Tandem it stays filled, with the offline note.
   const dm = /^start\/(drop|go)(?:\/([\s\S]*))?$/.exec(p);
   if (dm) {
-    const text = dm[2] ? safeDecode(dm[2]).trim() : '';
+    // ?task=<id> (Builds 6.23.0): sent from a task in Tasks; the run is linked to it, so the task shows its progress.
+    const tq = /\?task=([^&]*)$/.exec(dm[2] || '');
+    const raw = tq ? dm[2].slice(0, tq.index) : dm[2];
+    const text = raw ? safeDecode(raw).trim() : '';
+    ui().dropTask = tq && TaskRuns.cleanTask(safeDecode(tq[1])) ? { task: TaskRuns.cleanTask(safeDecode(tq[1])), text } : null;
     setTab('lanes');
     if (text) ui().drafts['lanes:drop'] = text;
     ui().dropKind = null; ui().dropAdo = null; ui().dropGuess = text ? guessKind(text) : null;
@@ -692,7 +737,7 @@ async function startCore(st, drafts) {
   const msg = r.action === 'spike' && r.args.log ? STARTED['spike.log']() : STARTED[r.action] ? STARTED[r.action]()
     : r.action === 'start.local' ? `Started ${(res && res.id) || 'it'} as a ${r.args.lane === 'quick' ? 'small change' : r.args.lane}${pname}. It is on the floor; the agent may ask you to confirm repos.`
     : `Starting #${r.args.id} as a ${r.args.lane === 'quick' ? 'small change' : r.args.lane}${pname}. Its card is on the floor once its folder is ready.`;
-  return { board: false, msg };
+  return { board: false, msg, res };
 }
 async function startGo() {
   const st = ui().start;
@@ -738,8 +783,11 @@ async function dropGo() {
   const drafts = {};
   for (const [k, v] of Object.entries(r.drafts)) drafts['start:' + k] = v;
   ui().dropBusy = true; paint();
+  const fromTask = ui().dropTask && ui().dropTask.text === text.trim() ? ui().dropTask : null;
   try {
-    await startCore(r.st, drafts);
+    const out = await startCore(r.st, drafts);
+    if (fromTask && out && !out.board) linkTaskRun(fromTask.task, text, out.res).catch(() => {});
+    ui().dropTask = null;
     delete ui().drafts['lanes:drop'];
     ui().dropKind = null; ui().dropGuess = null; ui().dropAdo = null; ui().dropKeep = false;
     toast(DROP_STARTED[kind] || 'Started.');

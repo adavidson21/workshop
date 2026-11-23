@@ -23,6 +23,7 @@ import { buildsFor, buildsLabel } from './builds-link.js';
 import { toast } from './overlays.js';
 import { embedded, ws } from './ws.js';
 import { canBuild, buildsOn, sendToTandem } from './tandem-build.js';
+import { runsFor, docFor, docBody, forgetDoc } from './agent-runs.js';
 import { copyHandoff, followDate, gotBackTask, nudgedTask, openAssign } from './delegate.js';
 import { reportRoute } from './route.js';
 
@@ -64,7 +65,7 @@ const drawerOverlay = () => drawerId && innerWidth < 1100;
 function openDrawer(id, focusTitle = true){
   if (isWaiting() || !findTask(id)) return;
   if (!drawerId) drawerReturn = document.activeElement;
-  if (drawerId !== id) resetDrawerDate();
+  if (drawerId !== id){ resetDrawerDate(); agentPart = ''; agentPreview = ''; }
   drawerId = id; setSel(id);
   app.classList.add('drawer-open');
   renderDrawer();
@@ -156,15 +157,41 @@ function buildsDrawer(t){
   if (!sl) return '';
   return `<div class="dado dslate"><button class="lnk" data-d="open-builds" data-path="${esc(sl.route)}" data-fk="slatelink" title="Shaping, defining or building it happens there">Open in Builds</button><span>${esc(buildsLabel(sl))}</span></div>`;
 }
-/* Build with Tandem (tandem-build.js): any open task to Builds' agents. An ADO item with Tandem set up has Start as
-   feature or bug instead (eng.js), which keeps the ADO link. */
+/* The task's agent work (Tasks 13.0.0, agent-runs.js; tandem-build.js sends). Optional: a task is a to-do first.
+   Its runs (each the whole task or one part of it), where each is on the agents' floor, and its document right here.
+   Send the whole task (B), or type a part (a step, a question) and send only that. An ADO item with Tandem set up
+   starts the whole item with Start as feature or bug (eng.js), which keeps the link; a part can still go. */
+const STATE_WORD = {run: 'Working', gate: 'Waiting on you', stuck: 'Pulled off the line', idle: 'Waiting', done: 'Done', starting: 'Starting'};
+let agentPreview = '';  // folder/file of the run whose document is open in the drawer
+let agentPart = '';     // the part typed, kept while the drawer is open
 function buildHtml(t){
-  const adoItem = shownItem(t.item) && !!engDrawer(t);
-  if (!canBuild(t, {embedded, buildsOn: buildsOn(), adoItem})) return '';
-  return `<div class="dado dbuild"><button class="btn" data-d="build" data-fk="build" data-tip="Builds' agents take it from here: a build, a fix or a question (B)">Build with Tandem</button><span>Starts in Builds</span></div>`;
+  const runs = embedded ? runsFor(t.id) : [];
+  const canSend = embedded && buildsOn() && !t.done && String(t.title || '').trim();
+  if (!runs.length && !canSend) return '';
+  const whole = canBuild(t, {embedded, buildsOn: buildsOn(), adoItem: shownItem(t.item) && !!engDrawer(t)});
+  const list = runs.map((r, i) => {
+    const k = r.folder && r.file ? r.folder + '/' + r.file : '';
+    const open = k && agentPreview === k;
+    const doc = open ? docFor(ws, r.folder, r.file, () => { if (drawerId === t.id) renderDrawer(); }) : null;
+    return `<li class="arun s-${r.state}"><div class="arun-h"><span class="adot" aria-hidden="true"></span><span class="arun-t">${esc(r.title)}</span>`
+      + `<span class="arun-w">${esc([r.station, STATE_WORD[r.state]].filter((x, j, a) => x && a.indexOf(x) === j).join(' · '))}</span></div>`
+      + `<div class="arun-a">${k ? `<button class="lnk" data-d="agent-preview" data-k="${esc(k)}" data-fk="ap${i}" aria-expanded="${!!open}">${open ? 'Hide' : 'Read'} ${esc(r.file)}</button>` : ''}`
+      + `<button class="lnk" data-d="open-builds" data-path="${esc(r.route)}" data-fk="af${i}">${r.state === 'gate' ? 'Answer on the floor' : 'Open on the floor'}</button></div>`
+      + (open ? `<div class="arun-doc">${docBody(doc)}</div>` : '') + '</li>';
+  }).join('');
+  const send = canSend ? `<div class="asend"><input data-f="agentPart" data-fk="agentPart" value="${esc(agentPart)}" maxlength="500" autocomplete="off" placeholder="${whole ? 'A part, or blank for the whole task' : 'A step or a question for the agents'}" aria-label="What to send to the agents">`
+    + `<button class="btn" data-d="build" data-fk="build" data-tip="The agents take it from here: a build, a fix or a question. The task stays yours to finish (B)">${whole ? 'Send to agents' : 'Send this part'}</button></div>` : '';
+  return `<section class="dagents" aria-label="Agents"><header><b>Agents</b><span class="hint">${runs.length ? `${runs.length} run${runs.length === 1 ? '' : 's'}. ` : ''}Optional: send all of it, or just a part.</span></header>`
+    + (list ? `<ul class="aruns">${list}</ul>` : '') + send + '</section>';
 }
 /* B on a selected task, or the drawer's button. */
 function buildTask(t){
+  const part = drawerId === (t && t.id) ? agentPart.trim() : '';
+  if (part){
+    if (!embedded || !buildsOn() || t.done) return false;
+    agentPart = '';
+    return sendToTandem(ws, t, part);
+  }
   if (!canBuild(t, {embedded, buildsOn: buildsOn(), adoItem: shownItem(t && t.item) && !!engDrawer(t)})) return false;
   return sendToTandem(ws, t);
 }
@@ -209,12 +236,14 @@ drawer.addEventListener('input', e => {
     const v = e.target.value.replace(/\s+/g, ' ').trim(); if (v) t.title = v;
   } else if (f === 'notes') t.notes = e.target.value.trim();
   else if (f === 'firstStep') setFirstStep(t, e.target.value);
+  else if (f === 'agentPart'){ agentPart = e.target.value; return; }
   else return;
   clearTimeout(textTimer);
   textTimer = setTimeout(() => { textTimer = null; save(); renderMainOnly(); }, 400);
 });
 drawer.addEventListener('keydown', e => {
   if ((e.target.dataset.f === 'title' || e.target.dataset.f === 'firstStep') && e.key === 'Enter'){ e.preventDefault(); e.target.blur(); }
+  if (e.target.dataset.f === 'agentPart' && e.key === 'Enter'){ e.preventDefault(); const t = findTask(drawerId); if (t && buildTask(t)) renderDrawer(); }
 });
 // flush typed text on blur; only re-render once focus has actually left the drawer, so a click on a drawer button isn't lost
 drawer.addEventListener('focusout', e => {
@@ -261,6 +290,7 @@ drawer.addEventListener('click', e => {
   if (a === 'eng-open') return engOpen(t.item.id);
   if (a === 'eng-start') return engStart(t, b.dataset.lane, b);
   if (a === 'build') return buildTask(t);
+  if (a === 'agent-preview'){ const k = b.dataset.k; if (agentPreview === k) agentPreview = ''; else { agentPreview = k; const i = k.indexOf('/'); forgetDoc(k.slice(0, i), k.slice(i + 1)); } return renderDrawer(); }
   if (a === 'prai-open') return prAiOpen(t);
   if (a === 'prai-again') return prAiAgain(t, b);
   if (a === 'copy-link') return copyTaskLink(t);

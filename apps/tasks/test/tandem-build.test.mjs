@@ -16,8 +16,8 @@ test('buildText: title, first step, notes, then a link back to the task', () => 
 
 test('buildPath: Builds\' start/go route with the text encoded as one segment', () => {
   const p = buildPath(t);
-  assert.match(p, /^start\/go\/[^/]+$/);
-  assert.equal(decodeURIComponent(p.slice('start/go/'.length)), buildText(t));
+  assert.match(p, /^start\/go\/[^/?]+\?task=t_1$/, 'the task id rides along, so Builds links the run to it (Tasks 13.0.0)');
+  assert.equal(decodeURIComponent(p.slice('start/go/'.length, p.indexOf('?'))), buildText(t));
 });
 
 test('canBuild: open tasks inside Workshop with Builds on, not ADO items with their own Start', () => {
@@ -27,4 +27,9 @@ test('canBuild: open tasks inside Workshop with Builds on, not ADO items with th
   assert.equal(canBuild(t, { ...on, buildsOn: false }), false);
   assert.equal(canBuild(t, { ...on, adoItem: true }), false);
   assert.equal(canBuild({ ...t, title: '' }, on), false);
+});
+
+test('a part of a task goes alone, with its task as context (Tasks 13.0.0)', () => {
+  assert.equal(buildText(t, 'Write the CSV writer'), 'Write the CSV writer\n\nPart of the task: Add CSV export to reports\n\nFrom Tasks: [Add CSV export to reports](ws:tasks/task/t_1)');
+  assert.equal(buildText(t, '   '), buildText(t), 'a blank part is the whole task');
 });

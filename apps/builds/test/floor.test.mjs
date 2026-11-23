@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { S, resetUi } from '../js/runs/state.js';
 import { lanesData, lanesHtml, laneView } from '../js/runs/lanes.js';
-import { CODE, PAPER, STACK_MAX, motionOf, lineOf, stationOf, floorData, floorHtml, epicPanelHtml, rowsData, rowsHtml, onboardPickHtml, coverPickHtml, testsBadge, toldStep, flowSummary, floorEmpty } from '../js/runs/floor.js';
+import { CODE, PAPER, STACK_MAX, motionOf, lineOf, stationOf, floorData, floorHtml, epicPanelHtml, rowsData, rowsHtml, onboardPickHtml, coverPickHtml, testsBadge, toldStep, flowSummary, floorEmpty, whereMap } from '../js/runs/floor.js';
 import { setBoardFeed } from '../js/board.js';
 import { setAdo } from '../../../shared/ado.js';
 import { setFlowsAdo } from '../js/runs/flows.js';
@@ -477,4 +477,11 @@ test('Builds 6.22.0: the open card previews its document right on the floor', as
   S.ui.laneSel = gate.folder;
   const html = lanesHtml();
   assert.match(html, /class="fl-pop[\s\S]*<strong>fix<\/strong>/, 'the gate file reads in the popup, not behind Read');
+});
+
+test('Builds 6.23.0: whereMap says where each run is, for the task it came from', () => {
+  load();
+  const m = whereMap(floorData(lanesData('all')));
+  assert.deepEqual(m.get('41300-export-retry-fails') && [m.get('41300-export-retry-fails').station, m.get('41300-export-retry-fails').state], ['Plan desk', 'gate']);
+  assert.equal(m.get('41502-csv-export').state, 'stuck');
 });

@@ -2,7 +2,7 @@
   "manifestVersion": 1,
   "id": "tasks",
   "name": "Tasks",
-  "version": "12.5.0",
+  "version": "13.0.0",
   "description": "Decide what to work on next, and plan your day around it.",
   "icon": "icon.svg",
   "entry": "index.html",
@@ -225,6 +225,7 @@
     "js/views.js",
     "js/ws.js",
     "js/all-model.js",
-    "js/all-view.js"
+    "js/all-view.js",
+    "js/agent-runs.js"
   ]
 }
