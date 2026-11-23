@@ -61,7 +61,7 @@ import { APP_FOLDERS } from './shared/app-folders.js';
 import { enableStartAtLogin, disableStartAtLogin, startAtLoginStatus } from './agent/lib/login.mjs';
 import { main as adoDoctorMain } from './connectors/ado/doctor.mjs';
 import { checkProviders } from './connectors/opencode/lib/providers.mjs';
-import { checkLocalModels } from './connectors/opencode/lib/local-model.mjs';
+import { checkLocalModels, probeLocalServers } from './connectors/opencode/lib/local-model.mjs';
 import { verifyPinned, describeBuild, uiDirOf } from './agent/lib/pinned.mjs';
 import { buildRegistry as registryOf, findApp, pinApps, readOff, writeOff, readAreasOff, writeAreasOff, appSwitches } from './agent/lib/apps.mjs';
 import { ENV_NAME, liveEnv, readWindowsUserEnv } from './agent/lib/userenv.mjs';
@@ -255,7 +255,7 @@ export function inspectOldData(home) {
  * Build the lines `workshop doctor` prints and its exit code. `probe` checks whether the agent answers on a
  * port (defaults to the real health check); tests pass their own.
  */
-export async function doctorReport({ repo = REPO, home = resolveHome(), env = process.env, platform = process.platform, nodeVersion = process.version, probe = agentHealth, defaultDir = defaultDataDir(), uiDir = uiDirOf(home), userHome = os.homedir(), sizes = false } = {}) {
+export async function doctorReport({ repo = REPO, home = resolveHome(), env = process.env, platform = process.platform, nodeVersion = process.version, probe = agentHealth, defaultDir = defaultDataDir(), uiDir = uiDirOf(home), userHome = os.homedir(), sizes = false, modelProbe = probeLocalServers } = {}) {
   const schemas = loadSchemas();
   const paths = homePaths(home);
   const lines = [];
@@ -342,6 +342,12 @@ export async function doctorReport({ repo = REPO, home = resolveHome(), env = pr
     const lm = checkLocalModels({ workspace: oc.workspace, setting: oc.localModel, env, platform, home: userHome });
     for (const l of lm.lines) lines.push(l);
     if (lm.state === 'bad') bad = true;
+    // Does each local model server answer? A server that is down fails every build step (1.34.0).
+    if (lm.servers && lm.servers.length && modelProbe) {
+      const pr = await modelProbe(lm.servers, { env });
+      for (const l of pr.lines) lines.push(l);
+      if (pr.state === 'bad') bad = true;
+    }
   }
   // Tandem: what opencode loads should match the checkout next to Workshop (a stale install has missing agents).
   if (oc || findEngAgents(repo, { userHome })) {

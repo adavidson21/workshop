@@ -9,6 +9,16 @@ You touch a work item twice:
 
 In between, autopilot runs the tasks (each checking its own pages), the review and its fix tasks, the UI checks and the PR text. It stops only for a lane step-up, a step that still fails after its retries and one fresh session, a knowledge gap with no safe assumption, or a merge conflict it cannot resolve. After Publish, Workshop follows each PR until it merges (see After Publish).
 
+## When the model fails
+
+Since connector 1.34.0. A build is meant to run for hours without you, so a model hiccup does not end it:
+
+- **A model or connection error** (the model server restarted, a VPN blip, a 500): autopilot runs the same step again in a fresh session, 1 minute and then 5 minutes later. Loom's card says so with the time of the next try. After the third failure it waits for you: check the model server (`workshop doctor`), then **Resume**.
+- **A stalled step** (no word from opencode for the stall time, and no permission prompt or question waiting on you): the step is stopped and handled like a model error.
+- **Workshop restarts** (an update, a reboot, `workshop restart`) mid-build: the build carries on once opencode is connected, from the step it was on. A step still running in opencode's own service is waited for, not started twice.
+- **Resume** after a failed **Approve** approves the plan again, then builds.
+- `workshop doctor` asks each local model server for its model list: a server that does not answer fails doctor, and a model it does not have is a warning.
+
 ## Settings, Factory
 
 Saved in the opencode connector's config (`autopilot`, `factory`) and written to `.work/factory.json`, which Tandem reads.
@@ -16,6 +26,7 @@ Saved in the opencode connector's config (`autopilot`, `factory`) and written to
 | Setting | Default | Means |
 | --- | --- | --- |
 | Builds at once | 2 (up to 5) | More start queued. Always 1 while Local model is on ([local-models.md](local-models.md)). |
+| Stalled after (minutes) | 30 (5 to 240) | A step with no word from the model this long is stopped and tried again. A step waiting on your answer never stalls. See When the model fails below. |
 | Every project gets a turn | on | A free slot goes first to a project with nothing running, then by project order. |
 | Files per task | 6 | Test files do not count. |
 | Tasks in a Quick change | 3 | More steps up to a feature. |

@@ -331,7 +331,9 @@ export function autoHtml(it) {
   if (a.status === 'running') {
     return '<div class="auto run"><div class="auto-head"><span class="state"><span class="spin" aria-hidden="true"></span>Autopilot</span>' +
       (a.command ? `<span class="then" title="${h(a.command)}">${h(cmdWords(it, a.command.replace(/\s+auto$/, '')))}</span>` : '') + rounds +
-      `<span class="row">${autoBtn(it, 'stop', 'Stop after this step', '', 'The current step finishes. Nothing runs after it.')}</span></div>${log}</div>`;
+      `<span class="row">${autoBtn(it, 'stop', 'Stop after this step', '', 'The current step finishes. Nothing runs after it.')}</span></div>` +
+      // A model error it will try again (opencode connector 1.34.0): say so while it waits.
+      (a.message ? `<p class="msg">${md(a.message)}</p>` : '') + `${log}</div>`;
   }
   return `<div class="auto wait"><div class="auto-head"><span class="state">Autopilot needs you</span>${rounds}` +
     `<span class="row">${autoBtn(it, 'resume', 'Resume', 'primary', 'Re-reads .work and runs the next step')}${autoBtn(it, 'stop', 'Stop', '', 'Turn autopilot off for this item')}</span></div>` +

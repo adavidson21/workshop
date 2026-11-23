@@ -63,6 +63,7 @@ export function upsertSession(id, patch) {
   if (!id) return {};
   const s = sessions.get(id) || { id, title: null, status: "idle", activity: null, text: null, error: null, updated: null };
   for (const [k, v] of Object.entries(patch)) if (v !== undefined) s[k] = v;
+  s.seenAt = Date.now(); // the last word from opencode about it (autopilot's stall watchdog)
   sessions.set(id, s);
   return s;
 }

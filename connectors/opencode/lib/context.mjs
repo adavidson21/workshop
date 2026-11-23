@@ -18,7 +18,7 @@ import { isLocal } from "./local-model.mjs";
 export const HERE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 export const MAX_AUTO_RUNS = 5; // the hard cap: more mostly competes for the model's rate limits and the CPU (3 until 1.21.0)
 export const DEFAULT_AUTO_RUNS = 2;
-export const VERSION = "1.33.0"; // the connector's version (index.mjs exports it)
+export const VERSION = "1.34.0"; // the connector's version (index.mjs exports it)
 export const APP = "eng-agents-dashboard"; // the shell status shape keeps this name (README, `status`)
 export const FRESH_SESSION = new Set(["do-task", "check-docs"]); // the pipeline says: run these in a new session
 export const isWin = process.platform === "win32";
@@ -100,6 +100,8 @@ export function configure(c) {
     local: isLocal(cfg.localModel, runModelOf(cfg.runModel)),
     autoMaxRuns: isLocal(cfg.localModel, runModelOf(cfg.runModel)) ? 1 : Math.min(MAX_AUTO_RUNS, Math.max(1, Number.isInteger(cfg.autopilot && cfg.autopilot.maxRuns) ? cfg.autopilot.maxRuns : DEFAULT_AUTO_RUNS)),
     quickHandsOff: !cfg.autopilot || cfg.autopilot.quickHandsOff !== false, // default on
+    // 1.34.0: minutes with no word from opencode before autopilot calls a step stalled (default 30).
+    autoStallMinutes: Number.isInteger(cfg.autopilot && cfg.autopilot.stallMinutes) ? Math.min(240, Math.max(5, cfg.autopilot.stallMinutes)) : 30,
     // 1.21.0: projects with nothing running get the next free slot first (default on).
     fairSlots: !cfg.autopilot || cfg.autopilot.fairSlots !== false,
     // 1.21.0: the software factory's settings, also written to .work/factory.json for Tandem.

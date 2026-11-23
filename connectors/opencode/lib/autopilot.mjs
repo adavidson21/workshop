@@ -6,10 +6,10 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { current, httpError, later, log, opt, stateDir, workRoot } from "./context.mjs";
+import { current, httpError, later, log, opt, running, stateDir, workRoot } from "./context.mjs";
 import { runModel, setModel } from "./model.mjs";
 import { currentSession, linkSessionsFromModel } from "./links.mjs";
-import { sessions } from "./opencode-state.mjs";
+import { oc, permissions, questions, sessions } from "./opencode-state.mjs";
 import { findItem, needOpencode, parseCommand, runCommand } from "./actions.mjs";
 import { broadcastLive, emitAutopilot, emitModel } from "./live.mjs";
 import { projectOf, projectOrder } from "./projects.mjs";
@@ -54,6 +54,17 @@ import { holdingGap } from "./gaps.mjs";
 //     (the fix tasks, a review round, the PR text) until the item is ready to publish again.
 //   - /revise that wrote `Status: HOLD` in revise.md waits for you with its Needs you lines.
 //   - onAutoChange(fn) hears every status change (the code review follows a Send back with it).
+//
+// 1.34.0 (hardening for long hands-off runs on a local model):
+//   - A step that fails on a model or connection error (the model server restarted, a VPN blip) runs again on its
+//     own, up to MODEL_RETRIES times, 1 and then 5 minutes later, before it waits for you.
+//   - A watchdog (autoWatch, every 30 seconds): a step with no word from opencode for the stall time (autopilot
+//     stallMinutes, default 30) is stopped and handled like a model error; a step whose session went idle while
+//     Workshop missed it (the event stream reconnected) moves on; a step whose session is gone waits with why.
+//     A step waiting on your permission prompt or question is never a stall.
+//   - After a restart, a step still running in opencode is waited for instead of started again beside it, and a
+//     step cut off by Workshop stopping is not a failure: the build resumes when Workshop starts again.
+//   - Resume after a failed Approve and build approves the plan again, instead of refusing.
 
 const autoFile = () => path.join(stateDir, "autopilot.json");
 const AUTO_STEPS = new Set(["quick", "approve", "tasks", "do-task", "review", "pr"]);
@@ -67,6 +78,15 @@ const isQuickRun = (it) => !!(it && (it.trial || it.coverage));
 const isHandsOff = (it) => isStory(it) || isQuickRun(it);
 // Review rounds before a not-READY review waits for you: the factory's reviewRounds (default 2).
 const maxFixRounds = () => (opt && opt.factory && opt.factory.reviewRounds) || 2;
+// Model or connection errors: tries of the same step before it waits for you, and the wait before each.
+export const MODEL_RETRIES = 2;
+// The waits, and how long an unnoticed idle may last; tests shorten them.
+export const autoTiming = { retryDelays: [60e3, 5 * 60e3], missedIdleMs: 20e3 };
+// No word from opencode on a step for this long (and no prompt waiting on you): a stall.
+const stallMs = () => Math.max(5, (opt && opt.autoStallMinutes) || 30) * 60e3;
+// Errors that are not worth a retry: you stopped it, or the command itself is wrong.
+const NO_RETRY = /^Stopped\.?$|has no \/|not found|refused|too small|does not fit/i;
+const clock = (ms) => new Date(Date.now() + ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
 // { "<folder>": { status, message, command, lastCommand, session, inFlight, sawBusy,
 //                 approveFirst, fixRounds, started, updated, log: [{ at, text }] } }
@@ -88,6 +108,7 @@ export function loadAuto() {
       a.inFlight = false;
       a.lastCommand = null;
       a.message = "Workshop restarted the opencode connector. It carries on when opencode is connected.";
+      a.restarted = true;
     }
   }
   try {
@@ -165,7 +186,8 @@ function startQueued() {
     const [folder, a] = next;
     a.status = "running";
     a.message = null;
-    autoLog(folder, a.after ? `${a.after} is ready: started` : "A slot freed up: started");
+    autoLog(folder, a.restarted ? "Workshop restarted: carrying on" : a.after ? `${a.after} is ready: started` : "A slot freed up: started");
+    a.restarted = false;
     saveAuto();
     emitAutopilot(folder, "running", null);
     broadcastLive();
@@ -226,6 +248,80 @@ function needsYouText(it) {
   return "The next step needs you. Then click Resume.";
 }
 
+/**
+ * A step failed (`why`). A model or connection error runs the same step again later, up to MODEL_RETRIES times;
+ * anything else, or the last try, waits for you with what to do.
+ */
+function stepFailed(folder, why) {
+  const a = autopilot[folder];
+  // Workshop is stopping: the step's request dies with opencode. Keep the build as it is, so the restart resumes it.
+  if (!running || !a || a.status !== "running") return;
+  const text = String(why || "the step failed").trim();
+  const tries = a.errRetries || 0;
+  if (!NO_RETRY.test(text.replace(/^.*?stopped:\s*/, "")) && tries < MODEL_RETRIES) {
+    const d = autoTiming.retryDelays;
+    const wait = d[Math.min(tries, d.length - 1)];
+    a.errRetries = tries + 1;
+    a.inFlight = false;
+    a.lastCommand = null; // the retry is the same step on purpose, not "it did not move forward"
+    a.retried = null;
+    a.message = `${text}. Trying again at ${clock(wait)} (${a.errRetries} of ${MODEL_RETRIES}).`;
+    autoLog(folder, a.message);
+    saveAuto();
+    emitAutopilot(folder, "running", a.message);
+    broadcastLive();
+    const at = (a.retryAt = Date.now() + wait);
+    later(() => {
+      const b = autopilot[folder];
+      if (b && b.status === "running" && b.retryAt === at) {
+        b.retryAt = null;
+        autoStep(folder).catch(() => {});
+      }
+    }, wait);
+    return;
+  }
+  const after = tries ? ` It failed ${tries + 1} times.` : "";
+  autoSet(folder, "waiting", `${text}.${after} If the model server is down or busy, check it (workshop doctor), then click Resume.`);
+}
+
+/**
+ * The watchdog, every 30 seconds: stalls, missed idles and lost sessions of running steps (see 1.34.0 above).
+ * `now` is for tests.
+ */
+export function autoWatch(now = Date.now()) {
+  if (!oc.connected) return; // nothing is known until opencode is back; the reconnect reloads every session
+  for (const [folder, a] of Object.entries(autopilot)) {
+    if (a.status !== "running" || !a.inFlight || !a.session || stepping.has(folder)) continue;
+    const s = sessions.get(a.session);
+    if (!s) {
+      autoSet(folder, "waiting", `${a.command}: its opencode session is gone (opencode was reset or the session deleted). Click Resume to run the step again.`);
+      continue;
+    }
+    if (s.status === "idle") {
+      // Idle, but autopilot never heard it (the event stream dropped and came back): carry on.
+      const since = s.idleSeen || (s.idleSeen = now);
+      if (now - since >= autoTiming.missedIdleMs) {
+        s.idleSeen = null;
+        a.inFlight = false;
+        autoLog(folder, `${a.command} ended while Workshop was not listening: carrying on`);
+        saveAuto();
+        autoStep(folder, true).catch(() => {});
+      }
+      continue;
+    }
+    s.idleSeen = null;
+    const asking = [...permissions.values(), ...questions.values()].some((p) => p.sessionID === a.session);
+    if (asking) continue; // waits on you: never a stall
+    const last = Math.max(s.seenAt || 0, a.stepAt || 0);
+    if (last && now - last >= stallMs()) {
+      const mins = Math.round(stallMs() / 60e3);
+      const sid = a.session;
+      if (oc.api && oc.api.abort) oc.api.abort(sid).catch(() => {});
+      stepFailed(folder, `${a.command}: no word from the model for ${mins} minutes`);
+    }
+  }
+}
+
 const stepping = new Set();
 // finished: called because the step autopilot started just ended (not a start or resume).
 async function autoStep(folder, finished = false) {
@@ -248,7 +344,19 @@ async function autoStep(folder, finished = false) {
 
     // How did the last step end?
     const last = a.session ? sessions.get(a.session) : null;
-    if (finished && last && last.error) return autoSet(folder, "waiting", `${a.command} stopped: ${last.error}`);
+    // After a Workshop restart the step may still be running in opencode (its own service): wait for it rather than
+    // start the same step again beside it (1.34.0).
+    if (!finished && last && last.status !== "idle" && !a.pending) {
+      a.inFlight = true;
+      a.sawBusy = true;
+      a.stepAt = Date.now();
+      autoLog(folder, `${a.command || "The last step"} is still running in opencode: waiting for it`);
+      saveAuto();
+      broadcastLive();
+      return;
+    }
+    if (finished && last && last.error) return stepFailed(folder, `${a.command} stopped: ${last.error}`);
+    if (finished) a.errRetries = 0; // a step that ended cleanly resets the model-error tries
     // /revise put something on hold (a new dependency, a migration, auth code, another repo): wait for you.
     if (finished && a.command && /^\/revise\b/.test(a.command)) {
       const rv = reviseStatus(folder);
@@ -266,6 +374,7 @@ async function autoStep(folder, finished = false) {
       const run = await runCommand({ folder, command: full }, { fresh: true, fromAuto: true });
       a.pending = null;
       a.session = run.session;
+      a.stepAt = Date.now();
       autoLog(folder, `Running ${full}`);
       saveAuto();
       broadcastLive();
@@ -331,9 +440,11 @@ async function autoStep(folder, finished = false) {
     a.command = full;
     a.inFlight = true;
     a.sawBusy = false;
-    if (approving) a.approveFirst = false;
+    // approveFirst stays until the plan is approved, so Resume after a failed approve approves again.
+    if (!approving) a.approveFirst = false;
     const run = await runCommand({ folder, command: full }, { fresh: true, fromAuto: true });
     a.session = run.session;
+    a.stepAt = Date.now();
     autoLog(folder, `Running ${full}`);
     saveAuto();
     broadcastLive();
@@ -365,7 +476,7 @@ export function autoOnIdle(sid) {
 
 export function autoOnFail(sid, msg) {
   const [folder, a] = autoForSession(sid);
-  if (a && a.status === "running") autoSet(folder, "waiting", msg);
+  if (a && a.status === "running" && a.inFlight) stepFailed(folder, msg);
 }
 
 // You answered the agent in the step it stopped on: pick up again when that turn ends.
@@ -413,7 +524,9 @@ export async function autopilotAction({ folder, action, after }) {
   const n = it.next || {};
   const canApprove = n.command && /^\/approve\b/.test(n.command) && (n.stage === "plan" || n.stage === "bug" || n.stage === "quick");
   if (action === "approve-start" && !canApprove) throw httpError(409, "There is no plan, quick plan or bug analysis waiting for approval.");
-  const pendingApprove = action === "resume" && a && a.approveFirst && canApprove;
+  // Resume on a build whose approve step failed (approveFirst, or an older record whose last step was /approve).
+  const pendingApprove = action === "resume" && a && (a.approveFirst || /^\/approve\b/.test(a.command || "")) && canApprove;
+  if (pendingApprove) a.approveFirst = true;
   // Hands-off Quick change: may start before quick.md exists or while it is a draft (review by exception).
   const handsOffStart = (it.lane === "quick" && autoOptions().quickHandsOff && (n.stage === "quick") && action !== "approve-start")
     // A story from an approved breakdown or a trial run may start before it is set up or planned (Core 4.10.0).
@@ -432,6 +545,8 @@ export async function autopilotAction({ folder, action, after }) {
     a.gap = null;
     a.message = null;
     a.lastCommand = null; // you fixed something: allow the same step once more
+    a.errRetries = 0;
+    a.retryAt = null;
     a.inFlight = false;
     autoLog(folder, "Resumed");
   } else {

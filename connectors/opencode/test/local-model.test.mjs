@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { BASE_TOKENS, checkLocalModels, commandSizes, fitMessage, isLocal, localSetting, privateUrl, promptFit } from '../lib/local-model.mjs';
+import { BASE_TOKENS, checkLocalModels, commandSizes, fitMessage, isLocal, localSetting, privateUrl, probeLocalServers, promptFit } from '../lib/local-model.mjs';
 import { configure, opt, shutdown } from '../lib/context.mjs';
 import { chatSuggest } from '../lib/chat-more.mjs';
 
@@ -161,6 +161,44 @@ test('commandFit: a command whose prompt cannot fit the model for agent runs is 
     if (was.home === undefined) delete process.env.HOME; else process.env.HOME = was.home;
     if (was.profile === undefined) delete process.env.USERPROFILE; else process.env.USERPROFILE = was.profile;
     oc.api = was.api;
+    fs.rmSync(h, { recursive: true, force: true });
+  }
+});
+
+test('probeLocalServers: down is bad, a missing model or a refused key warns, never prints the address or key (1.34.0)', async () => {
+  const seen = [];
+  const answer = (status, body) => async (url, init) => {
+    seen.push({ url: String(url), auth: init.headers.authorization || null });
+    return { ok: status < 400, status, json: async () => body };
+  };
+  const servers = [{ id: 'ollama', url: 'http://127.0.0.1:11434/v1/', apiKey: '{env:CORP_KEY}', models: ['qwen2.5-coder:32b', 'small'] }];
+  let r = await probeLocalServers(servers, { env: { CORP_KEY: 'sekret' }, fetchFn: answer(200, { data: [{ id: 'qwen2.5-coder:32b' }, { id: 'small:latest' }] }) });
+  assert.equal(r.state, 'ok');
+  assert.deepEqual(r.lines, ['Local model server ollama: answering.']);
+  assert.deepEqual(seen[0], { url: 'http://127.0.0.1:11434/v1/models', auth: 'Bearer sekret' });
+  r = await probeLocalServers(servers, { env: {}, fetchFn: answer(200, { models: [{ name: 'other' }] }) });
+  assert.equal(r.state, 'warn');
+  assert.match(r.lines[0], /does not list qwen2\.5-coder:32b, small/);
+  r = await probeLocalServers(servers, { env: {}, fetchFn: answer(401, {}) });
+  assert.equal(r.state, 'warn');
+  assert.match(r.lines[0], /refused the request \(401\)/);
+  r = await probeLocalServers(servers, { env: {}, fetchFn: async () => { throw new TypeError('fetch failed'); } });
+  assert.equal(r.state, 'bad');
+  assert.match(r.lines[0], /not answering \(could not connect\)/);
+  r = await probeLocalServers(servers, { env: {}, fetchFn: async () => { const e = new Error('t'); e.name = 'TimeoutError'; throw e; }, timeout: 3000 });
+  assert.match(r.lines[0], /no answer in 3 seconds/);
+  for (const l of r.lines) assert.ok(!/127\.0\.0\.1|sekret/.test(l));
+  assert.equal((await probeLocalServers([])).state, 'skipped');
+});
+
+test('checkLocalModels lists each local server for the probe', () => {
+  const h = fs.mkdtempSync(path.join(os.tmpdir(), 'lm-'));
+  try {
+    fs.mkdirSync(path.join(h, '.config', 'opencode'), { recursive: true });
+    fs.writeFileSync(path.join(h, '.config', 'opencode', 'opencode.json'), JSON.stringify({ provider: { ollama: { options: { baseURL: 'http://127.0.0.1:11434/v1' }, models: { big: { limit: { context: 32768 } } } }, anthropic: { models: {} } } }));
+    const r = checkLocalModels({ workspace: null, setting: 'auto', env: {}, platform: 'linux', home: h });
+    assert.deepEqual(r.servers, [{ id: 'ollama', url: 'http://127.0.0.1:11434/v1', apiKey: null, models: ['big'] }]);
+  } finally {
     fs.rmSync(h, { recursive: true, force: true });
   }
 });

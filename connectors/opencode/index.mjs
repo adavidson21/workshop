@@ -13,7 +13,7 @@ import { currentSession, loadLinks } from "./lib/links.mjs";
 import { oc, resetState, sessions } from "./lib/opencode-state.mjs";
 import { connectOpencode, disconnectOpencode, onConnected } from "./lib/opencode-connect.mjs";
 import { abort, answerPermission, answerQuestion, openTerminal, pushBranch, removeItem, removeWorktrees, reply, resetActions, runCommand, shellData, startItem } from "./lib/actions.mjs";
-import { autopilot, autopilotAction, loadAuto, resumeAfterGap, resumeQueued } from "./lib/autopilot.mjs";
+import { autoWatch, autopilot, autopilotAction, loadAuto, resumeAfterGap, resumeQueued } from "./lib/autopilot.mjs";
 import { decideObservation, findObservation, loadObservations, resetObservations, startArgs } from "./lib/observations.mjs";
 import { answerGap, loadGaps, MAX_ANSWER, onGapClosed, resetGaps } from "./lib/gaps.mjs";
 import { buildEpic, coverProduct, dismissOnboarding, loadEpics, onboardProduct, resetEpics, startWaiting } from "./lib/epics.mjs";
@@ -208,6 +208,15 @@ export const configSchema = {
           title: "Hands-off Quick changes",
           description: "Review by exception: Build with autopilot on a Quick change writes the quick plan, approves it on its own when it is clean (no open questions, at most 3 assumptions, at most 2 tasks), then builds and reviews it. A plan that is not clean stops for you. Nothing is pushed. Off: you approve every quick plan.",
           default: true,
+          "x-workshop-hosted": true,
+        },
+        stallMinutes: {
+          type: "integer",
+          title: "Stalled after (minutes)",
+          description: "A build step with no word from the model for this long is stopped and tried again (twice), then waits for you. A step waiting on your answer is never stalled. Raise it for a slow model or a long test suite. Default 30.",
+          minimum: 5,
+          maximum: 240,
+          default: 30,
           "x-workshop-hosted": true,
         },
       },
@@ -1759,6 +1768,8 @@ export default {
     loadAfterPublish();
     // 1.28.0: a build's app that nothing has built with or opened for 30 minutes is stopped (Try it, lib/preview.mjs).
     every(() => { if (oc.connected) sweepIdle((model && model.items) || []).catch(() => {}); }, 5 * 60 * 1000);
+    // 1.34.0: autopilot's watchdog: stalled steps, idles missed over a reconnect, lost sessions (lib/autopilot.mjs).
+    every(() => autoWatch(), 30 * 1000);
     loadPrQueue();
     phase = "starting";
     problem = null;

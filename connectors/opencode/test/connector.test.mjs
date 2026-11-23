@@ -7,6 +7,8 @@ import { execFileSync } from "node:child_process";
 import { after, before, describe, test } from "node:test";
 import oc from "../index.mjs";
 import { startFakeOpencode } from "./fake-opencode.mjs";
+import { autoTiming, autoWatch } from "../lib/autopilot.mjs";
+import { sessions } from "../lib/opencode-state.mjs";
 import { EXAMPLE_WORK, configFor, fakeCtx, hasGit, hasPowerShell, makeFakeCli, makeWorkspace, waitFor } from "./harness.mjs";
 
 const skip = false; // the connector reads .work itself since 1.6.0; PowerShell is not needed
@@ -32,6 +34,10 @@ async function startConnector(config, env = {}) {
 
 const busyEvent = (kind, sid) => (kind === "v1" ? { type: "session.status", properties: { sessionID: sid, status: { type: "busy" } } } : { type: "session.execution.started", data: { sessionID: sid } });
 const idleEvent = (kind, sid) => (kind === "v1" ? { type: "session.idle", properties: { sessionID: sid } } : { type: "session.execution.succeeded", data: { sessionID: sid } });
+// A step that fails on a model error: 1.x sends session.error then idle; 2.x one failed event.
+const failEvents = (kind, sid, message) => (kind === "v1"
+  ? [{ type: "session.error", properties: { sessionID: sid, error: { name: "APIError", data: { message } } } }, { type: "session.idle", properties: { sessionID: sid } }]
+  : [{ type: "session.execution.failed", data: { sessionID: sid, error: { message } } }]);
 
 for (const kind of ["v1", "v2"]) {
   describe(`opencode ${kind === "v1" ? "1.x" : "2.x"} (explicit URL)`, { skip }, () => {
@@ -470,6 +476,76 @@ for (const kind of ["v1", "v2"]) {
       await call("autopilot", { folder: "41300-export-retry-fails", action: "stop" }, ctx());
       const sid = (await call("state", {}, ctx())).liveMode.live.items["41300-export-retry-fails"].current;
       await finish(sid);
+    });
+
+    test("[P-autopilot] a model error runs the step again, twice, then waits; Resume after a failed approve approves again", async () => {
+      const saved = { ...autoTiming };
+      autoTiming.retryDelays = [30, 30];
+      try {
+        const titles = () => fake.bodiesFor(kind === "v1" ? "POST /session" : "POST /api/session").map((b) => b.title);
+        const auto = async () => (await call("state", {}, ctx())).liveMode.live.autopilot["41300-export-retry-fails"];
+        const fail = async () => {
+          const sid = (await auto()).session;
+          fake.send(busyEvent(kind, sid));
+          await waitFor(async () => (await live()).sessions[sid]?.status === "busy", "the step to be busy");
+          for (const ev of failEvents(kind, sid, "model server error")) fake.send(ev);
+          return sid;
+        };
+        const n0 = titles().filter((t) => t === "41300: /approve 41300 bug").length;
+        await call("autopilot", { folder: "41300-export-retry-fails", action: "approve-start" }, ctx());
+        for (let i = 1; i <= 2; i++) {
+          const sid = await fail();
+          await waitFor(async () => (await auto()).session !== sid, `retry ${i} to start`);
+          assert.equal((await auto()).status, "running");
+        }
+        assert.equal(titles().filter((t) => t === "41300: /approve 41300 bug").length, n0 + 3, "the same step, three tries");
+        await fail();
+        await waitFor(async () => (await auto()).status === "waiting", "autopilot to wait after the last try");
+        assert.match((await auto()).message, /model server error\. It failed 3 times\. .*Resume/);
+        // The plan is still a draft; Resume approves it first instead of refusing.
+        await call("autopilot", { folder: "41300-export-retry-fails", action: "resume" }, ctx());
+        assert.equal(titles().filter((t) => t === "41300: /approve 41300 bug").length, n0 + 4);
+        await call("autopilot", { folder: "41300-export-retry-fails", action: "stop" }, ctx());
+        await call("autopilot", { folder: "41300-export-retry-fails", action: "dismiss" }, ctx());
+        await finish((await call("state", {}, ctx())).liveMode.live.items["41300-export-retry-fails"].current);
+      } finally {
+        Object.assign(autoTiming, saved);
+      }
+    });
+
+    test("[P-autopilot] the watchdog carries on after a missed idle, and stops a stalled step", async () => {
+      const saved = { ...autoTiming };
+      autoTiming.missedIdleMs = 0;
+      autoTiming.retryDelays = [60e3];
+      try {
+        const titles = () => fake.bodiesFor(kind === "v1" ? "POST /session" : "POST /api/session").map((b) => b.title);
+        const auto = async () => (await call("state", {}, ctx())).liveMode.live.autopilot["41207-fix-login-timeout"];
+        await call("autopilot", { folder: "41207-fix-login-timeout", action: "start" }, ctx());
+        const first = (await auto()).session;
+        // The step ended while the event stream was down: opencode says idle, autopilot never heard it.
+        sessions.get(first).status = "idle";
+        const n = titles().length;
+        autoWatch();
+        autoWatch();
+        await waitFor(async () => (await auto()).session !== first, "autopilot to carry on");
+        assert.equal(titles().length, n + 1, "the next step (here the same one again, in a fresh session)");
+        // No word from opencode on the new step for longer than the stall time: stopped and tried again later.
+        const second = (await auto()).session;
+        const aborts = () => fake.state.requests.filter((r) => r.includes(second) && /abort|interrupt/.test(r)).length;
+        autoWatch(Date.now() + 29 * 60e3);
+        assert.equal((await auto()).message, null, "not stalled yet");
+        autoWatch(Date.now() + 31 * 60e3);
+        await waitFor(() => aborts() === 1, "the stalled step to be stopped");
+        assert.match((await auto()).message, /no word from the model for 30 minutes\. Trying again at .* \(1 of 2\)/);
+        assert.equal((await auto()).status, "running");
+        await call("autopilot", { folder: "41207-fix-login-timeout", action: "stop" }, ctx());
+        await call("autopilot", { folder: "41207-fix-login-timeout", action: "dismiss" }, ctx());
+        for (const sid of [first, second]) sessions.get(sid).status = "busy";
+        await finish(second);
+        await finish(first);
+      } finally {
+        Object.assign(autoTiming, saved);
+      }
     });
 
     test("[P-autopilot] builds over the limit queue, and a hands-off Quick change approves itself only with auto", async () => {
