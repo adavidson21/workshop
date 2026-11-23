@@ -28,3 +28,9 @@ test('chips are escaped; only notes and settings get buttons', () => {
   assert.equal(sourcesHtml([]), '');
   assert.match(textHtml('Hi\n\nSources:\n- `settings/products.json`'), /<div class="md"><p>Hi<\/p><\/div><div class="srcs"[^>]*>.*data-src-page="products"/);
 });
+
+test('any Folio note a Quick answer cites opens in Folio; a bad product name stays a path (Chat 4.5.0)', () => {
+  assert.deepEqual(classify('folio/meetings/platform-sync.md'), { path: 'folio/meetings/platform-sync.md', kind: 'note', note: 'meetings/platform-sync.md' });
+  assert.equal(classify('folio/products/Bad Name.md').kind, 'file');
+  assert.equal(classify('folio/../secrets.md').kind, 'file');
+});

@@ -7,6 +7,8 @@
 // Prints one JSON line {url} when listening (the base URL, ending in /v1). Then reads commands, one JSON per line:
 //   {"style": "clean"|"sloppy"}   how the next replies look ("sloppy": no end markers, a code fence, chatter first)
 //   {"requests": true}            the requests seen: [{chars, hasInput, tools}] (chars: the whole prompt's length)
+//   {"chat": {firstMs, everyMs, size, text, quickText}}   chat replies (tests/chat-e2e.py): a request that sends tools gets `text`
+//                                 streamed `size` characters every `everyMs`, after `firstMs`, like a slow local model
 // Stops when stdin closes.
 //
 // For a Folio clean up prompt (apps/notes/js/cleanup.js) it does what the prompt asks, simply: each template section
@@ -17,6 +19,7 @@ import readline from "node:readline";
 
 let style = process.argv.includes("--style") ? process.argv[process.argv.indexOf("--style") + 1] : "clean";
 const seen = [];
+let chat = null; // {firstMs, everyMs, size, text}: how chat replies stream (tests/chat-e2e.py)
 
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 const sentence = (s) => { const t = cap(s.trim()); return /[.!?:]$/.test(t) || !t ? t : `${t}.`; };
@@ -70,8 +73,12 @@ const server = http.createServer((req, res) => {
     const all = textOf(body.messages);
     const last = textOf((body.messages || []).filter((m) => m.role === "user").slice(-1));
     const isCleanup = last.includes("<<<INPUT");
-    seen.push({ chars: all.length, hasInput: isCleanup, tools: (body.tools || []).length });
-    const reply = isCleanup ? answer(last) : "Clean up a document";
+    const isQuick = all.includes("You answer quick questions");
+    seen.push({ chars: all.length, hasInput: isCleanup, tools: (body.tools || []).length, quick: isQuick, notes: [...all.matchAll(/^\[([^\]\n]+\.(?:md|json))\]/gm)].map((m) => m[1]) });
+    const slow = !isCleanup && chat && ((body.tools || []).length > 0 || isQuick);
+    // A quick answer (Chat's chat.quick) cites the first note it was given.
+    const cite = (seen.at(-1).notes || [])[0];
+    const reply = isCleanup ? answer(last) : slow ? (isQuick ? `${chat.quickText || "From your notes."}${cite ? `\n\nSources:\n- \`${cite}\`` : ""}` : chat.text) : "Clean up a document";
     const id = `chatcmpl-${seen.length}`;
     const chunk = (delta, finish = null, usage) => `data: ${JSON.stringify({ id, object: "chat.completion.chunk", created: 1, model: body.model || "qwen-mock", choices: [{ index: 0, delta, finish_reason: finish }], ...(usage ? { usage } : {}) })}\n\n`;
     if (!body.stream) {
@@ -80,9 +87,24 @@ const server = http.createServer((req, res) => {
     }
     res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache", connection: "keep-alive" });
     res.write(chunk({ role: "assistant", content: "" }));
-    for (let i = 0; i < reply.length; i += 40) res.write(chunk({ content: reply.slice(i, i + 40) }));
-    res.write(chunk({}, "stop", { prompt_tokens: Math.ceil(all.length / 4), completion_tokens: Math.ceil(reply.length / 4), total_tokens: Math.ceil((all.length + reply.length) / 4) }));
-    res.end("data: [DONE]\n\n");
+    const end = () => {
+      res.write(chunk({}, "stop", { prompt_tokens: Math.ceil(all.length / 4), completion_tokens: Math.ceil(reply.length / 4), total_tokens: Math.ceil((all.length + reply.length) / 4) }));
+      res.end("data: [DONE]\n\n");
+    };
+    if (!slow) {
+      for (let i = 0; i < reply.length; i += 40) res.write(chunk({ content: reply.slice(i, i + 40) }));
+      return end();
+    }
+    // A slow local model: the first characters after firstMs, then `size` more every everyMs.
+    let i = 0;
+    const step = () => {
+      if (res.destroyed) return;
+      if (i >= reply.length) return end();
+      res.write(chunk({ content: reply.slice(i, i + chat.size) }));
+      i += chat.size;
+      setTimeout(step, chat.everyMs);
+    };
+    setTimeout(step, chat.firstMs);
   });
 });
 
@@ -94,6 +116,7 @@ if (process.argv[1] && process.argv[1].endsWith("mock-model.mjs")) {
       let m;
       try { m = JSON.parse(line); } catch { return console.log(JSON.stringify({ error: "bad json" })); }
       if (m.style) { style = m.style; return console.log(JSON.stringify({ ok: true })); }
+      if (m.chat) { chat = { firstMs: 300, everyMs: 50, size: 6, text: "Hello from the stand-in model.", ...m.chat }; return console.log(JSON.stringify({ ok: true })); }
       if (m.requests) return console.log(JSON.stringify({ requests: seen }));
       console.log(JSON.stringify({ error: "unknown command" }));
     });
