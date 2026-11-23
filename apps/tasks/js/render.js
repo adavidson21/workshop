@@ -19,6 +19,7 @@ import { dp } from './dayplan.js';
 import { fmt12, repeatLabel, sprintInfo, sprintsOn } from './dayplan-model.js';
 import { peopleFilter, renderArchive, renderPeople, renderToday } from './views.js';
 import { renderAll } from './all-view.js';
+import { chipOf, runsFor } from './agent-runs.js';
 import { activeTask, isActive, nextTask, renderNow, rowCrumb } from './focus.js';
 import { namesOf } from './directory-model.js';
 import { rowShown } from './row-fields-model.js';
@@ -232,6 +233,8 @@ function row(t, o = {}){
   // Also on Builds' board (builds-link.js): where it stands there. Inside Workshop only; the drawer opens it.
   if (t.item && t.item.system !== 'github' && adoIsOn() && !t.done && on('ado') && embedded && !pv){ const sl = buildsFor(t.item.id); if (sl) meta += sig(ICON.board, `${buildsLabel(sl)}. Open the task to go there.`, 'builds'); }
   if (t.item && !t.done && on('agent')) meta += pv ? (pv.agent || '') : engChip(t.item.id);
+  // Its agent runs (Tasks 13.0.0, agent-runs.js): where the work it sent is on the floor; amber when it waits on you.
+  if (!t.done && !pv && on('agent')){ const c = chipOf(runsFor(t.id)); if (c) meta += sig(ICON.bolt, c.tip + '. Open the task to see it.', c.state === 'gate' ? 'acc' : c.state === 'stuck' ? 'bad' : 'agentrun', c.text); }
   if (t.recur && on('repeat')){
     const item = dp.recurring.find(r => r.id === t.recur.id);
     const tip = item ? repeatLabel(item) + (t.recur.sprint ? `: sprint ${t.recur.sprint}` : '') : `Every sprint${t.recur.sprint ? `: sprint ${t.recur.sprint}` : ''}`;

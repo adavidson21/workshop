@@ -1,5 +1,7 @@
 # Builds
 
+**6.23.0 (Tasks and Agents are one place).** Builds is the **Agents** tab of Tasks: one rail button, with Tasks and Agents as tabs beside the crumbs (manifest `tabOf`, docs/app-manifest.md, Tabs). Its address (`#/builds/...`) and badge still work; the badge adds to Tasks' rail button. A run started from a task (Send to agents in the task's details, the whole task or one part of it) is linked to that task in Builds' `task-runs` collection, and the summary's `tasks` card tells Tasks where each run is and which document to preview (`js/runs/task-runs.js`). The document renderer moved to `shared/doc-html.js` so Tasks shows the same previews.
+
 **6.22.0.** Open a card on the floor and its document reads right there: the plan or spec waiting on you opens in its card, and any other run shows the latest file it wrote (Read all for the rest). A run that finished without a folder (a Teach answer, product notes, a 1:1 draft, a backlog run) leaves the Plan desk instead of standing there for a day; one that failed before it had a folder is pulled off the line.
 
 **6.21.0.** The floor shows in the shell's sidebar on every app: Builds sends each card's line, station and state with `ws.flow.set` (docs/sdk.md, Flow), so the agents dock lists what waits on you, what is stuck and what is working, each with a small track of its line. Builds now loads in the background when Workshop opens so the dock is filled from the start. An empty floor is calm: one row of station names per line instead of thirteen stations that all say 0.

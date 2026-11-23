@@ -2,8 +2,12 @@
   "manifestVersion": 1,
   "id": "builds",
   "name": "Builds",
-  "version": "6.22.0",
+  "version": "6.23.0",
   "description": "Tandem's runs on a floor: a code line and a research line of stations, or a list, plus Health. Drop in a story, an error log, a question or a hand-off; a card stops only when it needs you.",
+  "tabOf": {
+    "app": "tasks",
+    "name": "Agents"
+  },
   "icon": "icon.svg",
   "entry": "index.html",
   "order": 15,
@@ -170,7 +174,8 @@
     "items",
     "handoffs",
     "summary",
-    "doc-links"
+    "doc-links",
+    "task-runs"
   ],
   "privateFiles": [
     "reports"
@@ -213,6 +218,7 @@
     "js/board.js",
     "js/app.js",
     "board.css",
-    "js/runs/docs.js"
+    "js/runs/docs.js",
+    "js/runs/task-runs.js"
   ]
 }

@@ -10,6 +10,8 @@
 
    agentRowsOf and personalShownWith are pure (test/agent-queue.test.mjs). */
 
+import { setRunsEnv } from './agent-runs.js';
+
 const SETTING = 'personalTasks';
 let env = null;
 let personal = true; // Tasks' own site, or a Workshop that does not know the switch: everything shows
@@ -52,7 +54,7 @@ export function personalOffHtml(hidden) {
 export function startAgentQueue(ws, embedded, onChange = () => {}) {
   if (!ws || !embedded) return;
   linked = true;
-  const read = () => ws.data.get('summary', { app: 'builds' }).then(e => { env = e; onChange(); }, () => {});
+  const read = () => ws.data.get('summary', { app: 'builds' }).then(e => { env = e; setRunsEnv(e); onChange(); }, () => {});
   read();
   try { ws.data.subscribe('summary', read, { app: 'builds' }); } catch { /* no data backend */ }
   const setFrom = values => {

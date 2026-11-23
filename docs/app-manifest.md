@@ -66,6 +66,7 @@ More: [examples/app.tasks.json](examples/app.tasks.json), [examples/app.minimal.
 | `handoffs` | no | `{sends}`. `sends`: app ids this app writes handoff offers to ([handoffs.md](handoffs.md)). A receiver finds its senders from this (`ws.apps.list()`, [sdk.md](sdk.md)) instead of a list of app ids in its code. |
 | `capture` | no | Capture kinds this app takes from quick capture and the Dispatch hub: any of `task`, `waiting`, `receipt`, `note`, `idea`, `request` ([hub.md](hub.md), Captures). Each kind goes to the first app by `order` that lists it. The app must accept that kind as a handoff ([handoffs.md](handoffs.md), Receivers). |
 | `aliases` | no | Other words for this app in `> <place>` (quick capture and the hub). Up to 20, each a lowercase word (`"tasks"`) or `{name, path}` to open a part of the app (`{"name": "1:1s", "path": "1on1s"}`). The app's `id` and `name` always work. |
+| `tabOf` | no | `{app, name?}`: this app is a tab of `app`, under `name` (default its own name). While both are on, it has no rail button of its own: the two are one place on the rail, switched from tabs beside the crumbs in the top bar, and its badge adds to that app's rail button. See Tabs below. |
 | `hosts` | no | Other apps shown inside this one: up to 5 of `{app, path}`. While both are on, the hosted app has no rail button, its commands leave the palette, and `#/<app>/<rest>` (and `ws.open` to it) opens this app at `<path>/<rest>`. See Hosted apps below. |
 | `privateFiles` | no | Files other apps may not see: `true` for every file of this app, or a list of top folders (`["oneonones", "goals"]`). See Private files below. |
 | `settings` | no | Settings for the whole app, shown under it on Settings' Apps tab: up to 20 of `{id, type, title, description?, default, min?, max?}`, type `boolean`, `number`, `date`, `text` or `lines`. The app reads them with `ws.appSettings` ([app-settings.md](app-settings.md)). Bundle 2.7.0. |
@@ -75,6 +76,10 @@ More: [examples/app.tasks.json](examples/app.tasks.json), [examples/app.minimal.
 ## Addresses
 
 `#/<id>/<path>` opens an app. The shell also takes the app's `name` (lowercase, spaces removed) and its string `aliases`, so `#/docket/today` opens Tasks (id `tasks`) at `today`, and `#/rapport` opens People (id `people`). An id always wins over a name or alias, and the shell writes the id back to the address.
+
+## Tabs
+
+Two apps can be one place with `tabOf`, for example Builds' `"tabOf": {"app": "tasks", "name": "Agents"}` (Builds 6.23.0): your list and the agents' floor are Tasks and Agents, two tabs of one rail button. Each app keeps its own frame, SDK, data and address (`#/builds/...` still opens the floor); only the shell's rail, crumbs and badges change. Unlike `hosts`, nothing is framed inside another app. Turning the host off brings the tab back to the rail.
 
 ## Hosted apps
 

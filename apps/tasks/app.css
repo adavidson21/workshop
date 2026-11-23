@@ -1381,3 +1381,33 @@ button.hpill:hover{color:var(--ink);background:var(--surface);border-color:var(-
 .allgrp-h{display:flex;align-items:baseline;gap:.6rem;padding:.2rem 0 .4rem;border-bottom:1px solid var(--line)}
 .allgrp-h b{font:600 1.05rem/1.3 var(--serif)}
 .allgrp-h .num{font-size:.82rem;color:var(--muted)}
+
+/* A task's agent work (Tasks 13.0.0, drawer.js buildHtml, agent-runs.js): optional runs, each the task or a part. */
+.dagents{display:flex;flex-direction:column;gap:.5rem;margin:.6rem 0;padding:.7rem .8rem;border:1px solid var(--line);border-radius:12px;background:var(--surface)}
+.dagents>header{display:flex;align-items:baseline;gap:.6rem;flex-wrap:wrap}
+.dagents>header b{font-size:.9rem}
+.aruns{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.45rem}
+.arun{display:flex;flex-direction:column;gap:.2rem;padding:.45rem .55rem;border-radius:9px;background:var(--hover,rgba(0,0,0,.035))}
+.arun-h{display:flex;align-items:center;gap:.5rem;min-width:0}
+.arun-t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;font-size:.88rem}
+.arun-w{font-size:.8rem;color:var(--muted);white-space:nowrap}
+.arun .adot{width:8px;height:8px;border-radius:50%;background:var(--muted);flex:none}
+.arun.s-run .adot{background:var(--accent);animation:apulse 1.4s ease-in-out infinite}
+.arun.s-gate .adot{background:#d89a2b}
+.arun.s-gate .arun-w{color:#b07813;font-weight:600}
+.arun.s-stuck .adot{background:var(--danger,#c0392b)}
+.arun.s-done .adot{background:var(--ok,#3c8d5a)}
+.arun-a{display:flex;gap:.9rem;padding-left:1rem;font-size:.82rem}
+.arun-doc{margin:.3rem 0 0 1rem;max-height:340px;overflow:auto;padding:.4rem .6rem;border-left:2px solid var(--line);font-size:.86rem}
+.arun-doc .doc h1,.arun-doc .doc h2{font-size:1rem;margin:.5rem 0 .3rem}
+.arun-doc .doc h3,.arun-doc .doc h4{font-size:.92rem;margin:.4rem 0 .2rem}
+.arun-doc .doc p,.arun-doc .doc ul,.arun-doc .doc ol{margin:.3rem 0}
+.arun-doc .doc pre{white-space:pre-wrap;font-size:.8rem}
+.asend{display:flex;gap:.5rem}
+.asend input{flex:1;min-width:0}
+.sig.agentrun{color:var(--accent)}
+.sig.bad{color:var(--danger,#c0392b)}
+@media (prefers-reduced-motion:reduce){.arun.s-run .adot{animation:none}}
+@keyframes apulse{50%{opacity:.35}}
+:root[data-theme=dark] .arun.s-gate .arun-w{color:#f0c46b}
+@media (prefers-color-scheme:dark){:root:not([data-theme]) .arun.s-gate .arun-w{color:#f0c46b}}

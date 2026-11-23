@@ -215,7 +215,14 @@ SDK_BROWSER = """async () => {
 def browser_mode_checks(ctx, pg, frame, watch):
     """Part 1, browser mode (static site, no agent): the platform pieces WS4 added."""
     rail = pg.eval_on_selector_all('.app-btn[data-app]', 'els => els.map(e => e.dataset.app)')
-    check('rail is built from the app registry, Roadmaps on its own button, Builds in place of Builds and Dispatch, Chat back on the rail after Bench (Chat 4.3.0), Settings last', rail == ['tasks', 'builds', 'people', 'notes', 'roadmaps', 'bench', 'chat', 'settings'])
+    check('rail is built from the app registry, Roadmaps on its own button, Builds a tab of Tasks (Builds 6.23.0), Chat after Bench (Chat 4.3.0), Settings last', rail == ['tasks', 'people', 'notes', 'roadmaps', 'bench', 'chat', 'settings'])
+    # Tasks and its Agents tab (Builds' floor) are one place: tabs beside the crumbs, one rail button lit for both.
+    pg.click('.app-btn[data-app=tasks]'); pg.wait_for_timeout(600)
+    check('Tasks shows its tabs in the top bar: Tasks and Agents', pg.eval_on_selector_all('#apptabs [data-tab-app]', 'els => els.map(e => e.innerText.trim())') == ['Tasks', 'Agents'])
+    pg.click('#apptabs [data-tab-app=builds]'); pg.wait_for_timeout(800)
+    check('Agents opens Builds\' floor at its own address, with Tasks still lit on the rail', pg.url.endswith('#/builds') and pg.eval_on_selector_all('.app-btn.on', 'els => els.map(e => e.dataset.app)') == ['tasks']
+          and pg.get_attribute('#apptabs [data-tab-app=builds]', 'aria-selected') == 'true' and pg.inner_text('#topbar .here') == 'Tasks')
+    pg.click('#apptabs [data-tab-app=tasks]'); pg.wait_for_timeout(400)
     pg.click('#capBtn'); pg.wait_for_timeout(800)
     check('the top bar Capture button opens the capture bar', pg.locator('.capbar').is_visible())
     pg.keyboard.press('Escape'); pg.wait_for_timeout(300)
@@ -235,7 +242,7 @@ def browser_mode_checks(ctx, pg, frame, watch):
     check('a deep link opens the task', frame.evaluate("document.getElementById('app').classList.contains('drawer-open')") and pg.url in (HUB + '/', HUB + f'/#/tasks/task/{tid}'))
     frame.press('#drawer', 'Escape'); pg.wait_for_timeout(200)
 
-    pg.keyboard.press('Alt+3'); pg.wait_for_timeout(1200)
+    pg.keyboard.press('Alt+2'); pg.wait_for_timeout(1200)
     rf = next((f for f in pg.frames if '/apps/people/' in f.url), None)
     check('People opens from the rail', rf is not None and pg.url.endswith('#/people'))
     if rf:
@@ -244,7 +251,7 @@ def browser_mode_checks(ctx, pg, frame, watch):
         pg.evaluate("location.hash = '#/people/me'"); pg.wait_for_timeout(800)
         check('People saves a receipt in browser storage, in your Log', rf.locator('.entry').count() == 1 and 'Shipped the e2e check' in rf.inner_text('.list'))
 
-    pg.keyboard.press('Alt+4'); pg.wait_for_timeout(1200)
+    pg.keyboard.press('Alt+3'); pg.wait_for_timeout(1200)
     nf = next((f for f in pg.frames if '/apps/notes/' in f.url), None)
     check('Notes opens from the rail', nf is not None and pg.url.endswith('#/notes'))
     if nf: notes_flow(pg, nf, 'browser')
@@ -265,7 +272,7 @@ def browser_mode_checks(ctx, pg, frame, watch):
         check('a running Tasks task shows in the top bar, and Tasks\' own band steps aside',
               'Fix login' in pg.inner_text('#wstatus .ws-main') and pg.inner_text('#wstatus .ws-time').strip() == '0m'
               and not frame.is_visible('#nowbar') and pg.title().startswith('\u25CF 0m Fix login'))
-        pg.keyboard.press('Alt+4'); pg.wait_for_timeout(500)
+        pg.keyboard.press('Alt+3'); pg.wait_for_timeout(500)
         check('the top bar keeps it on other apps', pg.is_visible('#wstatus') and pg.url.endswith('#/notes'))
         pg.click('#wstatus [aria-label="Pause"]'); pg.wait_for_timeout(200)
         check('Pause in the top bar asks where you left off', pg.locator('.ws-prompt').is_visible() and 'Where did you leave off?' in pg.inner_text('.ws-prompt'))
@@ -311,9 +318,9 @@ def browser_mode_checks(ctx, pg, frame, watch):
         wf.wait_for_function('() => window.__runway && window.__runway.store.v.loaded', timeout=10000)
         check('Roadmaps in browser mode makes ad hoc roadmaps, with no ADO offer', wf.locator('[data-new]').count() > 0 and wf.locator('[data-fromado]').count() == 0)
 
-    pg.keyboard.press('Alt+2'); pg.wait_for_timeout(1500)
+    pg.keyboard.press('Alt+1'); pg.wait_for_timeout(600); pg.click('#apptabs [data-tab-app=builds]'); pg.wait_for_timeout(1500)  # Builds is a tab of Tasks
     slf = next((f for f in pg.frames if '/apps/builds/' in f.url), None)
-    check('Builds is on the rail and opens', slf is not None and pg.url.endswith('#/builds'))
+    check('Builds opens from its tab in Tasks', slf is not None and pg.url.endswith('#/builds'))
     if slf:
         # Builds 6.0.0: two tabs, Lanes and Health. A request starts from Other flows; without Tandem it waits as a card
         # in Clarify and opens the board's own panel as a drawer over Lanes (the Board and the Inbox are retired).
@@ -375,7 +382,7 @@ def browser_mode_checks(ctx, pg, frame, watch):
               and slf.locator('#reports #reportsBox').count() == 1 and slf.locator('#app .tabs [data-tab=health][aria-current=page]').count() == 1)
         pg.evaluate("location.hash = '#/builds/roadmaps'"); pg.wait_for_timeout(2000)
         check('an old #/builds/roadmaps link opens Roadmaps', pg.url.endswith('#/roadmaps'))
-    pg.keyboard.press('Alt+8'); pg.wait_for_timeout(1200)  # Notes Alt+4, Roadmaps Alt+5, Bench Alt+6, Chat Alt+7
+    pg.keyboard.press('Alt+7'); pg.wait_for_timeout(1200)  # People Alt+2, Notes Alt+3, Roadmaps Alt+4, Bench Alt+5, Chat Alt+6
     sf = next((f for f in pg.frames if '/apps/settings/' in f.url), None)
     check('Settings opens from the rail', sf is not None and pg.url.endswith('#/settings'))
     check('Settings in browser mode offers the data folder and data, no connectors', sf is not None and 'not running' in sf.inner_text('#content') and sf.locator('[data-export]').count() == 1 and sf.locator('.conn:not(.app-row)').count() == 0)
@@ -1432,16 +1439,16 @@ def agents_checks(b, watch):
         check('Back from a run page returns to Lanes, where it was opened from', seen(af, '#ln-drop') and af.get_attribute('#app .tab.on', 'data-tab') == 'lanes')
 
         # Prompts: a card in Clarify waiting on you, counted on the rail badge, answered in its panel (Builds 6.0.0).
-        before = int(pg.inner_text('.app-btn[data-app=builds] .badge') or 0)
+        before = int(pg.inner_text('#apptabs [data-tab-app=builds] .badge') or 0)
         ask({'ask': {'id': 'per_e2e', 'session': None, 'title': 'npm test'}}); pg.wait_for_timeout(1500)
         check('a prompt from opencode is a card in Clarify, waiting on you', seen(af, '.fl-rowb.mine[data-lane=clarify][data-lane-open="session:ses_tui0"]', 5000))
-        check('the rail badge counts it', pg.inner_text('.app-btn[data-app=builds] .badge') == str(before + 1))
+        check('the Agents tab\'s badge counts it (Builds 6.23.0: a tab of Tasks)', pg.inner_text('#apptabs [data-tab-app=builds] .badge') == str(before + 1))
         af.click('.fl-rowb[data-lane=clarify][data-lane-open="session:ses_tui0"]'); pg.wait_for_timeout(500)
         check('its panel shows the prompt with its answers', 'npm test' in af.inner_text('.ln-panel .ln-asks'))
         af.click('.ln-panel [data-perm=per_e2e][data-answer=once]'); pg.wait_for_timeout(1200)
         r = ask({'requests': True})
         check('Allow once answers it in opencode', 'POST /session/ses_tui0/permissions/per_e2e' in r['requests'] and af.locator('[data-perm=per_e2e]').count() == 0)
-        check('and the badge goes back down', pg.inner_text('.app-btn[data-app=builds] .badge') == str(before))
+        check('and the badge goes back down', pg.inner_text('#apptabs [data-tab-app=builds] .badge') == str(before))
 
         # Chat (its own app since Builds 4.8.0): a sidebar of chats and one chat in view. It opens on New chat, with the hub's box in it.
         # Back on the rail since Chat 4.3.0 (off it from 3.0.0, where new people could not find it); its address opens it too.
@@ -1568,7 +1575,7 @@ def agents_checks(b, watch):
         check('Unarchive brings it back', cf.locator('.chat-side [data-chat-open="ses_tui0"]').count() == 1)
         cf.click('.bench [data-bench-close]'); pg.wait_for_timeout(200)
         check('the workbench closes, and remembers it', cf.locator('.bench').is_hidden() and cf.evaluate("JSON.parse(localStorage.getItem('chat.bench')).open") is False)
-        pg.click('.app-btn[data-app=builds]'); pg.wait_for_timeout(800)
+        pg.click('.app-btn[data-app=tasks]'); pg.wait_for_timeout(300); pg.click('#apptabs [data-tab-app=builds]'); pg.wait_for_timeout(800)
 
         # Ship: the run's page has the PR box, with copy buttons, then Review instead of Push. The code review
         # (review.html) reads the diff from git through the connector. Approve and publish, after the shared git
@@ -1778,9 +1785,9 @@ def main():
             check('no Start buttons without the opencode connector', frame.locator('[data-d=eng-start]').count() == 0 and frame.locator('.deng').count() == 0)
             frame.press('#drawer', 'Escape'); pg.wait_for_timeout(200)
 
-            pg.click('.app-btn[data-app=builds]'); pg.wait_for_timeout(1200)
+            pg.click('.app-btn[data-app=tasks]'); pg.wait_for_timeout(300); pg.click('#apptabs [data-tab-app=builds]'); pg.wait_for_timeout(1200)
             af = next((f for f in pg.frames if '/apps/builds/' in f.url), None)
-            check('Builds opens from the rail, as an app in the shell, on Lanes', af is not None and pg.url.endswith('#/builds') and af.get_attribute('#app .tab.on', 'data-tab') == 'lanes')
+            check('Builds opens from Tasks\' Agents tab, as an app in the shell, on Lanes', af is not None and pg.url.endswith('#/builds') and af.get_attribute('#app .tab.on', 'data-tab') == 'lanes')
             # Builds 6.0.0: no Inbox; Lanes in browser mode shows the lanes, with the setup folded into one line that opens.
             check('Builds has only Lanes and Health in browser mode', af is not None and af.eval_on_selector_all('#app .tabs .tab', 'els => els.map(e => e.dataset.tab)') == ['lanes', 'health'])
             if af: af.click('#app .ln-setup > summary'); pg.wait_for_timeout(300)
@@ -1836,7 +1843,7 @@ def main():
             pg.click('#topbar [data-theme-toggle]'); pg.wait_for_timeout(500)
             check('the light/dark toggle reaches Tasks', frame.evaluate('document.documentElement.dataset.theme') == want)
             pg.keyboard.press('Alt+1'); pg.wait_for_timeout(300); frame.click('#main'); pg.keyboard.press('Alt+2'); pg.wait_for_timeout(400)
-            check('Alt+2 inside Tasks switches apps', pg.url.endswith('#/builds'))
+            check('Alt+2 inside Tasks switches apps', pg.url.endswith('#/people'))
             pg.keyboard.press('Alt+1'); pg.wait_for_timeout(300)
 
             browser_mode_checks(ctx, pg, frame, watch)

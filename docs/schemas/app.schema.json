@@ -253,6 +253,16 @@
       },
       "description": "Other words for this app in > <place>. A word, or {name, path} to open part of the app."
     },
+    "tabOf": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["app"],
+      "description": "The app this one is a tab of (app-manifest.md, Tabs). While that app is on, this one has no rail button: the two share one place, switched from the top bar, and its badge adds to that app's rail button.",
+      "properties": {
+        "app": { "type": "string", "pattern": "^[a-z][a-z0-9-]{1,31}$" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 24, "description": "The tab's name (default: the app's name)." }
+      }
+    },
     "hosts": {
       "type": "array",
       "maxItems": 5,
