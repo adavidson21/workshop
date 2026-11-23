@@ -1377,10 +1377,10 @@ def agents_checks(b, watch):
         if folders != sorted(['41207-fix-login-timeout', '41300-export-retry-fails', '41455-audit-log-filter', '41502-csv-export', '41610-rate-limit-headers', '41720-show-item-count', 'spike-cache-options']): print('    lanes have:', folders)
         af.click('.fl-rowb[data-lane-open="41300-export-retry-fails"]'); pg.wait_for_timeout(800)
         check('the card\'s panel holds its run: the step to read and its buttons', seen(af, '.ln-panel .builds-run .icard.gate') and af.locator('.ln-panel [data-act=approve-start]').count() == 1)
-        check('the panel keeps the draft closed until Read', af.locator('.ln-panel .finline').count() == 0)
-        af.click('.ln-panel [data-peek="card:41300-export-retry-fails"]'); pg.wait_for_timeout(400)
-        check('Read shows the file you are approving (file.read)', seen(af, '.ln-panel .finline .doc') and 'Root cause' in af.inner_text('.ln-panel .finline'))
-        af.click('.ln-panel [data-peek="card:41300-export-retry-fails"]'); pg.wait_for_timeout(200)
+        # Builds 6.22.0: the panel previews the file you are approving right away; Hide folds it.
+        check('the panel shows the file you are approving (file.read)', seen(af, '.ln-panel .finline .doc') and 'Root cause' in af.inner_text('.ln-panel .finline'))
+        af.click('.ln-panel [data-peek="card:41300-export-retry-fails"]'); pg.wait_for_timeout(300)
+        check('Hide folds it', af.locator('.ln-panel .finline').count() == 0)
         af.click('.ln-panel [data-sb-toggle]'); pg.wait_for_timeout(500)
         check('the run\'s buttons work inside the panel (Send back opens its note box there)', af.locator('.ln-panel [data-sb-toggle][aria-expanded=true]').count() == 1
               and af.locator('.ln-panel textarea').count() == 1)

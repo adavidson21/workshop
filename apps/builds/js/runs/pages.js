@@ -231,7 +231,8 @@ function gateCard(it, expanded) {
   const file = gateFile(it);
   // Collapsed to one card's worth by default: the draft opens on Read (Builds UX v1). Go through them shows it.
   const key = 'card:' + it.folder;
-  const open = !!expanded || !!S.ui.open[key];
+  // Expanded (the floor's popup, Go through them) starts open; Hide still folds it.
+  const open = key in S.ui.open ? !!S.ui.open[key] : !!expanded;
   const sb = sendBackCommand(it);
   const btns = it.kind === 'item' ? nextBtns(it, false) : folderActs(it, false);
   return `<article class="icard gate" id="item-${h(itemKey(it))}" style="--state:${stateVar(it)}">` +

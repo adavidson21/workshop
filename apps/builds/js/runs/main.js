@@ -1361,7 +1361,7 @@ listen('click', ev => {
   // Builds 6.0.0: the Inbox is gone; its PRs chip is Lanes' Review card.
   if (ic) { if (ic.getAttribute('data-inbox-chip') === 'prs') { loadInbox(false); ui().laneSel = 'reviews'; } setTab('lanes'); return; }
   const pk = t.closest('[data-peek]');
-  if (pk) { const k = pk.getAttribute('data-peek'); ui().open[k] = !ui().open[k]; paint(); return; }
+  if (pk) { const k = pk.getAttribute('data-peek'); ui().open[k] = pk.hasAttribute('aria-expanded') ? pk.getAttribute('aria-expanded') !== 'true' : !ui().open[k]; paint(); return; }
   const sbt = t.closest('[data-sb-toggle]');
   if (sbt) { const k = 'sb:' + sbt.getAttribute('data-sb-toggle'); ui().open[k] = !ui().open[k]; paint(); if (ui().open[k]) focusFirst(`[data-draft="${CSS.escape(k)}"]`); return; }
   const sbg = t.closest('[data-sendback]');
