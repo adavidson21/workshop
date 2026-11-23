@@ -19,7 +19,7 @@ What each app does and how a day flows through them. To install, see the [README
 Each part of the day has one obvious place to start:
 
 - **Morning: Docket's Today.** Workshop opens there. **Needs you** in the top bar lists everything waiting on you across apps in one place: agents asking a question, Slate items to decide or approve, pull requests to review, 1:1s due, PRs blocked on you, follow-ups due.
-- **Any time: Capture.** The **Capture** button in the top bar, or `Ctrl+.` (`Cmd+.` on a Mac), from any app: `t` a task, `w` waiting on someone, `r` a receipt, `n` a note, `p` a roadmap idea, `?` ask Tandem, `>` go to a place. It works the same everywhere.
+- **Any time: Capture.** The **Capture** button in the top bar, or `Ctrl+.` (`Cmd+.` on a Mac), from any app: `t` a task, `w` waiting on someone, `r` a receipt, `n` a note, `p` a roadmap idea, `?` ask Tandem, `>` go to a place, `b` build with Tandem (a story, an error log or a question goes straight to Loom's agents and starts on Enter; paste a whole log after `b`). It works the same everywhere.
 - **New requests: Slate.** Triage, define, publish, then delegate or build it yourself.
 - **Building: Dispatch.** Your Tandem runs, their questions, code review and push, and first-pass reviews of teammates' PRs.
 - **1:1s: Rapport.** Prep shows what Docket, Slate and Rapport know since last time.

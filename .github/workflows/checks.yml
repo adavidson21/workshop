@@ -77,6 +77,7 @@ jobs:
               python tests/popout-e2e.py
               python tests/rail-e2e.py
               python tests/switches-e2e.py
+              python tests/drop-e2e.py
           - name: with Azure DevOps off
             run: python tests/no-ado-e2e.py
     steps:

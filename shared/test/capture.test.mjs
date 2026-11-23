@@ -255,3 +255,30 @@ test('"clean up this document" goes to Folio\'s Clean up, as a copy unless the w
   assert.equal(parseCapture('clean the kitchen tomorrow').kind, 'task');
   assert.match(describe(parseCapture('clean up this document')), /^Clean up the open note in .+, as a copy$/);
 });
+
+test('b and build: go to Loom\'s drop box, started there (Loom 6.20.0 start/go)', () => {
+  const p = parseCapture('b fix the flaky login test', ctx);
+  assert.equal(p.kind, 'go');
+  assert.equal(p.app, 'slate');
+  assert.equal(p.build, true);
+  assert.equal(p.text, 'fix the flaky login test');
+  assert.equal(p.path, 'start/go/' + encodeURIComponent('fix the flaky login test'));
+  assert.match(describe(p), /Build with Tandem in Loom/);
+  assert.equal(parseCapture('build: add dark mode', ctx).text, 'add dark mode');
+  assert.equal(parseCapture('B: Add dark mode', ctx).text, 'Add dark mode');
+  // Without the colon, "build" is an ordinary task word; so are words that start with b.
+  assert.equal(parseCapture('Build the Q4 deck', ctx).kind, 'task');
+  assert.equal(parseCapture('bake a cake', ctx).kind, 'task');
+  assert.equal(parseCapture('b', ctx).kind, 'task');
+  assert.equal(parseCapture('b   ', ctx).kind, 'task');
+});
+
+test('b with a pasted story or log: one item, line breaks kept', () => {
+  const log = 'TypeError: cannot read x\n    at load (app.js:10)\n    at main (app.js:2)';
+  const ps = parseLines('b\n' + log, ctx);
+  assert.equal(ps.length, 1);
+  assert.equal(ps[0].text, log);
+  assert.equal(decodeURIComponent(ps[0].path.replace(/^start\/go\//, '')), log);
+  // Without b, pasted lines are still one capture each.
+  assert.equal(parseLines('call vendor\nreview doc', ctx).length, 2);
+});
