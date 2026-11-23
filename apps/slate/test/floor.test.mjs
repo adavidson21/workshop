@@ -84,7 +84,7 @@ test('a running autopilot moves the card with the command it runs, before the it
   S.L.sessions.ses_0001abc.activity = '';
   S.L.autopilot = { [it.folder]: { status: 'running', command: '/spec 41207 auto', fixRounds: 0 } };
   assert.equal(stationOf(card(it.folder)), 'plan', 'still planning');
-  for (const [cmd, st] of [['/approve 41207 plan', 'build'], ['/tasks 41207', 'build'], ['/do-task 41207 2', 'build'], ['/review 41207 auto', 'review'], ['/pr 41207', 'review'], ['/revise 41207 auto', 'fix']]) {
+  for (const [cmd, st] of [['/approve 41207 plan', 'build'], ['/do-task 41207 2', 'build'], ['/review 41207 auto', 'review'], ['/pr 41207', 'review'], ['/revise 41207 auto', 'fix']]) {
     S.L.autopilot[it.folder].command = cmd;
     assert.equal(stationOf(card(it.folder)), st, cmd);
   }

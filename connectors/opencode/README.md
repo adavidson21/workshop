@@ -11,7 +11,7 @@ Copied from [adavidson21/eng-agents](https://github.com/adavidson21/eng-agents) 
 | eng-agents | Here |
 | --- | --- |
 | `core/scripts/dashboard/server/*.mjs` (all but `updates.mjs`), deleted in Core 2.11.0 | `lib/`, now the only copy |
-| `core/scripts/dashboard/New-Dashboard.ps1` | `lib/workparser.mjs`, a JavaScript port (connector 1.6.0) of `parser/New-Dashboard.ps1`, which is kept for the parity test. The copy finds repos in category folders up to 4 deep (`repoCategories`, such as `Platform/Lighthouse`) and leaves out the static page's `coreVersion` and `dispatchUrl`. A parsing or next-step change in eng-agents goes into both `lib/workparser.mjs` and `parser/New-Dashboard.ps1`; `test/workparser.test.mjs` checks they agree. |
+| `core/scripts/dashboard/New-Dashboard.ps1`, deleted in Core 4.19.0 | `lib/workparser.mjs`, a JavaScript port (connector 1.6.0) of `parser/New-Dashboard.ps1`, which is kept for the parity test. The copy finds repos in category folders up to 4 deep (`repoCategories`, such as `Platform/Lighthouse`) and leaves out the static page's `coreVersion` and `dispatchUrl`. eng-agents deleted its copy with the static page in Core 4.19.0, so these two are the only copies: a parsing or next-step change goes into both, and `test/workparser.test.mjs` checks they agree. The next-step rules still follow eng-agents' `commands/status.md`. |
 | `core/scripts/dashboard/live-server.mjs` routes, deleted in Core 2.11.0 | actions and events in `index.mjs` |
 
 The first commit on the WS3 branch is the verbatim copy, so `git diff` against it shows every change. Each file in `lib/` says what changed at the top.
@@ -75,6 +75,7 @@ Since 1.21.0 (eng-agents Core 4.9.0; Workshop project doc `claude/software-facto
 - Approve in code (1.36.0): `approve` (a scope's stories or milestones, a refined story) no longer runs `/approve` in a session. It answers `{approved: false, open: [lines]}` when the draft has open questions not marked accepted risk (nothing changes); with `acceptRisk: true` it marks them. Then `Status: APPROVED`, the draft hash check (`gate`, the same as `Test-DraftHash.ps1`) and a `progress.md` entry with `- Stats: gate=<word> file=<file>`.
 - Hub (1.36.0): `hub.run` takes `intent: "ask"` for a line already known to be a question (Capture's `?`): Workshop writes `route.json` itself and `request.md` says `Routed: ask`, so `/hub` only answers.
 - Local model defaults (1.36.0): with Local model on, `prReviews.onSync` is off unless saved on, a PR review waits while autopilot builds (`wait` in `review-queue.mjs`), and a merged item gets no `/retro auto` (run `/retro <id>` yourself).
+- `/spec <id> plan|tasks` (1.38.0, eng-agents Core 4.19.0): eng-agents folded `/plan` and `/tasks` into `/spec`. The next step for a feature item with no plan is `/spec <id> plan`, with no tasks `/spec <id> tasks` (`/bug <id>` and `/quick <id>` in those lanes), and autopilot runs `/spec <id> tasks auto` only when `tasks.md` is missing. eng-agents also retired the static dashboard (`/dashboard static`), so `parser/New-Dashboard.ps1` here is the only PowerShell copy of the parser.
 - Open in terminal on Windows (1.37.0, `lib/console-window.mjs`): the `terminal` action (Chat's `/tui`, Loom's Open in terminal) and Bench's runs open the window through `cmd.exe /c start`, which always gives PowerShell a new console. Before, `powershell.exe` was spawned with Node's `detached: true`, which on Windows means no console at all, so nothing opened. A command with `"` or `%` (which cmd would read) is refused with Copy the command. Linux opens the first terminal on PATH (x-terminal-emulator, gnome-terminal, konsole, xfce4-terminal, kitty, alacritty, xterm). CI checks a real window on a Windows runner (`tests/console-window.win.mjs`).
 - Overlaps: `state.overlaps` is `{<folder>: [{with, files}]}` for active items whose `tasks.md` files overlap. Loom offers **Approve, build after it** (`autopilot` with `after`).
 
@@ -324,7 +325,7 @@ Request changes saves the feedback, sets the review to `revising`, and starts au
 | The page (`dashboard.template.html`) and `/` | Connectors have no UI. | WS6 (Agents app) |
 | Session token, `shellOrigins`, CORS, `frame-ancestors`, `Host` check | The agent does this for every connector. | WS1 (done) |
 | `/api/update`, `/api/update-check`, `/api/restart` (`updates.mjs`) | Connectors make no update checks. `workshop update` updates Tandem (workshop #154). | Done |
-| Writing `.work/dashboard.html` | Its template is the eng-agents page. eng-agents' `/dashboard static` still writes it, and it links to Dispatch. | Stays in eng-agents |
+| Writing `.work/dashboard.html` | eng-agents retired the static page and `/dashboard static` in Core 4.19.0. | Retired |
 | `/api/ping`, `Start-LiveDashboard.ps1` | The agent starts and stops the connector; use `GET /api/connectors/opencode` for its status. eng-agents deleted the script in Core 2.11.0; `/dashboard` opens Dispatch. | Done |
 | Port 4300 | Served by the agent. | |
 

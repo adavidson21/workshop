@@ -100,8 +100,6 @@ Dispatch is where Tandem's coding agents run, as a Workshop app (it replaced the
 
 Docket shows each ADO task's Tandem stage and can start a work item, through the same connector. Clicking a stage opens that item in Dispatch (`#/agents/<work item id>`).
 
-eng-agents' own static page (`/dashboard static`) is unchanged.
-
 ## Install it as a desktop app
 
 In Chrome or Edge, open Workshop and click **Install** on the rail (or the install icon in the address bar). Like Google Drive's desktop app, it then opens in its own window with a dock or taskbar icon, works offline, and opening it again brings back the window you already have. Right-click the icon for **Docket**, **Dispatch** and **Rapport** shortcuts.

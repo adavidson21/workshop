@@ -412,7 +412,9 @@ function fileList(folder) {
 function commandText(item, command) {
   if (!command) return null;
   const p = command.split(/\s+/);
-  const name = p[0].replace(/^\/+/, "");
+  let name = p[0].replace(/^\/+/, "");
+  // /spec <id> plan|tasks redoes one part (eng-agents Core 4.19.0).
+  if (name === "spec" && (p[2] === "plan" || p[2] === "tasks")) name = p[2];
   if (name === "do-task" && p.length >= 3) {
     const n = parseInt(p[2], 10);
     const t = item.tasks.list.find((x) => x.n === n);
@@ -422,7 +424,7 @@ function commandText(item, command) {
   return command;
 }
 
-// Mirrors the next-command rules in commands/status.md (and New-Dashboard.ps1's Get-NextStep). First match wins.
+// Mirrors the next-command rules in eng-agents' commands/status.md (and parser/New-Dashboard.ps1's Get-NextStep). First match wins.
 function nextStep(item, folder) {
   const { id, lane, gates: g } = item;
   const tasksPath = path.join(folder, "tasks.md");
@@ -433,14 +435,15 @@ function nextStep(item, folder) {
   if (lane === "feature" && g.spec === null) return step("spec", `/spec ${id}`, null, null, false);
   // One feature gate (eng-agents Core 4.0.0): /spec drafts spec, plan and tasks; /approve approves the spec and plan together.
   if (g.spec === "DRAFT" && g.plan === "DRAFT") return step("plan", `/approve ${id}`, "Review spec.md, plan.md and tasks.md", `Approves the spec and the plan together. After approval: start a new session (/new), then /do-task ${id} 1`, true);
-  if (g.spec === "DRAFT") return step("spec", `/approve ${id}`, "Review spec.md", `Answer its open questions first. After approval: /plan ${id}`, true);
-  if (lane === "feature" && g.plan === null) return step("plan", `/plan ${id}`, null, null, false);
-  if (g.plan === "DRAFT") return step("plan", `/approve ${id}`, "Review plan.md", `After approval: /tasks ${id}`, true);
+  if (g.spec === "DRAFT") return step("spec", `/approve ${id}`, "Review spec.md", `Answer its open questions first. After approval: /spec ${id} plan`, true);
+  if (lane === "feature" && g.plan === null) return step("plan", `/spec ${id} plan`, null, null, false);
+  if (g.plan === "DRAFT") return step("plan", `/approve ${id}`, "Review plan.md", `After approval: /spec ${id} tasks`, true);
   if (lane === "bug" && g.bug === null) return step("bug", `/bug ${id}`, null, null, false);
   if (g.bug === "DRAFT") return step("bug", `/approve ${id}`, "Review bug.md and tasks.md", `After approval: start a new session (/new), then /do-task ${id} 1`, true);
   if (lane === "quick" && g.quick === null) return step("quick", `/quick ${id}`, null, null, false);
   if (g.quick === "DRAFT") return step("quick", `/approve ${id}`, "Review quick.md and tasks.md", `After approval: start a new session (/new), then /do-task ${id} 1`, true);
-  if (item.tasks.total === 0 && !exists(tasksPath)) return step(lane === "bug" ? "bug" : "tasks", `/tasks ${id}`, null, null, false);
+  // eng-agents Core 4.19.0 folded /tasks into /spec (/spec <id> tasks); /bug and /quick write their own tasks.
+  if (item.tasks.total === 0 && !exists(tasksPath)) return step(lane === "bug" ? "bug" : lane === "quick" ? "quick" : "tasks", lane === "bug" ? `/bug ${id}` : lane === "quick" ? `/quick ${id}` : `/spec ${id} tasks`, null, null, false);
   const open = item.tasks.list.filter((t) => !t.done).sort((a, b) => a.n - b.n);
   if (open.length) {
     const n = open[0].n;
@@ -899,7 +902,7 @@ export async function readWork({ workRoot, configPath, recent = 80, gitOk, hide 
     gitAvailable: gitOk,
     configFound: exists(configPath),
     stepWords: { ...STEP_WORDS },
-    refreshCommand: "/dashboard static",
+    refreshCommand: "/dashboard",
     refreshShell: null,
     items: items.map((it, i) => ({ it, i })).sort((x, y) => y.it.modifiedMs - x.it.modifiedMs || x.i - y.i).map((x) => x.it),
     repos,

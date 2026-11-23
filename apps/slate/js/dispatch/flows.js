@@ -313,7 +313,7 @@ export function sendBackCommand(it) {
     const n = it.next || {};
     if (!n.needsYou || !it.id) return null;
     if (n.stage === 'plan' && (it.gates || {}).spec === 'DRAFT') return `/spec ${it.id}`; // one gate: /spec redoes all three
-    return { spec: `/spec ${it.id}`, plan: `/plan ${it.id}`, bug: `/bug ${it.id}`, quick: `/quick ${it.id}` }[n.stage] || null;
+    return { spec: `/spec ${it.id}`, plan: `/spec ${it.id} plan`, bug: `/bug ${it.id}`, quick: `/quick ${it.id}` }[n.stage] || null;
   }
   const f = flowOf(it), i = stepIndex(it);
   if (f && f.id === 'epic' && i === 1) return `/scope ${it.folder}`;

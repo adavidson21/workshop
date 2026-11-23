@@ -1,7 +1,7 @@
 /* Agents: the page, as HTML strings, from the state in state.js. No DOM, no connection: main.js paints
    what render() returns and handles the clicks. Ported from eng-agents' dashboard.template.html
    (Dashboard 1.6.1, live mode). What changed from the template:
-   - Live mode only. The static page stays in eng-agents (/dashboard static).
+   - Live mode only. eng-agents retired its static page in Core 4.19.0.
    - Data comes from the opencode connector's `state` action; buttons call its actions (main.js).
    - .work files open in a sheet here (the `file.read` action) instead of a /files/ link.
    - The shell owns the theme and the name: no theme menu and no brand when embedded.
