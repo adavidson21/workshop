@@ -149,7 +149,7 @@ pwsh -NoProfile -File evals/Get-PromptSize.ps1 -Check
 - Its first table has a `tandem` row and a `baseline` row for `feature-outcome`, and the second table shows the lift.
 - In Bench, press Refresh: Lift shows the same two rates and the same points as the terminal. Bench's notes warn that 1 run is too few.
 - On version 3 results, Lift shows tokens per run for both arms and tokens per passing run under the bars.
-- Open **See every run**: the Tandem run lists 6 or more steps (`/spec`, `approve spec.md`, `/plan`, `approve plan.md`, `/tasks`, `/do-task` per task); the plain prompt run lists one. Failed runs name the checks that failed.
+- Open **See every run**: the Tandem run lists 4 or more steps (`/spec`, `approve spec.md`, `approve plan.md`, `/do-task` per task); the plain prompt run lists one. Failed runs name the checks that failed.
 
 ### 6. Make sure the baseline really is plain (5 minutes)
 

@@ -54,7 +54,7 @@ Each server-side item has an ID. Tests in `test/` name the ID they cover (search
 | ID | Changelog item | Connector | Covered by |
 | --- | --- | --- | --- |
 | | `Start-LiveDashboard.ps1 -Detach`. | | **Not carried over**: the agent starts and stops the connector. |
-| | The live dashboard keeps `.work/dashboard.html` current. | | **Not carried over**: its template is the eng-agents page. eng-agents' `/dashboard static` still writes it. The Agents app (Dispatch) is live only. Settled by eng-agents Core 2.11.0 (#41). |
+| | The live dashboard keeps `.work/dashboard.html` current. | | **Not carried over**: the Agents app (Dispatch) is live only. Settled by eng-agents Core 2.11.0 (#41); eng-agents retired the static page itself in Core 4.20.0. |
 | | The static page shows whether the live dashboard is running. | | **Done in eng-agents Core 2.11.0** (#41): the static page links to Dispatch instead. |
 
 ## Core 2.1.0

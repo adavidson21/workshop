@@ -326,7 +326,7 @@ The **Chat** tab ([docs/chat.md](../../docs/chat.md)), laid out like ChatGPT sin
 | `js/dispatch/review-api.js`, `js/dispatch/review-fixture.js` | The connector calls, and `mockReviewApi` with its three-file sample. |
 | `js/dispatch/review-monaco.js` | Loads `vendor/monaco` once, with a same-origin editor worker (the page's CSP refuses Monaco's `blob:` worker). |
 
-What changed from the template: live mode only (eng-agents' `/dashboard static` keeps the static page); no update checks (connectors make none); no theme menu or brand inside the shell; files open in the app instead of a `/files/` link; links that are not `http(s)` are not links.
+What changed from the template: live mode only (eng-agents retired its static page in Core 4.20.0); no update checks (connectors make none); no theme menu or brand inside the shell; files open in the app instead of a `/files/` link; links that are not `http(s)` are not links.
 
 ### Tests
 

@@ -160,7 +160,8 @@ export function parseWorkRoot(root, R) {
 
 function commandText(item, command) {
   const p = command.split(/\s+/);
-  const name = p[0].replace(/^\//, '');
+  let name = p[0].replace(/^\//, '');
+  if (name === 'spec' && (p[2] === 'plan' || p[2] === 'tasks')) name = p[2];
   if (name === 'do-task' && p.length >= 3) {
     const t = item.tasks.list.find(x => x.n === +p[2]);
     return `Task ${p[2]}${t ? `: ${t.title}` : ''}`;
@@ -175,14 +176,14 @@ function nextStep(item, folder, { hasRepos, hasPr }) {
   if (lane === 'feature' && g.spec == null) return step('spec', `/spec ${id}`, null, false);
   if (g.spec === 'DRAFT' && g.plan === 'DRAFT') return step('plan', `/approve ${id}`, 'Review spec.md, plan.md and tasks.md', true);
   if (g.spec === 'DRAFT') return step('spec', `/approve ${id}`, 'Review spec.md', true);
-  if (lane === 'feature' && g.plan == null) return step('plan', `/plan ${id}`, null, false);
+  if (lane === 'feature' && g.plan == null) return step('plan', `/spec ${id} plan`, null, false);
   if (g.plan === 'DRAFT') return step('plan', `/approve ${id}`, 'Review plan.md', true);
   if (lane === 'bug' && g.bug == null) return step('bug', `/bug ${id}`, null, false);
   if (g.bug === 'DRAFT') return step('bug', `/approve ${id}`, 'Review bug.md and tasks.md', true);
   if (lane === 'quick' && g.quick == null) return step('quick', `/quick ${id}`, null, false);
   if (g.quick === 'DRAFT') return step('quick', `/approve ${id}`, 'Review quick.md and tasks.md', true);
   const tasksPath = path.join(folder, 'tasks.md'), reviewPath = path.join(folder, 'review.md');
-  if (item.tasks.total === 0 && !fs.existsSync(tasksPath)) return step(lane === 'bug' ? 'bug' : 'tasks', `/tasks ${id}`, null, false);
+  if (item.tasks.total === 0 && !fs.existsSync(tasksPath)) return step(lane === 'bug' ? 'bug' : lane === 'quick' ? 'quick' : 'tasks', lane === 'bug' ? `/bug ${id}` : lane === 'quick' ? `/quick ${id}` : `/spec ${id} tasks`, null, false);
   const open = item.tasks.list.filter(t => !t.done).sort((a, b) => a.n - b.n);
   if (open.length) {
     const n = open[0].n;

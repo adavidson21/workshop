@@ -17,7 +17,7 @@ import { holdingGap } from "./gaps.mjs";
 
 //
 // Runs the build half of the pipeline for one work item without you switching sessions:
-//   (/approve <id> plan|bug|quick) -> /tasks (kept as is when /spec drafted it) -> /do-task <id> <n> for each open task -> /review <id> auto -> /pr
+//   (/approve <id> plan|bug|quick) -> /spec <id> tasks auto (only when tasks.md is missing) -> /do-task <id> <n> for each open task -> /review <id> auto -> /pr
 // With eng-agents Core 4.0.0's one feature gate, /approve <id> plan approves the draft spec with the plan.
 // Every step runs in a new session, and the next step comes from the same Get-NextStep rules
 // as the page, read fresh from disk after each step. It never pushes.
@@ -67,7 +67,9 @@ import { holdingGap } from "./gaps.mjs";
 //   - Resume after a failed Approve and build approves the plan again, instead of refusing.
 
 const autoFile = () => path.join(stateDir, "autopilot.json");
-const AUTO_STEPS = new Set(["quick", "approve", "tasks", "do-task", "review", "pr"]);
+const AUTO_STEPS = new Set(["quick", "approve", "do-task", "review", "pr"]);
+// eng-agents Core 4.20.0 folded /tasks into /spec: /spec <id> tasks writes a missing task list after the gate.
+const isTasksRedo = (p) => !!(p && p.name === "spec" && /^\S+\s+tasks\b/i.test(p.args));
 // 1.23.0 (eng-agents Core 4.10.0): a story from an approved breakdown, or a product's trial run, also starts and specs
 // on its own (/start <id> <lane> auto, /spec <id> auto), and a story's plan is approved with /approve <id> spec auto,
 // which holds it for you only when it drifts from the breakdown.
@@ -407,7 +409,7 @@ async function autoStep(folder, finished = false) {
     if (n.stage === "start" && isQuickRun(it)) cmd = `/start ${it.id} quick`;
 
     const parsed = parseCommand(cmd);
-    const allowed = parsed && (AUTO_STEPS.has(parsed.name) || (isHandsOff(it) && HANDS_OFF_STEPS.has(parsed.name)));
+    const allowed = parsed && (AUTO_STEPS.has(parsed.name) || isTasksRedo(parsed) || (isHandsOff(it) && HANDS_OFF_STEPS.has(parsed.name)));
     if (!allowed) return autoSet(folder, "waiting", `Next is ${cmd}, which autopilot does not run. Run it yourself, then click Resume.`);
 
     // The same step again means the last run did not move the item forward.
@@ -429,7 +431,7 @@ async function autoStep(folder, finished = false) {
 
     let full = cmd;
     if (parsed.name === "quick" || autoApprove) full = `${cmd} auto`; // review by exception: asks nothing, approves only a clean plan
-    if (HANDS_OFF_STEPS.has(parsed.name)) full = `${cmd} auto`; // a story or trial run: asks nothing (Core 4.10.0)
+    if (HANDS_OFF_STEPS.has(parsed.name) || isTasksRedo(parsed)) full = `${cmd} auto`; // a story or trial run, or a missing task list: asks nothing (Core 4.10.0)
     if (parsed.name === "review") {
       if ((a.fixRounds || 0) >= maxFixRounds()) autoLog(folder, `${maxFixRounds()} review rounds done. This review will ask you which findings to fix.`);
       else full = `${cmd} auto`;
