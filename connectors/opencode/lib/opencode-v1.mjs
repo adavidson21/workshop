@@ -12,6 +12,12 @@ import { v1Turn } from "./chat-parts.mjs";
 import { ptyEvent } from "./pty.mjs";
 import { chatChanged, chatText } from "./chat-live.mjs";
 
+/** A model's reasoning effort levels (opencode's variants, such as low, medium, high), when it has any (connector 1.39.0). */
+export function variantsOf(m) {
+  const v = m && m.variants && typeof m.variants === "object" ? Object.keys(m.variants).filter((k) => /^[A-Za-z0-9._-]{1,40}$/.test(k)).slice(0, 12) : [];
+  return v.length ? { variants: v } : {};
+}
+
 export function makeV1(url) {
   const base = url.replace(/\/+$/, "");
   const call = (p, o = {}) => {
@@ -173,7 +179,7 @@ export function makeV1(url) {
         for (const pr of all) {
           if (!pr || !pr.id || (on && !on.has(pr.id))) continue;
           // context (1.29.0): the model's context window in tokens, for Chat's context meter, when opencode knows it.
-          for (const m of Object.values(pr.models || {})) if (m && m.id) models.push({ provider: pr.id, providerName: pr.name || pr.id, id: m.id, name: m.name || m.id, ...(m.limit && Number(m.limit.context) > 0 ? { context: Number(m.limit.context) } : {}) });
+          for (const m of Object.values(pr.models || {})) if (m && m.id) models.push({ provider: pr.id, providerName: pr.name || pr.id, id: m.id, name: m.name || m.id, ...(m.limit && Number(m.limit.context) > 0 ? { context: Number(m.limit.context) } : {}), ...variantsOf(m) });
         }
         return { models, defaults: r.data.default && typeof r.data.default === "object" ? r.data.default : {} };
       }
@@ -246,10 +252,25 @@ export function makeV1(url) {
       return (await call(`/session/${id}`, { method: "DELETE" })).ok;
     },
     /** A copy of the session so far, for a side chat: {id, title}. */
-    async fork(id) {
-      const r = await call(`/session/${id}/fork`, { method: "POST", body: {} });
+    /** A copy of a session: the whole of it, or (messageID) only the messages before that one. */
+    async fork(id, messageID) {
+      const r = await call(`/session/${id}/fork`, { method: "POST", body: messageID ? { messageID } : {} });
       if (!r.ok || !r.data || !r.data.id) throw httpError(502, `opencode could not start a side chat (${errText(r)}).`);
       return { id: r.data.id, title: r.data.title || null };
+    },
+    /** /status (connector 1.39.0): opencode's MCP servers, language servers and formatters. */
+    async toolStatus() {
+      const [mcp, lsp, fmt] = await Promise.all(["/mcp", "/lsp", "/formatter"].map((p) => call(p, { timeout: 5000 })));
+      return {
+        mcp: mcp.ok && mcp.data && typeof mcp.data === "object" ? Object.entries(mcp.data).map(([name, v]) => ({ name, status: String((v && v.status) || "unknown"), ...(v && v.error ? { error: String(v.error).slice(0, 300) } : {}) })) : [],
+        lsp: lsp.ok && Array.isArray(lsp.data) ? lsp.data.map((l) => ({ name: String(l.name || l.id || ""), status: String(l.status || ""), root: String(l.root || "") })) : [],
+        formatters: fmt.ok && Array.isArray(fmt.data) ? fmt.data.map((f) => ({ name: String(f.name || ""), on: !!f.enabled, extensions: (f.extensions || []).slice(0, 20).map(String) })) : [],
+      };
+    },
+    /** Connect or disconnect one MCP server. */
+    async mcpSwitch(name, on) {
+      const r = await call(`/mcp/${encodeURIComponent(name)}/${on ? "connect" : "disconnect"}`, { method: "POST" });
+      if (!r.ok) throw httpError(502, `opencode could not ${on ? "connect" : "disconnect"} ${name} (${errText(r)}).`);
     },
     async setTitle(id, title) {
       return (await call(`/session/${id}`, { method: "PATCH", body: { title } })).ok;

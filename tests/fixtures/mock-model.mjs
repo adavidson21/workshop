@@ -6,7 +6,8 @@
 //
 // Prints one JSON line {url} when listening (the base URL, ending in /v1). Then reads commands, one JSON per line:
 //   {"style": "clean"|"sloppy"}   how the next replies look ("sloppy": no end markers, a code fence, chatter first)
-//   {"requests": true}            the requests seen: [{chars, hasInput, tools}] (chars: the whole prompt's length)
+//   {"requests": true}            the requests seen: [{chars, hasInput, tools, quick, notes, effort}] (chars: the whole prompt's length;
+//                                 effort: the reasoning effort opencode sent, from a model variant)
 //   {"chat": {firstMs, everyMs, size, text, quickText}}   chat replies (tests/chat-e2e.py): a request that sends tools gets `text`
 //                                 streamed `size` characters every `everyMs`, after `firstMs`, like a slow local model
 // Stops when stdin closes.
@@ -74,7 +75,7 @@ const server = http.createServer((req, res) => {
     const last = textOf((body.messages || []).filter((m) => m.role === "user").slice(-1));
     const isCleanup = last.includes("<<<INPUT");
     const isQuick = all.includes("You answer quick questions");
-    seen.push({ chars: all.length, hasInput: isCleanup, tools: (body.tools || []).length, quick: isQuick, notes: [...all.matchAll(/^\[([^\]\n]+\.(?:md|json))\]/gm)].map((m) => m[1]) });
+    seen.push({ chars: all.length, hasInput: isCleanup, tools: (body.tools || []).length, quick: isQuick, notes: [...all.matchAll(/^\[([^\]\n]+\.(?:md|json))\]/gm)].map((m) => m[1]), effort: body.reasoning_effort || body.reasoningEffort || null });
     const slow = !isCleanup && chat && ((body.tools || []).length > 0 || isQuick);
     // A quick answer (Chat's chat.quick) cites the first note it was given.
     const cite = (seen.at(-1).notes || [])[0];

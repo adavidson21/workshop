@@ -73,7 +73,7 @@ async function publishOne(it) {
 import { DAY, MAX_NOTES_BYTES, MAX_PACKET_BYTES, draftOneOnOne, oneOnOneResult, resetOneOnOnes, tidyOneOnOne, tidyResult } from "./lib/one-on-one.mjs";
 import { HUB_ID, MAX_MESSAGE, hubResult, resetHub, runHub } from "./lib/hub.mjs";
 import { MAX_PROMPT as VOICE_MAX, KINDS as VOICE_KINDS, resetVoice, runVoice, voiceResult } from "./lib/voice.mjs";
-import { MAX_FILES as CHAT_FILES, MAX_IMAGES, MAX_IMAGE_DATA, MAX_TEXT as CHAT_MAX, archiveChat, chatFiles, chatImage, chatMessages, chatOptions, commandChat, compactChat, listChats, quickChat, redoChat, removeChat, renameChat, resetChats, resetSearch, searchChats, sendChat, shellChat, sideChat, startChat, undoChat } from "./lib/chat.mjs";
+import { MAX_FILES as CHAT_FILES, MAX_IMAGES, MAX_IMAGE_DATA, MAX_TEXT as CHAT_MAX, archiveChat, chatFiles, chatImage, chatMessages, chatOptions, commandChat, compactChat, listChats, quickChat, redoChat, removeChat, renameChat, forkChat, chatStatus, chatMcp, resetChats, resetSearch, searchChats, sendChat, shellChat, sideChat, startChat, undoChat } from "./lib/chat.mjs";
 import { resetChatLive } from "./lib/chat-live.mjs";
 import { MAX_ATTACHMENTS, MAX_PIECE, attachPiece } from "./lib/chat-attach.mjs";
 import { chatChanges, chatSuggest, resetSuggest } from "./lib/chat-more.mjs";
@@ -454,6 +454,8 @@ const chatSession = str("opencode session id (empty: a new chat)", { maxLength: 
 const chatPick = {
   agent: str("Agent (empty: opencode's default)", { maxLength: 64, pattern: "^[A-Za-z0-9._-]*$" }),
   model: { type: "object", title: "Model (empty: the agent's or opencode's default)", additionalProperties: false, required: ["provider", "id"], properties: { provider: str("Provider id", { minLength: 1, maxLength: 200 }), id: str("Model id", { minLength: 1, maxLength: 200 }) } },
+  // Reasoning effort (1.39.0): one of the model's variants (chat.options models[].variants).
+  variant: str("Reasoning effort (empty: the model's default)", { maxLength: 40, pattern: "^[A-Za-z0-9._-]*$" }),
   files: { type: "array", title: "Workspace files to attach (@path)", maxItems: CHAT_FILES, items: str("File path in the workspace", { minLength: 1, maxLength: 500 }) },
   // Pasted images (Chat 4.0.0): base64, checked against their type in lib/chat.mjs.
   images: { type: "array", title: "Pasted images", maxItems: MAX_IMAGES, items: obj(["mime", "data"], { name: str("File name", { maxLength: 120 }), mime: { type: "string", title: "Type", enum: ["image/png", "image/jpeg", "image/gif", "image/webp"] }, data: str("The image, base64", { minLength: 4, maxLength: MAX_IMAGE_DATA }) }) },
@@ -1040,9 +1042,9 @@ const actions = {
     },
   },
   "chat.undo": {
-    title: "Undo the last message in a chat, and its file changes (opencode revert)",
+    title: "Undo the last message in a chat, or one of yours and all after it, with their file changes (opencode revert)",
     write: true,
-    argsSchema: obj(["session"], { session }),
+    argsSchema: obj(["session"], { session, message: str("One of your messages to undo from (empty: the last one)", { maxLength: 200, pattern: "^[A-Za-z0-9_-]*$" }) }),
     async run(args) {
       needReady();
       return undoChat(args, { config: ctxRef && ctxRef.config });
@@ -1277,8 +1279,36 @@ const actions = {
       return removeChat(args, { config: ctxRef && ctxRef.config });
     },
   },
+  // 1.39.0 (Chat 4.6.0): copy a chat (opencode's /fork), opencode's /status, MCP servers on and off.
+  "chat.fork": {
+    title: "Copy a chat into a new one (opencode fork), whole or up to one message",
+    write: false,
+    argsSchema: obj(["session"], { session, message: str("Copy up to and including this message (empty: the whole chat)", { maxLength: 200, pattern: "^[A-Za-z0-9_-]*$" }) }),
+    async run(args) {
+      needReady();
+      return forkChat(args, { config: ctxRef && ctxRef.config });
+    },
+  },
+  "chat.status": {
+    title: "opencode's MCP servers, language servers and formatters (its /status)",
+    write: false,
+    argsSchema: obj([], {}),
+    async run() {
+      needReady();
+      return chatStatus({ config: ctxRef && ctxRef.config });
+    },
+  },
+  "chat.mcp": {
+    title: "Connect or disconnect one of opencode's MCP servers",
+    write: true,
+    argsSchema: obj(["name", "on"], { name: str("MCP server name", { minLength: 1, maxLength: 120 }), on: { type: "boolean", title: "Connect (true) or disconnect (false)" } }),
+    async run(args) {
+      needReady();
+      return chatMcp(args, { config: ctxRef && ctxRef.config });
+    },
+  },
   "chat.rename": {
-    title: "Rename a chat in Chat's list (the opencode session keeps its title)",
+    title: "Rename a chat, in Chat's list and in opencode",
     write: false,
     argsSchema: obj(["session", "title"], { session, title: str("New name", { minLength: 1, maxLength: 80 }) }),
     async run(args) {

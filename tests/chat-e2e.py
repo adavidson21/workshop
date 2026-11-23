@@ -77,7 +77,8 @@ def main():
     with open(os.path.join(workspace, 'opencode.json'), 'w') as f:
         json.dump({'$schema': 'https://opencode.ai/config.json', 'model': 'ollama/qwen-mock', 'small_model': 'ollama/qwen-mock', 'autoupdate': False, 'share': 'disabled',
                    'provider': {'ollama': {'npm': '@ai-sdk/openai-compatible', 'name': 'Ollama (stand-in)', 'options': {'baseURL': murl},
-                                           'models': {'qwen-mock': {'name': 'Qwen stand-in', 'limit': {'context': 32768, 'output': 8192}}}}}}, f)
+                                           'models': {'qwen-mock': {'name': 'Qwen stand-in', 'reasoning': True, 'limit': {'context': 32768, 'output': 8192},
+                                                                     'variants': {'low': {'reasoningEffort': 'low'}, 'high': {'reasoningEffort': 'high'}}}}}}}, f)
     with open(os.path.join(workspace, 'AGENTS.md'), 'w') as f: f.write('# Workspace repo map\n\nNo repos.\n')
     if AGENT:
         os.makedirs(os.path.join(workspace, '.opencode', 'agent'))
@@ -167,6 +168,30 @@ def main():
             grew = cf.evaluate(LAST_ANSWER) > before
             check('a selection in the thread survives the next answer streaming in', sel > 100 and grew, (sel, grew))
             if SHOTS: pg.screenshot(path=os.path.join(SHOTS, 'chat.png'))
+            idle = lambda: wait_for(lambda: not cf.is_visible('[data-chat-stop]'), 30, 0.1)
+            idle()
+
+            # 2b. opencode's TUI on a message and its commands (Chat 4.6.0): reasoning effort, Fork from here, Undo from here, /status.
+            check('the model has reasoning efforts, so Chat offers the picker', bool(wait_for(lambda: cf.is_visible('[data-pick="effort"]'), 10)))
+            cf.click('[data-pick="effort"]')
+            cf.click('[data-pop] .pop-it:has-text("High")')
+            n0 = len(to_model({'requests': True})['requests'])
+            cf.fill(box, 'Think harder about it'); cf.press(box, 'Enter')
+            sent = wait_for(lambda: [r for r in to_model({'requests': True})['requests'][n0:] if r['tools']], 20)
+            check('the picked effort goes to the model', bool(sent) and sent[0]['effort'] == 'high', sent)
+            idle()
+            you0 = cf.evaluate("() => document.querySelectorAll('.turns > .turn.you').length")
+            cf.hover('.turns > .turn.tandem >> nth=0')
+            cf.click('.turns > .turn.tandem >> nth=0 >> [data-turn-fork]')
+            forked = wait_for(lambda: '(copy)' in (cf.text_content('.chat-top h2') or '') and cf.evaluate("() => document.querySelectorAll('.turns > .turn.you').length") == 1, 15)
+            check(f'Fork from here on the first answer: a new chat with only that exchange (the first had {you0} messages)', bool(forked), cf.text_content('.chat-top h2'))
+            cf.hover('.turns > .turn.you >> nth=0')
+            cf.click('.turns > .turn.you >> nth=0 >> [data-turn-undo]')
+            undone = wait_for(lambda: cf.is_visible('.divider.undo') and cf.input_value(box) == 'Why did the build fail?', 15)
+            check('Undo from here takes the message back and puts its text in the box', bool(undone), cf.input_value(box))
+            cf.fill(box, '/status'); cf.press(box, 'Enter')
+            check('/status shows opencode\'s MCP servers, language servers and formatters', bool(wait_for(lambda: cf.is_visible('.chat-status') and 'MCP servers' in cf.text_content('.chat-status'), 10)))
+            if SHOTS: pg.screenshot(path=os.path.join(SHOTS, 'parity.png'))
 
             # 3. A question in the Hub (New chat's first agent) gets a quick answer from the notes: one request, no tools.
             n0 = len(to_model({'requests': True})['requests'])
