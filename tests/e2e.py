@@ -1846,10 +1846,10 @@ def main():
             # Wait for Tasks to draw instead of a fixed pause: the service worker may still be precaching
             # every app's files (Dispatch's code viewer among them) on this first visit.
             try:
-                sp.wait_for_function("() => document.querySelectorAll('#snav .sitem').length >= 3 && !!document.querySelector('.ws-bar [data-theme-toggle]')", timeout=15000)
+                sp.wait_for_function("() => document.querySelectorAll('#snav .sitem').length >= 4 && !!document.querySelector('.ws-bar [data-theme-toggle]')", timeout=15000)
             except Exception:
                 pass
-            check('Tasks still works on its own, with the top bar and light/dark toggle', sp.locator('.ws-bar [data-theme-toggle]').is_visible() and 'Tasks' in sp.text_content('.ws-bar .here') and sp.locator('#snav .sitem').count() == 3)  # Tasks 10.5: Today, People, Done (Week folded into Today)
+            check('Tasks still works on its own, with the top bar and light/dark toggle', sp.locator('.ws-bar [data-theme-toggle]').is_visible() and 'Tasks' in sp.text_content('.ws-bar .here') and sp.locator('#snav .sitem').count() == 4)  # Tasks 12.5: Today, All tasks, People, Done
             check('Tasks defines no globals except its test hook', sp.evaluate(PRIORITIZER_GLOBALS) == ['__tasks'])
             tasks = "() => window.__tasks.state.tasks.map(t => [t.title, t.item ? String(t.item.id) : '']).sort()"
             before = sp.evaluate(tasks)
