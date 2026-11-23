@@ -22,7 +22,7 @@ Use these three. A component may add its own breakpoint only when it needs one (
 | `--w-page` | 100% | 72rem | 88rem | 104rem | List and form pages |
 | `--w-read` | 72ch | 72ch | 72ch | 72ch | Long text: notes, descriptions, setup copy |
 
-Boards, editors and dashboards (Docket, Slate, Folio, Runway's editor) run full width with `--gutter`. List and form pages (Rapport, Settings, Runway's list, Dispatch) use `.ws-page`, which centers inside `--w-page`.
+Boards, editors and dashboards (Tasks, Builds, Notes, Roadmaps' editor) run full width with `--gutter`. List and form pages (People, Settings, Roadmaps' list, Dispatch) use `.ws-page`, which centers inside `--w-page`.
 
 ## Pieces
 
@@ -43,7 +43,7 @@ Boards, editors and dashboards (Docket, Slate, Folio, Runway's editor) run full 
 
 ## Side panels
 
-A side panel that opens over a board (Docket's task drawer, Slate's item panel) covers the board below 1600px and pushes it from 1600px, so the board keeps its columns in half a screen. A board that needs more room than that may cover until a wider size: Docket's Today (three columns) covers below 2100px.
+A side panel that opens over a board (Tasks' task drawer, Builds' item panel) covers the board below 1600px and pushes it from 1600px, so the board keeps its columns in half a screen. A board that needs more room than that may cover until a wider size: Tasks' Today (three columns) covers below 2100px.
 
 ## Checking
 

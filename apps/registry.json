@@ -26,11 +26,11 @@
         ],
         "handoffs": {
           "sends": [
-            "prioritizer",
-            "receipts",
+            "tasks",
+            "people",
             "notes",
-            "runway",
-            "slate"
+            "roadmaps",
+            "builds"
           ]
         },
         "data": [
@@ -48,11 +48,11 @@
       }
     },
     {
-      "base": "/apps/prioritizer/",
+      "base": "/apps/tasks/",
       "manifest": {
         "manifestVersion": 1,
-        "id": "prioritizer",
-        "name": "Docket",
+        "id": "tasks",
+        "name": "Tasks",
         "version": "12.4.0",
         "description": "Decide what to work on next, and plan your day around it.",
         "icon": "icon.svg",
@@ -91,7 +91,7 @@
           },
           {
             "path": "people",
-            "title": "People"
+            "title": "Handed off"
           },
           {
             "path": "done",
@@ -122,7 +122,7 @@
         ],
         "handoffs": {
           "sends": [
-            "receipts",
+            "people",
             "notes"
           ]
         },
@@ -132,7 +132,7 @@
         ],
         "aliases": [
           "docket",
-          "tasks",
+          "prioritizer",
           "board",
           {
             "name": "today",
@@ -193,7 +193,7 @@
           },
           {
             "id": "shortcuts",
-            "title": "Docket keyboard shortcuts"
+            "title": "Tasks keyboard shortcuts"
           }
         ],
         "settings": [
@@ -208,7 +208,7 @@
             "id": "personalTasks",
             "type": "boolean",
             "title": "Personal tasks",
-            "description": "On: your own tasks show with the agent queue and PR reviews. Off: Docket is only your agent queue (what Tandem's builds need from you, from Loom) and PR reviews; your own tasks are hidden, not deleted.",
+            "description": "On: your own tasks show with the agent queue and PR reviews. Off: Tasks is only your agent queue (what Tandem's builds need from you, from Builds) and PR reviews; your own tasks are hidden, not deleted.",
             "default": true
           }
         ],
@@ -260,7 +260,7 @@
           "js/route.js",
           "js/row-fields-model.js",
           "js/agent-queue.js",
-          "js/slate-link.js",
+          "js/builds-link.js",
           "js/tandem-build.js",
           "js/sort-run.js",
           "js/state.js",
@@ -275,11 +275,11 @@
       }
     },
     {
-      "base": "/apps/slate/",
+      "base": "/apps/builds/",
       "manifest": {
         "manifestVersion": 1,
-        "id": "slate",
-        "name": "Loom",
+        "id": "builds",
+        "name": "Builds",
         "version": "6.20.0",
         "description": "Tandem's runs on a floor: a code line and a research line of stations, or a list, plus Health. Drop in a story, an error log, a question or a hand-off; a card stops only when it needs you.",
         "icon": "icon.svg",
@@ -309,6 +309,7 @@
         ],
         "aliases": [
           "loom",
+          "slate",
           "dispatch",
           "backlog",
           "requests",
@@ -336,10 +337,10 @@
         ],
         "handoffs": {
           "sends": [
-            "runway",
-            "prioritizer",
+            "roadmaps",
+            "tasks",
             "notes",
-            "receipts"
+            "people"
           ]
         },
         "settings": [
@@ -452,7 +453,7 @@
           "reports"
         ],
         "files": [
-          "slate.css",
+          "builds.css",
           "js/main.js",
           "js/data.js",
           "js/model.js",
@@ -462,43 +463,43 @@
           "js/reports/index.js",
           "js/reports/model.js",
           "js/reports/view.js",
-          "dispatch.css",
-          "js/dispatch/main.js",
-          "js/dispatch/doc.js",
-          "js/dispatch/state.js",
-          "js/dispatch/view.js",
-          "js/dispatch/projects.js",
-          "js/dispatch/pages.js",
-          "js/dispatch/local.js",
-          "js/dispatch/pr-reviews.js",
+          "runs.css",
+          "js/runs/main.js",
+          "js/runs/doc.js",
+          "js/runs/state.js",
+          "js/runs/view.js",
+          "js/runs/projects.js",
+          "js/runs/pages.js",
+          "js/runs/local.js",
+          "js/runs/pr-reviews.js",
           "review.html",
           "review.css",
-          "js/dispatch/review.js",
-          "js/dispatch/review-state.js",
-          "js/dispatch/review-view.js",
-          "js/dispatch/review-api.js",
-          "js/dispatch/review-fixture.js",
-          "js/dispatch/summary.js",
-          "js/dispatch/digest.js",
-          "js/dispatch/slate-handoff.js",
-          "js/dispatch/flows.js",
-          "js/dispatch/lanes.js",
-          "js/dispatch/noticed.js",
-          "js/dispatch/factory.js",
-          "js/dispatch/start-prefill.js",
-          "js/loom.js",
+          "js/runs/review.js",
+          "js/runs/review-state.js",
+          "js/runs/review-view.js",
+          "js/runs/review-api.js",
+          "js/runs/review-fixture.js",
+          "js/runs/summary.js",
+          "js/runs/digest.js",
+          "js/runs/builds-handoff.js",
+          "js/runs/flows.js",
+          "js/runs/lanes.js",
+          "js/runs/noticed.js",
+          "js/runs/factory.js",
+          "js/runs/start-prefill.js",
+          "js/board.js",
           "js/app.js",
-          "loom.css",
-          "js/dispatch/docs.js"
+          "board.css",
+          "js/runs/docs.js"
         ]
       }
     },
     {
-      "base": "/apps/receipts/",
+      "base": "/apps/people/",
       "manifest": {
         "manifestVersion": 1,
-        "id": "receipts",
-        "name": "Rapport",
+        "id": "people",
+        "name": "People",
         "version": "5.1.0",
         "description": "Your private notebook about the people you work with, next to Lattice: one People list, one Log box, and a page per person with their 1:1, Log, goals and review.",
         "icon": "icon.svg",
@@ -576,7 +577,7 @@
           },
           {
             "path": "settings",
-            "title": "Rapport's settings, in Settings"
+            "title": "People's settings, in Settings"
           }
         ],
         "connectors": [
@@ -625,7 +626,7 @@
         ],
         "handoffs": {
           "sends": [
-            "prioritizer"
+            "tasks"
           ]
         },
         "commands": [
@@ -670,7 +671,7 @@
             "id": "cycleStart",
             "type": "date",
             "title": "Review cycle starts",
-            "description": "The first day your next review covers. Rapport's default period everywhere.",
+            "description": "The first day your next review covers. People's default period everywhere.",
             "default": ""
           },
           {
@@ -718,9 +719,9 @@
       "manifest": {
         "manifestVersion": 1,
         "id": "notes",
-        "name": "Folio",
+        "name": "Notes",
         "version": "4.13.0",
-        "description": "Folio, your notebook: notes, daily notes, product notes, templates, Tandem's documents and a Links directory, as Markdown files. Diagrams, backlinks, tags, search and images.",
+        "description": "Notes, your notebook: notes, daily notes, product notes, templates, Tandem's documents and a Links directory, as Markdown files. Diagrams, backlinks, tags, search and images.",
         "icon": "icon.svg",
         "entry": "index.html",
         "order": 45,
@@ -798,8 +799,8 @@
         ],
         "handoffs": {
           "sends": [
-            "prioritizer",
-            "receipts"
+            "tasks",
+            "people"
           ]
         },
         "data": [
@@ -849,12 +850,11 @@
           "notes.css",
           "vendor/codemirror.js",
           "vendor/mermaid.min.js",
-          "js/loom.js"
+          "js/builds-items.js"
         ],
         "aliases": [
           "folio",
-          "notebook",
-          "notes"
+          "notebook"
         ],
         "connectors": [
           {
@@ -865,11 +865,11 @@
       }
     },
     {
-      "base": "/apps/runway/",
+      "base": "/apps/roadmaps/",
       "manifest": {
         "manifestVersion": 1,
-        "id": "runway",
-        "name": "Runway",
+        "id": "roadmaps",
+        "name": "Roadmaps",
         "version": "3.4.0",
         "description": "Team and project roadmaps: type an outline, drag the timeline, export an image or Markdown. Optionally from your work tracker.",
         "icon": "icon.svg",
@@ -894,8 +894,8 @@
           "idea"
         ],
         "aliases": [
-          "roadmap",
-          "roadmaps"
+          "runway",
+          "roadmap"
         ],
         "routes": [
           {
@@ -939,7 +939,7 @@
         ],
         "handoffs": {
           "sends": [
-            "slate"
+            "builds"
           ]
         }
       }
@@ -1076,11 +1076,11 @@
         ],
         "handoffs": {
           "sends": [
-            "prioritizer",
-            "receipts",
+            "tasks",
+            "people",
             "notes",
-            "runway",
-            "slate"
+            "roadmaps",
+            "builds"
           ]
         },
         "routes": [

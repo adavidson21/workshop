@@ -1,7 +1,7 @@
 {
   "event": "file",
   "data": {
-    "app": "receipts",
+    "app": "people",
     "path": "summaries/person-one/2026-h2.md",
     "mtime": 1792937400000,
     "client": null

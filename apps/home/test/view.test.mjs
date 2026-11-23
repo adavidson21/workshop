@@ -1,5 +1,5 @@
-// Home, the Needs you panel: rows from every app's summary (docs/summaries.md) and the panel's states. Docket's own
-// rules for its rows are tested in Docket (test/summary.test.mjs).
+// Home, the Needs you panel: rows from every app's summary (docs/summaries.md) and the panel's states. Tasks' own
+// rules for its rows are tested in Tasks (test/summary.test.mjs).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { agentCounts, boardFromSummary, render } from '../js/view.js';
@@ -19,13 +19,13 @@ test('agent counts from the connector state', () => {
   assert.deepEqual(agentCounts(st), { needYou: 3, working: 1 });
 });
 
-test('the panel (Home 4.0.0): Needs you first, no greeting, no capture box, no copy of Docket\'s day', () => {
+test('the panel (Home 4.0.0): Needs you first, no greeting, no capture box, no copy of Tasks\' day', () => {
   const now = new Date(2026, 10, 4, 9);
-  const html = render({ now, inbox: [{ app: 'receipts', appName: 'Rapport', title: '1:1 with <b>Dev</b>', note: '', route: '1on1s/p_a', flag: '' }], upcoming: [], week: [] });
+  const html = render({ now, inbox: [{ app: 'people', appName: 'People', title: '1:1 with <b>Dev</b>', note: '', route: '1on1s/p_a', flag: '' }], upcoming: [], week: [] });
   assert.match(html, /<div class="dash cols"><section class="card inbox">/);
-  assert.match(html, /data-open="receipts" data-path="1on1s\/p_a"/);
+  assert.match(html, /data-open="people" data-path="1on1s\/p_a"/);
   assert.ok(!html.includes('<b>Dev</b>'), 'escaped');
-  assert.doesNotMatch(html, /Good morning|Morning,|yourday|Your day|Open Docket|data-edit-profile|Recent notes|id="capture"/);
+  assert.doesNotMatch(html, /Good morning|Morning,|yourday|Your day|Open Tasks|data-edit-profile|Recent notes|id="capture"/);
   assert.match(render({ now, inbox: [], upcoming: [], week: [] }), /Nothing needs you right now/);
 });
 
@@ -40,38 +40,38 @@ test('header: the date and one More menu with Weekly status; a labeled button on
   assert.match(fri.slice(0, fri.indexOf('</header>')), /class="btn" data-status>/);
 });
 
-test('Needs you: one list from every app, urgent first (agents come in Loom\'s own rows)', async () => {
+test('Needs you: one list from every app, urgent first (agents come in Builds\' own rows)', async () => {
   const { inboxRows } = await import('../js/view.js');
   const cards = (list) => new Map([['needs', { kind: 'list', rows: list }]]);
   const rows = inboxRows([
-    { app: 'slate', name: 'Slate', cards: cards([{ id: 'w1', title: '#7 Export', note: 'Decide who builds it', route: 'item/w1' }, { id: 'w2', title: 'Asking', note: 'An agent is asking', route: 'item/w2', flag: 'urgent' }]) },
-    { app: 'receipts', name: 'Rapport', cards: cards([{ id: 'p1', title: '1:1 with Ana', flag: 'waiting', route: '1on1s' }]) },
+    { app: 'builds', name: 'Builds', cards: cards([{ id: 'w1', title: '#7 Export', note: 'Decide who builds it', route: 'item/w1' }, { id: 'w2', title: 'Asking', note: 'An agent is asking', route: 'item/w2', flag: 'urgent' }]) },
+    { app: 'people', name: 'People', cards: cards([{ id: 'p1', title: '1:1 with Ana', flag: 'waiting', route: '1on1s' }]) },
     { app: 'notes', name: 'Notes', cards: null }
   ]);
   assert.deepEqual(rows.map(r => [r.appName, r.title, r.flag]), [
-    ['Slate', 'Asking', 'urgent'], ['Slate', '#7 Export', ''],
-    ['Rapport', '1:1 with Ana', 'waiting']
+    ['Builds', 'Asking', 'urgent'], ['Builds', '#7 Export', ''],
+    ['People', '1:1 with Ana', 'waiting']
   ]);
   assert.deepEqual(inboxRows([], {}), []);
 });
 
-test('Needs you (Docket 7.0.0): Docket\'s needs rows, and one row for pull requests when Loom has one too', async () => {
+test('Needs you (Tasks 7.0.0): Tasks\' needs rows, and one row for pull requests when Builds has one too', async () => {
   const { inboxRows } = await import('../js/view.js');
   const cards = (list) => new Map([['needs', { kind: 'list', rows: list }]]);
-  const docket = { app: 'prioritizer', name: 'Docket', cards: cards([{ id: 'prs', title: '2 PRs blocked on you', note: 'Review in Docket', route: 'today', flag: 'urgent' }, { id: 'nudges', title: '1 follow-up due', route: 'today', flag: 'waiting' }]) };
-  const dispatch = { app: 'slate', name: 'Loom', cards: cards([{ id: 'prs', title: '5 pull requests waiting for your review', note: 'a, b', route: 'reviews' }]) };
+  const docket = { app: 'tasks', name: 'Tasks', cards: cards([{ id: 'prs', title: '2 PRs blocked on you', note: 'Review in Tasks', route: 'today', flag: 'urgent' }, { id: 'nudges', title: '1 follow-up due', route: 'today', flag: 'waiting' }]) };
+  const dispatch = { app: 'builds', name: 'Builds', cards: cards([{ id: 'prs', title: '5 pull requests waiting for your review', note: 'a, b', route: 'reviews' }]) };
   const rows = inboxRows([docket, dispatch], {});
   assert.deepEqual(rows.map(r => [r.appName, r.title, r.note, r.flag]), [
-    ['Docket', '2 PRs blocked on you', '5 pull requests waiting for your review in Loom', 'urgent'],
-    ['Docket', '1 follow-up due', '', 'waiting']]);
-  assert.equal(inboxRows([dispatch], {})[0].appName, 'Loom', 'without Docket\'s row, Loom\'s stays');
+    ['Tasks', '2 PRs blocked on you', '5 pull requests waiting for your review in Builds', 'urgent'],
+    ['Tasks', '1 follow-up due', '', 'waiting']]);
+  assert.equal(inboxRows([dispatch], {})[0].appName, 'Builds', 'without Tasks\' row, Builds\' stays');
 });
 
 test('weekly status: a Markdown draft from every app that logged something', async () => {
   const { weekRows, statusDraft } = await import('../js/view.js');
   const week = weekRows([
-    { app: 'prioritizer', name: 'Docket', cards: new Map([['done-week', { kind: 'list', title: 'Finished this week', count: 3, rows: [{ id: 't1', title: 'Ship the guide' }, { id: 't2', title: 'Fix login', note: 'Platform' }] }]]) },
-    { app: 'slate', name: 'Slate', cards: new Map([['done-week', { kind: 'list', title: 'Decisions this week', rows: [] }]]) }
+    { app: 'tasks', name: 'Tasks', cards: new Map([['done-week', { kind: 'list', title: 'Finished this week', count: 3, rows: [{ id: 't1', title: 'Ship the guide' }, { id: 't2', title: 'Fix login', note: 'Platform' }] }]]) },
+    { app: 'builds', name: 'Builds', cards: new Map([['done-week', { kind: 'list', title: 'Decisions this week', rows: [] }]]) }
   ]);
   assert.equal(week.length, 1);
   const md = statusDraft(week, { name: 'Alex', now: new Date('2026-11-06T12:00:00') });
@@ -86,9 +86,9 @@ test('dashboard: Coming up from every app\'s upcoming card, soonest first, two w
   const today = '2026-11-10';
   const card = rows => new Map([['upcoming', { id: 'upcoming', kind: 'list', updatedAt: 1, rows }]]);
   const byApp = [
-    { app: 'receipts', name: 'Rapport', cards: card([{ id: 'a', title: '1:1 with Dev A', due: '2026-11-12', note: '1:1', route: '1on1s/p_a' }, { id: 'old', title: 'Long gone', due: '2026-10-01' }]) },
-    { app: 'runway', name: 'Runway', cards: card([{ id: 'm', title: 'Search live', due: '2026-11-10', note: 'Platform' }, { id: 'far', title: 'Next year', due: '2027-03-01' }, { id: 'late', title: 'Slipped', due: '2026-11-07' }, { title: 'No date' }]) },
-    { app: 'notes', name: 'Folio', cards: null }
+    { app: 'people', name: 'People', cards: card([{ id: 'a', title: '1:1 with Dev A', due: '2026-11-12', note: '1:1', route: '1on1s/p_a' }, { id: 'old', title: 'Long gone', due: '2026-10-01' }]) },
+    { app: 'roadmaps', name: 'Roadmaps', cards: card([{ id: 'm', title: 'Search live', due: '2026-11-10', note: 'Platform' }, { id: 'far', title: 'Next year', due: '2027-03-01' }, { id: 'late', title: 'Slipped', due: '2026-11-07' }, { title: 'No date' }]) },
+    { app: 'notes', name: 'Notes', cards: null }
   ];
   const rows = upcomingRows(byApp, today);
   assert.deepEqual(rows.map(r => r.title), ['Slipped', 'Search live', '1:1 with Dev A']);
@@ -97,7 +97,7 @@ test('dashboard: Coming up from every app\'s upcoming card, soonest first, two w
   assert.equal(dueLabel('2026-11-07', today), '3 days late');
   const html = upcomingCard(rows, today);
   assert.match(html, /Coming up/);
-  assert.match(html, /data-open="receipts" data-path="1on1s\/p_a"/);
+  assert.match(html, /data-open="people" data-path="1on1s\/p_a"/);
   assert.match(html, /class="ud num late"/);
   assert.equal(upcomingCard([], today), '');
 });

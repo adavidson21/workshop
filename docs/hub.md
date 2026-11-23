@@ -1,6 +1,6 @@
 # Hub
 
-The hub is one input for everything: capture a task, receipt, note or roadmap idea, ask a question about your repos or your work, go to an app, or start an action. It lives in the Chat app (New chat's Hub agent since Chat 2.0.0; Loom's Chat tab until Loom 4.8.0; a message that is not a capture or go becomes a chat, docs/chat.md) and is answered by Tandem's `/hub` command (eng-agents Core 2.9.0) through the opencode connector. Home has a quick capture box that needs no AI and sends questions to the hub. The same box opens from any app as the shell's **Capture** bar (the top bar's Capture button, or `Ctrl+.`; `shell/capture.js`): it is Home's quick capture, saved to `home.handoffs`, and its questions open the hub here.
+The hub is one input for everything: capture a task, receipt, note or roadmap idea, ask a question about your repos or your work, go to an app, or start an action. It lives in the Chat app (New chat's Hub agent since Chat 2.0.0; Builds' Chat tab until Builds 4.8.0; a message that is not a capture or go becomes a chat, docs/chat.md) and is answered by Tandem's `/hub` command (eng-agents Core 2.9.0) through the opencode connector. Home has a quick capture box that needs no AI and sends questions to the hub. The same box opens from any app as the shell's **Capture** bar (the top bar's Capture button, or `Ctrl+.`; `shell/capture.js`): it is Home's quick capture, saved to `home.handoffs`, and its questions open the hub here.
 
 This contract covers the two files Workshop and Tandem pass between them, `request.md` and `route.json`, and how captures reach other apps.
 
@@ -34,7 +34,7 @@ dont forget about the onboarding doc for person one
 - p_mgr: Person Two @two (manager)
 - g_lead: Leadership @leadership (group: Person One, Person Two)
 
-## Docket lists
+## Tasks lists
 
 - Inbox
 - This sprint
@@ -45,9 +45,9 @@ dont forget about the onboarding doc for person one
 | `Date` | Today, `YYYY-MM-DD`. |
 | `Message` | What the person typed, up to 4000 characters. |
 | `People` | The people directory ([people.md](people.md)): id, name, handle, and relation and team for people or members for groups. Archived items left out. |
-| `Docket lists` | Docket's list names, so a capture can name one. From the `targets` card with `capture: "task"` in Docket's summary ([summaries.md](summaries.md)). |
+| `Tasks lists` | Tasks' list names, so a capture can name one. From the `targets` card with `capture: "task"` in Tasks' summary ([summaries.md](summaries.md)). |
 
-Sections with nothing in them say `None.` Nothing else goes in: no Rapport entries, task bodies or ADO content. Product and repo names come from the workspace repo map, which Tandem already loads.
+Sections with nothing in them say `None.` Nothing else goes in: no People entries, task bodies or ADO content. Product and repo names come from the workspace repo map, which Tandem already loads.
 
 ## route.json
 
@@ -59,7 +59,7 @@ Written by the hub agent. Schema: [schemas/hub-route.schema.json](schemas/hub-ro
   "intent": "capture",
   "proposals": [
     {
-      "to": "prioritizer",
+      "to": "tasks",
       "text": "Onboarding doc for Person One",
       "payload": {"kind": "task", "title": "Onboarding doc for Person One", "who": ["p_one"], "value": 3},
       "confidence": 0.8,
@@ -73,7 +73,7 @@ Written by the hub agent. Schema: [schemas/hub-route.schema.json](schemas/hub-ro
 | --- | --- |
 | `version` | `1`. |
 | `intent` | `capture`, `ask`, `go`, `act` or `clarify`. Only the field for that intent is read. |
-| `proposals` | `capture`: 1 to 20 items, each in the shape of a handoff to that app ([handoffs.md](handoffs.md), Receivers): `to` (`prioritizer`, `receipts` or `notes`), `text`, `payload`, plus `confidence` (0 to 1) and a short `reason`. |
+| `proposals` | `capture`: 1 to 20 items, each in the shape of a handoff to that app ([handoffs.md](handoffs.md), Receivers): `to` (`tasks`, `people` or `notes`), `text`, `payload`, plus `confidence` (0 to 1) and a short `reason`. |
 | `ask` | `ask`: `repos`, the repo folders it looked in (may be empty for a question about Workshop data or `.work`). The answer is `answer.md`. |
 | `go` | `go`: `{app, path?}`, same as the SDK's `ws.open`. |
 | `act` | `act`: `{connector, action, args, label}`. Shown as a button with its confirm. Never run on its own. |
@@ -85,23 +85,23 @@ Markdown: the short answer first, then lines marked **Confirmed** (with a file a
 
 ## Captures
 
-The person reviews each proposal in the hub (or the top bar's Capture) and accepts it with Enter, a click, or Accept all. Each accepted proposal is written to the capturing app's own `handoffs` collection (`chat.handoffs` or `home.handoffs`; `slate.handoffs` before Loom 4.8.0) with `accepted: true` ([handoffs.md](handoffs.md), rule 4). Docket, Rapport, Notes and Runway add it when they next load. No app writes another app's data.
+The person reviews each proposal in the hub (or the top bar's Capture) and accepts it with Enter, a click, or Accept all. Each accepted proposal is written to the capturing app's own `handoffs` collection (`chat.handoffs` or `home.handoffs`; `builds.handoffs` before Builds 4.8.0) with `accepted: true` ([handoffs.md](handoffs.md), rule 4). Tasks, People, Notes and Roadmaps add it when they next load. No app writes another app's data.
 
-Roadmap ideas (`p <text>`, or `p <roadmap>: <text>` to name one of Runway's roadmaps) are rules only: Tandem does not propose them. A named roadmap gets the idea in its Unscheduled tray; anything else waits on Runway's Pending assignment list.
+Roadmap ideas (`p <text>`, or `p <roadmap>: <text>` to name one of Roadmaps' roadmaps) are rules only: Tandem does not propose them. A named roadmap gets the idea in its Unscheduled tray; anything else waits on Roadmaps' Pending assignment list.
 
-Requests (`s <text>`, `s #<id> <note>`, or a line that starts with `#<id>`) are rules only too. They go to Slate's New: with an ADO id, to the card for that item (made if Slate has none yet); otherwise a new request card. The review line says `Slate · New` or `Slate · #<id>`.
+Requests (`s <text>`, `s #<id> <note>`, or a line that starts with `#<id>`) are rules only too. They go to Builds' New: with an ADO id, to the card for that item (made if Builds has none yet); otherwise a new request card. The review line says `Builds · New` or `Builds · #<id>`.
 
 Notes go to Quick Notes (Capture) or Notes' `inbox/` (Dispatch). `n <folder>: <text>` with one of Notes' folders makes a new note in that folder, and `n today: <text>` adds the text under `## Notes` in today's note. The folder names come from Notes' `targets` card ([summaries.md](summaries.md)); case and a dash versus a space don't matter, and the start of exactly one folder name is enough. A name no folder has is part of the text, so `n Remember: call the vendor` stays as typed. The review line says where it goes (`Notes · runbooks/ · new note "..."`, `Notes · today's note`).
 
 ### Which app takes a capture
 
-Each capture kind (`task`, `waiting`, `receipt`, `note`, `idea`, `request`) goes to the app whose manifest lists it in `capture` ([app-manifest.md](app-manifest.md)), first by `order`. Quick capture and the hub find them with `ws.apps.list()` ([sdk.md](sdk.md)). The parsing rules for each kind stay in `shared/capture.js`; an app takes a kind by accepting that payload as a handoff ([handoffs.md](handoffs.md), Receivers). When no app takes a kind, its prefix is not recognized and the line is a task. Outside Workshop's site (no app list) the built-in targets are used: `task` and `waiting` to Docket, `receipt` to Rapport, `note` to Notes, `idea` to Runway, `request` to Slate.
+Each capture kind (`task`, `waiting`, `receipt`, `note`, `idea`, `request`) goes to the app whose manifest lists it in `capture` ([app-manifest.md](app-manifest.md)), first by `order`. Quick capture and the hub find them with `ws.apps.list()` ([sdk.md](sdk.md)). The parsing rules for each kind stay in `shared/capture.js`; an app takes a kind by accepting that payload as a handoff ([handoffs.md](handoffs.md), Receivers). When no app takes a kind, its prefix is not recognized and the line is a task. Outside Workshop's site (no app list) the built-in targets are used: `task` and `waiting` to Tasks, `receipt` to People, `note` to Notes, `idea` to Roadmaps, `request` to Builds.
 
 `> <place>` matches an app's `id`, `name` or one of its `aliases`.
 
-**Build with Tandem.** `b <text>` (or `build: <text>`) in Capture, the hub, or the palette's **Build with Tandem** sends the text to Loom's drop box at `start/go/<text>` (`buildAsk` in `shared/capture.js`), which guesses the kind (a build, an error log to diagnose, a question to look into) and starts it once Tandem is ready. Enter is the approval; there is no form. A log pasted after `b` stays one item. `Build the Q4 deck` (no colon) is still a task. Without Tandem the drop box keeps the text and says what works instead. A Docket task does the same from its details (**Build with Tandem**, or `B`), with its first step, notes and a link back (Docket 12.4.0). Tested end to end by `tests/drop-e2e.py`.
+**Build with Tandem.** `b <text>` (or `build: <text>`) in Capture, the hub, or the palette's **Build with Tandem** sends the text to Builds' drop box at `start/go/<text>` (`buildAsk` in `shared/capture.js`), which guesses the kind (a build, an error log to diagnose, a question to look into) and starts it once Tandem is ready. Enter is the approval; there is no form. A log pasted after `b` stays one item. `Build the Q4 deck` (no colon) is still a task. Without Tandem the drop box keeps the text and says what works instead. A Tasks task does the same from its details (**Build with Tandem**, or `B`), with its first step, notes and a link back (Tasks 12.4.0). Tested end to end by `tests/drop-e2e.py`.
 
-"clean up this document" (also "tidy up my note", "polish this article"; `cleanupAsk` in `shared/capture.js`) is a rule too, in Capture and in the hub before anything goes to Tandem: it opens Folio at `cleanup` (or `cleanup/replace` when the words say "overwrite it", "in place" or "replace the original"), and Folio cleans up its open note (Folio 4.13.0, `apps/notes/README.md`).
+"clean up this document" (also "tidy up my note", "polish this article"; `cleanupAsk` in `shared/capture.js`) is a rule too, in Capture and in the hub before anything goes to Tandem: it opens Notes at `cleanup` (or `cleanup/replace` when the words say "overwrite it", "in place" or "replace the original"), and Notes cleans up its open note (Notes 4.13.0, `apps/notes/README.md`).
 
 ## Rules
 

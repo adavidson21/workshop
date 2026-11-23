@@ -23,7 +23,7 @@ before(async () => {
 after(async () => { await agent?.stop(); rmHome(home); });
 
 test('the build lists every site file with its SHA-256, every app included, and leaves out what is not the site', () => {
-  for (const rel of ['index.html', 'sw.js', 'shell/shell.js', 'shared/workshop-sdk.js', 'apps/home/index.html', 'apps/slate/index.html', 'apps/settings/index.html', 'apps/registry.json', 'apps/prioritizer/index.html', 'apps/prioritizer/js/main.js', 'apps/runway/index.html', 'apps/receipts/index.html', 'apps/notes/index.html']) {
+  for (const rel of ['index.html', 'sw.js', 'shell/shell.js', 'shared/workshop-sdk.js', 'apps/home/index.html', 'apps/builds/index.html', 'apps/settings/index.html', 'apps/registry.json', 'apps/tasks/index.html', 'apps/tasks/js/main.js', 'apps/roadmaps/index.html', 'apps/people/index.html', 'apps/notes/index.html']) {
     assert.match(build.files[rel] || '', /^[0-9a-f]{64}$/, rel);
   }
   for (const rel of Object.keys(build.files)) {
@@ -32,7 +32,7 @@ test('the build lists every site file with its SHA-256, every app included, and 
     assert.ok(!rel.startsWith('agent/') && !rel.startsWith('connectors/') && !rel.startsWith('tests/'), rel);
   }
   const reg = JSON.parse(fs.readFileSync(path.join(uiDir, 'apps', 'registry.json'), 'utf8'));
-  for (const id of ['prioritizer', 'runway', 'receipts', 'notes']) assert.ok(reg.apps.some(a => a.manifest.id === id), `${id} is in the registry`);
+  for (const id of ['tasks', 'roadmaps', 'people', 'notes']) assert.ok(reg.apps.some(a => a.manifest.id === id), `${id} is in the registry`);
   assert.equal(build.workshop.ref, 'v0.0.1');
   assert.equal(verifyPinned(uiDir).ok, true);
 });
@@ -43,7 +43,7 @@ test('work mode serves the hub at "/" and every app from the pinned copy, with t
   assert.equal(hub.text, fs.readFileSync(path.join(REPO, 'index.html'), 'utf8'));
   assert.match(hub.headers['content-security-policy'], /default-src 'self'/);
   assert.equal(hub.headers['x-frame-options'], 'SAMEORIGIN');
-  for (const p of ['/index.html', '/shell/shell.js', '/sw.js', '/manifest.webmanifest', '/apps/registry.json', '/apps/home/', '/apps/slate/index.html', '/apps/settings/', '/apps/prioritizer/', '/apps/prioritizer/js/main.js']) {
+  for (const p of ['/index.html', '/shell/shell.js', '/sw.js', '/manifest.webmanifest', '/apps/registry.json', '/apps/home/', '/apps/builds/index.html', '/apps/settings/', '/apps/tasks/', '/apps/tasks/js/main.js']) {
     assert.equal((await get(agent, p, { auth: 'none' })).status, 200, p);
   }
   const b = await get(agent, `/${BUILD_FILE}`, { auth: 'none' });
@@ -57,7 +57,7 @@ test('work mode serves the hub at "/" and every app from the pinned copy, with t
 
 test('work mode never serves a file the build does not list, or anything outside the copy', async () => {
   fs.writeFileSync(path.join(uiDir, 'extra.js'), 'alert(1)');
-  for (const p of ['/extra.js', '/apps/prioritizer/test/e2e.py', '/agent/server.mjs', '/config.json', '/token', '/../config.json', '/%2e%2e/token', '/apps/../../token', '/.git/config', '/shell/..%2f..%2ftoken']) {
+  for (const p of ['/extra.js', '/apps/tasks/test/e2e.py', '/agent/server.mjs', '/config.json', '/token', '/../config.json', '/%2e%2e/token', '/apps/../../token', '/.git/config', '/shell/..%2f..%2ftoken']) {
     assert.equal((await get(agent, p, { auth: 'none' })).status, 404, p);
   }
 });

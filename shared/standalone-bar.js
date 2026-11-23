@@ -4,7 +4,7 @@
    start at Workshop.
 
    import { mountBar } from '../../shared/standalone-bar.js';
-   mountBar('Prioritizer');   // adds <header class="ws-bar"> as the first child of <body> and body.standalone
+   mountBar('Tasks');   // adds <header class="ws-bar"> as the first child of <body> and body.standalone
 
    Needs shared/theme.js (for the toggle) and shared/themes.css (colors). Styles are injected here because not
    every app loads shared/ui.css. A page lays itself out around the bar with body.standalone. */

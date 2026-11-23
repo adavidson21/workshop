@@ -13,7 +13,7 @@ export const SITE = {
   site: 1,
   name: 'Workshop',
   workshop: 'https://workshop.example.org',
-  apps: { prioritizer: 'https://docket.example.org', agents: 'https://dispatch.example.org' },
+  apps: { tasks: 'https://docket.example.org', agents: 'https://dispatch.example.org' },
   allowedSites: ['https://workshop.example.org'],
   crumbs: { domain: 'example.org', links: [{ title: 'Home', href: 'https://example.org/' }] },
   repos: { workshop: 'owner/workshop' }

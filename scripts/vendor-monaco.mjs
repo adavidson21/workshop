@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// Vendors a trimmed Monaco editor into shared/vendor/monaco for Loom's code review screen and Chat's Files
-// (both load it through shared/monaco.js; it moved out of apps/slate/vendor in Chat 4.0.0).
+// Vendors a trimmed Monaco editor into shared/vendor/monaco for Builds' code review screen and Chat's Files
+// (both load it through shared/monaco.js; it moved out of apps/builds/vendor in Chat 4.0.0).
 //
 //   npm pack monaco-editor@<version>          (in an empty folder)
 //   tar xzf monaco-editor-<version>.tgz
@@ -103,7 +103,7 @@ fs.writeFileSync(
   path.join(out, "README.md"),
   `# Monaco editor (trimmed)
 
-Served from this site for Loom's code review screen and Chat's Files, so the pages make no requests to other origins. Both load it through \`shared/monaco.js\`; the service worker keeps each file once a page has loaded it, so it works offline after first use.
+Served from this site for Builds' code review screen and Chat's Files, so the pages make no requests to other origins. Both load it through \`shared/monaco.js\`; the service worker keeps each file once a page has loaded it, so it works offline after first use.
 
 | | |
 | --- | --- |

@@ -1,10 +1,10 @@
-/* Folio: product notes made from the products you set up in Workshop Settings (Workshop docs/products.md).
+/* Notes: product notes made from the products you set up in Workshop Settings (Workshop docs/products.md).
 
-   Settings keeps the products (settings.products v1); Folio reads them with {app: 'settings'}. For each active
-   product it has not handled, Folio writes products/<slug>.md from the product template (templates/product.md, yours
+   Settings keeps the products (settings.products v1); Notes reads them with {app: 'settings'}. For each active
+   product it has not handled, Notes writes products/<slug>.md from the product template (templates/product.md, yours
    or the starter), filled in with the name, other names, repos and area paths. Owners are not copied in: they live in
-   Workshop's People ("Owns"), and Tandem reads them from there (docs/knowledge.md). A note that
-   is already there (made by hand) is left alone. Either way the product is recorded in Folio's own collection
+   Workshop's Directory ("Owns"), and Tandem reads them from there (docs/knowledge.md). A note that
+   is already there (made by hand) is left alone. Either way the product is recorded in Notes' own collection
    `products-made` (notes.products-made v1, items {id: <product id>, path}), so a note you trash is never made again,
    and later changes in Settings never touch the note: it is yours, and Tandem's, from then on.
 
@@ -28,7 +28,7 @@ export const readable = env => !env || (env.schema === SCHEMA && env.version ===
 /**
  * What to do for each product: [{product, path, make}]. `make` false means the note is already there, so it is only
  * recorded. Products already handled (made, or a record deleted since) and archived ones are left out.
- * products: shared/products.js list(); made: notes.products-made envelope; paths: every path Folio has.
+ * products: shared/products.js list(); made: notes.products-made envelope; paths: every path Notes has.
  */
 export function toMake(products, made, paths) {
   const done = new Set([...((made && made.items) || []).map(i => i && i.id), ...Object.keys((made && made.deleted) || {})]);
@@ -58,14 +58,14 @@ export function productNoteText(product, owners = [], template = null, now = new
   return text;
 }
 
-/** True when the handbook should be made: not in Folio, and never made or trashed before. */
+/** True when the handbook should be made: not in Notes, and never made or trashed before. */
 export function handbookToMake(made, paths) {
   const done = ((made && made.items) || []).some(i => i && i.id === HANDBOOK_ID) || Object.prototype.hasOwnProperty.call((made && made.deleted) || {}, HANDBOOK_ID);
   return !done && !paths.has(HANDBOOK_PATH);
 }
 
 /**
- * Watch Settings' products and make the notes. `notes` is Folio's store (data.js): files, refresh, load state.
+ * Watch Settings' products and make the notes. `notes` is Notes' store (data.js): files, refresh, load state.
  * onMade([{name, path, made}]) after a run that recorded anything. Returns {run}.
  */
 export function startProductSetup(ws, notes, { onMade = () => {} } = {}) {
@@ -78,7 +78,7 @@ export function startProductSetup(ws, notes, { onMade = () => {} } = {}) {
     try {
       if (!notes.loaded) return 0;
       const made = await ws.data.get(COLLECTION);
-      if (!readable(made)) return 0; // a newer Folio wrote it: do nothing
+      if (!readable(made)) return 0; // a newer Notes wrote it: do nothing
       const paths = new Set(notes.files ? notes.files.keys() : []);
       let src = null;
       try { src = await ws.data.get(Products.COLLECTION, { app: Products.APP }); } catch { src = null; }

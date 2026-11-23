@@ -39,7 +39,7 @@ import { MAX_DOCS, addPictures, chipsHtml, docsIn, picturesIn, uploadDoc } from 
 const OC = 'opencode';
 const LIST_MS = 10000;
 const BUSY_MS = 1000;
-const SIDE_KEY = 'dispatch.chatSide';
+const SIDE_KEY = 'builds.runs.chatSide';
 const PICK_KEY = 'chat.pick';
 const ALL_KEY = 'chat.all';
 const DETAILS_KEY = 'chat.details';
@@ -443,8 +443,8 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
     loadList();
   }
   function titleOf(sid) { const c = itemOf(sid) || conv || {}; return c.title || 'Chat'; }
-  /** A flow card under the answer (Loom flow cards v1): Loom's Start work on that flow, filled in with the chat's ask. */
-  function openFlow(id) { ws.open({ app: 'slate', path: flowRoute(id, titleOf(sel)) }).catch(() => ws.toast('Turn Loom on in Settings, Apps.', { kind: 'warn' })); }
+  /** A flow card under the answer (Builds flow cards v1): Builds' Start work on that flow, filled in with the chat's ask. */
+  function openFlow(id) { ws.open({ app: 'builds', path: flowRoute(id, titleOf(sel)) }).catch(() => ws.toast('Turn Builds on in Settings, Apps.', { kind: 'warn' })); }
   function toggleSide() {
     if (phone()) drawer = !drawer;
     else { closed = !closed; saveSide(closed); }
@@ -719,7 +719,7 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
     for (const job of queue[sel] || []) rows += `<div class="turn you queued"><span class="who">You, queued</span><div class="tx">${esc(job.text)}</div><span class="you-agent">Queued</span></div>`;
     if (!conv && !first && !fromHub && !echoing(sel)) rows += '<p class="hub-meta">Loading...</p>';
     if (conv && Array.isArray(conv.prompts)) rows += conv.prompts.map(p => promptHtml(p, { answers, custom })).join('');
-    else if (conv && conv.waiting) rows += asksHtml(sel) || '<p class="hub-meta">opencode is asking you something. Answer it in Loom\'s Inbox.</p>';
+    else if (conv && conv.waiting) rows += asksHtml(sel) || '<p class="hub-meta">opencode is asking you something. Answer it in Builds\' Inbox.</p>';
     if (conv && !busy && later.length && lastTandem(later)) rows += afterHtml();
     if (err) rows += `<p class="hub-error">${esc(err)}</p>`;
     return `<div class="chat-pane">${head}<div class="chat-scroll" data-chat-follow><div class="chat-col">${helpHtml()}<div class="turns">${rows}</div></div></div>${composeHtml()}</div>`;
@@ -966,7 +966,7 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
     else if (d.picX != null) { const k = key(); pics[k] = (pics[k] || []).filter(p => p.id !== d.picX); draw(); focusBox(); }
     // A Sources chip (sources.js, Workshop docs/knowledge.md): open where the fact is kept.
     else if (d.srcNote != null) ws.open({ app: 'notes', path: d.srcNote });
-    else if (d.srcWrong != null) { ws.open({ app: 'notes', path: d.srcWrong }); ws.toast('Fix the line in Folio. Tandem reads the note as you leave it.'); }
+    else if (d.srcWrong != null) { ws.open({ app: 'notes', path: d.srcWrong }); ws.toast('Fix the line in Notes. Tandem reads the note as you leave it.'); }
     else if (d.srcPage != null) ws.open({ app: 'settings', path: d.srcPage });
   });
 

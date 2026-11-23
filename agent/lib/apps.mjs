@@ -2,7 +2,7 @@
 // rather than config.json, so the `workshop apps` command and the running agent can both change it without
 // either overwriting the other's copy of config.json. It is read fresh every time it is needed.
 //
-//   {"off": ["runway", "notes"], "areasOff": ["management"]}
+//   {"off": ["roadmaps", "notes"], "areasOff": ["management"]}
 //
 // Home and Settings are always on (Settings is where apps are turned back on). An area that is off
 // (shared/areas.js) turns its apps off too, without touching their own switches in "off".
@@ -15,6 +15,7 @@ import { VERSION } from '../version.mjs';
 import { writeJsonAtomic } from './fsutil.mjs';
 import { BUILD_FILE, pinInto, uiDirOf } from './pinned.mjs';
 import { AREAS, AREA_IDS, cleanAreas, appsOffBy, areaHiding } from '../../shared/areas.js';
+import { currentId } from '../../shared/app-folders.js';
 
 export const APPS_FILE = 'apps.json';
 export const ALWAYS_ON = new Set(['home', 'settings']);
@@ -24,7 +25,8 @@ const SHA = /^[0-9a-f]{40}$/;
 function readFile(home) {
   try { const v = JSON.parse(fs.readFileSync(path.join(home, APPS_FILE), 'utf8')); return v && typeof v === 'object' ? v : {}; } catch { return {}; }
 }
-const cleanOff = list => new Set((Array.isArray(list) ? list : []).filter(id => typeof id === 'string' && ID.test(id) && !ALWAYS_ON.has(id)));
+// An old app id (shared/app-folders.js) counts as the app it became.
+const cleanOff = list => new Set((Array.isArray(list) ? list : []).filter(id => typeof id === 'string' && ID.test(id)).map(currentId).filter(id => !ALWAYS_ON.has(id)));
 
 /** The ids of the apps turned off with their own switch, as a Set. Missing or unreadable file: none are off. */
 export function readOff(home) {
@@ -92,7 +94,7 @@ export function readManifest(dir, id, schemas) {
   return { manifest };
 }
 
-/** Find an app by what a person types: its id (prioritizer), its key or its name (Docket). */
+/** Find an app by what a person types: its id (tasks), its key or its name (Tasks). */
 export function findApp(word, apps) {
   const w = String(word || '').trim().toLowerCase();
   return apps.find(a => a.id === w || a.key === w || a.name.toLowerCase() === w) || null;

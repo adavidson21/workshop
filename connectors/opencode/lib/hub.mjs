@@ -1,4 +1,4 @@
-// opencode connector: the hub on Loom's page (apps/slate, Workshop docs/hub.md). Workshop only, not in the
+// opencode connector: the hub on Builds' page (apps/builds, Workshop docs/hub.md). Workshop only, not in the
 // eng-agents live server.
 //
 // hub.run saves what Dispatch sends as request.md in this connector's working folder,
@@ -69,7 +69,7 @@ export function requestText({ text, context = {}, routed = null }, today) {
     "## Message\n",
     String(text).slice(0, MAX_MESSAGE).trim() + "\n",
     section("People", people.map((p) => `${line(p.id, 110)}: ${line(p.name)}${handle(p)}${rel(p) ? ` (${rel(p)})` : ""}`)),
-    section("Docket lists", lists.map((l) => line(l, 120))),
+    section("Tasks lists", lists.map((l) => line(l, 120))),
     section("Team areas", areas.map((a) => line(a, 300))),
   ].join("\n");
 }

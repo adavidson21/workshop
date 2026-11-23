@@ -8,7 +8,7 @@
 // No line: a numbered item is linked to its id, an L<n> item is local.
 //
 // Workshop writes only that one line (item.link, item.unlink, and the one-time unlink of every numbered item on
-// the first start of 1.22.0, recorded in _dashboard/ado-links.json). Nothing here talks to ADO: Loom asks the ADO
+// the first start of 1.22.0, recorded in _dashboard/ado-links.json). Nothing here talks to ADO: Builds asks the ADO
 // connector (workitem.create, workitem.update) and then links with item.link.
 
 import fs from "node:fs";
@@ -130,7 +130,7 @@ export function unlinkAllOnce(items) {
   return folders.length;
 }
 
-/** For state: the one-time unlink's notice, until Loom marks it seen. */
+/** For state: the one-time unlink's notice, until Builds marks it seen. */
 export function adoNotice() {
   return mark && mark.unlinkedAt && !mark.seen ? { count: mark.count, at: mark.unlinkedAt } : null;
 }

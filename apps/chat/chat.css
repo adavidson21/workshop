@@ -1,5 +1,5 @@
 /* Chat (apps/chat): opencode in Workshop, laid out like ChatGPT and working like the opencode TUI (Chat 2.0.0), plus
-   the hub's ask-or-capture box. Moved out of Loom in Loom 4.8.0 (Chat 1.0.0). The capture line comes from
+   the hub's ask-or-capture box. Moved out of Builds in Builds 4.8.0 (Chat 1.0.0). The capture line comes from
    ../../shared/capture.css. Semantic tokens only. */
 html, body { margin: 0; background: var(--bg); color: var(--ink); font: 400 14.5px/1.5 var(--sans); -webkit-font-smoothing: antialiased; }
 * { box-sizing: border-box; }
@@ -294,7 +294,7 @@ button.tool-line:hover { background: var(--hover); }
   .pick { max-width: 140px; }
 }
 
-/* Flow cards under an answer (Loom flow cards v1): the one or two flows the ask fits. */
+/* Flow cards under an answer (Builds flow cards v1): the one or two flows the ask fits. */
 .hub-flows { display: flex; flex-wrap: wrap; align-items: stretch; gap: 8px; margin: 10px 0 4px; }
 .hub-flows > .hub-meta { flex-basis: 100%; margin: 0; }
 .hub-flow { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; text-align: left; padding: 9px 12px; min-width: 11rem;

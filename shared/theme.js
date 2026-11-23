@@ -12,14 +12,14 @@
 (function () {
   'use strict';
   const KEY = 'workshop.theme';
-  const OLD_KEYS = ['em.theme', 'prioritizer.theme']; // earlier names, newest first
+  const OLD_KEYS = ['em.theme', 'tasks.theme']; // earlier names, newest first
   const THEMES = {system: 'System', light: 'Light', dark: 'Dark'};
   // [background, accent] per theme, for the browser's theme-color.
   const SWATCH = {light: ['#FAF6F1', '#7A1B36'], dark: ['#1A1517', '#E59AAE']};
   // Each app's brand jewel accent, from data-app-color on <html> (themes.css has the matching --c-* colors).
-  // Workshop's own color is amethyst: the shell, Docket, Settings, Needs you and any app not listed use it.
-  // Loom is slate grey (its accent is in themes.css, not the brand library). Runway is the one garnet app (the brand default, no data-accent). Sets the brand's data-accent, now and whenever data-app-color changes.
-  const APP_ACCENT = {notes: 'sapphire', slate: 'loom', agents: 'tourmaline', receipts: 'tourmaline', bench: 'tourmaline', runway: 'garnet'};
+  // Workshop's own color is amethyst: the shell, Tasks, Settings, Needs you and any app not listed use it.
+  // Builds is slate grey (its accent is in themes.css, not the brand library). Roadmaps is the one garnet app (the brand default, no data-accent). Sets the brand's data-accent, now and whenever data-app-color changes.
+  const APP_ACCENT = {notes: 'sapphire', builds: 'builds', agents: 'tourmaline', people: 'tourmaline', bench: 'tourmaline', roadmaps: 'garnet'};
   (function syncAccent() {
     const el = document.documentElement;
     const set = () => {
@@ -31,11 +31,11 @@
     if (typeof MutationObserver === 'function') new MutationObserver(set).observe(el, {attributes: true, attributeFilter: ['data-app-color']});
   })();
   // Themes from before the editorial redesign, mapped to the closer of the two.
-  const RETIRED = {slate: 'light', ivory: 'light', rose: 'light', solarized: 'light', graphite: 'dark', nord: 'dark', dracula: 'dark'};
+  const RETIRED = {builds: 'light', ivory: 'light', rose: 'light', solarized: 'light', graphite: 'dark', nord: 'dark', dracula: 'dark'};
   const dark = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : {matches: false};
   const listeners = [];
 
-  // One-time moves: from the earlier key names (em.theme in the EM Hub days, prioritizer.theme
+  // One-time moves: from the earlier key names (em.theme in the EM Hub days, tasks.theme
   // before the hub), then from retired theme names. Runs on load, before anything reads the choice.
   try {
     if (localStorage.getItem(KEY) === null) {

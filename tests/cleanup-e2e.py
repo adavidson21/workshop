@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Clean up this document (Folio 4.13.0, connector 1.35.0) end to end in headless Chromium, on a local-model setup:
+"""Clean up this document (Notes 4.13.0, connector 1.35.0) end to end in headless Chromium, on a local-model setup:
 real opencode with an Ollama-style provider pointed at a stand-in model server (tests/fixtures/mock-model.mjs), the
 real Workshop agent with the opencode connector, and the hosted site.
 
   python tests/cleanup-e2e.py [--shots <folder>] [--chromium <path>]
 
-Says "clean up this document" in the Capture bar on an open note, checks the template Folio picked, runs it, and checks
+Says "clean up this document" in the Capture bar on an open note, checks the template Notes picked, runs it, and checks
 the cleaned copy and that the original is unchanged. Then "... and overwrite it" from the hub with a sloppy model
 reply (no end markers, a code fence), which must still parse and replace the note, keeping the old text in History.
 Then a note no template fits, which must default to its own shape. Synthetic data only. Needs `opencode` on PATH
@@ -97,7 +97,7 @@ def main():
     shutil.copytree(os.path.join(ROOT, 'connectors', 'opencode'), os.path.join(conns, 'opencode'))
     os.makedirs(home)
     data = os.path.join(tmp, 'Workshop')
-    folio = os.path.join(data, 'folio')
+    folio = os.path.join(data, 'notes')
     os.makedirs(os.path.join(folio, 'meetings')); os.makedirs(os.path.join(folio, 'writing'))
     with open(os.path.join(folio, 'meetings', 'platform-sync.md'), 'w') as f: f.write(ROUGH)
     with open(os.path.join(folio, 'writing', 'why-we-write.md'), 'w') as f: f.write(ESSAY)
@@ -155,7 +155,7 @@ def main():
             check('the copy has the template sections in order', heads == ['Attendees', 'Notes', 'Decisions', 'Action items'], heads)
             check('the original is unchanged', open(sync).read() == ROUGH)
             wait_for(lambda: 'platform-sync-cleaned.md' in (nf.inner_text('.crumbs') if nf.is_visible('.crumbs') else ''), 15)
-            check('Folio opens the cleaned copy', 'platform-sync-cleaned.md' in nf.inner_text('.crumbs'))
+            check('Notes opens the cleaned copy', 'platform-sync-cleaned.md' in nf.inner_text('.crumbs'))
             if SHOTS: pg.screenshot(path=os.path.join(SHOTS, 'c2-copy.png'))
 
             reqs = to_model({'requests': True})['requests']
@@ -166,7 +166,7 @@ def main():
 
             # 2. "... and overwrite it" from the hub, with a sloppy reply.
             to_model({'style': 'sloppy'})
-            # The address still says platform-sync.md (Folio opened the copy itself), so go elsewhere first.
+            # The address still says platform-sync.md (Notes opened the copy itself), so go elsewhere first.
             pg.goto(HOSTED + '/#/notes/writing/why-we-write.md'); pg.wait_for_timeout(1500)
             pg.goto(HOSTED + '/#/notes/meetings/platform-sync.md'); pg.wait_for_timeout(2500); dismiss()
             nf = wait_for(folio_frame, 20); nf.wait_for_selector('.side-head', state='attached', timeout=20000); pg.wait_for_timeout(1500)

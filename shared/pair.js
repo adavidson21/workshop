@@ -1,5 +1,5 @@
 /* Pairing a site with Workshop on this computer (docs/run-modes.md, Pairing). Shared by the Workshop shell and
-   by apps that run on their own site (Docket keeps an exact copy). The page's own UI asks for the port and
+   by apps that run on their own site (Tasks keeps an exact copy). The page's own UI asks for the port and
    shows messages; this module does the pairing itself.
 
      import { canPair, pairWith, forgetPairing, isPaired } from '../shared/pair.js';

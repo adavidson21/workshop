@@ -5,7 +5,7 @@ import { SchemaSet } from '../../tests/lib/schema.mjs';
 
 const schemas = SchemaSet.fromDir(new URL('../../docs/schemas/', import.meta.url).pathname);
 
-test('products: slugs from names match Folio product note names', () => {
+test('products: slugs from names match Notes product note names', () => {
   assert.equal(P.slugOf('Sample Portal'), 'sample-portal');
   assert.equal(P.slugOf('  Café / API v2!  '), 'cafe-api-v2');
   assert.equal(P.slugOf('---'), '');

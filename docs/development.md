@@ -4,7 +4,7 @@ How the code is laid out, how to add an app, and how to test and ship. For using
 
 ## Addresses
 
-Any app opens in its own window with Pop out (`?solo=<app id>`). An app's start page opened on its own goes there too. Dispatch (now part of Loom) has no site of its own anymore: its old address, https://dispatch.alexisdavidson.org, redirects to Loom in a pop-out window like the other retired app domains ([site.md](site.md)). Until it can reach Workshop on your computer, Loom's Inbox shows a two-step setup guide: paste one install command (see One-line install below), then connect. Once connected, the opencode connector's settings (workspace folder and so on) are under opencode settings in Loom's menu.
+Any app opens in its own window with Pop out (`?solo=<app id>`). An app's start page opened on its own goes there too. Dispatch (now part of Builds) has no site of its own anymore: its old address, https://dispatch.alexisdavidson.org, redirects to Builds in a pop-out window like the other retired app domains ([site.md](site.md)). Until it can reach Workshop on your computer, Builds' Inbox shows a two-step setup guide: paste one install command (see One-line install below), then connect. Once connected, the opencode connector's settings (workspace folder and so on) are under opencode settings in Loom's menu.
 
 ## Layout
 
@@ -25,11 +25,11 @@ shared/                 used by the shell and every app
   test/                 SDK tests
 apps/                   one folder per app, each with an app.json (docs/app-manifest.md)
   registry.json         the app list for static sites (node shell/registry.mjs writes it)
-  prioritizer/          Docket
-  runway/               Runway
-  receipts/             Rapport
-  notes/                Folio
-  slate/                Loom: the backlog board (js/) and Tandem's runs (js/dispatch/, Dispatch until Loom 4.0.0)
+  tasks/          Tasks
+  roadmaps/               Roadmaps
+  receipts/             People
+  notes/                Notes
+  builds/                Builds: the backlog board (js/) and Tandem's runs (js/runs/, Dispatch until Builds 4.0.0)
   people/               People (the people directory and your team's area paths)
   bench/                Bench (Tandem's eval results, through the opencode connector; docs/bench.md)
   settings/             Settings
@@ -86,10 +86,10 @@ node --test "shared/test/*.test.mjs"     the SDK, against the docs' cases and th
 node --test "apps/*/test/*.test.mjs"     apps' own tests
 node --test "worker/test/*.test.mjs"     the Worker: Dispatch's domain, installers, retired app domains
 node tests/check-vendor.mjs              vendored libraries match their pinned SHA256SUMS (--write after updating one)
-python tests/e2e.py                      Workshop in headless Chromium: browser, local and hosted modes, Docket storage
+python tests/e2e.py                      Workshop in headless Chromium: browser, local and hosted modes, Tasks storage
 python tests/workmode-e2e.py             work mode in headless Chromium: the pinned copy with every app, no hosted access
 python tests/switches-e2e.py             Workshop with each app switched off
-python apps/<id>/test/e2e.py             an app on its own page (Docket, Runway, Folio)
+python apps/<id>/test/e2e.py             an app on its own page (Tasks, Roadmaps, Notes)
 ```
 
 `e2e.py` needs `pip install playwright` and `python -m playwright install chromium`. These, the contract suite and the agent and connector tests run on every push (`.github/workflows/checks.yml`).

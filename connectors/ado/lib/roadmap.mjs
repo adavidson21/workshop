@@ -49,7 +49,7 @@ export function roadmapItem(ado, w) {
 }
 
 /** `item` with `custom`: each field in `fields` (reference names) as plain text, at most `max` characters. No
-    fields asked for: `item` as it is. Shared by `roadmap` (Runway's release notes) and `backlog` (Slate). */
+    fields asked for: `item` as it is. Shared by `roadmap` (Roadmaps' release notes) and `backlog` (Builds). */
 export function withFields(item, w, fields, max = 500) {
   if (!Array.isArray(fields) || !fields.length) return item;
   const f = (w && w.fields) || {};
@@ -80,7 +80,7 @@ async function typesAndStates(ado, ids) {
  * With stories: true, those children are also returned in items (same shape, parentId is the Feature), open ones
  * only unless includeClosed. Callers that do not ask get Epics and Features only, as before.
  * With fields (reference names), each item also has `custom` with those fields as plain text (at most 2000
- * characters each), so Runway can show a release notes field.
+ * characters each), so Roadmaps can show a release notes field.
  * args: {connection?, areas[], includeClosed?, stories?, fields?}
  * @param {object} d {cfg, env, signal}
  */
@@ -148,7 +148,7 @@ export async function roadmapList(d, args = {}) {
 export const BACKLOG_TYPES = ['Epic', 'Feature', 'User Story', 'Product Backlog Item', 'Bug', 'Issue'];
 export const MAX_BACKLOG = 500;
 
-/** A backlog item: the roadmap shape plus what Slate's cards show (tags, priority, story points, comment count)
+/** A backlog item: the roadmap shape plus what Builds' cards show (tags, priority, story points, comment count)
     and any fields asked for by reference name, as plain text in `custom`. */
 export function backlogItem(ado, w, args = {}) {
   const f = w.fields || {};
@@ -163,7 +163,7 @@ export function backlogItem(ado, w, args = {}) {
 }
 
 /**
- * "backlog" (Slate): open work items of BACKLOG_TYPES under the areas, in the roadmap shape, newest change first,
+ * "backlog" (Builds): open work items of BACKLOG_TYPES under the areas, in the roadmap shape, newest change first,
  * at most MAX_BACKLOG. Unlike roadmap, stories and bugs come whatever their parent, so a new request that sits
  * on its own shows. args: {connection?, areas[], types?, pointsFields?, fields?}. `types` narrows BACKLOG_TYPES;
  * `pointsFields` are tried in order for storyPoints; `fields` adds those fields to `custom`.
@@ -171,7 +171,7 @@ export function backlogItem(ado, w, args = {}) {
 export async function backlogList(d, args = {}) {
   const conn = itemConnection(d.cfg, args);
   const ado = clientFor(conn, d.env, d.signal);
-  const areas = checkAreas(args.areas, 'Slate');
+  const areas = checkAreas(args.areas, 'Builds');
   const types = Array.isArray(args.types) && args.types.length ? BACKLOG_TYPES.filter(t => args.types.includes(t)) : BACKLOG_TYPES;
   const ended = [...d.cfg.closedStates, ...d.cfg.removedStates];
   const where = [

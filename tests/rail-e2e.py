@@ -17,7 +17,7 @@ from importlib import import_module
 e2e = import_module('e2e')
 
 HUB = 'http://127.0.0.1:8824'
-DEFAULT = ['prioritizer', 'slate', 'receipts', 'notes', 'runway', 'bench', 'chat', 'settings']
+DEFAULT = ['tasks', 'builds', 'people', 'notes', 'roadmaps', 'bench', 'chat', 'settings']
 failed = []
 
 
@@ -51,26 +51,26 @@ def main():
         check('no Reset the rail order in Ctrl+K while the order is the usual one', pg.locator('.cmdk-empty').count() == 1)
         pg.keyboard.press('Escape'); pg.wait_for_timeout(200)
 
-        # Keyboard: Folio up twice, then Settings to the top with Home.
+        # Keyboard: Notes up twice, then Settings to the top with Home.
         pg.focus('.app-btn[data-app=notes]')
         pg.keyboard.press('Alt+Shift+ArrowUp'); pg.keyboard.press('Alt+Shift+ArrowUp')
         pg.wait_for_timeout(300)
-        check('Alt+Shift+Up moves the focused app up', rail(pg)[:4] == ['prioritizer', 'notes', 'slate', 'receipts'])
+        check('Alt+Shift+Up moves the focused app up', rail(pg)[:4] == ['tasks', 'notes', 'builds', 'people'])
         check('the moved button keeps focus', pg.evaluate("document.activeElement.dataset.app") == 'notes')
         pg.wait_for_timeout(200)
-        check('a screen reader hears where it went', pg.inner_text('#railSay') == 'Folio moved to place 2 of 8.')
-        check('the tooltip renumbers Alt+<n>', pg.get_attribute('.app-btn[data-app=notes]', 'title') == 'Folio (Alt+2)'
-              and pg.get_attribute('.app-btn[data-app=slate]', 'title') == 'Loom (Alt+3)')
-        pg.focus('.app-btn[data-app=prioritizer]'); pg.keyboard.press('Alt+Shift+ArrowUp'); pg.wait_for_timeout(200)
-        check('the first app does not move further up', rail(pg)[0] == 'prioritizer' and pg.inner_text('#railSay') == 'Docket is already first.')
+        check('a screen reader hears where it went', pg.inner_text('#railSay') == 'Notes moved to place 2 of 8.')
+        check('the tooltip renumbers Alt+<n>', pg.get_attribute('.app-btn[data-app=notes]', 'title') == 'Notes (Alt+2)'
+              and pg.get_attribute('.app-btn[data-app=builds]', 'title') == 'Builds (Alt+3)')
+        pg.focus('.app-btn[data-app=tasks]'); pg.keyboard.press('Alt+Shift+ArrowUp'); pg.wait_for_timeout(200)
+        check('the first app does not move further up', rail(pg)[0] == 'tasks' and pg.inner_text('#railSay') == 'Tasks is already first.')
 
         pg.keyboard.press('Alt+2'); pg.wait_for_timeout(1200)
-        check('Alt+2 opens the second app on the rail, now Folio', pg.url.endswith('#/notes'))
+        check('Alt+2 opens the second app on the rail, now Notes', pg.url.endswith('#/notes'))
 
-        # Drag: Bench above Docket.
-        pg.drag_and_drop('.app-btn[data-app=bench]', '.app-btn[data-app=prioritizer]', target_position={'x': 20, 'y': 5})
+        # Drag: Bench above Tasks.
+        pg.drag_and_drop('.app-btn[data-app=bench]', '.app-btn[data-app=tasks]', target_position={'x': 20, 'y': 5})
         pg.wait_for_timeout(600)
-        want = ['bench', 'prioritizer', 'notes', 'slate', 'receipts', 'runway', 'chat', 'settings']
+        want = ['bench', 'tasks', 'notes', 'builds', 'people', 'roadmaps', 'chat', 'settings']
         check('dragging a button moves it', rail(pg) == want)
         check('a drag leaves nothing faded', pg.locator('.app-btn.dragging').count() == 0)
         check('the order is saved in Settings\' rail collection', pg.evaluate(SAVED) == want)
@@ -93,7 +93,7 @@ def main():
         pg.keyboard.press('Control+k'); pg.wait_for_timeout(300)
         pg.keyboard.type('reset the rail'); pg.wait_for_timeout(200); pg.keyboard.press('Enter'); pg.wait_for_timeout(800)
         check('Reset the rail order puts the usual order back', rail(pg) == DEFAULT and pg.evaluate(SAVED) == [])
-        check('Alt+1 is Docket again', pg.get_attribute('.app-btn[data-app=prioritizer]', 'title') == 'Docket (Alt+1)')
+        check('Alt+1 is Tasks again', pg.get_attribute('.app-btn[data-app=tasks]', 'title') == 'Tasks (Alt+1)')
 
         check('no page errors', not errors)
         for e in errors: print('   ', e)

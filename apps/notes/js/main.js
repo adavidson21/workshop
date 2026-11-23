@@ -25,11 +25,11 @@ import { applySlash, slashAt, slashItems } from './slash.js';
 import { formatTable } from './tables.js';
 import * as Products from '../../../shared/products.js';
 import { PRODUCTS, baselineFor, blocksToMark, changedLines, markReviewed, needsReview } from './products.js';
-import { actionItems, forRapport, offerFor, offerId, rapportOffers, readOffers, sentIds, withOffer } from './offers.js';
+import { actionItems, forPeople, offerFor, offerId, peopleOffers, readOffers, sentIds, withOffer } from './offers.js';
 import { planImport, linkMaps, rewriteNote } from './vault.js';
 import { notesCards } from './summary-cards.js';
-import { readLoom, loomFor, chipStatus } from './loom.js';
-import { docketPlan } from './daily.js';
+import { readBuilds, buildsFor, chipStatus } from './builds-items.js';
+import { tasksPlan } from './daily.js';
 import { SOURCES, matchRecords, recordLink, recordsFrom } from './records.js';
 import { dataUrl, inlineImages, pageHtml, wikiHtml, wikiMarkdown } from './export.js';
 import { EMBED_DEPTH, embedHtml, embedSpec, expandEmbeds, sectionText } from './embeds.js';
@@ -65,7 +65,7 @@ const writeMode = () => (hasLive ? 'live' : 'edit');
 
 const ws = await connect({ app: APP });
 document.documentElement.classList.toggle('embed', ws.embedded);
-if (!ws.embedded) mountBar('Folio');
+if (!ws.embedded) mountBar('Notes');
 // On Notes' own site: install as an app and work offline (shared/sw-register.js). Inside Workshop, Workshop's does.
 let swReload = null;
 if (!ws.embedded && window.WorkshopSw) WorkshopSw.register((msg, label, fn) => { swReload = fn; ws.toast(msg, { action: { label, command: 'reload-new' } }).catch(() => {}); });
@@ -107,9 +107,9 @@ let cleaning = null; // {title, started, chars, expect} while a clean up runs (t
 let pendingRoute = null;    // a route that came before the notes were read
 
 const notes = createNotes(ws, { onChange: () => { paintChrome(); if (notes.loaded) summary.schedule(); }, onExternal });
-// Bookmarks (bookmarks.js): notes pinned under Quick Notes, in Folio's own collection.
+// Bookmarks (bookmarks.js): notes pinned under Quick Notes, in Notes' own collection.
 const bookmarks = createBookmarks(ws, { onChange: () => paintChrome() });
-// Links (links.js): links.md's directory, and the Found in notes suggestions you said no to (Folio's own collection).
+// Links (links.js): links.md's directory, and the Found in notes suggestions you said no to (Notes' own collection).
 const ignored = createIgnored(ws, { onChange: () => paintChrome() });
 // The Tandem section (tandem.js): .work documents through the opencode connector, where it runs.
 const tandem = createTandem(ws, { onChange: () => { if (ui.path && isTandem(ui.path)) doc.item = (findDoc(tandem.state.items, ui.path) || {}).item || doc.item; paintChrome(); }, onModel: () => onTandemModel() });
@@ -117,14 +117,14 @@ let doc = null; // the open Tandem page: {item, busy}
 // Notes' summary for Home and other apps (summary-cards.js): titles and paths, never note text.
 const summary = createSummaryWriter({ data: ws.data, app: APP, build: () => (notes.loaded ? notesCards(notes.index).concat(held.card() ? [held.card()] : []) : null) });
 // Focus hours (Workshop docs/focus.md): captures picked up during focus or lunch are written as always, without a
-// toast, and counted in Folio's `held` summary card for Workshop's release toast and Dispatch's digest.
+// toast, and counted in Notes' `held` summary card for Workshop's release toast and Dispatch's digest.
 const held = createHolder(ws, { label: n => `${n} note${n === 1 ? '' : 's'} picked up`, route: 'today', onChange: () => summary.schedule() });
 // App names for ws: link chips (applinks.js), from the manifests on this site.
-const appNames = { prioritizer: 'Docket', slate: 'Loom', receipts: 'Rapport', runway: 'Runway', home: 'Home', people: 'People', settings: 'Settings' };
+const appNames = { tasks: 'Tasks', builds: 'Builds', people: 'People', roadmaps: 'Roadmaps', home: 'Home', settings: 'Settings' };
 // Offers Notes has sent (offers.js). The receivers can read them inside Workshop, or when paired.
 const canSend = ws.embedded || ws.backend === 'agent';
 let sent = new Set();
-// Workshop's People directory, for @handles (offers.js whoOf, the preview's person chips). Where Notes can read it.
+// Workshop's people directory (Settings, Directory), for @handles (offers.js whoOf, the preview's person chips). Where Notes can read it.
 let dir = null;
 // Other apps' records for the [[ picker (records.js).
 const recordEnvs = {};
@@ -195,11 +195,11 @@ function state() {
     doc: tdoc, brief: tdoc ? briefNow() : null, outline: tdoc ? facts(editor.value).headings : null, phone: isPhone(), hintSeen: store('hint-send') === '1',
     isStarter: isTpl && Object.prototype.hasOwnProperty.call(STARTERS, ui.path), tplFields: isTpl ? templateFields(editor.value) : null,
     links: { groups: linkGroups(), found: ui.section === 'links' ? linksFound() : [] }, ...productLinksNow(),
-    loomInfo: ui.path && !tdoc ? loomFor(notes.index.notes.get(ui.path), loom) : null, loomOn: !!(loom && loom.on) };
+    buildsInfo: ui.path && !tdoc ? buildsFor(notes.index.notes.get(ui.path), buildsItems) : null, buildsOn: !!(buildsItems && buildsItems.on) };
 }
-/* Loom's Tandem items (loom.js readLoom, from slate.summary's `items` card): a plan doc's and a product note's In Loom
-   section, and where a ws:slate chip's item is. Read when Folio starts and whenever Loom writes its summary. */
-var loom = readLoom(null); // eslint-disable-line no-var -- var: a paint may run before this line
+/* Builds' Tandem items (builds-items.js readBuilds, from builds.summary's `items` card): a plan doc's and a product note's In Builds
+   section, and where a ws:builds chip's item is. Read when Notes starts and whenever Builds writes its summary. */
+var buildsItems = readBuilds(null); // eslint-disable-line no-var -- var: a paint may run before this line
 
 /* ---------- Links (links.js) ---------- */
 
@@ -405,10 +405,10 @@ function paintPreview(now = false, { force = false } = {}) {
   paintCodeTools(preview);
   paintFolds(preview, from);
   markTandemLines(from, text);
-  // Tasks already sent to Docket: Docket owns whether they are done, so their boxes are shown only.
+  // Tasks already sent to Tasks: Tasks owns whether they are done, so their boxes are shown only.
   for (const box of preview.querySelectorAll('input[data-task]')) {
     const t = taskText(text, Number(box.dataset.task));
-    if (t !== null && sent.has(offerId('task', from, t))) { box.disabled = true; box.title = 'Sent to Docket, which owns whether it is done'; }
+    if (t !== null && sent.has(offerId('task', from, t))) { box.disabled = true; box.title = 'Sent to Tasks, which owns whether it is done'; }
   }
   for (const img of preview.querySelectorAll('img[data-img]')) {
     notes.imageUrl(img.dataset.img).then(url => {
@@ -423,7 +423,7 @@ function noteCtx(from) {
   const ix = notes.index;
   return {
     appName: (id) => appNames[id] || id,
-    appStatus: (app, path) => chipStatus(loom, app, path),
+    appStatus: (app, path) => chipStatus(buildsItems, app, path),
     person: (h) => { const it = dir && dir.items.find(x => !x.archived && x.handle === h); return it ? it.name : null; },
     resolveLink(href) {
       const loc = localHref(href);
@@ -1012,7 +1012,7 @@ async function saveAsTemplate() {
   try { await notes.create(path, asTemplate(editor.value, name)); ws.toast(`Saved the template ${name}.`, { kind: 'success', action: undefined }); paintChrome(); }
   catch (e) { toastErr(e); }
 }
-/* ---------- Clean up this document (cleanup.js; Folio 4.13.0) ---------- */
+/* ---------- Clean up this document (cleanup.js; Notes 4.13.0) ---------- */
 
 
 /** Clean up the open note: pick a template (asking when unsure), one model call, then save a copy next to it (or
@@ -1110,11 +1110,11 @@ async function newProduct() {
 }
 
 /* Today's note: daily/<date>.md, made from templates/daily.md (or the starter) the first time. */
-/* A day's new note: the daily template (or the starter), with {{docket}} from Docket's summary when it is here. */
+/* A day's new note: the daily template (or the starter), with {{tasks}} from Tasks' summary when it is here. */
 async function dailyNoteText(day) {
   const tpl = notes.texts.get('templates/daily.md');
   let plan = '';
-  try { plan = docketPlan(await ws.data.get('summary', { app: 'prioritizer' }), day); } catch { /* no Docket: plan by hand */ }
+  try { plan = tasksPlan(await ws.data.get('summary', { app: 'tasks' }), day); } catch { /* no Tasks: plan by hand */ }
   return dailyText(day, tpl && tpl.content, plan);
 }
 
@@ -1139,25 +1139,25 @@ async function readSent() {
 async function send(kind, line) {
   if (!ui.path) return;
   const text = editor.value;
-  const list = (kind === 'task' ? actionItems(text).filter(x => !x.done) : forRapport(text));
+  const list = (kind === 'task' ? actionItems(text).filter(x => !x.done) : forPeople(text));
   // line null: Send all, every one not sent yet.
   const picked = line === null ? list : list.filter(x => x.line === line);
   if (!picked.length) { ws.toast('That line changed. Try again.', { kind: 'warn' }); return; }
   const note = { path: ui.path, title: notes.index.notes.get(ui.path)?.title || stem(ui.path) };
   const day = dayOf(new Date());
-  // A task: one accepted offer to Docket. For Rapport: one offer per report named, or one as yours.
-  const items = picked.flatMap(it => (kind === 'task' ? [offerFor('task', note, it.text, { day, dir })] : rapportOffers(note, it, { day, dir }).map(o => o.offer))).filter(o => line !== null || !sent.has(o.id));
+  // A task: one accepted offer to Tasks. For People: one offer per report named, or one as yours.
+  const items = picked.flatMap(it => (kind === 'task' ? [offerFor('task', note, it.text, { day, dir })] : peopleOffers(note, it, { day, dir }).map(o => o.offer))).filter(o => line !== null || !sent.has(o.id));
   if (!items.length) return;
   try {
     for (let tries = 0; ; tries++) {
       const before = readOffers(await ws.data.get('handoffs'));
-      if (!before) { ws.toast('Folio saved these with a newer version. Update Workshop to send more.', { kind: 'warn' }); return; }
+      if (!before) { ws.toast('Notes saved these with a newer version. Update Workshop to send more.', { kind: 'warn' }); return; }
       const after = items.reduce((env, item) => withOffer(env, item), before);
       ws.data.stamp(before, after);
       try { await ws.data.put('handoffs', after); sent = sentIds(after); break; }
       catch (e) { if (e.code !== 'conflict' || tries >= 2) throw e; }
     }
-    ws.toast(kind === 'task' ? (items.length > 1 ? `Sent ${items.length} tasks to Docket.` : 'Sent to Docket as a task.') : `Sent to Rapport${items.length > 1 ? ` as ${items.length} receipts` : ''}. Accept ${items.length > 1 ? 'them' : 'it'} there.`, { kind: 'success' });
+    ws.toast(kind === 'task' ? (items.length > 1 ? `Sent ${items.length} tasks to Tasks.` : 'Sent to Tasks as a task.') : `Sent to People${items.length > 1 ? ` as ${items.length} receipts` : ''}. Accept ${items.length > 1 ? 'them' : 'it'} there.`, { kind: 'success' });
     paintChrome();
   } catch (e) { toastErr(e); }
 }
@@ -1251,12 +1251,12 @@ function askPair() {
     .then(fd => {
       if (!fd) return;
       const r = pairWith(Number(fd.get('value')), { onError: m => ws.toast(m, { kind: 'error' }) });
-      ws.toast(r === 'blocked' ? 'Your browser blocked the window. Allow pop-ups for this site and try again.' : 'In the window that opened, allow this site. Folio reloads once it is connected.');
+      ws.toast(r === 'blocked' ? 'Your browser blocked the window. Allow pop-ups for this site and try again.' : 'In the window that opened, allow this site. Notes reloads once it is connected.');
     });
 }
 
 async function createAt(path, title) {
-  if (!path || !/\.md$/.test(path) || !validFolder(dirOf(path)) || !SEG.test(stem(path))) { ws.toast('That link does not name a note Folio can make.', { kind: 'warn' }); return; }
+  if (!path || !/\.md$/.test(path) || !validFolder(dirOf(path)) || !SEG.test(stem(path))) { ws.toast('That link does not name a note Notes can make.', { kind: 'warn' }); return; }
   if (!(await leaveNote())) return;
   try { if (!notes.files.has(path)) await notes.create(path, newNoteText(title || stem(path))); await openNote(path, { focus: true }); }
   catch (e) { toastErr(e); }
@@ -1579,7 +1579,7 @@ function updatePicker() {
     picker.hidden = false;
     return;
   }
-  // @: people from Workshop's People directory, to name who a line is about (plan 2).
+  // @: people from Workshop's people directory (Settings, Directory), to name who a line is about (plan 2).
   const at = dir && /(^|[\s(])@([a-z0-9._-]{0,40})$/i.exec(before);
   if (at) {
     pk.start = editor.selectionStart - at[2].length - 1;
@@ -1775,7 +1775,7 @@ document.addEventListener('click', async (e) => {
   else if (act === 'insert-ph') insertPlaceholder(x.dataset.ph);
   else if (act === 'new-product') newProduct();
   else if (act === 'tandem-refresh') tandem.refresh().then(() => ws.toast('Read .work again.'));
-  else if (act === 'open-dispatch') openLoom();
+  else if (act === 'open-builds') openBuilds();
   else if (act === 'hint-seen') { store('hint-send', '1'); paintChrome(); }
   else if (act === 'history') showHistory();
   else if (act === 'mark-reviewed') markReviewedNow();
@@ -1862,7 +1862,7 @@ async function linkMentionAt(k) {
 panelEl.addEventListener('toggle', (e) => {
   if (e.target.matches && e.target.matches('.mentions details')) ui.mentionsOpen = e.target.open;
   if (e.target.matches && e.target.matches('.plinks details')) ui.plinksOpen = e.target.open;
-  if (e.target.matches && e.target.matches('.in-loom details')) ui.loomOpen = e.target.open;
+  if (e.target.matches && e.target.matches('.in-builds details')) ui.buildsOpen = e.target.open;
 }, true);
 side.addEventListener('toggle', (e) => { if (e.target.matches && e.target.matches('details.found')) ui.foundOpen = e.target.open; }, true);
 
@@ -1980,7 +1980,7 @@ function openDispatch() {
   const d = parseTandem(ui.path);
   if (!d) return;
   const it = doc && doc.item;
-  ws.open({ app: 'slate', path: it && it.id ? String(it.id) : d.folder }).catch(toastErr);
+  ws.open({ app: 'builds', path: it && it.id ? String(it.id) : d.folder }).catch(toastErr);
 }
 
 function setQuery(q) {
@@ -2110,11 +2110,11 @@ function route(raw) {
   if (path === 'review') { showSection('products'); setQuery('is:review'); return; }
   if (path === 'links') { findLink(); return; }
   // cleanup or cleanup/replace: "clean up this document" from Capture or the hub (shared/capture.js) cleans up the
-  // open note, or the last one opened when Folio was not open yet. The dialog names it, so nothing runs unseen.
+  // open note, or the last one opened when Notes was not open yet. The dialog names it, so nothing runs unseen.
   if (path === 'cleanup' || path === 'cleanup/replace') { const o = { replace: path === 'cleanup/replace' }; if (notes.loaded) cleanupNote(o); else pendingCleanup = o; clearCleanupRoute(); return; }
-  // tandem/<folder>/<file>: a Tandem document (Dispatch's Open in Notebook, to be renamed Open in Folio).
+  // tandem/<folder>/<file>: a Tandem document (Dispatch's Open in Notebook, to be renamed Open in Notes).
   if (path.startsWith('tandem/')) { const d = parseTandem(path.slice(7)); if (d) { const t = tandemPath(d.folder, d.file); if (notes.loaded) openNote(t); else pendingRoute = t; } return; }
-  // search/<words>: Notes opened on a search (Docket's "+N" opens the notes that link to a task).
+  // search/<words>: Notes opened on a search (Tasks' "+N" opens the notes that link to a task).
   if (path.startsWith('search/')) { const q = path.slice(7); if (notes.loaded) showSearch(q); else pendingSearch = q; return; }
   if (path && /\.md$/.test(path) && path !== ui.path) {
     if (notes.loaded) openNote(path); else pendingRoute = path;
@@ -2155,11 +2155,11 @@ if (canSend && ws.people) {
   ws.people.get().then(gotDir, () => {});
   ws.people.subscribe(gotDir);
 }
-// Loom's items (loom.js): In Loom sections and live chips. Loom switched off or never opened: nothing shows.
+// Builds' items (builds-items.js): In Builds sections and live chips. Builds switched off or never opened: nothing shows.
 if (canSend) {
-  const readLoomNow = () => ws.data.get('summary', { app: 'slate' }).then(e => { loom = readLoom(e); paintChrome(); paintPreview(true); }, () => {});
-  readLoomNow();
-  try { ws.data.subscribe('summary', readLoomNow, { app: 'slate' }); } catch { /* no subscriptions here */ }
+  const readBuildsNow = () => ws.data.get('summary', { app: 'builds' }).then(e => { buildsItems = readBuilds(e); paintChrome(); paintPreview(true); }, () => {});
+  readBuildsNow();
+  try { ws.data.subscribe('summary', readBuildsNow, { app: 'builds' }); } catch { /* no subscriptions here */ }
 }
 // Other apps' records for the [[ picker (records.js), where Notes can read their summaries.
 if (canSend) for (const s of SOURCES) {

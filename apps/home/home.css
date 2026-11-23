@@ -113,8 +113,8 @@ body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.55 var(--san
 
 /* Now: the Day view's block on now, with its tasks */
 
-/* ---------- symbols: header icon buttons, tile icons, row signals, pills (Docket's style) ---------- */
-/* Line icons in the page's ink; color only where something needs you. Lists keep Docket's dot colors. */
+/* ---------- symbols: header icon buttons, tile icons, row signals, pills (Tasks' style) ---------- */
+/* Line icons in the page's ink; color only where something needs you. Lists keep Tasks' dot colors. */
 :root{--lc0:#4F6B78;--lc1:#8B6340;--lc2:#66783F;--lc3:#9A4F5E;--lc4:#5E5A8A;--lc5:#3F7F78}
 :root[data-theme=dark]{--lc0:#A9BCC6;--lc1:#CBA684;--lc2:#B5C48F;--lc3:#DDA3AE;--lc4:#B3AEDD;--lc5:#93CBC3}
 @media (prefers-color-scheme:dark){:root:not([data-theme]){--lc0:#A9BCC6;--lc1:#CBA684;--lc2:#B5C48F;--lc3:#DDA3AE;--lc4:#B3AEDD;--lc5:#93CBC3}}

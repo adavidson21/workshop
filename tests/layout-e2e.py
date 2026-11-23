@@ -15,7 +15,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 REMOTE = {}  # every app is in apps/ (they had their own repos until Nov 2026)
 OUT = os.path.join(ROOT, 'tests', 'out', 'layout')
 SIZES = [(960, 1000), (1440, 900), (1920, 1080), (2560, 1440)]
-APPS = ['home', 'prioritizer', 'slate', 'chat', 'receipts', 'notes', 'runway', 'bench', 'settings']
+APPS = ['home', 'tasks', 'builds', 'chat', 'people', 'notes', 'roadmaps', 'bench', 'settings']
 # List and form pages: their content stays inside --w-page plus gutters (88rem at 1920, 104rem at 2560).
 CAPPED = {'settings': '.wrap', 'bench': '.ws-page'}
 
@@ -43,18 +43,18 @@ def frame_of(pg, app):
 
 
 def seed(pg):
-    """A few tasks in Docket and a roadmap in Runway, through their own pages."""
-    pg.evaluate("location.hash = '#/prioritizer'"); pg.wait_for_timeout(2500)
-    f = frame_of(pg, 'prioritizer')
+    """A few tasks in Tasks and a roadmap in Roadmaps, through their own pages."""
+    pg.evaluate("location.hash = '#/tasks'"); pg.wait_for_timeout(2500)
+    f = frame_of(pg, 'tasks')
     if f:
         skip = f.locator('[data-skip]')
         if skip.count() and skip.first.is_visible(): skip.first.click(); f.wait_for_timeout(200)
-        f.evaluate("""() => { const P = window.__prioritizer; if (!P) return; const L = P.state.lists[0].id;
+        f.evaluate("""() => { const P = window.__tasks; if (!P) return; const L = P.state.lists[0].id;
           ['Review the capacity plan', 'Fix the login redirect loop', 'Write the onboarding doc', 'Prep the sprint review'].forEach((title, i) =>
             P.state.tasks.push({ id: 'lay' + i, title, listId: L, value: 3, effort: 'M', created: '2026-11-02' }));
           P.state = P.sanitize(P.state); P.commit(); }""")
-    pg.evaluate("location.hash = '#/runway'"); pg.wait_for_timeout(2000)
-    f = frame_of(pg, 'runway')
+    pg.evaluate("location.hash = '#/roadmaps'"); pg.wait_for_timeout(2000)
+    f = frame_of(pg, 'roadmaps')
     if f and f.locator('[data-example]').count(): f.click('[data-example]'); f.wait_for_timeout(800)
 
 

@@ -187,7 +187,7 @@ dialog::backdrop{background:color-mix(in srgb,#000 35%,transparent)}
 .dlg > label.check{flex-direction:row;align-items:baseline;gap:.6rem;color:var(--ink);font-size:.86rem;font-weight:400}
 .dlg > label.check input{flex:none;transform:translateY(.15em)}
 
-/* The empty state is ui.css's .engcard (ink rule on top, hairlines) with the Docket card's spacing. */
+/* The empty state is ui.css's .engcard (ink rule on top, hairlines) with the Tasks card's spacing. */
 .engcard{width:calc(100% - 2 * var(--gut));max-width:34rem;margin:12vh auto 2rem;padding:1.5rem 1.75rem 1.25rem}
 .engcard .eyebrow{font-size:10.5px}
 .engcard .page-title{margin:.5rem 0 .75rem;font-size:clamp(28px,3vw,34px)}
@@ -219,8 +219,8 @@ dialog::backdrop{background:color-mix(in srgb,#000 35%,transparent)}
   .crumbs .mono{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .crumbs .status{display:none}
   .head-actions{flex-wrap:nowrap}
-  .head-actions [data-act=copy-wiki],.head-actions [data-act=trash],.head-actions [data-act=open-dispatch]{display:none}
-  .menu [data-act=copy-wiki],.menu [data-act=trash],.menu [data-act=open-dispatch]{display:flex}
+  .head-actions [data-act=copy-wiki],.head-actions [data-act=trash],.head-actions [data-act=open-builds]{display:none}
+  .menu [data-act=copy-wiki],.menu [data-act=trash],.menu [data-act=open-builds]{display:flex}
   .tpl-edit{flex-direction:column;align-items:stretch}
   .engcard{margin-top:1.5rem;padding:1.25rem 1.25rem 1.1rem}
 }
@@ -280,7 +280,7 @@ dialog:has(.dlg.wide){width:min(860px,calc(100vw - 2rem))}
    narrow strip; Edit keeps a readable line length. */
 @media (min-width:761px) and (max-width:1099px){
   .body.mode-split{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) minmax(0,1fr)}
-  .mode-split .editor,.mode-split .cm-editor.cm-folio{border-right:0;border-bottom:1px solid var(--line)}
+  .mode-split .editor,.mode-split .cm-editor.cm-notes{border-right:0;border-bottom:1px solid var(--line)}
 }
 @media (min-width:2100px){.notes,.notes:has(> .panel[hidden]){--side-w:21rem;--panel-w:20rem;--measure:72rem}}
 
@@ -304,7 +304,7 @@ dialog:has(.dlg.wide){width:min(860px,calc(100vw - 2rem))}
 .menu button{display:flex;align-items:center;justify-content:space-between;gap:1rem;text-align:left;padding:.5rem .65rem;border-radius:var(--r-sm);font-size:.86rem;color:var(--ink);background:none;border:0;cursor:pointer;min-height:2.2rem}
 .menu button:hover,.menu button:focus-visible{background:var(--hover);outline:none}
 .menu kbd{font:500 10.5px/1 var(--mono);color:var(--muted)}
-.menu [data-act=copy-wiki],.menu [data-act=trash],.menu [data-act=open-dispatch]{display:none}
+.menu [data-act=copy-wiki],.menu [data-act=trash],.menu [data-act=open-builds]{display:none}
 
 /* Template bar: name and use as boxes, and the placeholders to insert */
 .tpl-edit{gap:.5rem .8rem;align-items:flex-end}
@@ -405,39 +405,39 @@ button.ph{cursor:pointer}button.ph:hover{border-style:solid}
 .md .fn-back{text-decoration:none}
 
 /* The editor: CodeMirror (editor.js), looking like the textarea it replaces */
-.cm-editor.cm-folio{padding:0!important;border:0;height:100%;min-height:0;background:var(--bg);color:var(--ink);font:400 .9rem/1.65 var(--mono)}
-.cm-editor.cm-folio.cm-focused{outline:none}
-.cm-editor.cm-folio .cm-scroller{font-family:var(--mono);line-height:1.65;overflow:auto}
-.cm-editor.cm-folio .cm-content{padding:1.5rem var(--gut) 40vh;caret-color:var(--ink)}
-.cm-editor.cm-folio .cm-line{padding:0}
-.mode-edit .cm-editor.cm-folio .cm-content{padding-inline:max(var(--gut),calc((100% - var(--measure)) / 2))}
-.mode-split .cm-editor.cm-folio{border-right:1px solid var(--line)}
-.cm-editor.cm-folio .cm-cursor{border-left-color:var(--ink);border-left-width:2px}
-.cm-editor.cm-folio .cm-activeLine{background:color-mix(in srgb,var(--ink) 3.5%,transparent)}
-.cm-editor.cm-folio.cm-focused .cm-selectionBackground,.cm-editor.cm-folio .cm-selectionBackground,.cm-editor.cm-folio ::selection{background:color-mix(in srgb,var(--accent) 24%,transparent)!important}
-.cm-editor.cm-folio .cm-selectionMatch{background:color-mix(in srgb,var(--accent) 14%,transparent)}
-.cm-editor.cm-folio .cm-matchingBracket{background:color-mix(in srgb,var(--accent) 22%,transparent);outline:none}
-.cm-editor.cm-folio .cm-searchMatch{background:color-mix(in srgb,#e3b341 35%,transparent);outline:1px solid color-mix(in srgb,#e3b341 60%,transparent)}
-.cm-editor.cm-folio .cm-searchMatch-selected{background:color-mix(in srgb,#e3b341 65%,transparent)}
-.cm-editor.cm-folio.read-only{color:var(--muted)}
-.cm-editor.cm-folio .cm-md-h{font-weight:700;color:var(--ink)}
-.cm-editor.cm-folio .cm-md-em{font-style:italic}
-.cm-editor.cm-folio .cm-md-strong{font-weight:700}
-.cm-editor.cm-folio .cm-md-del{text-decoration:line-through}
-.cm-editor.cm-folio .cm-md-link{color:var(--accent)}
-.cm-editor.cm-folio .cm-md-code{background:var(--sunk,var(--hover));border-radius:3px}
-.cm-editor.cm-folio .cm-md-quote{color:var(--muted)}
-.cm-editor.cm-folio .tok-meta{color:var(--muted)}
+.cm-editor.cm-notes{padding:0!important;border:0;height:100%;min-height:0;background:var(--bg);color:var(--ink);font:400 .9rem/1.65 var(--mono)}
+.cm-editor.cm-notes.cm-focused{outline:none}
+.cm-editor.cm-notes .cm-scroller{font-family:var(--mono);line-height:1.65;overflow:auto}
+.cm-editor.cm-notes .cm-content{padding:1.5rem var(--gut) 40vh;caret-color:var(--ink)}
+.cm-editor.cm-notes .cm-line{padding:0}
+.mode-edit .cm-editor.cm-notes .cm-content{padding-inline:max(var(--gut),calc((100% - var(--measure)) / 2))}
+.mode-split .cm-editor.cm-notes{border-right:1px solid var(--line)}
+.cm-editor.cm-notes .cm-cursor{border-left-color:var(--ink);border-left-width:2px}
+.cm-editor.cm-notes .cm-activeLine{background:color-mix(in srgb,var(--ink) 3.5%,transparent)}
+.cm-editor.cm-notes.cm-focused .cm-selectionBackground,.cm-editor.cm-notes .cm-selectionBackground,.cm-editor.cm-notes ::selection{background:color-mix(in srgb,var(--accent) 24%,transparent)!important}
+.cm-editor.cm-notes .cm-selectionMatch{background:color-mix(in srgb,var(--accent) 14%,transparent)}
+.cm-editor.cm-notes .cm-matchingBracket{background:color-mix(in srgb,var(--accent) 22%,transparent);outline:none}
+.cm-editor.cm-notes .cm-searchMatch{background:color-mix(in srgb,#e3b341 35%,transparent);outline:1px solid color-mix(in srgb,#e3b341 60%,transparent)}
+.cm-editor.cm-notes .cm-searchMatch-selected{background:color-mix(in srgb,#e3b341 65%,transparent)}
+.cm-editor.cm-notes.read-only{color:var(--muted)}
+.cm-editor.cm-notes .cm-md-h{font-weight:700;color:var(--ink)}
+.cm-editor.cm-notes .cm-md-em{font-style:italic}
+.cm-editor.cm-notes .cm-md-strong{font-weight:700}
+.cm-editor.cm-notes .cm-md-del{text-decoration:line-through}
+.cm-editor.cm-notes .cm-md-link{color:var(--accent)}
+.cm-editor.cm-notes .cm-md-code{background:var(--sunk,var(--hover));border-radius:3px}
+.cm-editor.cm-notes .cm-md-quote{color:var(--muted)}
+.cm-editor.cm-notes .tok-meta{color:var(--muted)}
 /* Find and replace (Ctrl+F) */
-.cm-editor.cm-folio .cm-panels{background:var(--surface);color:var(--ink);border-color:var(--line)!important;font:400 .82rem/1.4 var(--sans,inherit)}
-.cm-editor.cm-folio .cm-panels-top{border-bottom:1px solid var(--line)}
-.cm-editor.cm-folio .cm-search{display:flex;flex-wrap:wrap;align-items:center;gap:.35rem .5rem;padding:.5rem var(--gut)}
-.cm-editor.cm-folio .cm-search br{display:none}
-.cm-editor.cm-folio .cm-search .cm-textfield{font:400 .82rem/1.3 var(--mono);padding:.25rem .45rem;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--bg);color:var(--ink);margin:0}
-.cm-editor.cm-folio .cm-search .cm-button{font:500 .78rem/1.2 inherit;padding:.25rem .55rem;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--surface);background-image:none;color:var(--ink);margin:0}
-.cm-editor.cm-folio .cm-search .cm-button:hover{background:var(--hover)}
-.cm-editor.cm-folio .cm-search label{display:inline-flex;align-items:center;gap:.25rem;color:var(--muted);font-size:.78rem}
-.cm-editor.cm-folio .cm-search button[name=close]{margin-left:auto;background:none;border:0;color:var(--muted);font-size:1.1rem;cursor:pointer}
+.cm-editor.cm-notes .cm-panels{background:var(--surface);color:var(--ink);border-color:var(--line)!important;font:400 .82rem/1.4 var(--sans,inherit)}
+.cm-editor.cm-notes .cm-panels-top{border-bottom:1px solid var(--line)}
+.cm-editor.cm-notes .cm-search{display:flex;flex-wrap:wrap;align-items:center;gap:.35rem .5rem;padding:.5rem var(--gut)}
+.cm-editor.cm-notes .cm-search br{display:none}
+.cm-editor.cm-notes .cm-search .cm-textfield{font:400 .82rem/1.3 var(--mono);padding:.25rem .45rem;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--bg);color:var(--ink);margin:0}
+.cm-editor.cm-notes .cm-search .cm-button{font:500 .78rem/1.2 inherit;padding:.25rem .55rem;border:1px solid var(--line);border-radius:var(--r-sm);background:var(--surface);background-image:none;color:var(--ink);margin:0}
+.cm-editor.cm-notes .cm-search .cm-button:hover{background:var(--hover)}
+.cm-editor.cm-notes .cm-search label{display:inline-flex;align-items:center;gap:.25rem;color:var(--muted);font-size:.78rem}
+.cm-editor.cm-notes .cm-search button[name=close]{margin-left:auto;background:none;border:0;color:var(--muted);font-size:1.1rem;cursor:pointer}
 
 /* Embeds: ![[note#heading]] shown in place (embeds.js) */
 .md .embed{margin:0 0 1em;padding:.35rem 1rem .1rem;border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:var(--r-sm);background:var(--surface)}
@@ -478,43 +478,43 @@ button.ph{cursor:pointer}button.ph:hover{border-style:solid}
 /* Live view (live.js): the note formatted as you write. */
 .body.mode-live{grid-template-columns:minmax(0,1fr)}
 .body.mode-live>.md{display:none!important}
-.mode-live .cm-editor.cm-folio .cm-content{padding-inline:max(var(--gut),calc((100% - var(--measure)) / 2))}
+.mode-live .cm-editor.cm-notes .cm-content{padding-inline:max(var(--gut),calc((100% - var(--measure)) / 2))}
 .mode-live .title-hint{left:calc(max(var(--gut),calc((100% - var(--measure)) / 2)) + 2ch)}
-.cm-editor.cm-folio.live,.cm-editor.cm-folio.live .cm-scroller{font-family:var(--sans);font-size:1rem;line-height:1.65}
-.cm-editor.cm-folio.live .cm-md-h{font-weight:600}
-.cm-folio.live .lp-h{font-family:var(--serif);font-weight:600;letter-spacing:-.015em;line-height:1.25}
-.cm-folio.live .lp-h1{font-size:2rem;padding-top:.35em!important;padding-bottom:.15em!important}
-.cm-folio.live .lp-h2{font-size:1.45rem;padding-top:.7em!important;padding-bottom:.2em!important;border-bottom:1px solid var(--line)}
-.cm-folio.live .lp-h3{font-size:1.18rem;padding-top:.55em!important}
-.cm-folio.live .lp-h4,.cm-folio.live .lp-h5,.cm-folio.live .lp-h6{padding-top:.4em!important}
-.cm-folio.live .lp-code{font-family:var(--mono);font-size:.86em;background:var(--sunk,var(--hover));border-radius:4px;padding:.1em 0}
-.cm-folio.live .lp-pre{font-family:var(--mono);font-size:.84rem;background:var(--sunk,var(--hover));padding-inline:1rem!important;border-inline:1px solid var(--line)}
-.cm-folio.live .lp-pre-first{border-top:1px solid var(--line);border-radius:var(--r-sm) var(--r-sm) 0 0;padding-top:.3rem!important}
-.cm-folio.live .lp-pre-last{border-bottom:1px solid var(--line);border-radius:0 0 var(--r-sm) var(--r-sm);padding-bottom:.3rem!important}
-.cm-folio.live .lp-pre-first.lp-pre-last{border-radius:var(--r-sm)}
-.cm-folio.live .lp-fence{color:var(--muted);font-size:.74rem}
-.cm-folio.live .lp-quote{border-left:3px solid var(--line);padding-left:1rem!important;color:var(--muted)}
-.cm-folio.live .lp-link{color:var(--accent);text-decoration:underline;text-underline-offset:2px;text-decoration-thickness:1px;cursor:pointer}
-.cm-folio.live .lp-link.missing{color:var(--warn);text-decoration-style:dashed}
-.cm-folio.live .lp-link.bad-link{color:inherit;text-decoration:none;border-bottom:1px dotted var(--muted);cursor:text}
-.cm-folio.live .lp-link .app-chip{display:none}
-.cm-folio.live .lp-tag{font:500 .8em/1 var(--mono);color:var(--eyebrow);background:var(--sunk,var(--hover));padding:.15em .4em;border-radius:4px;cursor:pointer}
-.cm-folio.live .lp-bullet{display:inline-block;width:.9em;color:var(--muted)}
-.cm-folio.live .lp-box{margin:0 .4rem 0 0;vertical-align:-.1em;cursor:pointer}
-.cm-folio.live .lp-box:disabled{cursor:default}
-.cm-folio.live .lp-done{color:var(--muted)}
-.cm-folio.live .lp-hr{display:inline-block;width:100%;height:0;border-top:1px solid var(--line);vertical-align:middle}
-.cm-folio.live .lp-img{display:block;max-width:100%;height:auto;margin:.3rem 0;border-radius:var(--r-sm);border:1px solid var(--line)}
-.cm-folio.live .lp-front{font-family:var(--mono);font-size:.8rem;color:var(--muted)}
-.cm-folio.live .lp-block.md{padding:.3rem 0;margin:0;overflow:visible;min-height:0;white-space:normal;font-size:1rem;cursor:text;border-radius:var(--r-sm)}
-.cm-folio.live .lp-block.md>div>:first-child{margin-top:0}
-.cm-folio.live .lp-block.md>div>:last-child{margin-bottom:0}
-.cm-folio.live .lp-block.md:hover{box-shadow:0 0 0 1px var(--line)}
-.cm-folio.live .lp-raw{white-space:pre-wrap;font-family:var(--mono)}
+.cm-editor.cm-notes.live,.cm-editor.cm-notes.live .cm-scroller{font-family:var(--sans);font-size:1rem;line-height:1.65}
+.cm-editor.cm-notes.live .cm-md-h{font-weight:600}
+.cm-notes.live .lp-h{font-family:var(--serif);font-weight:600;letter-spacing:-.015em;line-height:1.25}
+.cm-notes.live .lp-h1{font-size:2rem;padding-top:.35em!important;padding-bottom:.15em!important}
+.cm-notes.live .lp-h2{font-size:1.45rem;padding-top:.7em!important;padding-bottom:.2em!important;border-bottom:1px solid var(--line)}
+.cm-notes.live .lp-h3{font-size:1.18rem;padding-top:.55em!important}
+.cm-notes.live .lp-h4,.cm-notes.live .lp-h5,.cm-notes.live .lp-h6{padding-top:.4em!important}
+.cm-notes.live .lp-code{font-family:var(--mono);font-size:.86em;background:var(--sunk,var(--hover));border-radius:4px;padding:.1em 0}
+.cm-notes.live .lp-pre{font-family:var(--mono);font-size:.84rem;background:var(--sunk,var(--hover));padding-inline:1rem!important;border-inline:1px solid var(--line)}
+.cm-notes.live .lp-pre-first{border-top:1px solid var(--line);border-radius:var(--r-sm) var(--r-sm) 0 0;padding-top:.3rem!important}
+.cm-notes.live .lp-pre-last{border-bottom:1px solid var(--line);border-radius:0 0 var(--r-sm) var(--r-sm);padding-bottom:.3rem!important}
+.cm-notes.live .lp-pre-first.lp-pre-last{border-radius:var(--r-sm)}
+.cm-notes.live .lp-fence{color:var(--muted);font-size:.74rem}
+.cm-notes.live .lp-quote{border-left:3px solid var(--line);padding-left:1rem!important;color:var(--muted)}
+.cm-notes.live .lp-link{color:var(--accent);text-decoration:underline;text-underline-offset:2px;text-decoration-thickness:1px;cursor:pointer}
+.cm-notes.live .lp-link.missing{color:var(--warn);text-decoration-style:dashed}
+.cm-notes.live .lp-link.bad-link{color:inherit;text-decoration:none;border-bottom:1px dotted var(--muted);cursor:text}
+.cm-notes.live .lp-link .app-chip{display:none}
+.cm-notes.live .lp-tag{font:500 .8em/1 var(--mono);color:var(--eyebrow);background:var(--sunk,var(--hover));padding:.15em .4em;border-radius:4px;cursor:pointer}
+.cm-notes.live .lp-bullet{display:inline-block;width:.9em;color:var(--muted)}
+.cm-notes.live .lp-box{margin:0 .4rem 0 0;vertical-align:-.1em;cursor:pointer}
+.cm-notes.live .lp-box:disabled{cursor:default}
+.cm-notes.live .lp-done{color:var(--muted)}
+.cm-notes.live .lp-hr{display:inline-block;width:100%;height:0;border-top:1px solid var(--line);vertical-align:middle}
+.cm-notes.live .lp-img{display:block;max-width:100%;height:auto;margin:.3rem 0;border-radius:var(--r-sm);border:1px solid var(--line)}
+.cm-notes.live .lp-front{font-family:var(--mono);font-size:.8rem;color:var(--muted)}
+.cm-notes.live .lp-block.md{padding:.3rem 0;margin:0;overflow:visible;min-height:0;white-space:normal;font-size:1rem;cursor:text;border-radius:var(--r-sm)}
+.cm-notes.live .lp-block.md>div>:first-child{margin-top:0}
+.cm-notes.live .lp-block.md>div>:last-child{margin-bottom:0}
+.cm-notes.live .lp-block.md:hover{box-shadow:0 0 0 1px var(--line)}
+.cm-notes.live .lp-raw{white-space:pre-wrap;font-family:var(--mono)}
 @media print{.fold-btn{display:none!important}}
 .title-hint.lp{font:600 2rem/1.25 var(--serif);letter-spacing:-.015em}
 
-/* ==============================================================================================================   Folio 4.0.0: Workshop's shared look (../../shared/themes.css since Workshop 6.46.0). Places in the sidebar instead of
+/* ==============================================================================================================   Notes 4.0.0: Workshop's shared look (../../shared/themes.css since Workshop 6.46.0). Places in the sidebar instead of
    a row of tabs, one header line over the note, a readable column in every view, sentence-case labels, burgundy for
    what is open and yours. Workshop project docs claude/folio-vision.md and claude/folio-redesign-v1-plan.md.
    ===================================================================================================================== */
@@ -526,12 +526,12 @@ body{background:var(--bg)}
 .btn.small{border-radius:8px}
 .ibtn{border-radius:9px}
 input,textarea{border-color:color-mix(in srgb,var(--ink) 18%,var(--line));border-radius:10px}
-/* Templates is rose since Folio turned blue (Workshop 6.51.1), so it no longer matches the Notes dot. */
+/* Templates is rose since Notes turned blue (Workshop 6.51.1), so it no longer matches the Notes dot. */
 .notes{--sec-notes:var(--accent);--sec-daily:#B07A2A;--sec-products:#4F7A5E;--sec-templates:#9A3F62;--sec-tandem:#7A64A8}
 :root[data-theme=dark] .notes{--sec-daily:#E3B66E;--sec-products:#9CCBAA;--sec-templates:#E7A9C2;--sec-tandem:#C3B4EA}
 @media (prefers-color-scheme:dark){:root:not([data-theme]) .notes{--sec-daily:#E3B66E;--sec-products:#9CCBAA;--sec-templates:#E7A9C2;--sec-tandem:#C3B4EA}}
 
-/* Desktop: the left column is Folio's name, the places, then the open place's pages. The page panel's button is in
+/* Desktop: the left column is Notes' name, the places, then the open place's pages. The page panel's button is in
    the note's header. Folding the pages list keeps the places. */
 @media (min-width:761px){
   .notes,.notes:has(> .panel[hidden]){grid-template-rows:auto minmax(0,1fr)}
@@ -619,7 +619,7 @@ input,textarea{border-color:color-mix(in srgb,var(--ink) 18%,var(--line));border
 .notes{--measure:44rem}
 @media (min-width:1600px){.notes,.notes:has(> .panel[hidden]){--measure:46rem}}
 @media (min-width:2100px){.notes,.notes:has(> .panel[hidden]){--measure:48rem}}
-.editor,.md,.cm-editor.cm-folio{background:var(--surface)}
+.editor,.md,.cm-editor.cm-notes{background:var(--surface)}
 .mode-split .md{padding-inline:max(var(--gut),calc((100% - var(--measure)) / 2))}
 .md{font-size:1.02rem;line-height:1.7}
 .md h1,.md h2,.md h3,.md h4,.md h5,.md h6{font-family:var(--serif);font-weight:700;letter-spacing:-.025em}
@@ -630,13 +630,13 @@ input,textarea{border-color:color-mix(in srgb,var(--ink) 18%,var(--line));border
 .md pre{border:0;border-radius:12px;background:var(--panel)}
 .md blockquote{border-left-color:var(--line2)}
 .md table{border-radius:10px}
-.cm-folio.live .lp-h{font-family:var(--serif);font-weight:700;letter-spacing:-.025em}
-.cm-folio.live .lp-h1{font-size:2.3rem;font-weight:800;letter-spacing:-.035em;line-height:1.1}
-.cm-folio.live .lp-h2{font-size:1.5rem;border-bottom:0}
-.cm-folio.live .lp-h3{font-size:1.2rem}
-.cm-editor.cm-folio.live,.cm-editor.cm-folio.live .cm-scroller{font-size:1.02rem;line-height:1.7}
-.cm-editor.cm-folio .cm-activeLine{background:transparent}
-.mode-edit .cm-editor.cm-folio .cm-activeLine,.mode-split .cm-editor.cm-folio .cm-activeLine{background:color-mix(in srgb,var(--ink) 3%,transparent)}
+.cm-notes.live .lp-h{font-family:var(--serif);font-weight:700;letter-spacing:-.025em}
+.cm-notes.live .lp-h1{font-size:2.3rem;font-weight:800;letter-spacing:-.035em;line-height:1.1}
+.cm-notes.live .lp-h2{font-size:1.5rem;border-bottom:0}
+.cm-notes.live .lp-h3{font-size:1.2rem}
+.cm-editor.cm-notes.live,.cm-editor.cm-notes.live .cm-scroller{font-size:1.02rem;line-height:1.7}
+.cm-editor.cm-notes .cm-activeLine{background:transparent}
+.mode-edit .cm-editor.cm-notes .cm-activeLine,.mode-split .cm-editor.cm-notes .cm-activeLine{background:color-mix(in srgb,var(--ink) 3%,transparent)}
 
 /* the page panel: outline, backlinks, things to send, history, tags */
 .panel{padding:1.3rem 1.2rem 3rem;gap:1.7rem}
@@ -662,7 +662,7 @@ dialog{border:0;border-radius:var(--r-lg);box-shadow:0 20px 60px rgb(34 25 28/.2
 .prodf select{width:100%;font-size:.86rem}
 @media (max-width:760px){.prodf{padding-inline:var(--gut)}}
 
-/* ---------- Folio 4.6.0: highlights, word count, properties, bookmarks ---------- */
+/* ---------- Notes 4.6.0: highlights, word count, properties, bookmarks ---------- */
 .md mark,.lp-mark{background:color-mix(in srgb,#F2C94C 42%,transparent);color:inherit;border-radius:2px;padding:0 .08em}
 :root[data-theme=dark] .md mark,:root[data-theme=dark] .lp-mark{background:color-mix(in srgb,#D9B23A 34%,transparent)}
 .wc{font:500 .78rem/1.4 var(--sans);white-space:nowrap}
@@ -676,7 +676,7 @@ dialog{border:0;border-radius:var(--r-lg);box-shadow:0 20px 60px rgb(34 25 28/.2
 .props .linkish{align-self:flex-start}
 .pinned .note{position:relative}
 
-/* ---------- Folio 4.7.0: hover previews and unlinked mentions ---------- */
+/* ---------- Notes 4.7.0: hover previews and unlinked mentions ---------- */
 .hover-pop.md{position:fixed;z-index:30;max-height:360px;overflow-y:auto;padding:.7rem 1rem 1rem;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);box-shadow:var(--shadow-lg);font-size:.9rem;line-height:1.55}
 .hover-pop.md h1{font-size:1.35rem;margin-top:.4em}
 .hover-pop.md h2{font-size:1.15rem}
@@ -689,11 +689,11 @@ dialog{border:0;border-radius:var(--r-lg);box-shadow:0 20px 60px rgb(34 25 28/.2
 .mentions mark{background:color-mix(in srgb,#F2C94C 42%,transparent);color:inherit;border-radius:2px}
 .mentions .r-line{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 
-/* ---------- Folio 4.8.0: folding ---------- */
+/* ---------- Notes 4.8.0: folding ---------- */
 /* The fold gutter sits just left of the text column (not at the window's edge), quiet until hovered. */
-.cm-editor.cm-folio .cm-gutters{background:transparent;border:0;color:var(--muted);margin-left:max(0px,calc(max(var(--gut),calc((100% - var(--measure)) / 2)) - 1.4rem))}
-.cm-editor.cm-folio .cm-content,.mode-edit .cm-editor.cm-folio .cm-content,.mode-live .cm-editor.cm-folio .cm-content{padding-left:0}
-.cm-editor.cm-folio .cm-foldGutter .cm-gutterElement{width:1.4rem;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.cm-editor.cm-notes .cm-gutters{background:transparent;border:0;color:var(--muted);margin-left:max(0px,calc(max(var(--gut),calc((100% - var(--measure)) / 2)) - 1.4rem))}
+.cm-editor.cm-notes .cm-content,.mode-edit .cm-editor.cm-notes .cm-content,.mode-live .cm-editor.cm-notes .cm-content{padding-left:0}
+.cm-editor.cm-notes .cm-foldGutter .cm-gutterElement{width:1.4rem;display:flex;align-items:center;justify-content:center;cursor:pointer}
 .cm-fold-mark{display:inline-flex;width:14px;height:14px;opacity:0;transition:opacity .12s}
 .cm-fold-mark svg{width:14px;height:14px;transition:transform .12s}
 .cm-fold-mark.open svg{transform:rotate(90deg)}
@@ -708,7 +708,7 @@ dialog{border:0;border-radius:var(--r-lg);box-shadow:0 20px 60px rgb(34 25 28/.2
 .md .fold-h[aria-expanded=false]{color:var(--accent)}
 .md .folded-away{display:none}
 
-/* ---------- Folio 4.10.0: Links ---------- */
+/* ---------- Notes 4.10.0: Links ---------- */
 /* A small mark for what a link is (SharePoint, Sheets, ADO...), read from its address. Quiet: muted unless hovered. */
 .lkind{flex:none;display:inline-grid;place-items:center;min-width:1.55rem;height:1.05rem;padding:0 .2rem;border-radius:4px;background:var(--hover);color:var(--muted);font:600 .62rem/1 var(--mono);letter-spacing:.02em}
 .tree li.link>.row{padding-left:.55rem;gap:.45rem;padding-right:3.4rem}
@@ -735,18 +735,18 @@ dialog{border:0;border-radius:var(--r-lg);box-shadow:0 20px 60px rgb(34 25 28/.2
 .plink-list a:hover .name{text-decoration:underline}
 .dlg.link-form{display:flex;flex-direction:column;gap:.7rem}
 
-/* Folio 4.11.0: Loom items for a plan doc or product note (loom.js), and a ws:slate chip saying where its item is. */
-.in-loom .loom-progress{display:flex;align-items:center;gap:.5rem;margin:.2rem 0 .4rem}
-.in-loom .loom-bar{flex:1;height:5px;border-radius:999px;background:var(--line);overflow:hidden}
-.in-loom .loom-bar i{display:block;height:100%;background:var(--sec-products,#5E7A4F)}
-.in-loom .loom-group{font:600 .72rem/1.2 var(--sans);color:var(--muted);margin:.5rem 0 .15rem}
-.loom-rows{list-style:none;margin:0;padding:0}
-.loom-row{display:grid;grid-template-columns:auto 1fr;column-gap:.45rem;align-items:center;font-size:.82rem;line-height:1.35;color:var(--ink);text-decoration:none;padding:.25rem .4rem;margin-inline:-.4rem;border-radius:4px}
-.loom-row:hover{background:var(--hover)}
-.loom-row .r-line{grid-column:2}
-.loom-row .dot,.app-chip .dot{width:7px;height:7px;border-radius:50%;background:var(--muted);display:inline-block}
-.loom-row.s-you .dot,.app-chip.s-you .dot{background:var(--warn)}
-.loom-row.s-moving .dot,.app-chip.s-moving .dot{background:var(--accent)}
-.loom-row.s-done .dot,.app-chip.s-done .dot{background:var(--sec-products,#5E7A4F)}
+/* Notes 4.11.0: Builds items for a plan doc or product note (builds-items.js), and a ws:builds chip saying where its item is. */
+.in-builds .builds-progress{display:flex;align-items:center;gap:.5rem;margin:.2rem 0 .4rem}
+.in-builds .builds-bar{flex:1;height:5px;border-radius:999px;background:var(--line);overflow:hidden}
+.in-builds .builds-bar i{display:block;height:100%;background:var(--sec-products,#5E7A4F)}
+.in-builds .builds-group{font:600 .72rem/1.2 var(--sans);color:var(--muted);margin:.5rem 0 .15rem}
+.builds-rows{list-style:none;margin:0;padding:0}
+.builds-row{display:grid;grid-template-columns:auto 1fr;column-gap:.45rem;align-items:center;font-size:.82rem;line-height:1.35;color:var(--ink);text-decoration:none;padding:.25rem .4rem;margin-inline:-.4rem;border-radius:4px}
+.builds-row:hover{background:var(--hover)}
+.builds-row .r-line{grid-column:2}
+.builds-row .dot,.app-chip .dot{width:7px;height:7px;border-radius:50%;background:var(--muted);display:inline-block}
+.builds-row.s-you .dot,.app-chip.s-you .dot{background:var(--warn)}
+.builds-row.s-moving .dot,.app-chip.s-moving .dot{background:var(--accent)}
+.builds-row.s-done .dot,.app-chip.s-done .dot{background:var(--sec-products,#5E7A4F)}
 .app-chip.s-you,.app-chip.s-moving,.app-chip.s-done{display:inline-flex;align-items:center;gap:.3rem}
 .app-chip.s-you{color:var(--ink)}

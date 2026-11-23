@@ -3,9 +3,9 @@
 Builds the pinned copy with `workshop pin` into a temporary Workshop home (with every app in apps/
 when that checkout is there), starts the real agent with work mode on, signs a browser in, and checks:
 
-  - the hub opens from 127.0.0.1 in local mode, with Home, Docket, Loom, Rapport and Settings on the rail
+  - the hub opens from 127.0.0.1 in local mode, with Home, Tasks, Builds, People and Settings on the rail
   - Settings says work mode is on and names the pinned build
-  - Docket opens inside the hub and saves its board in the data folder (when Docket is included)
+  - Tasks opens inside the hub and saves its board in the data folder (when Tasks is included)
   - no request goes anywhere but 127.0.0.1
   - an allowed hosted site is still refused
 
@@ -67,7 +67,7 @@ def main():
             pg.wait_for_function("() => document.documentElement.dataset.mode === 'local'", timeout=15000)
             check(pg.url.rstrip('/') == url or pg.url.startswith(url + '/#') or pg.url == url + '/', 'signing in lands on the hub, served by this computer')
             rail = pg.inner_text('#rail')
-            for name in ['Loom', 'Settings'] + (['Docket'] if with_docket else []) + (['Rapport'] if with_receipts else []) + (['Runway'] if with_runway else []):
+            for name in ['Builds', 'Settings'] + (['Tasks'] if with_docket else []) + (['People'] if with_receipts else []) + (['Roadmaps'] if with_runway else []):
                 check(name in rail or pg.locator(f'#rail [title*="{name}"], #rail [aria-label*="{name}"]').count() > 0, f'{name} is on the rail')
 
             pg.goto(f'{url}/#/settings')
@@ -86,32 +86,32 @@ def main():
             check('built' in text, 'Settings names the pinned build')
 
             if with_docket:
-                pg.goto(f'{url}/#/prioritizer')
+                pg.goto(f'{url}/#/tasks')
                 dframe = None
                 for _ in range(75):
-                    dframe = next((f for f in pg.frames if '/apps/prioritizer/' in f.url), None)
+                    dframe = next((f for f in pg.frames if '/apps/tasks/' in f.url), None)
                     if dframe and dframe.locator('body').count() and dframe.inner_text('body').strip():
                         break
                     pg.wait_for_timeout(200)
-                check(dframe is not None and bool(dframe.inner_text('body').strip()), 'Docket opens inside the hub from the pinned copy')
-                # Docket reaches the agent like any app: its board is saved in the data folder, not the browser.
+                check(dframe is not None and bool(dframe.inner_text('body').strip()), 'Tasks opens inside the hub from the pinned copy')
+                # Tasks reaches the agent like any app: its board is saved in the data folder, not the browser.
                 saved = False
                 for _ in range(50):
-                    if os.path.isdir(os.path.join(data, 'docket')) and os.listdir(os.path.join(data, 'docket')):
+                    if os.path.isdir(os.path.join(data, 'tasks')) and os.listdir(os.path.join(data, 'tasks')):
                         saved = True
                         break
                     pg.wait_for_timeout(200)
-                check(saved, 'Docket saves its board in the data folder through the agent')
+                check(saved, 'Tasks saves its board in the data folder through the agent')
 
             if with_runway:
-                pg.goto(f'{url}/#/runway')
+                pg.goto(f'{url}/#/roadmaps')
                 rframe = None
                 for _ in range(75):
-                    rframe = next((f for f in pg.frames if '/apps/runway/' in f.url), None)
+                    rframe = next((f for f in pg.frames if '/apps/roadmaps/' in f.url), None)
                     if rframe and rframe.locator('body').count() and rframe.inner_text('body').strip():
                         break
                     pg.wait_for_timeout(200)
-                check(rframe is not None and bool(rframe.inner_text('body').strip()), 'Runway opens from the pinned copy')
+                check(rframe is not None and bool(rframe.inner_text('body').strip()), 'Roadmaps opens from the pinned copy')
 
             check(not foreign, 'no request went anywhere but this computer' + (f': {foreign[:3]}' if foreign else ''))
             browser.close()

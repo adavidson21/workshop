@@ -22,11 +22,11 @@
   ],
   "handoffs": {
     "sends": [
-      "prioritizer",
-      "receipts",
+      "tasks",
+      "people",
       "notes",
-      "runway",
-      "slate"
+      "roadmaps",
+      "builds"
     ]
   },
   "data": [

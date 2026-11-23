@@ -2,17 +2,17 @@
 
 **Chat 4.4.0**: a question from Capture's `?` (or `? ` typed in the Hub) goes to Tandem already routed, so it only answers (opencode connector 1.36.0). Rewrite waits up to 20 minutes for a local model (4 before).
 
-**Chat 4.3.1**: "clean up this document" in the Hub opens Folio's Clean up on the open note (a rule, so it never goes to Tandem as a question; Folio 4.13.0).
+**Chat 4.3.1**: "clean up this document" in the Hub opens Notes' Clean up on the open note (a rule, so it never goes to Tandem as a question; Notes 4.13.0).
 
 **Chat 4.3.0** is back on the rail, after Bench (new people could not find it otherwise). In the Hub, the newest card sits next to the box, a question without Tandem says what works instead of repeating the box's notice, and capture dates read "Tue, Nov 24". The sidebar's empty state and the blocked-notifications button say plainly what they mean.
 
-**Chat 3.0.0** leaves the rail (`rail: false`, Loom 5.1.0): fewer apps to pick from. It opens from a Loom card's Chat button (that run's conversation), from the palette (New chat, Rewrite a draft) and from Capture's ask. Its address, `#/chat`, still works.
+**Chat 3.0.0** leaves the rail (`rail: false`, Builds 5.1.0): fewer apps to pick from. It opens from a Builds card's Chat button (that run's conversation), from the palette (New chat, Rewrite a draft) and from Capture's ask. Its address, `#/chat`, still works.
 
 opencode with a better screen. **Chat 2.0.0** works like the opencode TUI, so you can use it instead of opening opencode: pick any agent (Tab cycles them) and model, `/` for commands (yours and Tandem's), `@` for workspace files, `!` for a shell command, undo and redo, compact, and every opencode session in the workspace under **All sessions**. Tool calls, diffs, thinking and to-dos show in the thread, and permission prompts are answered right there. opencode's own permission settings decide what an agent may do, as in the terminal. Since **Chat 2.2.0** there is no separate AI switch: Chat works whenever the opencode connector is on (turn the connector off in Settings to stop it). Contract: [docs/chat.md](../../docs/chat.md).
 
-The **Hub** agent (first in New chat's list) is the one box that asks Tandem or captures a task, receipt or note in plain words: a capture comes back as rows to accept, a place opens the app, and anything else becomes a chat. `b <text>` sends the text straight to Loom's agents and starts it (Build with Tandem, Chat 4.4.1). A hub thread's follow-ups go to Tandem's read-only `chat` agent unless you pick another.
+The **Hub** agent (first in New chat's list) is the one box that asks Tandem or captures a task, receipt or note in plain words: a capture comes back as rows to accept, a place opens the app, and anything else becomes a chat. `b <text>` sends the text straight to Builds' agents and starts it (Build with Tandem, Chat 4.4.1). A hub thread's follow-ups go to Tandem's read-only `chat` agent unless you pick another.
 
-**Chat 1.0.0** moves Loom's Chat tab and the hub into their own app on the rail (Loom 4.8.0). Contracts: [docs/chat.md](../../docs/chat.md) and [docs/hub.md](../../docs/hub.md). Captures go to this app's own `handoffs` collection; Docket, Rapport, Folio, Runway and Loom add them when they next load ([docs/handoffs.md](../../docs/handoffs.md)). When opencode asks you something in a chat, answer it in the chat (Loom's Inbox lists it too).
+**Chat 1.0.0** moves Builds' Chat tab and the hub into their own app on the rail (Builds 4.8.0). Contracts: [docs/chat.md](../../docs/chat.md) and [docs/hub.md](../../docs/hub.md). Captures go to this app's own `handoffs` collection; Tasks, People, Notes, Roadmaps and Builds add them when they next load ([docs/handoffs.md](../../docs/handoffs.md)). When opencode asks you something in a chat, answer it in the chat (Builds' Inbox lists it too).
 
 **Chat 1.1.0** adds **Rewrite a draft** (moved from Settings, Writing): paste a draft, pick the audience and reader, get one version in your voice, then say Sent as is, I changed it or Didn't use. Your samples, style guide and rules stay in Settings, Writing; your answers go to this app's `writing-feedback` collection and Settings learns from them ([docs/writing.md](../../docs/writing.md)).
 
@@ -31,7 +31,7 @@ The top bar's **Capture** is the quick add (rules only, no AI); Chat is where yo
 ## Routes
 
 - `#/chat`: New chat
-- `#/chat/hub/<text>`: ask or capture `<text>` (Capture's "ask" and Loom's old `hub/<text>` route land here)
+- `#/chat/hub/<text>`: ask or capture `<text>` (Capture's "ask" and Builds' old `hub/<text>` route land here)
 - `#/chat/rewrite`: New chat on Rewrite
 - `#/chat/<session>` or `#/chat/chat/<session>`: one chat, or any opencode session in the workspace
 

@@ -7,7 +7,7 @@ Version: **`sdk: 1`**. Implemented in `shared/workshop-sdk.js` (WS4). Apps use t
 ```js
 import { connect } from '../../shared/workshop-sdk.js';
 
-const ws = await connect({ app: 'prioritizer' });
+const ws = await connect({ app: 'tasks' });
 ws.mode;     // 'local' | 'hosted' | 'browser'
 ws.backend;  // 'agent' | 'browser'
 ws.storage;  // 'agent' | 'folder' | 'indexeddb'
@@ -26,7 +26,7 @@ All methods that talk to the shell or the agent return promises. Failures reject
 | Method | Meaning |
 | --- | --- |
 | `ws.open(target)` | Go to another app or a route. `target` is `{app, path?}`, for example `{app: 'agents', path: '41207'}`. Same as `#/agents/41207`. |
-| `ws.window(path)` | Opens this app at `path` (what comes after `#/<app>/`) in a window of its own, beside the main one. Unlike Pop out, the app stays in the main window too, and each path gets its own window (asking again brings it forward). Rejects with `blocked` when the browser blocks pop-ups. Standalone it opens the page at `#/<path>`. Folio uses it for Open in new window. |
+| `ws.window(path)` | Opens this app at `path` (what comes after `#/<app>/`) in a window of its own, beside the main one. Unlike Pop out, the app stays in the main window too, and each path gets its own window (asking again brings it forward). Rejects with `blocked` when the browser blocks pop-ups. Standalone it opens the page at `#/<path>`. Notes uses it for Open in new window. |
 | `ws.route.set(path, {replace?})` | Tells the shell where this app is now, so the address bar, Back and Forward, refresh and bookmarks follow it (see Routes below). `path` is what comes after `#/<app>/`, empty for the app itself. Default adds a history entry; `replace: true` changes the current one. The shell sends no `route` event back for it. Standalone it writes `#/<path>` on the page itself. |
 | `ws.toast(text, {kind?, action?, hold?, breakThrough?})` | Short message at the bottom of the shell. `kind`: `info` (default), `success`, `warn`, `error`. `action: {label, command}` adds a button that sends the app a `command` event. `hold: true` marks an interruption (a pickup, new items from a sync) that the shell drops during a focus or lunch span; the app counts it in its `held` card ([focus.md](focus.md)). `breakThrough: true` with `hold` shows it during focus anyway (blocking pull requests only), never during lunch. |
 | `ws.badge(count, {breakThrough?})` | Count on the app's rail icon. Integer 0 to 999, or `null` to clear. `0` also clears. During a focus or lunch span the shell hides it and restores it after ([focus.md](focus.md)); during focus it shows `breakThrough` instead (the part of `count` that comes only from blocking pull requests), if that is above 0. |
@@ -35,7 +35,7 @@ All methods that talk to the shell or the agent return promises. Failures reject
 | `ws.status.clear()` | Removes this app's status. |
 | `ws.commands.register({id, title, shortcut?})` | Adds a command to the shell palette (`Ctrl+K`). Returns an unregister function. `id` is unique within the app; the shell scopes it to the app. Running it sends the app a `command` event. |
 | `ws.theme.current()` | `{key, scheme}`. `key` is a theme from `shared/themes.css` (`light`, `dark`, or `system`); `scheme` is `light` or `dark`. |
-| `ws.areas.off()` / `ws.areas.partOn(part)` | The areas turned off in Settings, Apps ([apps.md](apps.md), Areas), as the shell saw them when the app opened; `partOn` says whether this app should show one of its parts listed in `shared/areas.js` (Docket's `people`). Standalone: this browser's switches. |
+| `ws.areas.off()` / `ws.areas.partOn(part)` | The areas turned off in Settings, Apps ([apps.md](apps.md), Areas), as the shell saw them when the app opened; `partOn` says whether this app should show one of its parts listed in `shared/areas.js` (Tasks' `people`). Standalone: this browser's switches. |
 | `ws.on(event, handler)` | Subscribe to `theme`, `route`, `command`, `visible` or `online`. Returns an unsubscribe function. |
 
 Events:
@@ -55,13 +55,13 @@ An app that calls `ws.route.set` owns its address: the shell keeps `#/<app>/<pat
 - Call it whenever the place changes: a view, an open item, a date. Use the default (a new history entry) for a new place, and `replace: true` for small changes in the same place (an item opened in a side panel, a date stepped by one, a lens) and when answering a `route` event, so Back and Forward keep working.
 - A path that only does something once (wrap up, a command) should be answered with `ws.route.set(<where the app is now>, {replace: true})`, so a reload does not repeat it.
 - Apps that never call it keep today's behaviour: the shell delivers the path and tidies the address to `#/<app>`.
-- The shell also accepts an app's name and its manifest `aliases` (strings only) in the address, so `#/docket/today` opens Docket like `#/prioritizer/today` ([app-manifest.md](app-manifest.md), Addresses).
+- The shell also accepts an app's name and its manifest `aliases` (strings only) in the address, so `#/docket/today` opens Tasks like `#/tasks/today` ([app-manifest.md](app-manifest.md), Addresses).
 
 ### Apps
 
 | Method | Meaning |
 | --- | --- |
-| `ws.apps.list()` | The apps on this Workshop site: `[{id, name, version, order, handoffs, capture, aliases, privateFiles, settings}]` from their manifests ([app-manifest.md](app-manifest.md)), sorted by `order`. Read once per page from the site's `apps/registry.json`. Resolves `[]` when the app is not running inside Workshop's site (Docket on its own site, for example); the app then uses its built-in fallback. |
+| `ws.apps.list()` | The apps on this Workshop site: `[{id, name, version, order, handoffs, capture, aliases, privateFiles, settings}]` from their manifests ([app-manifest.md](app-manifest.md)), sorted by `order`. Read once per page from the site's `apps/registry.json`. Resolves `[]` when the app is not running inside Workshop's site (Tasks on its own site, for example); the app then uses its built-in fallback. |
 
 Apps use it to find each other instead of naming app ids in code: handoff senders, capture targets, places for `> <name>`.
 
@@ -73,7 +73,7 @@ Apps use it to find each other instead of naming app ids in code: handoff sender
 | `ws.data.put(collection, envelope)` | Writes this app's collection. `envelope.rev` is the revision you read (`0` to create). Resolves `{rev, updatedAt}`. On a stale `rev` rejects with code `conflict` and `err.current` set to the stored envelope: merge (below) and put again with `current.rev`. |
 | `ws.data.subscribe(collection, handler, {app?})` | Another app's collections follow the same contract rule as `get` (throws `forbidden`). Calls `handler({app, collection, rev, updatedAt, client})` after every write by anyone else, and after a change made outside Workshop (then `rev`, `updatedAt` and `client` are `null`: re-read). Writes made through this `ws` are filtered out using the client id. Returns an unsubscribe function. |
 | `ws.data.merge(local, remote)` | Merges two envelopes of the same `schema` and `version` with the change-stamp rules in [data-format.md](data-format.md). Returns a new envelope with `remote.rev`. Pure. |
-| `ws.data.stamp(before, after)` | Sets `updatedAt` on items that changed between two envelopes and adds tombstones for removed items. The same rules as Prioritizer's `stampChanges`. Returns `after`. |
+| `ws.data.stamp(before, after)` | Sets `updatedAt` on items that changed between two envelopes and adds tombstones for removed items. The same rules as Tasks' `stampChanges`. Returns `after`. |
 | `ws.data.export({apps?})` | A bundle of every collection (or those of the listed apps). |
 | `ws.data.import(bundle)` | Merges a bundle in. Collections that do not exist are created; existing ones are merged and put. Resolves `{created, merged}` (counts). |
 
@@ -93,7 +93,7 @@ The people directory ([people.md](people.md)): people and groups, kept in Settin
 | `ws.people.update(id, fields)` | Changes fields of one item; `id` and `kind` never change. Resolves the item. |
 | `ws.people.setMembers(groupId, ids)` | Replaces a group's members. |
 | `ws.people.archive(id)`, `ws.people.restore(id)` | Archives or restores one item. Nothing is ever deleted. |
-| `ws.people.adopt(list)` | Adds people that the app's own data already points to, keeping their `p_` ids: a one-time move from a list the app kept itself (Rapport 2.x's reports). Skips ids already in the directory or deleted from it; a second you or manager becomes a contact. Resolves the added items (none: nothing is written). Bundle 2.1.0. |
+| `ws.people.adopt(list)` | Adds people that the app's own data already points to, keeping their `p_` ids: a one-time move from a list the app kept itself (People 2.x's reports). Skips ids already in the directory or deleted from it; a second you or manager becomes a contact. Resolves the added items (none: nothing is written). Bundle 2.1.0. |
 | `ws.people.saveMany(list)` | Many adds and edits in one save, in order: an entry with `id` edits that item (like `update`), one without adds it (like `add`). Later entries are checked against earlier ones. Resolves the saved items in the same order. If any entry has a problem nothing is saved, and the error has `index`, the entry's position. For importing a list (People's spreadsheet import). Bundle 2.3.0. |
 
 Every change is checked by the rules in [people.md](people.md) and rejects with code `bad_request` and a message to show (a handle in use, a second manager, a member who is not in the directory). A directory of another version rejects changes with `unsupported`. Concurrent changes merge item by item, as for any collection.
@@ -203,12 +203,12 @@ For the Settings app. Other apps keep their own settings in their own data.
 
 ### Status
 
-A status is for something ongoing the user should see and act on from any app, like Docket's running task. The shell shows one at a time in the top bar (the most recently started), and puts it in the tab title.
+A status is for something ongoing the user should see and act on from any app, like Tasks' running task. The shell shows one at a time in the top bar (the most recently started), and puts it in the tab title.
 
 | Field | Meaning |
 | --- | --- |
 | `text` | The line itself, up to 200 characters. Clicking it opens this app at `route`. |
-| `detail` | A second, quieter line (Docket: the last breadcrumb). Hidden on narrow windows. |
+| `detail` | A second, quieter line (Tasks: the last breadcrumb). Hidden on narrow windows. |
 | `since` | ISO time. The shell shows the time since then (`12m`, `1h 05m`) and keeps it ticking. |
 | `route` | Where clicking the text goes in this app. Empty opens the app. |
 | `actions` | Up to four buttons: `{label, command, icon?, primary?, prompt?}`. A click sends this app a `command` event with that id. `icon`: `pause`, `play`, `done`, `note` or `bolt`; an icon button shows only the icon (label in its tooltip), except `pause`, which also shows its label. `primary` is the filled one. `prompt: {title, placeholder?, maxLength?, skip?}` asks for one line first, under the top bar, and sends it as `text`; with `skip` (the default) Esc or Skip still sends the command without text. |

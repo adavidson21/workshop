@@ -5,6 +5,7 @@
    - the button stays locked until the agent's wait has passed (10 seconds), and the agent checks that too;
    - only from Workshop on this computer (or `workshop reset` in a terminal).
    When it ends, the agent tells every Workshop window to reload; this page then shows what happened. */
+import { OLD_FOLDERS, formerIds } from '../../../shared/app-folders.js';
 
 const PENDING = 'workshop.resetPending';
 const MB = 1024 * 1024;
@@ -25,7 +26,8 @@ export const secondsLeft = (waitMs, since, now = Date.now()) => Math.max(0, Math
 /** This browser's saved view settings for the reset apps: localStorage keys named after an app's id or folder. */
 export function viewKeys(keys, apps) {
   const prefixes = new Set();
-  for (const a of apps || []) { prefixes.add(`${a.id}.`); if (a.folder) prefixes.add(`${a.folder}.`); }
+  // Its id, its folder, and the ids and folders it had before the rename (shared/app-folders.js).
+  for (const a of apps || []) for (const n of [a.id, a.folder, ...formerIds(a.id), ...(OLD_FOLDERS[a.id] || [])]) if (n) prefixes.add(`${n}.`);
   return keys.filter(k => k !== 'workshop.agent' && [...prefixes].some(p => k.startsWith(p)));
 }
 
@@ -49,7 +51,7 @@ function clearViews(apps) {
     for (let i = 0; i < localStorage.length; i++) keys.push(localStorage.key(i));
     for (const k of viewKeys(keys, apps)) localStorage.removeItem(k);
   } catch (e) { /* storage blocked */ }
-  if (apps.some(a => a.id === 'slate') && typeof indexedDB !== 'undefined') { try { indexedDB.deleteDatabase('slate-cache'); } catch (e) { /* none */ } }
+  if (apps.some(a => a.id === 'builds') && typeof indexedDB !== 'undefined') { try { indexedDB.deleteDatabase('builds-cache'); } catch (e) { /* none */ } }
 }
 
 function reloadAll() {

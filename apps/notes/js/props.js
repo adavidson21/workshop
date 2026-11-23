@@ -1,4 +1,4 @@
-/* Folio: a note's properties (its frontmatter) as fields, and the edits the Properties panel makes to them.
+/* Notes: a note's properties (its frontmatter) as fields, and the edits the Properties panel makes to them.
 
    Pure: no DOM. Only the frontmatter block changes; the rest of the file stays byte for byte. Values are read
    and written as plain YAML: `key: value`, `key: [a, b]` or a `- item` list under `key:`. Lists (tags, aliases,
@@ -8,7 +8,7 @@ const FRONT = /^(﻿?)---[ \t]*\r?\n([\s\S]*?\r?\n)?---[ \t]*(\r?\n|$)/;
 const KEY = /^[A-Za-z][\w-]*$/;
 /** Keys written as lists even when the value is one item. */
 export const LIST_KEYS = ['tags', 'aliases'];
-/** Keys Folio owns elsewhere: shown, not edited here (product review fields; templates have their own bar). */
+/** Keys Notes owns elsewhere: shown, not edited here (product review fields; templates have their own bar). */
 export const READ_ONLY = ['reviewed', 'tandem-changed'];
 export const HIDDEN = ['template', 'description'];
 

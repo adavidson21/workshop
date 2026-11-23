@@ -4,7 +4,7 @@
    commands, theme, data, files and connectors. No ad hoc postMessage, no direct fetch to the agent.
 
      import { connect } from '../../shared/workshop-sdk.js';
-     const ws = await connect({ app: 'prioritizer' });
+     const ws = await connect({ app: 'tasks' });
 
    connect() picks the backend once, when the page loads (docs/run-modes.md):
      1. Served by the agent (origin is 127.0.0.1:<port> or localhost:<port> and GET /api/health
@@ -20,7 +20,7 @@
 import * as People from './people.js';
 import * as Teams from './teams.js';
 import * as AppSettings from './app-settings.js';
-import { APP_FOLDERS } from './app-folders.js';
+import { APP_FOLDERS, OLD_FOLDERS, RENAMED_IDS, currentId, currentSchema, renameSaved } from './app-folders.js';
 import { cleanAreas, partOn as areaPartOn } from './areas.js';
 
 const SDK_VERSION = 1;
@@ -226,7 +226,7 @@ function isCollectionText(app, path, text) {
   if (!path.endsWith('.json')) return false;
   let v;
   try { v = JSON.parse(String(text).replace(/^﻿/, '')); } catch (e) { return false; }
-  return Boolean(v) && typeof v === 'object' && !Array.isArray(v) && v.schema === `${app}.${path.slice(0, -5)}`;
+  return Boolean(v) && typeof v === 'object' && !Array.isArray(v) && currentSchema(v.schema) === `${app}.${path.slice(0, -5)}`;
 }
 function checkFileContent(app, path, content) {
   if (typeof content !== 'string') throw bad('File content is text.');
@@ -308,8 +308,9 @@ function storedEnvelope(env, rev, updatedAt) {
 
 /* ---------- IndexedDB (docs/run-modes.md, Browser backend) ----------
    Database "workshop": object stores data (envelopes, plus the _moved mark), files, trash, and handles (the
-   folder handle, key "folder"). Version 2 added files, trash and handles; data from version 1 is kept. */
-const IDB_NAME = 'workshop', IDB_VERSION = 2;
+   folder handle, key "folder"). Version 2 added files, trash and handles; data from version 1 is kept. Version 3
+   moved what was saved under an app's old id to its id now (shared/app-folders.js). */
+const IDB_NAME = 'workshop', IDB_VERSION = 3;
 const IDB_STORES = ['data', 'files', 'trash', 'handles'];
 let idbPromise = null;
 function openIdb() {
@@ -317,7 +318,11 @@ function openIdb() {
   idbPromise = new Promise((resolve, reject) => {
     if (typeof indexedDB === 'undefined') return reject(new WorkshopError('unavailable', 'This browser has no storage for Workshop.'));
     const req = indexedDB.open(IDB_NAME, IDB_VERSION);
-    req.onupgradeneeded = () => { const d = req.result; for (const s of IDB_STORES) if (!d.objectStoreNames.contains(s)) d.createObjectStore(s); };
+    req.onupgradeneeded = (ev) => {
+      const d = req.result;
+      for (const s of IDB_STORES) if (!d.objectStoreNames.contains(s)) d.createObjectStore(s);
+      if (ev.oldVersion > 0 && ev.oldVersion < 3) renameIdbIds(req.transaction);
+    };
     req.onsuccess = () => {
       const d = req.result;
       // Another tab opened a newer version: let it upgrade, and open again on the next call.
@@ -328,6 +333,26 @@ function openIdb() {
     req.onblocked = () => { /* another tab holds version 1 open; it closes on versionchange */ };
   });
   return idbPromise;
+}
+/* Version 3: keys "<old id>/<name>" become "<id now>/<name>", and saved collections read as they are now
+   (renameSaved). In the upgrade's own transaction, so it is all or nothing. Visiting a moved key again is harmless. */
+function renameIdbIds(t) {
+  for (const name of ['data', 'files', 'trash']) {
+    const st = t.objectStore(name);
+    st.openCursor().onsuccess = (e) => {
+      const c = e.target.result;
+      if (!c) return;
+      const k = String(c.key), slash = k.indexOf('/');
+      if (slash > 0) {
+        const app = k.slice(0, slash), now = currentId(app);
+        let v = c.value;
+        if (name === 'data') v = renameSaved(k.slice(slash + 1), v);
+        if (name === 'trash' && v && typeof v === 'object' && currentId(v.app) !== v.app) v = Object.assign({}, v, { app: currentId(v.app) });
+        if (now !== app) { st.put(v, now + k.slice(slash)); c.delete(); } else if (v !== c.value) c.update(v);
+      }
+      c.continue();
+    };
+  }
 }
 const reqAsPromise = (r) => new Promise((resolve, reject) => { r.onsuccess = () => resolve(r.result); r.onerror = () => reject(r.error); });
 // Run fn(stores) in one transaction over the named stores. Only IndexedDB requests may be awaited inside fn.
@@ -619,16 +644,18 @@ function makeFolderStore(ctx, root, opts = {}) {
 
   /* -- paths -- */
   const relKey = (segs) => segs.join('/');
-  /* App folders use the names people see (shared/app-folders.js, docs/data-format.md App folders). segs are in
-     app ids; the disk uses folder names. The agent renames old folders on start; a folder only the browser uses
-     keeps its old name (the app id) while that is the only one there, so nothing goes missing. */
-  const folders = opts.folders || APP_FOLDERS;
+  /* App folders are app ids (shared/app-folders.js, docs/data-format.md App folders). The agent renames an app's
+     old folder on start; a folder only the browser uses keeps its old name while that is the only one there, so
+     nothing goes missing. */
+  const oldFolders = opts.oldFolders || OLD_FOLDERS;
   const folderFor = new Map();
   async function hasDir(name) { try { await root.getDirectoryHandle(name, { create: false }); return true; } catch (e) { if (isMissing(e)) return false; throw e; } }
   async function folderOf(app) {
-    if (!Object.prototype.hasOwnProperty.call(folders, app)) return app;
+    const olds = Object.prototype.hasOwnProperty.call(oldFolders, app) ? oldFolders[app] : null;
+    if (!olds) return app;
     if (folderFor.has(app)) return folderFor.get(app);
-    const f = (!(await hasDir(folders[app])) && await hasDir(app)) ? app : folders[app];
+    let f = app;
+    if (!(await hasDir(app))) for (const o of olds) if (await hasDir(o)) { f = o; break; }
     folderFor.set(app, f);
     return f;
   }
@@ -641,8 +668,8 @@ function makeFolderStore(ctx, root, opts = {}) {
   }
   /* The app whose folder this top-level folder is, or null (a leftover under an app's old name, say). */
   async function appOfDir(name) {
-    for (const [id, f] of Object.entries(folders)) if (f === name) return (await folderOf(id)) === name ? id : null;
-    if (Object.prototype.hasOwnProperty.call(folders, name)) return (await folderOf(name)) === name ? name : null;
+    for (const [id, olds] of Object.entries(oldFolders)) if (olds.includes(name)) return (await folderOf(id)) === name ? id : null;
+    if (Object.prototype.hasOwnProperty.call(oldFolders, name)) return (await folderOf(name)) === name ? name : null;
     return name;
   }
   async function dirAt(segs, create) { let d = root; for (const s of await diskSegs(segs)) d = await d.getDirectoryHandle(s, { create }); return d; }
@@ -719,6 +746,7 @@ function makeFolderStore(ctx, root, opts = {}) {
     const text = await f.text();
     let env;
     try { env = JSON.parse(text.replace(/^﻿/, '')); } catch (e) { env = undefined; }
+    env = renameSaved(collection, env); // saved under an app's old id (shared/app-folders.js)
     const ok = env && typeof env === 'object' && !Array.isArray(env) && env.schema === `${app}.${collection}`
       && Number.isInteger(env.version) && env.version >= 1 && Number.isInteger(env.rev) && env.rev >= 0 && Array.isArray(env.items);
     if (!ok) throw new WorkshopError('internal', `${app}/${collection}.json cannot be read as a collection. Workshop left it untouched; fix or move the file.`, 500);
@@ -1336,9 +1364,35 @@ const MOVE_SUMMARY_KEY = 'workshop.folder.moved';
 function reloadAll() { try { (window.top || window).location.reload(); } catch (e) { location.reload(); } }
 
 /* ---------- connect ---------- */
+/* This browser's own settings saved under an app's old id or name ("slate.view", "docket.theme") move to its id now
+   ("builds.view", "tasks.theme"), once per browser, for every page of the site (they share localStorage). A key
+   already there is kept. The two keys of the board from before Workshop stay: Tasks still reads them by name. */
+const OLD_KEY_PREFIXES = Object.freeze({ prioritizer: 'tasks', docket: 'tasks', slate: 'builds', loom: 'builds', dispatch: 'builds.runs',
+  receipts: 'people', rapport: 'people', runway: 'roadmaps', folio: 'notes' });
+const KEEP_KEYS = new Set(['prioritizer.v1', 'prioritizer.v1.moved']);
+export function renameStorageKeys(store) {
+  try {
+    if (!store || store.getItem('workshop.keys.renamed')) return 0;
+    const keys = [];
+    for (let i = 0; i < store.length; i++) keys.push(store.key(i));
+    let moved = 0;
+    for (const k of keys) {
+      const dot = k ? k.indexOf('.') : -1;
+      if (dot < 1 || KEEP_KEYS.has(k) || !Object.prototype.hasOwnProperty.call(OLD_KEY_PREFIXES, k.slice(0, dot))) continue;
+      const to = OLD_KEY_PREFIXES[k.slice(0, dot)] + k.slice(dot);
+      if (store.getItem(to) === null) store.setItem(to, store.getItem(k));
+      store.removeItem(k);
+      moved++;
+    }
+    store.setItem('workshop.keys.renamed', '1');
+    return moved;
+  } catch (e) { return 0; } // a private window: nothing to move
+}
+
 export async function connect(options) {
-  const app = options && options.app;
+  const app = currentId(options && options.app);
   if (!app) throw new WorkshopError('bad_request', 'connect({app}) needs an app id.');
+  if (typeof localStorage !== 'undefined') renameStorageKeys(localStorage);
 
   const picked = await pickBackend();
   const ctx = {
@@ -1460,9 +1514,10 @@ export async function connect(options) {
 
     /* data */
     data: {
-      async get(collection, opts) { const owner = (opts && opts.app) || app; contractRead(app, owner, collection); return data.get(owner, collection); },
+      // Saved under an app's old id (shared/app-folders.js) reads as it is now.
+      async get(collection, opts) { const owner = currentId((opts && opts.app) || app); contractRead(app, owner, collection); return renameSaved(collection, await data.get(owner, collection)); },
       async put(collection, envelope) { return data.put(app, collection, envelope); },
-      subscribe(collection, handler, opts) { const owner = (opts && opts.app) || app; contractRead(app, owner, collection); return data.subscribe(owner, collection, handler); },
+      subscribe(collection, handler, opts) { const owner = currentId((opts && opts.app) || app); contractRead(app, owner, collection); return data.subscribe(owner, collection, handler); },
       merge(local, remote) { return mergeEnvelopes(local, remote); },
       stamp(before, after) { return stampEnvelope(before, after); },
       async export(opts) {
@@ -1865,9 +1920,9 @@ function filesApi(app, files, privateSpec) {
 
 /* Private files (docs/app-manifest.md, privateFiles). A manifest's privateFiles is true (every file of the app)
    or a list of top folders. PRIVATE_FILES_FALLBACK is used only when the owner's manifest is unknown, for example
-   on an app's own site with no registry (docs/app-manifest.md, Rules): Rapport's 1:1 notes and goals stay private
+   on an app's own site with no registry (docs/app-manifest.md, Rules): People's 1:1 notes and goals stay private
    even there. */
-const PRIVATE_FILES_FALLBACK = { receipts: true };
+const PRIVATE_FILES_FALLBACK = { people: true };
 /* Another app's data an app may read (docs/shared.md, B5): any app's `summary` and `handoffs`, and Settings' shared
    collections. Everything else an app keeps is its own, so ws.data.get and ws.data.subscribe refuse it. */
 export const CONTRACT_READS = Object.freeze({
@@ -1879,10 +1934,10 @@ export const CONTRACT_READS = Object.freeze({
 export const PAIR_READS = Object.freeze({
   chat: Object.freeze({ 'writing-feedback': Object.freeze(['settings']) })
 });
-// A retired app's data that the app which took it over copies in (never writes): Rapport (receipts) copies the
-// old 1:1s app's people and settings on first open (Rapport 2.0.0 folded 1:1s in).
+// A retired app's data that the app which took it over copies in (never writes): People (receipts) copies the
+// old 1:1s app's people and settings on first open (People 2.0.0 folded 1:1s in).
 export const RETIRED_READS = Object.freeze({
-  oneonones: Object.freeze({ by: 'receipts', collections: Object.freeze(['people', 'settings']) })
+  oneonones: Object.freeze({ by: 'people', collections: Object.freeze(['people', 'settings']) })
 });
 export function canReadData(self, owner, collection) {
   if (owner === self) return true;

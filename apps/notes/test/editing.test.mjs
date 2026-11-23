@@ -1,4 +1,4 @@
-// Folio: editing helpers. The slash menu (js/slash.js), Format table (js/tables.js), and bold, italic, code
+// Notes: editing helpers. The slash menu (js/slash.js), Format table (js/tables.js), and bold, italic, code
 // and link (js/edits.js toggleWrap, makeLink).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

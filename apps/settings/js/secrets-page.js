@@ -1,4 +1,4 @@
-/* Settings, Manager, Tokens & sign-ins (docs/security.md, Secrets): every token, key and password Workshop uses,
+/* Settings, Connections & approvals, Tokens & sign-ins (docs/security.md, Secrets): every token, key and password Workshop uses,
    in one place, so nobody needs a terminal for them.
    - For your connections: each field that needs one, with Add, Replace and Remove.
    - MCP sign-ins: servers that sign in (OAuth), with Sign in and Sign out.

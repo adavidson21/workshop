@@ -4,5 +4,5 @@
   "name": "Notes",
   "version": "0.1.0",
   "icon": "icon.svg",
-  "entry": "../prioritizer/index.html"
+  "entry": "../tasks/index.html"
 }

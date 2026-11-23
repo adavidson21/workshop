@@ -5,7 +5,7 @@
   python tests/focus-e2e.py
 
 Browser mode on a static site (127.0.0.1:8812). Monday 9 November 2026, focus 09:00 to 12:00, lunch 12:00 to
-13:00 (the defaults). Other apps' summaries (a held card, Docket's blocking PRs and Day plan) are written here
+13:00 (the defaults). Other apps' summaries (a held card, Tasks' blocking PRs and Day plan) are written here
 through the SDK as those apps would, so the shell, Home, Dispatch and Settings can be checked on their own.
 CHROME_PATH runs a Chrome already on the machine instead of Playwright's Chromium.
 Exit 1 if any check fails.
@@ -90,15 +90,15 @@ def main():
         pg.on('pageerror', lambda e: errors.append(f'{str(e)[:300]} | {pg.url}'))
         pg.clock.install(time=at(8, 29))
         pg.clock.pause_at(at(8, 30))
-        # Docket is switched off here, so the summary written below for it (blocking PRs, Day plan) stays as written.
+        # Tasks is switched off here, so the summary written below for it (blocking PRs, Day plan) stays as written.
         pg.goto(HUB + '/manifest.webmanifest')
-        pg.evaluate("() => localStorage.setItem('workshop.appsOff', JSON.stringify(['prioritizer']))")
+        pg.evaluate("() => localStorage.setItem('workshop.appsOff', JSON.stringify(['tasks']))")
 
-        # 1. Focus hours off (nothing saved): the shell, Home and Docket look as before.
+        # 1. Focus hours off (nothing saved): the shell, Home and Tasks look as before.
         pg.goto(HUB + '/'); pg.clock.run_for(2500); pg.wait_for_timeout(800)
         check('focus hours off: no focus item in the top bar', pg.evaluate("() => { const el = document.getElementById('wfocus'); return !!el && el.hidden; }"))
         hf = frame_of(pg, 'home')
-        summary_card(pg, 'runway', {'id': 'needs', 'kind': 'list', 'title': 'Needs you in Runway', 'rows': [{'id': 'x1', 'title': 'Decide on the export format'}]})
+        summary_card(pg, 'roadmaps', {'id': 'needs', 'kind': 'list', 'title': 'Needs you in Roadmaps', 'rows': [{'id': 'x1', 'title': 'Decide on the export format'}]})
         pg.evaluate("location.hash = '#/settings'"); pg.wait_for_timeout(300); pg.evaluate("location.hash = '#/home'"); pg.clock.run_for(61000); pg.wait_for_timeout(800)
         hf = frame_of(pg, 'home')
         check('focus hours off: Home shows every Needs you row, nothing held', 'Decide on the export format' in hf.inner_text('#app') and 'held until' not in hf.inner_text('#app'))
@@ -122,8 +122,8 @@ def main():
         check('settings.focus v1 is saved with the hours', env and env['schema'] == 'settings.focus' and env['meta']['enabled'] is True and env['meta']['week']['mon'] == [{'start': '09:00', 'end': '12:00'}])
 
         # 3. Inside focus: badges hidden, Needs you shows only the blocking PR, held count, Peek.
-        summary_card(pg, 'prioritizer', {'id': 'blocking', 'kind': 'list', 'title': 'PRs blocked on you', 'rows': [{'id': 't1', 'title': 'PR 41: Fix the login timeout', 'route': 'task/t1', 'flag': 'urgent'}]})
-        pg.evaluate("location.hash = '#/slate'"); pg.clock.run_for(2000); pg.wait_for_timeout(1200)
+        summary_card(pg, 'tasks', {'id': 'blocking', 'kind': 'list', 'title': 'PRs blocked on you', 'rows': [{'id': 't1', 'title': 'PR 41: Fix the login timeout', 'route': 'task/t1', 'flag': 'urgent'}]})
+        pg.evaluate("location.hash = '#/builds'"); pg.clock.run_for(2000); pg.wait_for_timeout(1200)
         pg.evaluate("location.hash = '#/settings'"); pg.wait_for_timeout(600)
         stf = frame_of(pg, 'settings')   # Settings sets no badge of its own, so this one stays as sent
         stf.evaluate("() => window.parent.postMessage({workshop: 1, kind: 'request', id: 'b1', method: 'badge', params: {count: 3}}, location.origin)"); pg.wait_for_timeout(300)
@@ -198,15 +198,15 @@ def main():
         check('the badge is back after the span', pg.inner_text('.app-btn[data-app=settings] .badge') == '3')
         pg2.close()
 
-        # 5. Loom's Inbox shows the digest card after focus ends.
-        pg.evaluate("location.hash = '#/slate/inbox'"); pg.wait_for_timeout(500)
+        # 5. Builds' Inbox shows the digest card after focus ends.
+        pg.evaluate("location.hash = '#/builds/inbox'"); pg.wait_for_timeout(500)
         af = None
         for _ in range(20):   # Dispatch paints on timers, and the clock only moves when told to
             pg.clock.run_for(1000); pg.wait_for_timeout(300)
-            af = frame_of(pg, 'slate')
+            af = frame_of(pg, 'builds')
             if af and af.locator('.digest').count(): break
         if os.environ.get('DEBUG'): print('DISPATCH:', af.inner_text('#app')[:300])
-        check('Loom shows While you were focused after the span', af.locator('.digest').count() == 1 and '2 captures picked up' in af.inner_text('.digest'))
+        check('Builds shows While you were focused after the span', af.locator('.digest').count() == 1 and '2 captures picked up' in af.inner_text('.digest'))
         if af.locator('.digest [data-digest-dismiss]').count(): af.click('.digest [data-digest-dismiss]'); pg.clock.run_for(2000); pg.wait_for_timeout(500)
         check('Dismiss hides the digest', af.locator('.digest').count() == 0)
 
@@ -249,8 +249,8 @@ def main():
         pg.keyboard.press('Control+k'); pg.keyboard.type('Push lunch'); pg.keyboard.press('Enter'); pg.wait_for_timeout(800)
         pg.clock.pause_at(datetime.datetime(2026, 11, 11, 12, 10)); pg.clock.run_for(61000); pg.wait_for_timeout(600)
         check('Push lunch from the palette moves lunch to 12:30', 'Lunch' not in bar_text(pg))
-        # Docket's Day plan blocks override Settings.
-        summary_card(pg, 'prioritizer', {'id': 'day', 'kind': 'day', 'days': {'2026-11-11': {'blocks': [], 'wrapAt': None, 'wrapped': False, 'offered': 0, 'focus': [{'start': '14:00', 'end': '15:30'}], 'lunch': {'start': '13:15', 'end': '13:45'}}}})
+        # Tasks' Day plan blocks override Settings.
+        summary_card(pg, 'tasks', {'id': 'day', 'kind': 'day', 'days': {'2026-11-11': {'blocks': [], 'wrapAt': None, 'wrapped': False, 'offered': 0, 'focus': [{'start': '14:00', 'end': '15:30'}], 'lunch': {'start': '13:15', 'end': '13:45'}}}})
         pg.clock.pause_at(datetime.datetime(2026, 11, 11, 14, 10)); pg.clock.run_for(61000); pg.wait_for_timeout(800)
         check('Day plan focus overrides Settings hours', wait_bar(pg, 'Focus until 3:30'))
         pg.clock.pause_at(datetime.datetime(2026, 11, 11, 15, 40)); pg.clock.run_for(61000); pg.wait_for_timeout(800)
@@ -269,29 +269,29 @@ def main():
         check('History shows each day, a late lunch clearing the missed one', hist.count('Late') == 2 and 'Missed' not in hist and 'Nov 10' in hist)
         check('History shows focus kept against planned', 'of 3h' in hist)
 
-        # 9. Docket inside the shell, during focus: the Inbox folds to a rail and a capture still counts there.
+        # 9. Tasks inside the shell, during focus: the Inbox folds to a rail and a capture still counts there.
         ctx2 = b.new_context(viewport={'width': 1360, 'height': 860})
         dp = ctx2.new_page(); dp.on('pageerror', lambda e: errors.append(f'{str(e)[:300]} | docket'))
         dp.clock.install(time=at(9, 59)); dp.clock.pause_at(at(10, 0))
         dp.goto(HUB + '/'); dp.clock.run_for(3000); dp.wait_for_timeout(800)
         dp.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const F = await import('/shared/focus.js');
           const ws = await connect({app: 'settings'}); await ws.data.put('focus', {schema: 'settings.focus', version: 1, rev: 0, items: [], deleted: {}, meta: F.defaults()});
-          // Docket 12.0.0 hides personal tasks inside Workshop by default; this check counts one, so turn them on.
-          const d = await connect({app: 'prioritizer'}); try { await d.appSettings.set({personalTasks: true}); } catch (e) {} }""")
-        dp.evaluate("location.hash = '#/prioritizer'")
+          // Tasks 12.0.0 hides personal tasks inside Workshop by default; this check counts one, so turn them on.
+          const d = await connect({app: 'tasks'}); try { await d.appSettings.set({personalTasks: true}); } catch (e) {} }""")
+        dp.evaluate("location.hash = '#/tasks'")
         for _ in range(15):
             dp.clock.run_for(1000); dp.wait_for_timeout(300)
-            df = frame_of(dp, 'prioritizer')
-            if df and df.evaluate("() => !!window.__prioritizer && !!document.querySelector('.today3')"): break
-        df = frame_of(dp, 'prioritizer')
+            df = frame_of(dp, 'tasks')
+            if df and df.evaluate("() => !!window.__tasks && !!document.querySelector('.today3')"): break
+        df = frame_of(dp, 'tasks')
         docket_focus = df.evaluate("() => fetch('js/focus-hours.js').then(r => r.ok)") if df else False
         if not docket_focus:
-            print('SKIP  Docket inside the shell: this Docket has no focus hours yet')
+            print('SKIP  Tasks inside the shell: this Tasks has no focus hours yet')
         else:
             dp.clock.run_for(61000); dp.wait_for_timeout(600)
-            check('Docket inside the shell folds its Inbox to a rail during focus', df.locator('.col-inbox.rail.held').count() == 1)
+            check('Tasks inside the shell folds its Inbox to a rail during focus', df.locator('.col-inbox.rail.held').count() == 1)
             before = df.evaluate("() => document.querySelector('.col-inbox.rail .num').textContent.trim()")
-            df.evaluate("""() => { const P = window.__prioritizer, s = P.state; s.tasks.push({id: 'cap1', title: 'Captured in focus', notes: '', color: 'sage', rank: 99, value: null, effort: null, due: null, urgentFlag: false,
+            df.evaluate("""() => { const P = window.__tasks, s = P.state; s.tasks.push({id: 'cap1', title: 'Captured in focus', notes: '', color: 'sage', rank: 99, value: null, effort: null, due: null, urgentFlag: false,
               listId: s.lists[0].id, done: false, doneAt: null, wontDo: false, createdAt: '2026-11-09', ageFrom: '2026-11-09', waiting: false, nudgeOn: null, focusOn: null, who: []}); P.commit(); }""")
             dp.clock.run_for(1500); dp.wait_for_timeout(400)
             after = df.evaluate("() => document.querySelector('.col-inbox.rail .num').textContent.trim()")

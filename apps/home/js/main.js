@@ -88,7 +88,7 @@ function badge() {
 // Changes from other windows. Nothing to read while Home waits for the folder; Allow reloads everything.
 const later = (fn, ms) => { let t = null; return () => { if (home.waiting) return; clearTimeout(t); t = setTimeout(fn, ms); }; };
 const boardLater = later(home.loadBoard, 150);
-ws.data.subscribe('summary', boardLater, { app: 'prioritizer' });
+ws.data.subscribe('summary', boardLater, { app: 'tasks' });
 ws.people.subscribe(() => setupLater());
 const OC = 'opencode';
 const agentsLater = later(home.loadAgents, 200);
@@ -100,7 +100,7 @@ ws.apps.list().then(list => { for (const a of list) if (a.id !== 'home') ws.data
 // The checklist follows the apps and connectors it checks, so steps tick themselves off.
 const setupLater = later(setup.load, 300);
 ws.data.subscribe('setup', setupLater);
-ws.data.subscribe('summary', setupLater, { app: 'receipts' });
+ws.data.subscribe('summary', setupLater, { app: 'people' });
 if (ws.backend === 'agent') for (const id of ['ado', 'opencode']) ws.connectors.onStatus(id, setupLater);
 ws.on('online', p => { if (p && p.online) setup.load(); });
 
@@ -137,7 +137,7 @@ app.addEventListener('click', e => {
 const statusDlg = document.getElementById('status');
 function openStatus() {
   const text = statusDraft(v.week || [], { name: v.profile.name, now: new Date() });
-  statusDlg.innerHTML = `<div class="sd"><h2>Weekly status</h2><p class="soft">From what you finished in Docket, decided in Slate and shipped with Loom this week. Edit it, then copy it into your update.</p>
+  statusDlg.innerHTML = `<div class="sd"><h2>Weekly status</h2><p class="soft">From what you finished in Tasks, decided in Builds and shipped with Builds this week. Edit it, then copy it into your update.</p>
     <label class="sr" for="statusText">Weekly status</label><textarea id="statusText" spellcheck="true">${esc(text)}</textarea>
     <div class="sd-acts"><button class="btn" data-status-close>Close</button><button class="btn primary" data-status-copy>Copy</button></div></div>`;
   statusDlg.showModal();

@@ -34,7 +34,7 @@ const REPO = path.resolve(HERE, '..', '..');
 export const HELPER_CANDIDATES = [
   path.join(path.dirname(REPO), 'docket', 'ado-helper', 'ado_helper.py'),
   path.join(REPO, '.remote', 'prioritizer', 'ado-helper', 'ado_helper.py'),
-  path.join(REPO, 'apps', 'prioritizer', 'ado-helper', 'ado_helper.py')
+  path.join(REPO, 'apps', 'tasks', 'ado-helper', 'ado_helper.py')
 ];
 const DEFAULT_HELPER = HELPER_CANDIDATES.find(f => fs.existsSync(f)) || HELPER_CANDIDATES[0];
 const HARNESS = path.join(HERE, 'lib', 'helper_harness.py');
@@ -209,7 +209,7 @@ async function runCompare(o, io) {
   return allOk ? 0 : 1;
 }
 
-// ---------------------------------------------------------------- write check (Runway's Publish)
+// ---------------------------------------------------------------- write check (Roadmaps' Publish)
 
 async function runWriteCheck(o, io) {
   const { config: cfg, problems } = normalize(connectorConfig(o, io.env));

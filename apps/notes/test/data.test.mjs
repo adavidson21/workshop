@@ -97,10 +97,10 @@ test('trash moves the note to the trash and out of the index', async () => {
   assert.equal(fs.exists('notes/old.md'), false);
 });
 
-test('other apps: Notes never lists or reads their files (Rapport 1:1 notes stay in Rapport)', async () => {
+test('other apps: Notes never lists or reads their files (People 1:1 notes stay in People)', async () => {
   const fs = new FakeFolder();
   fs.write('notes/a.md', '# A');
-  fs.write('receipts/oneonones/notes/person-one.md', '# 1:1 with a report');
+  fs.write('people/oneonones/notes/person-one.md', '# 1:1 with a report');
   const ws = wsOver(fs);
   const asked = [];
   const { list, read } = ws.files;
@@ -113,7 +113,7 @@ test('other apps: Notes never lists or reads their files (Rapport 1:1 notes stay
   assert.equal('loadOthers' in n || 'readOther' in n || 'others' in n, false);
 });
 
-test('an outside-change read that finishes after a newer save does not put the older text back (Folio 4.11.1)', async () => {
+test('an outside-change read that finishes after a newer save does not put the older text back (Notes 4.11.1)', async () => {
   const fs = new FakeFolder();
   const ws = wsOver(fs);
   const seen = [];

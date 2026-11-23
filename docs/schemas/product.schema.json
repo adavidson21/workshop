@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "A product: one item of settings.products v1",
-  "description": "A product you work on, owned by Settings. Folio makes its note, products/<slug>.md. See products.md.",
+  "description": "A product you work on, owned by Settings. Notes makes its note, products/<slug>.md. See products.md.",
   "type": "object",
   "required": [
     "id",

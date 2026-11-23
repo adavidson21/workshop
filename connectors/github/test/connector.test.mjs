@@ -80,7 +80,7 @@ test('setup actions work before a token is set', () => withAgent(async ({ agent 
   assert.ok(Array.isArray(u.json.result.notes));
 }, { env: {} }));
 
-test('writes need confirm: true; with it, Loom-style calls (repo as connection) update and create', () => withAgent(async ({ agent, srv }) => {
+test('writes need confirm: true; with it, Builds-style calls (repo as connection) update and create', () => withAgent(async ({ agent, srv }) => {
   const no = await post(agent, '/api/connectors/github/workitem.update', { args: { id: 2, connection: 'acme/web', changes: { title: 'x' } } });
   assert.equal(no.status, 400);
   assert.equal(no.json.code, 'confirm_required');

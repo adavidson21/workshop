@@ -1,4 +1,4 @@
-/* Folio: the slash menu. Type / at the start of a line (outside code) for a list of blocks to insert:
+/* Notes: the slash menu. Type / at the start of a line (outside code) for a list of blocks to insert:
    headings, lists, a table, a code block, callouts, each kind of diagram, a divider and today's date.
    Pure, so Node tests run it; main.js shows the list in the [[ picker and puts the choice in. */
 import { KITS, fences, kitBlock } from './diagram-kits.js';

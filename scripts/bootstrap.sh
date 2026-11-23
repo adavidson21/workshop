@@ -23,7 +23,7 @@
 #   WORKSHOP_TAG=v1.2.0   install that Workshop release instead of the newest code (a git checkout moves to it)
 #   TANDEM_TAG=v1.8.1     the same for Tandem (eng-agents)
 #   WORKSHOP_WORK_MODE=1  work mode: Workshop runs from a pinned copy on this computer and no site can pair. Also
-#                         downloads the apps in Workshop's apps/remote.json (Docket, Runway, Rapport, Folio; each with a
+#                         downloads the apps in Workshop's apps/remote.json (Tasks, Roadmaps, People, Notes; each with a
 #                         <FOLDER>_TAG such as DOCKET_TAG or NOTES_TAG, else their newest code) and builds
 #                         the copy (workshop pin).
 # Dispatch (opencode, git, PowerShell 7, Tandem and an AI model) is only for coding agents:
@@ -198,7 +198,7 @@ EOF_APPS
     elif [ -x "$ROOT/opencode/bin/opencode" ]; then
       OPENCODE="$ROOT/opencode/bin/opencode"; say "npm could not update opencode, so the copy you have stays."
     else
-      printf '  \033[33mnpm could not install opencode. Workshop, Docket, Receipts and Home do not need it; Dispatch does.\033[0m\n'
+      printf '  \033[33mnpm could not install opencode. Workshop, Tasks, People and Home do not need it; Dispatch does.\033[0m\n'
       printf '  \033[33mCarrying on without it. Install it from https://opencode.ai, or run this installer again later.\033[0m\n'
     fi
   fi

@@ -33,7 +33,7 @@ function loadWorker(source) {
 
 test('sw.js leaves agent API requests alone', () => {
   const handles = loadWorker(fs.readFileSync(path.join(REPO, 'sw.js'), 'utf8'));
-  for (const p of ['/api/health', '/api/data/prioritizer/tasks', '/api/events', '/api/connectors/ado/sync', '/api/', '/pair?origin=https%3A%2F%2Fx.example']) {
+  for (const p of ['/api/health', '/api/data/tasks/tasks', '/api/events', '/api/connectors/ado/sync', '/api/', '/pair?origin=https%3A%2F%2Fx.example']) {
     assert.equal(handles(`${ORIGIN}${p}`), false, `${p} must not be handled by the service worker`);
   }
 });

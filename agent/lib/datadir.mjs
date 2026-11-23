@@ -7,6 +7,7 @@ import path from 'node:path';
 import { writeJsonAtomic } from './fsutil.mjs';
 import { ConfigError } from './home.mjs';
 import { NAME, SEG, FILE_NAME, MAX_SEGMENTS, DataRoot, isInside, lexists, realpath, floorMs } from './datapath.mjs';
+import { RENAMED_IDS, renameSaved } from '../../shared/app-folders.js';
 
 /** The default data folder: Workshop in the user's home folder (~/Workshop, %USERPROFILE%\Workshop). */
 export const defaultDataDir = () => path.join(os.homedir(), 'Workshop');
@@ -80,33 +81,41 @@ function hasAnyFile(dir) {
 }
 
 /**
- * Give each app folder the name people see (shared/app-folders.js): <dataDir>/prioritizer becomes
- * <dataDir>/docket, and so on. A rename, so nothing is copied and nothing can be half done. When the new folder
- * already holds files the old one is left as it is (doctor and Settings point at it) and the new one is used; an
- * empty new folder is removed first. When a rename fails (another program has a file open, say) the old folder
- * keeps being used until the next start, so no data goes missing. Each rename is logged and recorded in
- * .backups/<yyyy-mm-dd>/renamed.json.
- * @returns {{folders: Record<string, string>, renamed: string[], left: string[]}} the folders to use (pass to
- *   DataRoot), "old -> new" for each rename, and the old names left in place
+ * Move each app's data from a folder it used before (shared/app-folders.js OLD_FOLDERS: <dataDir>/docket and
+ * <dataDir>/prioritizer become <dataDir>/tasks, and so on), and its trash with it. A rename, so nothing is copied
+ * and nothing can be half done. When the app's folder already holds files the old one is left as it is (doctor
+ * and Settings point at it) and the app's folder is used; an empty one is removed first. When a rename fails
+ * (another program has a file open, say) the old folder keeps being used until the next start, so no data goes
+ * missing. Each rename is logged and recorded in .backups/<yyyy-mm-dd>/renamed.json.
+ * @returns {{folders: Record<string, string>, renamed: string[], left: string[]}} the folders to use where they
+ *   are not the app id (pass to DataRoot), "old -> new" for each rename, and the old names left in place
  */
-export function renameAppFolders(dir, folders, log, now = new Date()) {
+export function moveOldFolders(dir, oldFolders, log, now = new Date()) {
   const use = {}, renamed = [], left = [];
-  for (const [id, folder] of Object.entries(folders)) {
-    use[id] = folder;
-    const from = path.join(dir, id), to = path.join(dir, folder);
-    const st = fs.lstatSync(from, { throwIfNoEntry: false });
-    if (!st || !st.isDirectory()) continue;
-    if (fs.lstatSync(to, { throwIfNoEntry: false })) {
-      if (hasAnyFile(to)) { left.push(id); log.warn(`Both ${id}/ and ${folder}/ are in the data folder. Workshop uses ${folder}/; ${id}/ is left as it is. Move anything you need from it, then delete it.`); continue; }
-      try { fs.rmSync(to, { recursive: true }); } catch (e) { use[id] = id; log.warn(`Could not rename ${id}/ to ${folder}/ (${e.code || e.message}). ${id}/ is used until the next start.`); continue; }
+  const isDir = p => { const st = fs.lstatSync(p, { throwIfNoEntry: false }); return !!st && st.isDirectory(); };
+  for (const [id, olds] of Object.entries(oldFolders || {})) {
+    for (const old of olds) {
+      const from = path.join(dir, old), to = path.join(dir, id);
+      if (!isDir(from)) continue;
+      if (fs.lstatSync(to, { throwIfNoEntry: false })) {
+        if (hasAnyFile(to)) { left.push(old); log.warn(`Both ${old}/ and ${id}/ are in the data folder. Workshop uses ${id}/; ${old}/ is left as it is. Move anything you need from it, then delete it.`); continue; }
+        try { fs.rmSync(to, { recursive: true }); } catch (e) { use[id] = old; log.warn(`Could not rename ${old}/ to ${id}/ (${e.code || e.message}). ${old}/ is used until the next start.`); break; }
+      }
+      try {
+        fs.renameSync(from, to);
+        renamed.push(`${old} -> ${id}`);
+        log.info(`Renamed the ${old}/ folder to ${id}/ in the data folder.`);
+      } catch (e) {
+        use[id] = old;
+        log.warn(`Could not rename ${old}/ to ${id}/ in the data folder (${e.code || e.message}). ${old}/ is used until the next start.`);
+        break;
+      }
     }
-    try {
-      fs.renameSync(from, to);
-      renamed.push(`${id} -> ${folder}`);
-      log.info(`Renamed the ${id}/ folder to ${folder}/ in the data folder.`);
-    } catch (e) {
-      use[id] = id;
-      log.warn(`Could not rename ${id}/ to ${folder}/ in the data folder (${e.code || e.message}). ${id}/ is used until the next start.`);
+    // Its trash: .trash/<old> becomes .trash/<id> while there is none under the new name yet.
+    for (const old of olds) {
+      const from = path.join(dir, '.trash', old), to = path.join(dir, '.trash', id);
+      if (!isDir(from) || fs.lstatSync(to, { throwIfNoEntry: false })) continue;
+      try { fs.renameSync(from, to); renamed.push(`.trash/${old} -> .trash/${id}`); } catch { /* restored from its old place by hand */ }
     }
   }
   if (renamed.length) {
@@ -119,6 +128,60 @@ export function renameAppFolders(dir, folders, log, now = new Date()) {
     } catch { /* the log has it */ }
   }
   return { folders: use, renamed, left };
+}
+
+const OLD_ID_TEXT = new RegExp(`"(${Object.keys(RENAMED_IDS).join('|')})[".]`);
+/**
+ * Rewrite saved collections that still name an app by its old id (shared/app-folders.js renameSaved): the
+ * schema of everything in a renamed app's folder, and app ids in every app's handoffs and Settings'
+ * app-settings. A file is only read when its text holds an old id, and only written when something changed; the
+ * file as it was is kept in .backups/<yyyy-mm-dd>/renamed-ids/ first. Cheap, so it runs on every start.
+ * @param {(id: string) => string} folderOf the folder an app id uses (DataRoot.folderOf)
+ * @returns {string[]} the files rewritten, relative to the data folder
+ */
+export function renameSavedIds(dir, folderOf, log, now = new Date()) {
+  const done = [];
+  const files = [];
+  const walk = (abs, rel, depth) => {
+    let entries; try { entries = fs.readdirSync(abs, { withFileTypes: true }); } catch { return; }
+    for (const e of entries) {
+      if (e.name.startsWith('.')) continue;
+      if (e.isDirectory() && depth < MAX_SEGMENTS) walk(path.join(abs, e.name), `${rel}/${e.name}`, depth + 1);
+      else if (e.isFile() && e.name.endsWith('.json')) files.push({ abs: path.join(abs, e.name), app: rel.split('/')[0], collection: `${rel.split('/').slice(1).concat(e.name.slice(0, -5)).join('/')}` });
+    }
+  };
+  let top = []; try { top = fs.readdirSync(dir, { withFileTypes: true }).filter(e => e.isDirectory() && !e.name.startsWith('.')).map(e => e.name); } catch { return done; }
+  const renamedApps = new Set(Object.values(RENAMED_IDS));
+  for (const id of new Set([...top, ...renamedApps])) {
+    const folder = folderOf(id);
+    if (!top.includes(folder)) continue;
+    if (renamedApps.has(id)) walk(path.join(dir, folder), id, 1);
+    else for (const name of ['handoffs.json', 'app-settings.json']) {
+      const abs = path.join(dir, folder, name);
+      if (fs.existsSync(abs)) files.push({ abs, app: id, collection: name.slice(0, -5) });
+    }
+  }
+  for (const f of files) {
+    let text;
+    try { if (fs.statSync(f.abs).size > 16 * 1024 * 1024) continue; text = fs.readFileSync(f.abs, 'utf8'); } catch { continue; }
+    if (!OLD_ID_TEXT.test(text)) continue;
+    let env; try { env = JSON.parse(text.replace(/^\uFEFF/, '')); } catch { continue; }
+    if (!env || typeof env !== 'object' || typeof env.schema !== 'string') continue;
+    const next = renameSaved(f.collection, env);
+    if (next === env || next.schema !== `${f.app}.${f.collection}`) continue;
+    const rel = path.relative(dir, f.abs);
+    try {
+      const keep = path.join(dir, '.backups', now.toISOString().slice(0, 10), 'renamed-ids', rel);
+      fs.mkdirSync(path.dirname(keep), { recursive: true, mode: 0o700 });
+      if (!fs.existsSync(keep)) fs.writeFileSync(keep, text, { mode: 0o600 });
+      const tmp = `${f.abs}.${process.pid}.tmp`;
+      fs.writeFileSync(tmp, `${JSON.stringify(next, null, 2)}\n`, { mode: 0o600 });
+      fs.renameSync(tmp, f.abs);
+      done.push(rel.split(path.sep).join('/'));
+    } catch (e) { log.warn(`Could not update ${rel} to the new app names (${e.code || e.message}). It is read as it is.`); }
+  }
+  if (done.length) log.info(`Updated ${done.length} saved file${done.length === 1 ? '' : 's'} to the new app names. The old copies are in .backups/${now.toISOString().slice(0, 10)}/renamed-ids/.`);
+  return done;
 }
 
 /** Working files a connector hands to another program are removed this many days after they last changed. */

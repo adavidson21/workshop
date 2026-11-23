@@ -11,9 +11,9 @@ export const humanBytes = n => (n < 1024 ? `${n} B` : n < MB ? `${Math.round(n /
 /* Old copies this browser may still hold for this site, once the data lives in a folder (agent or Chrome's).
    Each: {id, what, has(): Promise<boolean>, clear(): Promise<void>}. */
 const LOCAL_KEYS = [
-  { id: 'ls-prioritizer', what: 'Docket board from before Workshop (saved in this browser)', key: 'prioritizer.v1', only: () => !!localStorage.getItem('prioritizer.v1.moved') },
-  { id: 'ls-loom-reports', what: "Loom's team reports profile, saved in this browser", key: 'slate.reports' },
-  { id: 'ls-runway-reports', what: "Runway's old team reports profile, saved in this browser", key: 'runway.reports' },
+  { id: 'ls-tasks', what: 'Tasks board from before Workshop (saved in this browser)', key: 'prioritizer.v1', only: () => !!localStorage.getItem('prioritizer.v1.moved') },
+  { id: 'ls-builds-reports', what: "Builds' team reports profile, saved in this browser", key: 'builds.reports' },
+  { id: 'ls-roadmaps-reports', what: "Roadmaps' old team reports profile, saved in this browser", key: 'roadmaps.reports' },
 ];
 function idbHas(name) {
   if (!indexedDB.databases) return Promise.resolve(false);
@@ -45,7 +45,7 @@ export function browserLeftovers({ inFolder }) {
     for (const k of LOCAL_KEYS) {
       out.push({ id: k.id, what: k.what, has: async () => { try { return localStorage.getItem(k.key) !== null && (!k.only || k.only()); } catch (e) { return false; } }, clear: async () => { localStorage.removeItem(k.key); } });
     }
-    out.push({ id: 'idb-slate-cache', what: "Loom's last team report pull, cached in this browser", has: () => idbHas('slate-cache'), clear: () => idbDelete('slate-cache') });
+    out.push({ id: 'idb-builds-cache', what: "Builds' last team report pull, cached in this browser", has: () => idbHas('builds-cache'), clear: () => idbDelete('builds-cache') });
   }
   out.push({
     id: 'idb-moved', what: "This browser's copy of your data from before you chose a folder",
@@ -79,7 +79,7 @@ export function destinations({ backend, storage, conns = [], st = null, provider
   if (conns.some(c => c.id === 'github')) rows.push({ id: 'github', on: on('github'), label: 'GitHub', text: on('github') ? 'Reads pull requests from GitHub. Writes only when you click a button that says so.' : 'Off. Nothing is read or sent.' });
   if (conns.some(c => c.id === 'opencode')) {
     const who = providers && providers.length ? providers.join(', ') : 'the AI provider opencode is set up with';
-    rows.push({ id: 'opencode', on: on('opencode'), label: 'AI through opencode', text: on('opencode') ? `What you send in Chat and Loom, and what agents read for it, goes to ${who}. opencode also keeps its own session history on this computer.` : 'Off. Nothing is sent to an AI provider.' });
+    rows.push({ id: 'opencode', on: on('opencode'), label: 'AI through opencode', text: on('opencode') ? `What you send in Chat and Builds, and what agents read for it, goes to ${who}. opencode also keeps its own session history on this computer.` : 'Off. Nothing is sent to an AI provider.' });
   }
   return rows;
 }

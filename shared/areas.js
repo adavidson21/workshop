@@ -13,16 +13,16 @@
 export const AREAS = Object.freeze({
   management: Object.freeze({
     label: 'Management',
-    about: 'Managing people: Rapport, People & teams, and Docket\'s People place.',
-    apps: Object.freeze(['receipts']),
+    about: 'Managing people: People, Directory, and Tasks\' People place.',
+    apps: Object.freeze(['people']),
     pages: Object.freeze(['people', 'team']),
     connectors: Object.freeze([]),
-    parts: Object.freeze({ prioritizer: Object.freeze(['people']) })
+    parts: Object.freeze({ tasks: Object.freeze(['people']) })
   }),
   work: Object.freeze({
     label: 'Work',
-    about: 'Team delivery: Runway and Azure DevOps.',
-    apps: Object.freeze(['runway']),
+    about: 'Team delivery: Roadmaps and Azure DevOps.',
+    apps: Object.freeze(['roadmaps']),
     pages: Object.freeze(['connections', 'work-items', 'pull-requests']),
     connectors: Object.freeze(['ado']),
     parts: Object.freeze({})
@@ -48,7 +48,7 @@ export function appsOffBy(areasOff) {
   return out;
 }
 
-/** Whether an app should show a part (like Docket's People place), given the areas off. */
+/** Whether an app should show a part (like Tasks' Handed off view), given the areas off. */
 export function partOn(app, part, areasOff) {
   for (const a of AREA_IDS) if (areasOff.has(a) && (AREAS[a].parts[app] || []).includes(part)) return false;
   return true;

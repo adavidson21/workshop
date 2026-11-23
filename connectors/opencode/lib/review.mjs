@@ -1,7 +1,7 @@
 // opencode connector: wires the code review API (code-review.mjs) to this connector's model, autopilot and events.
 //
 // 1.28.0 (Workshop project doc claude/publish-review-v1-plan.md, eng-agents Core 4.15.0): the code review is the
-// depth behind Publish. Approve publishes (Loom calls `publish` after the verdict). Send back (request changes)
+// depth behind Publish. Approve publishes (Builds calls `publish` after the verdict). Send back (request changes)
 // saves the comments and starts autopilot with `/revise <id> auto` first, so the comments become fix tasks and the
 // build goes through the usual fix round, review, UI check and PR text before it comes back to Publish as the next
 // revision. The ad hoc revision runner (revision-runner.mjs, one prompt on the branch with none of Tandem's checks)
@@ -46,7 +46,7 @@ function readJson(file) {
   }
 }
 
-// `review`: a review's status or revision changed. Small, like every connector event; Loom calls review.session for the data.
+// `review`: a review's status or revision changed. Small, like every connector event; Builds calls review.session for the data.
 function emitReview(folder, repo) {
   if (!codeReview) return;
   try {

@@ -1,4 +1,4 @@
-// Folio: spike briefs read by lens (apps/notes/js/lenses.js) and their Download HTML (export.js pageHtml).
+// Notes: spike briefs read by lens (apps/notes/js/lenses.js) and their Download HTML (export.js pageHtml).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { briefLenses, lensMarkdown } from '../js/lenses.js';

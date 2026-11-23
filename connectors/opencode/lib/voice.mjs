@@ -11,10 +11,10 @@ import { needAi } from "./chat.mjs";
 import { oc, sessions, upsertSession } from "./opencode-state.mjs";
 
 export const MAX_PROMPT = 60000; // characters
-// "cleanup" (1.35.0): Folio's Clean up this document (apps/notes/js/cleanup.js builds the prompt). Same read-only
+// "cleanup" (1.35.0): Notes' Clean up this document (apps/notes/js/cleanup.js builds the prompt). Same read-only
 // agent, same one prompt in, one reply out: no tools to call, which a small local model handles best.
 export const KINDS = ["style", "rewrite", "learn", "cleanup"];
-const TITLES = { style: "Writing: build style guide", rewrite: "Writing: rewrite a draft", learn: "Writing: learn from an edit", cleanup: "Folio: clean up a document" };
+const TITLES = { style: "Writing: build style guide", rewrite: "Writing: rewrite a draft", learn: "Writing: learn from an edit", cleanup: "Notes: clean up a document" };
 const MAX_REPLY = 40000;
 export const READ_ONLY_AGENT = "plan";
 export const NO_TOOLS = { "*": false };

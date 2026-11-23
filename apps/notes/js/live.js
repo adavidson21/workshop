@@ -1,4 +1,4 @@
-/* Folio: the Live view. The editor shows the note formatted as you write, like Obsidian's Live Preview: Markdown
+/* Notes: the Live view. The editor shows the note formatted as you write, like Obsidian's Live Preview: Markdown
    marks are hidden except on the lines the cursor is on, and diagrams, tables, callouts and embeds are drawn in
    place. The file is the same Markdown; nothing here changes the text except ticking a task's box.
 
@@ -17,7 +17,7 @@
      link(href) -> {attr: value} | null attributes for a link's text (data-note, data-missing-path, data-app, ...)
      wiki(inner) -> {attr: value} | null the same for [[inner]]
      image(src) -> Promise<url | null>   a local image's address; remote images are never loaded
-     taskLocked(line) -> boolean         a task Docket owns (sent there), shown but not tickable */
+     taskLocked(line) -> boolean         a task Tasks owns (sent there), shown but not tickable */
 
 import { normTag } from './markdown.js';
 import { embedSpec } from './embeds.js';
@@ -47,7 +47,7 @@ export function liveExtension(cm, ctx) {
       const dom = document.createElement('div');
       dom.className = 'lp-block md';
       try { dom.append(ctx.block(this.text, this.line)); }
-      catch (e) { console.error('Folio: a block could not be drawn in Live.', e); dom.textContent = this.text; dom.classList.add('lp-raw'); }
+      catch (e) { console.error('Notes: a block could not be drawn in Live.', e); dom.textContent = this.text; dom.classList.add('lp-raw'); }
       dom.addEventListener('mousedown', (e) => {
         if (e.button !== 0 || e.target.closest('a, button, input, summary, select, textarea, .lp-act')) return;
         e.preventDefault();
@@ -92,7 +92,7 @@ export function liveExtension(cm, ctx) {
       box.checked = this.checked;
       box.dataset.task = String(this.line);
       box.setAttribute('aria-label', this.checked ? 'Done' : 'To do');
-      if (this.locked) { box.disabled = true; box.title = 'Sent to Docket, which owns whether it is done'; }
+      if (this.locked) { box.disabled = true; box.title = 'Sent to Tasks, which owns whether it is done'; }
       return box;
     }
     ignoreEvent() { return true; }

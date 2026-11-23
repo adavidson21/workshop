@@ -261,22 +261,22 @@ test('a quiet update keeps only the Tandem warnings and pin lines that need you'
   ].join('\r\n');
   assert.deepEqual(tandemNotices(ps), ['Core changed 2 file(s) that you override. Your copy keeps winning, so it will not get these changes:']);
   assert.deepEqual(tandemNotices(''), []);
-  const pinOut = 'Built the pinned copy in C:\\ui: Workshop v1; 900 files.\nWork mode is on: open pages offer a reload.\nRunway is not included: it is not downloaded. Download it with: workshop apps on runway\nTurned off, so not included: focus';
-  assert.deepEqual(pinNotices(pinOut), ['Runway is not included: it is not downloaded. Download it with: workshop apps on runway']);
+  const pinOut = 'Built the pinned copy in C:\\ui: Workshop v1; 900 files.\nWork mode is on: open pages offer a reload.\nRoadmaps is not included: it is not downloaded. Download it with: workshop apps on roadmaps\nTurned off, so not included: focus';
+  assert.deepEqual(pinNotices(pinOut), ['Roadmaps is not included: it is not downloaded. Download it with: workshop apps on roadmaps']);
 });
 
 test('updateSummary: one line for what moves, one each for current, missing and no release', () => {
   const items = [
-    { kind: 'move', name: 'Workshop', to: 'v1.6.0' }, { kind: 'current', name: 'Docket', to: 'v4.0.0' },
-    { kind: 'current', name: 'Runway', to: 'v1.0.0' }, { kind: 'missing', name: 'Folio' },
-    { kind: 'move', name: 'Tandem', to: 'core-v2.19.1' }, { kind: 'ahead', name: 'Rapport' },
+    { kind: 'move', name: 'Workshop', to: 'v1.6.0' }, { kind: 'current', name: 'Tasks', to: 'v4.0.0' },
+    { kind: 'current', name: 'Roadmaps', to: 'v1.0.0' }, { kind: 'missing', name: 'Notes' },
+    { kind: 'move', name: 'Tandem', to: 'core-v2.19.1' }, { kind: 'ahead', name: 'People' },
   ];
-  const lines = ['', '', '', '', '', 'Rapport: 3.1.0 here is newer than the newest release (v3.0.0).'];
+  const lines = ['', '', '', '', '', 'People: 3.1.0 here is newer than the newest release (v3.0.0).'];
   assert.deepEqual(updateSummary(items, lines), [
     'Updating Workshop to v1.6.0, Tandem to core-v2.19.1.',
-    '  Rapport: 3.1.0 here is newer than the newest release (v3.0.0).',
-    '  Already current: Docket, Runway.',
-    '  Not downloaded, skipped: Folio (add one with "workshop apps on <app>").',
+    '  People: 3.1.0 here is newer than the newest release (v3.0.0).',
+    '  Already current: Tasks, Roadmaps.',
+    '  Not downloaded, skipped: Notes (add one with "workshop apps on <app>").',
   ]);
   assert.deepEqual(updateSummary([{ kind: 'current', name: 'Workshop', to: 'v1' }], ['']), ['Everything is already at its newest release.']);
 });

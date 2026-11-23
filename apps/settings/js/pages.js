@@ -6,7 +6,7 @@
    (ADO connections, repo mapping, PR sources, opencode hidden folders) are listed in CUSTOM and left out of the generated forms. A new
    connector needs no change here: its fields land on its own page, `c-<id>`, in the Connections group.
 
-   A nav item can hold several pages as tabs (NAV): People & teams, Knowledge, Writing voice, Azure DevOps. Page ids stay
+   A nav item can hold several pages as tabs (NAV): Directory, Knowledge, Writing voice, Azure DevOps. Page ids stay
    the same either way, so routes, `x-workshop-page` values and saved page ids never change. */
 
 export const GROUPS = [
@@ -50,10 +50,10 @@ export const ORDER = Object.keys(PAGES);
 
 // Nav items that hold more than one page, as tabs. dot: the connector whose state shows on the nav item.
 export const NAV = {
-  'people-teams': { label: 'People & teams' },
+  'people-teams': { label: 'Directory' },
   knowledge: { label: 'Knowledge' },
   writing: { label: 'Writing voice' },
-  manager: { label: 'Manager' },
+  manager: { label: 'Connections & approvals' },
   ado: { label: 'Azure DevOps', dot: 'ado' }
 };
 // A page that is a nav item of its own and shows a connector's state.

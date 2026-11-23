@@ -1,7 +1,7 @@
 /* Workshop: the capture box shared by Home's quick capture and the Dispatch hub (docs/hub.md).
 
    createCaptureStore keeps the app's own `handoffs` collection (docs/handoffs.md): every capture the person
-   accepts becomes an item there with accepted: true, and Docket, Rapport and Notes add it when they next load.
+   accepts becomes an item there with accepted: true, and Tasks, People and Notes add it when they next load.
    No DOM, so Node tests drive it with a fake `ws` (shared/test/capture-box.test.mjs).
 
    mountCapture draws the input, a live preview of what Enter will do, and a Recent list with Undo. Keys:

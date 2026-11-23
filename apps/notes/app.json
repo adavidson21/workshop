@@ -1,9 +1,9 @@
 {
   "manifestVersion": 1,
   "id": "notes",
-  "name": "Folio",
+  "name": "Notes",
   "version": "4.13.0",
-  "description": "Folio, your notebook: notes, daily notes, product notes, templates, Tandem's documents and a Links directory, as Markdown files. Diagrams, backlinks, tags, search and images.",
+  "description": "Notes, your notebook: notes, daily notes, product notes, templates, Tandem's documents and a Links directory, as Markdown files. Diagrams, backlinks, tags, search and images.",
   "icon": "icon.svg",
   "entry": "index.html",
   "order": 45,
@@ -81,8 +81,8 @@
   ],
   "handoffs": {
     "sends": [
-      "prioritizer",
-      "receipts"
+      "tasks",
+      "people"
     ]
   },
   "data": [
@@ -132,12 +132,11 @@
     "notes.css",
     "vendor/codemirror.js",
     "vendor/mermaid.min.js",
-    "js/loom.js"
+    "js/builds-items.js"
   ],
   "aliases": [
     "folio",
-    "notebook",
-    "notes"
+    "notebook"
   ],
   "connectors": [
     {

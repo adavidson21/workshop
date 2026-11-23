@@ -1,5 +1,5 @@
 /* Settings, Google Play: release sets and what happened to them (connectors/play/README.md, Release sets).
-   Tandem (or `workshop play release`) proposes; a set waits in Approvals (Settings, Manager), the one place you
+   Tandem (or `workshop play release`) proposes; a set waits in Approvals (Settings, Connections & approvals), the one place you
    approve or reject changes, and runs only after you approve it there. Styled like Cloudflare's change sets. */
 
 const when = iso => { const d = iso ? new Date(iso) : null; return d && !isNaN(d) ? d.toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : ''; };

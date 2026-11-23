@@ -18,7 +18,7 @@ test('product notes: what to make, what is only recorded, what is skipped', () =
   const done = { ...PORTAL, id: 'p_done', name: 'Done', slug: 'done' };
   const r = toMake([PORTAL, tools, old, gone, done], made, new Set(['products/tools.md']));
   assert.deepEqual(r.map(t => [t.product.id, t.path, t.make]), [['p_sample-portal', 'products/sample-portal.md', true], ['p_tools', 'products/tools.md', false]]);
-  assert.ok(r.every(t => isProductPath(t.path)), 'every path is one Folio lists as a product note');
+  assert.ok(r.every(t => isProductPath(t.path)), 'every path is one Notes lists as a product note');
 });
 
 test('product notes: the starter template filled in from Settings, owners left to People', () => {

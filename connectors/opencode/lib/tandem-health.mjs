@@ -1,4 +1,4 @@
-// Tandem health: the numbers behind Loom's Health > Tandem section (docs/tandem-health.md).
+// Tandem health: the numbers behind Builds' Health > Tandem section (docs/tandem-health.md).
 //
 // pipelineStats and reviewFindings read .work the way eng-agents' Get-PipelineStats.ps1 and
 // Get-ReviewFindings.ps1 do (Tandem Core 2.26.0). The two must agree: tests/contract/tandem-health.test.mjs

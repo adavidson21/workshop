@@ -28,7 +28,8 @@ test('search matches every word, in the ask, steps, app or other ways', () => {
   const goal = GUIDE.find(s => s.id === 'goal-to-stories');
   assert.ok(matches(goal, ''));
   assert.ok(matches(goal, 'user stories'));
-  assert.ok(matches(goal, 'loom epic'));
+  assert.ok(matches(goal, 'builds epic'));
+  assert.ok(matches(goal, 'loom epic'), 'an old app name still finds it');
   assert.ok(!matches(goal, 'stories nightly'));
   assert.ok(matches(GUIDE.find(s => s.id === 'simple-ask'), 'quick change'));
 });

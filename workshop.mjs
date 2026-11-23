@@ -57,7 +57,7 @@ import { Store } from './agent/lib/store.mjs';
 import { Files } from './agent/lib/files.mjs';
 import { Tracker } from './agent/lib/watch.mjs';
 import { KeyedLock } from './agent/lib/fsutil.mjs';
-import { APP_FOLDERS } from './shared/app-folders.js';
+import { OLD_FOLDERS } from './shared/app-folders.js';
 import { enableStartAtLogin, disableStartAtLogin, startAtLoginStatus } from './agent/lib/login.mjs';
 import { main as adoDoctorMain } from './connectors/ado/doctor.mjs';
 import { checkProviders } from './connectors/opencode/lib/providers.mjs';
@@ -351,7 +351,7 @@ export async function doctorReport({ repo = REPO, home = resolveHome(), env = pr
   }
   // Tandem: what opencode loads should match the checkout next to Workshop (a stale install has missing agents).
   if (oc || findEngAgents(repo, { userHome })) {
-    const t = tandemDoctor({ repo, userHome, dispatchOn: !readOff(home).has('slate') });
+    const t = tandemDoctor({ repo, userHome, dispatchOn: !readOff(home).has('builds') });
     if (t) { lines.push(...t.line.split('\n')); if (t.bad) bad = true; }
   }
 
@@ -574,12 +574,16 @@ async function runUninstall(io) {
  * without the agent. Reads the data folder, writes only "<dataDir>/Readable copy/" (and README.md when missing).
  * Safe while the agent runs: it only reads collections.
  */
-export async function exportReadable({ home, dataDir, repo = REPO, schemas = loadSchemas(), folders = APP_FOLDERS }) {
+export async function exportReadable({ home, dataDir, repo = REPO, schemas = loadSchemas(), oldFolders = OLD_FOLDERS }) {
   if (!fs.statSync(dataDir, { throwIfNoEntry: false })?.isDirectory()) throw new Error(`There is no data folder at ${dataDir} yet.`);
-  // An old folder name the agent has not renamed yet is read where it is (it renames on its next start).
-  const use = Object.fromEntries(Object.entries(folders).map(([id, f]) =>
-    [id, !fs.existsSync(path.join(dataDir, f)) && fs.existsSync(path.join(dataDir, id)) ? id : f]));
-  const root = new DataRoot(dataDir, use);
+  // An old folder the agent has not renamed yet is read where it is (it renames on its next start).
+  const use = {};
+  for (const [id, olds] of Object.entries(oldFolders)) {
+    if (fs.existsSync(path.join(dataDir, id))) continue;
+    const old = olds.find(f => fs.existsSync(path.join(dataDir, f)));
+    if (old) use[id] = old;
+  }
+  const root = new DataRoot(dataDir, use, oldFolders);
   const quiet = { info() {}, warn() {}, error() {} };
   const deps = { root, schemas, log: quiet, lock: new KeyedLock(), tracker: new Tracker() };
   const registry = buildRegistry(path.join(repo, 'apps'), schemas);
@@ -638,7 +642,7 @@ export function manualUpdateLines(repo = REPO) {
 // it can never be read as a git option or a path.
 const TAG = /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/;
 // The apps that had repos of their own until Nov 2026 (repo restructure). Their options are gone or ignored.
-const LEGACY_APPS = ['docket', 'runway', 'receipts', 'notes'];
+const LEGACY_APPS = ['docket', 'runway', 'receipts', 'notes']; // the old repos' flag names, kept as typed
 const LEGACY_APP_TAG = new RegExp(`^--(${LEGACY_APPS.join('|')})-tag$`);
 export const validTag = t => typeof t === 'string' && TAG.test(t) && !t.includes('..');
 
@@ -720,7 +724,7 @@ export function checkoutTag(dir, tag, out) {
 }
 
 /** The release tags in a checkout, newest version first. */
-// Release tags are v<version> (Workshop, Docket) or core-v<version> (eng-agents). Other tags, such as a
+// Release tags are v<version> (Workshop, Tasks) or core-v<version> (eng-agents). Other tags, such as a
 // docket-android build tag, are never offered as releases.
 export const isReleaseTag = t => validTag(t) && /^(core-)?v\d+(\.\d+)*$/.test(t);
 export function listTags(dir, max = 5) {
@@ -738,7 +742,7 @@ export function latestTag(dir, prefix = 'v', out = () => {}) {
 
 /**
  * The version a checkout holds at a ref: agent/version.mjs for Workshop, app.json for an app from another repo
- * (Docket, Runway, Rapport, Folio). Null when it cannot be read, so callers treat an unknown version as "not older".
+ * (Tasks, Roadmaps, People, Notes). Null when it cannot be read, so callers treat an unknown version as "not older".
  */
 export function versionAt(dir, ref = 'HEAD') {
   const v = git(dir, ['show', `${ref}:agent/version.mjs`]);
@@ -953,7 +957,7 @@ function tandemDoctorInner({ repo, userHome, dispatchOn }) {
 }
 
 /** Read pin's options. There are none any more: every app is part of Workshop. The old --<app> <folder> and
- *  --no-<app> options (Docket, Runway, Rapport, Folio) are accepted and ignored, so an older script still works.
+ *  --no-<app> options (Tasks, Roadmaps, People, Notes) are accepted and ignored, so an older script still works.
  *  Returns {opts} or {error}. */
 export function parsePinArgs(rest) {
   for (let i = 0; i < rest.length; i++) {
@@ -1029,7 +1033,7 @@ async function runUpdate(rest, io) {
   const quiet = opts.latest && !opts.verbose;
   const say = quiet ? l => { if (!/ is now at /.test(l)) io.out(l); } : io.out;
   if (opts.latest) {
-    const plan = planLatest(REPO, io.out, { dispatchOn: !readOff(home).has('slate'), engAgentsDir: opts.engAgents });
+    const plan = planLatest(REPO, io.out, { dispatchOn: !readOff(home).has('builds'), engAgentsDir: opts.engAgents });
     for (const l of quiet ? updateSummary(plan.items, plan.lines) : plan.lines) io.out(l);
     Object.assign(opts, plan.tags);
   }
@@ -1193,8 +1197,8 @@ async function runApps(rest, io) {
   if (action === 'on' && areaOf) { io.out(`${app.name} is off with ${areaOf.label}. Turn it on first: workshop apps on ${areaOf.id}`); return 1; }
   const off = readOff(home);
   if (action === 'on') {
-    // Loom's agents (Tandem) come from their own repo too: downloaded next to Workshop and installed in opencode.
-    if (app.id === 'slate' && workMode && !ensureTandem({ out: io.out })) return 1;
+    // Builds' agents (Tandem) come from their own repo too: downloaded next to Workshop and installed in opencode.
+    if (app.id === 'builds' && workMode && !ensureTandem({ out: io.out })) return 1;
     off.delete(app.id);
   } else off.add(app.id);
   await writeOff(home, off);

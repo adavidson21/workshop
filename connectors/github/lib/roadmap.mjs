@@ -1,11 +1,11 @@
-// "roadmap": Epics, Features and (with `stories`) their stories, in the ADO connector's roadmap shape, so Runway
+// "roadmap": Epics, Features and (with `stories`) their stories, in the ADO connector's roadmap shape, so Roadmaps
 // reads GitHub the same way. Read only.
 //
 // How GitHub maps (the GitHub tracker plan): an Epic is a milestone (a major version), a Feature is an issue with
 // the `feature` label, and a story is one of a Feature's sub-issues. A Feature with no date of its own takes its
 // milestone's due date as its target date.
 //
-// Ids are numbers, like ADO's, so Runway keys GitHub items the same way: an issue's or a milestone's GitHub
+// Ids are numbers, like ADO's, so Roadmaps keys GitHub items the same way: an issue's or a milestone's GitHub
 // database id (the two never share a number in practice: issue ids are in the billions, milestone ids far
 // lower). `ref` is the readable name ("acme/web#12", "acme/web milestone v2.1") for the item's description.
 import { SettingsError, clientFor } from './client.mjs';
@@ -17,7 +17,7 @@ const MAX_CHILDREN = 5000;
 const day = v => (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}/.test(v) ? v.slice(0, 10) : null);
 const labelNames = i => (i.labels || []).map(l => (typeof l === 'string' ? l : l?.name)).filter(Boolean);
 
-/** {repo, area} from "owner/repo" or "owner/repo/<area>" (slashes or Runway's backslashes). Null when not one. */
+/** {repo, area} from "owner/repo" or "owner/repo/<area>" (slashes or Roadmaps' backslashes). Null when not one. */
 export function parseArea(a) {
   const parts = String(a || '').trim().replace(/^github:\s*/i, '').split(/[\\/]+/).filter(Boolean);
   if (parts.length < 2) return null;
@@ -131,7 +131,7 @@ function areaOfLabels(repo, labels, prefix) {
   return repo;
 }
 
-/** "iterations.list": GitHub has no sprints outside Projects, so none (Runway places items by their own dates). */
+/** "iterations.list": GitHub has no sprints outside Projects, so none (Roadmaps places items by their own dates). */
 export function iterationsList(d, args = {}) {
   const conn = pickConnection(d.cfg, args.connection);
   return { connection: conn.name, project: String(args.project || ''), iterations: [] };

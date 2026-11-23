@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Knowledge base V1 (docs/knowledge.md) in headless Chromium: Settings, Knowledge on the hosted site, paired with the
-real agent and the opencode connector on a synthetic workspace and a fake opencode (tests/fixtures/dispatch-fixture.mjs).
+real agent and the opencode connector on a synthetic workspace and a fake opencode (tests/fixtures/runs-fixture.mjs).
 
   python tests/knowledge-e2e.py [--shots <folder>]
 
@@ -67,7 +67,7 @@ Also called: SG
 
 def main():
     serve(8813)
-    fx = subprocess.Popen(['node', os.path.join(ROOT, 'tests', 'fixtures', 'dispatch-fixture.mjs')], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+    fx = subprocess.Popen(['node', os.path.join(ROOT, 'tests', 'fixtures', 'runs-fixture.mjs')], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
     info = json.loads(fx.stdout.readline())
     workspace = info['workspace']
     tmp = tempfile.mkdtemp()
@@ -162,9 +162,9 @@ def main():
             vm = os.path.join(data, 'settings', 'voice.md')
             check('saving Writing writes settings/voice.md for Tandem', os.path.exists(vm) and 'Short sentences. Plain words.' in open(vm).read())
 
-            # Folio makes the team handbook once.
+            # Notes makes the team handbook once.
             pg.goto(HOSTED + '/#/notes'); pg.wait_for_timeout(3000)
-            check('Folio makes the team handbook', os.path.exists(os.path.join(data, 'folio', 'team', 'handbook.md')))
+            check('Notes makes the team handbook', os.path.exists(os.path.join(data, 'notes', 'team', 'handbook.md')))
             b.close()
     finally:
         proc.stdin.close(); proc.terminate(); fx.stdin.close(); fx.terminate()

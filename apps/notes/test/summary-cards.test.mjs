@@ -10,7 +10,7 @@ const schemas = SchemaSet.fromDir(join(dirname(fileURLToPath(import.meta.url)), 
 
 test('Notes publishes a count, recent notes and app mentions, with titles and paths only', () => {
   const ix = buildIndex([
-    { path: 'a.md', content: '# Alpha\n\nSecret text. [t](ws:prioritizer/task/t_1)', mtime: 3 },
+    { path: 'a.md', content: '# Alpha\n\nSecret text. [t](ws:tasks/task/t_1)', mtime: 3 },
     { path: 'b.md', content: '# Beta', mtime: 5 },
     { path: 'templates/meeting.md', content: '# {{title}}', mtime: 9 }
   ]);
@@ -18,7 +18,7 @@ test('Notes publishes a count, recent notes and app mentions, with titles and pa
   const by = Object.fromEntries(cards.map(c => [c.id, c]));
   assert.equal(by.notes.count, 2);
   assert.deepEqual(by.recent.rows.map(r => r.id), ['b.md', 'a.md']);
-  assert.deepEqual(by.mentions.rows, [{ id: 'prioritizer/task/t_1|a.md', title: 'Alpha', route: 'a.md', note: 'prioritizer/task/t_1' }]);
+  assert.deepEqual(by.mentions.rows, [{ id: 'tasks/task/t_1|a.md', title: 'Alpha', route: 'a.md', note: 'tasks/task/t_1' }]);
   assert.equal(JSON.stringify(cards).includes('Secret'), false);
   for (const c of cards) assert.deepEqual(schemas.validate('summary-card', { ...c, updatedAt: 1 }), [], c.id);
 });

@@ -1,8 +1,8 @@
 # App settings
 
-Simple settings an app declares in its manifest (switches, numbers, dates, a line of text, a short list of lines), shown under that app on Settings' **Apps** tab, and read by the app through the SDK. For choices a person makes once for the whole app (Docket's **Use sprints**, Rapport's review cycle), not for data the app edits all day, which stays in the app's own collections.
+Simple settings an app declares in its manifest (switches, numbers, dates, a line of text, a short list of lines), shown under that app on Settings' **Apps** tab, and read by the app through the SDK. For choices a person makes once for the whole app (Tasks' **Use sprints**, People's review cycle), not for data the app edits all day, which stays in the app's own collections.
 
-Version: the `settings.app-settings` collection is version 1. Bundle 2.7.0. Types other than `boolean` since Nov 17, 2026 (Rapport 5.0.0); a reader that knows only `boolean` ignores the other values.
+Version: the `settings.app-settings` collection is version 1. Bundle 2.7.0. Types other than `boolean` since Nov 17, 2026 (People 5.0.0); a reader that knows only `boolean` ignores the other values.
 
 ## Declaring them
 
@@ -27,11 +27,11 @@ In `app.json` ([app-manifest.md](app-manifest.md)), `settings` is a list of up t
 
 ## The collection
 
-Settings keeps one collection named `app-settings`, so its schema is `settings.app-settings`, stored at `<dataDir>/settings/app-settings.json` in the usual envelope ([data-format.md](data-format.md)). Each item is one app, with the app's id as its id. Schema: [schemas/app-setting.schema.json](schemas/app-setting.schema.json). Example: [examples/app-setting.prioritizer.json](examples/app-setting.prioritizer.json).
+Settings keeps one collection named `app-settings`, so its schema is `settings.app-settings`, stored at `<dataDir>/settings/app-settings.json` in the usual envelope ([data-format.md](data-format.md)). Each item is one app, with the app's id as its id. Schema: [schemas/app-setting.schema.json](schemas/app-setting.schema.json). Example: [examples/app-setting.tasks.json](examples/app-setting.tasks.json).
 
 ```json
-{"id": "prioritizer", "updatedAt": 1793736000000, "values": {"sprints": false}}
-{"id": "receipts", "updatedAt": 1793736000000, "values": {"cycleStart": "2026-07-01", "cycleEnd": "2026-12-31", "sections": ["Results", "Craft"], "staleDays": 30}}
+{"id": "tasks", "updatedAt": 1793736000000, "values": {"sprints": false}}
+{"id": "people", "updatedAt": 1793736000000, "values": {"cycleStart": "2026-07-01", "cycleEnd": "2026-12-31", "sections": ["Results", "Craft"], "staleDays": 30}}
 ```
 
 Only values someone changed are saved. `meta` is not used in version 1.

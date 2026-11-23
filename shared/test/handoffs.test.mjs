@@ -4,7 +4,7 @@ import { sendersFrom, useSenders } from '../handoffs.js';
 
 test('sendersFrom: manifests add to the built-in senders, never the receiver itself', () => {
   const apps = [
-    { id: 'home', name: 'Home', handoffs: { sends: ['notes', 'prioritizer'] } },
+    { id: 'home', name: 'Home', handoffs: { sends: ['notes', 'tasks'] } },
     { id: 'newapp', name: 'New app', handoffs: { sends: ['notes'] } },
     { id: 'notes', name: 'Notes', handoffs: { sends: ['notes'] } },
     { id: 'other', name: 'Other', handoffs: { sends: [] } }

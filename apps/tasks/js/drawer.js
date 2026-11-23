@@ -1,0 +1,276 @@
+import { adoIsOn } from '../../../shared/ado.js';
+// A work item or PR from Azure DevOps is not shown while ADO is off (shared/ado.js); GitHub's always are.
+const shownItem = it => !!it && (it.system === 'github' || adoIsOn());
+import { deleteTask, moveTask, quickSort, toggleDone, toggleFocus, wontDo } from './actions.js';
+import { PR_GONE, PR_TIER, goneText, itemRef } from './tracker.js';
+import { trackerName } from './tracker-status.js';
+import { EFFORTS, EQ, ICON, POINTS, PRI, PRI_ORDER, VALUE, VQ } from './constants.js';
+import { engDrawer, engOpen, engStart } from './eng.js';
+import { prAiAgain, prAiDrawer, prAiOpen } from './pr-ai.js';
+import { ageDays, eKey, fmtScore, impliedDue, isStale, score, vKey } from './model.js';
+import { app, drawer, main, render, sel, setSel } from './render.js';
+import { commit, findTask, inInbox, isWaiting, orderedLists, save, scopeOpen } from './state.js';
+import { D, getDirectory, mentionOf } from './directory-model.js';
+import { assign } from './directory.js';
+import { esc, fmtDay, fmtLong, isDate, todayStr } from './util.js';
+import { dayLabel } from './views.js';
+import { planFieldChange, planFieldClick, planFieldHtml, repeatFieldChange, repeatFieldClick, repeatFieldHtml, resetDrawerDate } from './day-view.js';
+import { focusDrawerClick, focusDrawerHtml } from './focus.js';
+import { FIRST_STEP_LEN, setFirstStep } from './first-step-model.js';
+import { activeProducts, productById } from './products-link.js';
+import { notesFor, shown, taskLink } from './notes-link.js';
+import { buildsFor, buildsLabel } from './builds-link.js';
+import { toast } from './overlays.js';
+import { embedded, ws } from './ws.js';
+import { canBuild, buildsOn, sendToTandem } from './tandem-build.js';
+import { copyHandoff, followDate, gotBackTask, nudgedTask, openAssign } from './delegate.js';
+import { reportRoute } from './route.js';
+
+// Product (products-link.js): offered when Settings has products, or the task already names one.
+function productFieldHtml(t){
+  const act = activeProducts(), cur = t.product ? productById(t.product) : null;
+  if (!act.length && !t.product) return '';
+  const list = cur && !act.includes(cur) ? [...act, cur] : act;
+  const opts = `<option value="">None</option>` + list.map(p => `<option value="${esc(p.id)}"${p.id === t.product ? ' selected' : ''}>${esc(p.name)}${p.archived ? ' (archived)' : ''}</option>`).join('')
+    + (t.product && !cur ? `<option value="${esc(t.product)}" selected>${esc(t.product.slice(2))} (not in Settings)</option>` : '');
+  return `<div class="dfld"><label for="dProduct">Product</label><select id="dProduct" data-f="product" data-fk="product">${opts}</select></div>`;
+}
+
+/* Tasks: Selection, keyboard navigation between rows, and the task details drawer. */
+/* ---------- selection + keyboard navigation ---------- */
+function visibleRows(){ return [...main.querySelectorAll('.row[data-id]')].filter(el => el.offsetParent !== null); }
+function markSel(){
+  main.querySelectorAll('.row.sel').forEach(el => el.classList.remove('sel'));
+  if (!sel) return;
+  const el = main.querySelector(`.row[data-id="${sel}"]`);
+  if (el) el.classList.add('sel');
+}
+function focusSel(){
+  const el = sel && main.querySelector(`.row[data-id="${sel}"]`);
+  if (el){ el.focus({preventScroll: true}); el.scrollIntoView({block: 'nearest'}); }
+}
+function moveSel(d){
+  const rows = visibleRows(); if (!rows.length) return;
+  let i = rows.findIndex(el => el.dataset.id === sel);
+  i = i < 0 ? (d > 0 ? 0 : rows.length - 1) : Math.max(0, Math.min(rows.length - 1, i + d));
+  setSel(rows[i].dataset.id);
+  markSel(); focusSel();
+  if (drawerId) openDrawer(sel, false);
+}
+
+/* ---------- drawer (task details) ---------- */
+let drawerId = null, drawerReturn = null, textTimer = null;
+const drawerOverlay = () => drawerId && innerWidth < 1100;
+function openDrawer(id, focusTitle = true){
+  if (isWaiting() || !findTask(id)) return;
+  if (!drawerId) drawerReturn = document.activeElement;
+  if (drawerId !== id) resetDrawerDate();
+  drawerId = id; setSel(id);
+  app.classList.add('drawer-open');
+  renderDrawer();
+  markSel();
+  if (focusTitle){ const ti = drawer.querySelector('.d-title'); if (ti){ ti.focus(); ti.setSelectionRange(ti.value.length, ti.value.length); } }
+  reportRoute();
+}
+function closeDrawer(silent){
+  flushText();
+  drawerId = null;
+  app.classList.remove('drawer-open');
+  drawer.innerHTML = '';
+  reportRoute();
+  if (!silent){
+    const back = sel && main.querySelector(`.row[data-id="${sel}"]`);
+    (back || (drawerReturn && drawerReturn.isConnected ? drawerReturn : null))?.focus?.({preventScroll: true});
+  }
+}
+function syncDrawer(){
+  if (!drawerId) return;
+  if (!findTask(drawerId)) return closeDrawer(true);
+  const a = document.activeElement;
+  if (drawer.contains(a) && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return; // don't yank focus while typing
+  renderDrawer();
+}
+function renderDrawer(){
+  const t = findTask(drawerId); if (!t) return;
+  const focusKey = drawer.contains(document.activeElement) ? document.activeElement.dataset.fk : null;
+  const opts = orderedLists().map(l => `<option value="${l.id}"${l.id === t.listId ? ' selected' : ''}>${l.parentId ? '   ↳ ' : ''}${esc(l.name)}</option>`).join('');
+  const open = scopeOpen(), idx = open.findIndex(x => x.id === t.id);
+  const s = score(t), ek = eKey(t), vk = vKey(t), fon = t.focusOn === todayStr();
+  const imp = impliedDue(t);
+  drawer.innerHTML = `<div class="dhead"><span>${t.done ? (t.wontDo ? "Won't do" : `Done ${t.doneAt ? dayLabel(t.doneAt).toLowerCase() : ''}`) : idx >= 0 ? `Rank <span class="num">${idx + 1}</span> of <span class="num">${open.length}</span>` : ''}</span><span class="grow"></span>
+      <button class="ibtn" data-d="close" data-fk="close" aria-label="Close details" data-tip="Close (Esc)">${ICON.x}</button></div>
+    <div class="dbody">
+      <textarea class="d-title" rows="1" data-f="title" data-fk="title" aria-label="Task">${esc(t.title)}</textarea>
+      ${t.done ? '' : `<input class="d-first" data-f="firstStep" data-fk="firstStep" maxlength="${FIRST_STEP_LEN}" autocomplete="off" placeholder="First step (optional)" aria-label="First step" value="${esc(t.firstStep || '')}">`}
+      ${shownItem(t.item) ? `<div class="dado"><a href="${esc(t.item.url)}" target="_blank" rel="noopener" data-fk="adolink">Open ${esc(t.item.type || 'item')} ${esc(itemRef(t.item))} in ${trackerName(t.item.system)}</a><span>${esc(t.item.state)}${t.item.project && t.item.system !== 'github' ? ' · ' + esc(t.item.project) : ''}</span>${t.item.gone ? `<span class="chip">${goneText(t.item.gone, t.item.system)}</span>` : ''}</div>` : ''}
+      ${shownItem(t.item) ? buildsDrawer(t) : ''}
+      ${shownItem(t.item) ? engDrawer(t) : ''}
+      ${buildHtml(t)}
+      ${shownItem(t.pr) ? `<div class="dado"><a href="${esc(t.pr.url)}" target="_blank" rel="noopener" data-fk="prlink">Open PR #${t.pr.id} in ${trackerName(t.pr.system)}</a><span>${esc(t.pr.system === 'github' ? t.pr.project || t.pr.repo : t.pr.repo)}${t.pr.author ? ' · by ' + esc(t.pr.author) : ''}</span>${t.pr.gone ? `<span class="chip">${PR_GONE[t.pr.gone]}</span>` : `<span class="chip">${t.pr.waiting ? (t.pr.system === 'github' ? 'Changes requested' : 'Waiting for author') : PR_TIER[t.pr.tier].label}</span>`}</div>` : ''}
+      ${shownItem(t.pr) ? prAiDrawer(t) : ''}
+      ${sortHtml(t)}${focusDrawerHtml(t)}
+      <textarea class="d-notes" rows="3" data-f="notes" data-fk="notes" placeholder="Notes" aria-label="Notes">${esc(t.notes)}</textarea>
+      ${aboutHtml(t)}
+      <div class="dfld"><span class="lbl">Value</span><div class="seg">${PRI_ORDER.map(v => `<button data-dv="${v}" data-fk="v${v}" aria-pressed="${t.value === v}"${t.value === v ? ' class="on"' : ''}>${VALUE[v]}</button>`).join('')}</div></div>
+      <div class="dfld"><span class="lbl">Effort</span><div class="seg">${EFFORTS.map(e => `<button data-de="${e}" data-fk="e${e}" aria-pressed="${t.effort === e}"${t.effort === e ? ' class="on"' : ''}>${e}<span class="pts">${POINTS[e]}</span></button>`).join('')}</div></div>
+      <div class="dfld"><label for="dDue">Due</label><div class="drow"><input type="date" id="dDue" data-f="due" data-fk="due" value="${t.due || ''}">${t.due ? `<button class="lnk" data-d="clear-due" data-fk="cdue">Clear</button>` : `<span class="hint">${imp ? `Implied ${fmtDay(imp)}` : 'Set a value to start aging'}</span>`}</div></div>
+      <div class="dfld"><span class="lbl">Flags</span><div class="seg">
+        <button data-d="urgent" data-fk="urg" aria-pressed="${t.urgentFlag}"${t.urgentFlag ? ' class="on"' : ''}>Urgent</button>
+        <button data-d="today" data-fk="tday" aria-pressed="${fon}"${fon ? ' class="on"' : ''}${t.done ? ' disabled' : ''}>Today</button>
+        <button data-d="waiting" data-fk="wait" aria-pressed="${t.waiting}"${t.waiting ? ' class="on"' : ''}>Waiting on someone</button></div></div>
+      ${t.waiting ? `<div class="dfld"><label for="dNudge">Follow up on</label><div class="drow"><input type="date" id="dNudge" data-f="nudge" data-fk="nudge" value="${t.nudgeOn || ''}">${t.nudgeOn ? `<button class="lnk" data-d="clear-nudge" data-fk="cnudge">Clear</button>` : '<span class="hint">Shows a nudge on Today and their card</span>'}</div>
+        ${t.done ? '' : `<div class="drow dfollow"><button class="btn" data-d="nudged" data-fk="nudged" data-tip="You followed up: move the date and leave a breadcrumb">${ICON.nudge}<span>Nudged</span></button><button class="btn" data-d="gotback" data-fk="gotback" data-tip="It came back: stop waiting and put it back on your list">${ICON.back}<span>Got it back</span></button></div>`}</div>` : ''}
+      <div class="dfld"><label for="dPeople">People</label><div class="drow"><input type="text" id="dPeople" list="dPeopleList" data-f="people" data-fk="people" value="${esc(t.who.map(id => mentionOf(id)).join(', '))}" placeholder="@name or @group, separated by commas" autocomplete="off">${t.done ? '' : `<button class="btn" data-d="assign" data-fk="assign" data-tip="Pick someone and hand it over (A)">${ICON.addPerson}<span>Hand off</span></button>`}</div>
+        <datalist id="dPeopleList">${D.active(getDirectory(), {self: false}).map(it => `<option value="@${esc(it.handle)}" label="${esc(it.name)}${it.kind === 'group' ? ' (group)' : ''}">`).join('')}</datalist></div>
+      ${planFieldHtml(t)}
+      ${t.pr || (t.item && !t.item.pasted) ? '' : repeatFieldHtml(t)}
+      <div class="dfld"><label for="dList">List</label><select id="dList" data-f="list" data-fk="list">${opts}</select></div>
+      ${productFieldHtml(t)}
+      <div class="dinfo"><span>Added ${dayLabel(t.createdAt).toLowerCase() === 'today' ? 'today' : fmtLong(t.createdAt)}</span><span><span class="num">${ageDays(t)}</span> days on the clock</span>
+        ${s != null ? `<span>Score <span class="num">${fmtScore(s)}</span></span>` : '<span>No score yet</span>'}
+        ${ek ? `<span>${EQ[ek].title}</span>` : ''}${vk ? `<span>${VQ[vk].title}</span>` : ''}${isStale(t) ? '<span class="chip">Stale</span>' : ''}${t.cameBack && !t.done ? `<span class="chip acc">Came back ${esc(dayLabel(t.cameBack).toLowerCase())}</span>` : ''}</div>
+    </div>
+    <div class="dfoot">
+      ${!t.done && idx > 0 ? `<button class="btn ghost" data-d="top" data-fk="top" aria-label="Move to top" data-tip="Move to top">${ICON.top}<span class="hide-sm">Top</span></button><button class="btn ghost" data-d="up" data-fk="up" aria-label="Move up" data-tip="Move up (Alt+Up)">${ICON.up}<span class="hide-sm">Up</span></button>` : ''}
+      <span class="grow"></span>
+      ${t.done ? '' : `<button class="btn text-danger" data-d="wont" data-fk="wont">Won't do</button>`}
+      <button class="btn text-danger" data-d="delete" data-fk="del">Delete</button>
+      <button class="btn${t.done ? '' : ' primary'}" data-d="done" data-fk="done">${t.done ? 'Reopen' : 'Complete'}</button>
+    </div>`;
+  const ti = drawer.querySelector('.d-title');
+  const fit = () => { ti.style.height = 'auto'; ti.style.height = ti.scrollHeight + 'px'; };
+  fit();
+  if (focusKey){ const f = drawer.querySelector(`[data-fk="${focusKey}"]`); if (f) f.focus({preventScroll: true}); }
+}
+/* A task in the Inbox (new, or came back): its value sorts it, like 1 to 4 on its row (actions.js quickSort: effort M
+   if empty, aging restarts, Came back cleared). The drawer is the one place a task opens, the Inbox's included. */
+function sortHtml(t){
+  if (!inInbox(t)) return '';
+  return `<div class="dsort" role="group" aria-label="Sort"><span class="lbl">${t.cameBack ? 'Came back. Sort it again' : 'To sort. How much does it matter?'}</span>
+    <div class="seg">${PRI_ORDER.map(v => `<button data-d="sort" data-v="${v}" data-fk="s${v}">${VALUE[v]}<kbd>${PRI(v)}</kbd></button>`).join('')}</div>
+    <span class="hint">Sends it to Ranked (effort ${t.effort || 'M'}). Or Hand off, or Won't do below.</span></div>`;
+}
+/* The ADO item is on Builds' board too (builds-link.js): where, and a way there. Inside Workshop only. */
+function buildsDrawer(t){
+  const sl = embedded && t.item.system !== 'github' ? buildsFor(t.item.id) : null;
+  if (!sl) return '';
+  return `<div class="dado dslate"><button class="lnk" data-d="open-builds" data-path="${esc(sl.route)}" data-fk="slatelink" title="Shaping, defining or building it happens there">Open in Builds</button><span>${esc(buildsLabel(sl))}</span></div>`;
+}
+/* Build with Tandem (tandem-build.js): any open task to Builds' agents. An ADO item with Tandem set up has Start as
+   feature or bug instead (eng.js), which keeps the ADO link. */
+function buildHtml(t){
+  const adoItem = shownItem(t.item) && !!engDrawer(t);
+  if (!canBuild(t, {embedded, buildsOn: buildsOn(), adoItem})) return '';
+  return `<div class="dado dbuild"><button class="btn" data-d="build" data-fk="build" data-tip="Builds' agents take it from here: a build, a fix or a question (B)">Build with Tandem</button><span>Starts in Builds</span></div>`;
+}
+/* B on a selected task, or the drawer's button. */
+function buildTask(t){
+  if (!canBuild(t, {embedded, buildsOn: buildsOn(), adoItem: shownItem(t && t.item) && !!engDrawer(t)})) return false;
+  return sendToTandem(ws, t);
+}
+/* The notes in Notes that link to this task, and Copy link (notes-link.js). One quiet line under the task's own notes. */
+function aboutHtml(t){
+  const {list, more} = shown(embedded ? notesFor(t.id) : []);
+  const titles = list.map((n, i) => `<button class="lnk d-note" data-d="open-note" data-path="${esc(n.route)}" data-fk="note${i}" title="Open in Notes">${esc(n.title)}</button>`).join('<span class="dot" aria-hidden="true">·</span>');
+  return `<div class="d-about">${list.length ? `<span class="lbl">Notes</span><span class="d-notelist">${titles}${more ? `<span class="dot" aria-hidden="true">·</span><button class="lnk" data-d="more-notes" data-fk="morenotes" title="Show them all in Notes">+${more}</button>` : ''}</span>` : '<span class="grow"></span>'}
+    <button class="lnk" data-d="copy-handoff" data-fk="copyhandoff" data-tip="The task as text to paste into chat when you hand it over">Copy hand-off</button><span class="dot" aria-hidden="true">·</span><button class="lnk" data-d="copy-link" data-fk="copylink" data-tip="A link to this task for any note (L)">Copy link</button></div>`;
+}
+/* Put a task's link on the clipboard (L, or Copy link). The Clipboard API, with a fallback for frames that block it. */
+function copyTaskLink(t){
+  if (!t) return;
+  const text = taskLink(t), done = () => toast('Link copied. Paste it into any note.');
+  const fallback = () => {
+    const ta = Object.assign(document.createElement('textarea'), {value: text});
+    ta.style.cssText = 'position:fixed;opacity:0';
+    document.body.append(ta); ta.select();
+    try { document.execCommand('copy'); done(); } catch (e) { toast("Couldn't copy. The link is " + text); }
+    ta.remove();
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, fallback);
+  else fallback();
+}
+function flushText(){
+  if (!textTimer) return;
+  clearTimeout(textTimer); textTimer = null;
+  save(); renderMainOnly();
+}
+function renderMainOnly(){
+  const d = drawerId; drawerId = null; // skip the drawer while someone is typing in it
+  render(); drawerId = d;
+}
+/* The drawer's listeners. main.js calls this once at startup: code that runs at load must not use another
+   module's state (modules import each other in a cycle), so nothing here runs on import. */
+function drawerInit(){
+drawer.addEventListener('input', e => {
+  const t = findTask(drawerId); if (!t) return;
+  const f = e.target.dataset.f;
+  if (f === 'title'){
+    e.target.style.height = 'auto'; e.target.style.height = e.target.scrollHeight + 'px';
+    const v = e.target.value.replace(/\s+/g, ' ').trim(); if (v) t.title = v;
+  } else if (f === 'notes') t.notes = e.target.value.trim();
+  else if (f === 'firstStep') setFirstStep(t, e.target.value);
+  else return;
+  clearTimeout(textTimer);
+  textTimer = setTimeout(() => { textTimer = null; save(); renderMainOnly(); }, 400);
+});
+drawer.addEventListener('keydown', e => {
+  if ((e.target.dataset.f === 'title' || e.target.dataset.f === 'firstStep') && e.key === 'Enter'){ e.preventDefault(); e.target.blur(); }
+});
+// flush typed text on blur; only re-render once focus has actually left the drawer, so a click on a drawer button isn't lost
+drawer.addEventListener('focusout', e => {
+  if (!['title', 'notes', 'firstStep'].includes(e.target.dataset.f)) return;
+  flushText();
+  setTimeout(() => { if (!drawer.contains(document.activeElement)) syncDrawer(); }, 0);
+});
+drawer.addEventListener('change', e => {
+  const t = findTask(drawerId); if (!t) return;
+  const f = e.target.dataset.f, v = e.target.value;
+  if (f === 'due') t.due = isDate(v) ? v : null;
+  else if (f === 'nudge') t.nudgeOn = isDate(v) ? v : null;
+  else if (f === 'people') assign(t, v.split(','));
+  else if (f === 'list') t.listId = v;
+  else if (f === 'product'){ if (v) t.product = v; else delete t.product; }
+  else { if (planFieldChange(t, f, v) || repeatFieldChange(t, f, v)) renderDrawer(); return; }
+  commit();
+});
+drawer.addEventListener('click', e => {
+  const t = findTask(drawerId); if (!t) return;
+  const dv = e.target.closest('[data-dv]'); if (dv){ const v = +dv.dataset.dv; t.value = t.value === v ? null : v; return commit(); }
+  const de = e.target.closest('[data-de]'); if (de){ t.effort = t.effort === de.dataset.de ? null : de.dataset.de; return commit(); }
+  const b = e.target.closest('[data-d]'); if (!b) return;
+  const a = b.dataset.d;
+  if (a === 'close') return closeDrawer();
+  if (a === 'sort') return quickSort(t.id, +b.dataset.v);
+  if (a === 'clear-due'){ t.due = null; return commit(); }
+  if (a === 'clear-nudge'){ t.nudgeOn = null; return commit(); }
+  if (a === 'urgent'){ t.urgentFlag = !t.urgentFlag; return commit(); }
+  if (a === 'today') return toggleFocus(t.id);
+  if (a === 'waiting'){
+    t.waiting = !t.waiting;
+    if (t.waiting){ if (!t.nudgeOn) t.nudgeOn = followDate(); delete t.cameBack; } else t.nudgeOn = null;
+    return commit();
+  }
+  if (a === 'nudged') return nudgedTask(t.id);
+  if (a === 'gotback') return gotBackTask(t.id);
+  if (a === 'assign') return openAssign(t.id, b);
+  if (a === 'copy-handoff') return copyHandoff(t);
+  if (a === 'top' || a === 'up') return moveTask(t.id, a);
+  if (a === 'wont') return wontDo(t.id);
+  if (a === 'delete') return deleteTask(t.id);
+  if (a === 'done') return toggleDone(t.id);
+  if (a === 'eng-open') return engOpen(t.item.id);
+  if (a === 'eng-start') return engStart(t, b.dataset.lane, b);
+  if (a === 'build') return buildTask(t);
+  if (a === 'prai-open') return prAiOpen(t);
+  if (a === 'prai-again') return prAiAgain(t, b);
+  if (a === 'copy-link') return copyTaskLink(t);
+  if (a === 'open-note' && ws) return ws.open({app: 'notes', path: b.dataset.path}).catch(() => {});
+  if (a === 'open-builds' && ws) return ws.open({app: 'builds', path: b.dataset.path}).catch(() => {});
+  if (a === 'more-notes' && ws) return ws.open({app: 'notes', path: 'search/' + encodeURIComponent(`ws:tasks/task/${t.id}`)}).catch(() => {});
+  if (focusDrawerClick(t, a)) return;
+  if (planFieldClick(t, a)) return renderDrawer();
+  if (repeatFieldClick(t, a)) return;
+});
+}
+
+export { buildTask, copyTaskLink, drawerInit, closeDrawer, drawerId, drawerOverlay, flushText, focusSel, markSel, moveSel, openDrawer, renderMainOnly, syncDrawer };

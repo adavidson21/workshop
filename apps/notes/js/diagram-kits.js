@@ -1,4 +1,4 @@
-/* Folio: diagram starters and where the diagrams are in a note. Pure, so Node tests run it.
+/* Notes: diagram starters and where the diagrams are in a note. Pure, so Node tests run it.
 
    A diagram is a fenced ```mermaid block, the same Markdown any Mermaid-aware editor renders. KITS are small
    working starters for each kind, inserted by Insert diagram and the slash menu. mermaidFences() finds the
@@ -19,7 +19,7 @@ export const KITS = [
   { id: 'architecture', name: 'Architecture', about: 'Services, data stores and how they connect',
     code: 'architecture-beta\n  group app(cloud)[App]\n  service web(internet)[Web] in app\n  service api(server)[API] in app\n  service db(database)[Database] in app\n  web:R --> L:api\n  api:R --> L:db' },
   { id: 'c4', name: 'C4 context', about: 'A system, its users and the systems around it',
-    code: 'C4Context\n  title System context\n  Person(user, "Engineer", "Writes docs")\n  System(folio, "Folio", "Markdown notebook")\n  System_Ext(wiki, "Wiki", "Company docs")\n  Rel(user, folio, "Writes in")\n  Rel(folio, wiki, "Copies to")' },
+    code: 'C4Context\n  title System context\n  Person(user, "Engineer", "Writes docs")\n  System(folio, "Notes", "Markdown notebook")\n  System_Ext(wiki, "Wiki", "Company docs")\n  Rel(user, folio, "Writes in")\n  Rel(folio, wiki, "Copies to")' },
   { id: 'gantt', name: 'Gantt', about: 'A plan over time, with dependencies',
     code: 'gantt\n  title Release plan\n  dateFormat YYYY-MM-DD\n  section Build\n  Design :done, d1, 2026-11-02, 3d\n  Implement :active, d2, after d1, 5d\n  section Ship\n  Test :d3, after d2, 3d\n  Release :milestone, after d3, 0d' },
   { id: 'timeline', name: 'Timeline', about: 'Events in order: an incident, a project',

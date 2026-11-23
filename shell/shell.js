@@ -13,6 +13,7 @@
 import { allowFolder, connect, detectBackend, folderState } from '../shared/workshop-sdk.js';
 import { SITE, onCrumbsDomain } from '../shared/site.js';
 import { appsOffBy, cleanAreas } from '../shared/areas.js';
+import { RENAMED_IDS, currentId } from '../shared/app-folders.js';
 import * as RO from '../shared/rail-order.js';
 import { PAIR_HELP, canPair as canPairWith, forgetPairing, pairWith } from '../shared/pair.js';
 import { CAPTURE_ICON, createCaptureBar } from './capture.js';
@@ -40,7 +41,7 @@ const mounted = new Set();
    another app goes to the main Workshop window (named MAIN_WINDOW), which comes to the front. */
 const SOLO = new URLSearchParams(location.search).get('solo') || null;
 // A second window of an app (ws.window, docs/sdk.md): a pop-out that does not mark the app as popped out, so the
-// main window keeps showing it and more than one can be open (Folio: two notes side by side).
+// main window keeps showing it and more than one can be open (Notes: two notes side by side).
 const ALSO = Boolean(SOLO && new URLSearchParams(location.search).get('also'));
 // A pop-out window takes its app's color (shared/themes.css), so windows side by side are easy to tell apart.
 if (SOLO && /^[a-z][a-z0-9-]{0,39}$/.test(SOLO)) document.documentElement.dataset.appColor = SOLO;
@@ -116,7 +117,7 @@ async function appsOff() {
   }
   const read = key => { try { const v = JSON.parse(localStorage.getItem(key) || '[]'); return Array.isArray(v) ? v : []; } catch (e) { return []; } };
   areasOff = cleanAreas(read('workshop.areasOff'));
-  return new Set([...read('workshop.appsOff'), ...appsOffBy(areasOff)]);
+  return new Set([...read('workshop.appsOff').map(currentId), ...appsOffBy(areasOff)]);
 }
 
 async function loadApps() {
@@ -387,7 +388,7 @@ function markTopbar() {
 }
 
 // Opens an app in its own window (one per app: popping it out again brings that window forward). The app
-// opens at its own start, so an app that remembers where it was (Folio's last note) carries on there. This
+// opens at its own start, so an app that remembers where it was (Notes' last note) carries on there. This
 // window then goes Home, so the app is not open for editing in two places.
 function popOut(id, path = '') {
   const app = byId[id];
@@ -494,9 +495,10 @@ function paintBadge(appId) {
 // The home page if an app is marked home: true, else the first app on the rail.
 const homeId = () => homeApp ? homeApp.id : railApps.length ? railApps[0].id : null;
 // Addresses from before an app was renamed or folded into another: the Dashboard pane became the Agents app
-// (WS6), and Agents (Dispatch) folded into Slate as Loom (Loom 4.0.0: #/agents/inbox opens #/slate/inbox); the
-// People app became Settings' People & teams pages (#/people/team opens #/settings/people/team).
-const RENAMED = { dashboard: 'slate', agents: 'slate', people: { id: 'settings', path: 'people' } };
+// (WS6), and Agents (Dispatch) folded into Builds as Builds (Builds 4.0.0: #/agents/inbox opens #/builds/inbox); the
+// People app became Settings' Directory pages (#/people/team opens #/settings/people/team).
+// Old app ids open the app they became (shared/app-folders.js); dashboard and agents were Builds' before that.
+const RENAMED = { dashboard: 'builds', agents: 'builds', ...RENAMED_IDS };
 /** Where an app id and path really open: a renamed app under its new id, a hosted app inside its host. */
 function resolveApp(id, path = '') {
   const to = RENAMED[id];
@@ -736,7 +738,7 @@ function notify(app, p) {
 }
 
 /* ---------- status: one line an app keeps in the top bar (ws.status, docs/sdk.md Status) ----------
-   Shown on every app, so what an app is doing (Docket's running task) and its buttons are always in reach.
+   Shown on every app, so what an app is doing (Tasks' running task) and its buttons are always in reach.
    One status per app; the newest one set is shown. An action button sends the app a command event; one with a
    prompt asks for a line of text first and sends it along (Esc or Skip sends it without text, if allowed). */
 const STATUS_ICONS = {
@@ -848,8 +850,8 @@ function allCommands() {
     for (const [id, c] of app.runtimeCommands || []) if (!seen.has(id)) out.push({ app, id, title: c.title });
   }
   out.unshift({ title: 'Capture or ask (Ctrl+.)', run: () => capture().open() });
-  // Build with Tandem (Loom 6.20.0): Capture opened on "b ", so whatever you type or paste goes to Loom's agents.
-  if (byId.slate) out.splice(1, 0, { title: 'Build with Tandem (Ctrl+. then b)', run: () => capture().open('b ') });
+  // Build with Tandem (Builds 6.20.0): Capture opened on "b ", so whatever you type or paste goes to Builds' agents.
+  if (byId.builds) out.splice(1, 0, { title: 'Build with Tandem (Ctrl+. then b)', run: () => capture().open('b ') });
   for (const a of apps) out.push({ title: `Open ${a.manifest.name}`, run: () => go(a.id) });
   const here = byId[current];
   if (SOLO) out.push({ title: 'Back to Workshop (close this window)', run: popIn });
@@ -885,7 +887,7 @@ function openPalette() {
   input.addEventListener('input', () => {
     const q = input.value.trim().toLowerCase();
     // Titles that start with the query, or with a word that does, come first ("tri" finds Triage before anything
-    // that only mentions Docket).
+    // that only mentions Tasks).
     const rankOf = c => { const t = c.title.toLowerCase(); return t.startsWith(q) ? 0 : t.split(/\s+/).some(w => w.startsWith(q)) ? 1 : 2; };
     shown = q ? cmds.filter(c => (c.title + ' ' + (c.app ? c.app.manifest.name : '')).toLowerCase().includes(q))
       .map((c, i) => [rankOf(c), i, c]).sort((a, b) => a[0] - b[0] || a[1] - b[1]).map(x => x[2]) : cmds;

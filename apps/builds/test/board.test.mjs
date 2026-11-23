@@ -1,0 +1,49 @@
+// Builds (js/board.js): the seam between the board half and the runs half. Routes go to the half that owns them;
+// the two halves' summary cards merge into one summary.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { splitRoute, mergeCards, TABS, BOARD_TABS } from '../js/board.js';
+
+test('Builds 6.0.0: two tabs, Lanes and Health; Health is the board half\'s (the Board and the Inbox are retired)', () => {
+  assert.deepEqual(TABS.map(t => t[0]), ['lanes', 'health']);
+  assert.deepEqual(BOARD_TABS, ['health']);
+});
+
+test('routes: the board half owns items, Health, Sprints, Board and Roadmaps links; the rest are runs', () => {
+  assert.deepEqual(splitRoute('item/w_1'), { half: 'board', tab: 'lanes', path: 'item/w_1' }, 'an item opens as the drawer over Lanes');
+  assert.deepEqual(splitRoute('board'), { half: 'runs', tab: '', path: 'lanes' }, 'the old Board address opens Lanes');
+  assert.deepEqual(splitRoute('health'), { half: 'board', tab: 'health', path: 'health' });
+  assert.deepEqual(splitRoute('sprints'), { half: 'board', tab: 'health', path: 'sprints' });
+  assert.deepEqual(splitRoute('health/reports'), { half: 'board', tab: 'health', path: 'health/reports' });
+  assert.deepEqual(splitRoute('reports'), { half: 'board', tab: 'health', path: 'health/reports' });
+  assert.equal(splitRoute('roadmaps/m1/i2').half, 'board');
+  assert.equal(splitRoute('roadmaps').half, 'board', 'Builds\' old roadmaps address');
+  for (const p of ['', 'inbox', 'chat', 'chat/ses_1', 'hub/hello', 'reviews', 'work', 'work/41207', '41610', 'pr-12'])
+    assert.equal(splitRoute(p).half, 'runs', p);
+});
+
+test('summary: needs rows join (runs first, each id once), counts add up, other cards pass through', () => {
+  const board = [{ id: 'needs', kind: 'list', title: 'Needs you in Builds', rows: [{ id: 'w1', title: 'Decide' }, { id: 'shared', title: 'B' }], count: 2 },
+    { id: 'runs', kind: 'list', title: 'Runs in Builds', rows: [] }];
+  const runs = [{ id: 'needs', kind: 'list', title: 'Needs you in Dispatch', rows: [{ id: 'f1', title: 'Asking' }, { id: 'shared', title: 'R' }], count: 2, updatedAt: 5 },
+    { id: 'done-week', kind: 'list', title: 'Shipped', rows: [{ id: 'x' }] }];
+  const out = mergeCards(board, runs);
+  const needs = out.find(c => c.id === 'needs');
+  assert.equal(needs.title, 'Needs you in Builds');
+  assert.deepEqual(needs.rows.map(r => [r.id, r.title]), [['f1', 'Asking'], ['shared', 'R'], ['w1', 'Decide']]);
+  assert.equal(needs.count, 4);
+  assert.equal(needs.updatedAt, 5);
+  assert.deepEqual(out.map(c => c.id), ['needs', 'runs', 'done-week']);
+});
+
+test('summary: held cards add up', () => {
+  const out = mergeCards([{ id: 'held', kind: 'held', block: 'k', count: 1, label: '1 Builds item' }], [{ id: 'held', kind: 'held', block: 'k', count: 2, label: '2 Dispatch' }]);
+  assert.deepEqual(out, [{ id: 'held', kind: 'held', block: 'k', count: 3, label: '3 updates waiting in Builds' }]);
+});
+
+test('summary: a waiting run that has a card opens the card from Needs you, once', () => {
+  const board = [{ id: 'needs', kind: 'list', rows: [] }, { id: 'runs', kind: 'list', rows: [{ id: '41207', folder: '41207-fix', route: 'item/w_7' }] }];
+  const runs = [{ id: 'needs', kind: 'list', rows: [{ id: '41207-fix', title: '#41207 Fix', route: '41207', flag: 'urgent' }, { id: 'spike-x', title: 'Spike', route: 'spike-x' }] }];
+  const needs = mergeCards(board, runs).find(c => c.id === 'needs');
+  assert.deepEqual(needs.rows.map(r => [r.id, r.route]), [['41207-fix', 'item/w_7'], ['spike-x', 'spike-x']]);
+});

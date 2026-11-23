@@ -2,7 +2,7 @@
 
 Protected focus time and a protected lunch that every app respects. During a focus or lunch block, interruptions (attention-grabbing UI: badges, pickup toasts, new-item toasts, the parts of Needs you that can wait) are held and released together when the block ends. Nothing in the data is held: every app keeps syncing and saving. Lunch is also watched: working through it shows a quiet offer to take it now, and a missed lunch is offered again until 15:00.
 
-The day has an end too: after the day's end time (from Docket's Day settings) interruptions are held like lunch until the next morning ([Day's done](#days-done)). Five minutes before a focus block ends, lunch starts or the day ends, the shell bar says so in one quiet line ([Heads-up](#heads-up)).
+The day has an end too: after the day's end time (from Tasks' Day settings) interruptions are held like lunch until the next morning ([Day's done](#days-done)). Five minutes before a focus block ends, lunch starts or the day ends, the shell bar says so in one quiet line ([Heads-up](#heads-up)).
 
 Version: the `settings.focus` collection is version 1. The shared code is `shared/focus.js`.
 
@@ -32,7 +32,7 @@ Schema: [schemas/focus-settings.schema.json](schemas/focus-settings.schema.json)
 | Field | Meaning |
 | --- | --- |
 | `enabled` | Off: no focus, no lunch, nothing held anywhere. |
-| `dayplanOverride` | On: Docket's Day plan blocks for today (below) replace the weekly hours and lunch that day. |
+| `dayplanOverride` | On: Tasks' Day plan blocks for today (below) replace the weekly hours and lunch that day. |
 | `week` | Per weekday, up to 8 focus blocks `{start, end}`, local wall-clock `HH:MM`. `end` is after `start`; blocks in a day do not overlap; a block never crosses midnight. |
 | `lunch` | `enabled`, `start` (`HH:MM`), `minutes` (5 to 240) and the weekdays it applies to. |
 | `afterEnd` | "After my day ends": hold after the day's end until the next morning ([Day's done](#days-done)). Optional; missing means on. |
@@ -78,13 +78,13 @@ The shell's bar control writes day items as app `settings` (the shell connects t
 
 ## Day plan blocks
 
-Docket's `day` summary card ([summaries.md](summaries.md)) adds to each day:
+Tasks' `day` summary card ([summaries.md](summaries.md)) adds to each day:
 
 ```json
 {"focus": [{"start": "09:00", "end": "12:00"}], "lunch": {"start": "12:00", "end": "13:00"}, "start": "09:00", "end": "17:00"}
 ```
 
-`start` and `end` are the Day view's day start and day end (Docket's Day settings), on working days only. They are used whether or not "Day plan can override" is on.
+`start` and `end` are the Day view's day start and day end (Tasks' Day settings), on working days only. They are used whether or not "Day plan can override" is on.
 
 From the day's Day plan sections whose `kind` is `focus` or `lunch` (case-insensitive, trimmed), using `around` and `around + minutes`. Sections without both, and sections lost that day, are skipped. `focus` is there only when the day's plan has at least one section of kind `focus`; if none of them is usable (all lost, or no time), it is an empty array and focus is off that day. A day with no Day plan, or a plan with no `focus` section, has no `focus` field, and the weekly hours apply. `lunch` is the first usable `lunch` section; without one the Settings lunch applies.
 
@@ -98,7 +98,7 @@ From the day's Day plan sections whose `kind` is `focus` or `lunch` (case-insens
 - `skipped`: Skip today is on (and it is not lunch).
 - `dayDone`: after the day's end, or before the day starts the next morning ([Day's done](#days-done)). `source` is `end` (the evening) or `morning`.
 
-The result also has `dayEnd` and `dayStart`: today's `end` and `start` from Docket's `day` card (`HH:MM`), or `null`.
+The result also has `dayEnd` and `dayStart`: today's `end` and `start` from Tasks' `day` card (`HH:MM`), or `null`.
 
 In this order:
 
@@ -125,14 +125,14 @@ During a span (focus, lunch or Day's done; Day's done is held like lunch):
 | --- | --- | --- |
 | Shell rail badges (every app) | Hidden. During focus a badge with a `breakThrough` count shows that count instead ([sdk.md](sdk.md)). | Restored |
 | Home Needs you | Focus: only blocking pull requests; the rest folds to "N held until 12:00". Lunch: folds entirely. | Restored |
-| Docket Today's Reviews group | Blocking pull requests stay pinned (Docket 7.0.0 has no Needs you strip) | n/a |
-| Docket ADO "new items" toast | Not shown; items still sync and land in Inbox | Counted in the release toast |
-| Docket Inbox column | Folds to a rail with a count and "held until"; captures and drops still work | Unfolds |
+| Tasks Today's Reviews group | Blocking pull requests stay pinned (Tasks 7.0.0 has no Needs you strip) | n/a |
+| Tasks ADO "new items" toast | Not shown; items still sync and land in Inbox | Counted in the release toast |
+| Tasks Inbox column | Folds to a rail with a count and "held until"; captures and drops still work | Unfolds |
 | Handoff and pickup toasts (every app) | Not shown; items still picked up and saved | Counted in the release toast |
 | Dispatch Inbox badge and toasts | Held, except reviews of blocking pull requests during focus | Restored |
 | Quick capture | Works as always | n/a |
 
-**Blocking pull requests** are the ones Docket calls "PRs blocked on you": open tasks for a pull request where you are a required reviewer and the pull request is not waiting on its author. Docket publishes them as its `blocking` summary card ([summaries.md](summaries.md)); Dispatch marks reviews of them with `breakThrough`.
+**Blocking pull requests** are the ones Tasks calls "PRs blocked on you": open tasks for a pull request where you are a required reviewer and the pull request is not waiting on its author. Tasks publishes them as its `blocking` summary card ([summaries.md](summaries.md)); Dispatch marks reviews of them with `breakThrough`.
 
 ### Holding a toast
 
@@ -154,14 +154,14 @@ When a span ends (by time, End early or End lunch), the shell shows one toast: "
 
 ## Day's done
 
-With focus hours on and "After my day ends" on (`afterEnd`, the default), a day with an `end` in Docket's `day` card ends there:
+With focus hours on and "After my day ends" on (`afterEnd`, the default), a day with an `end` in Tasks' `day` card ends there:
 
 - **Evening.** From `end` until midnight the state is `dayDone`, source `end`. Held like lunch: badges, Needs you and held toasts; nothing breaks through, blocking pull requests included.
 - **Morning.** On a day with a `start`, from midnight until the day starts the state is `dayDone`, source `morning`. The day starts at its `start` or its first focus block, whichever comes first. There is no morning hold the day after Keep working tonight, or after Start my day now.
 - **One span for the night.** The evening and the next morning are one held span, keyed by the morning's date at `00:00` (`2026-11-10T00:00` for the night after 9 November). Held items are counted under that key, so the release happens once, in the morning, in one toast: "Good morning. 5 held: ...". When the next day has no `start` (a weekend), the span ends at midnight.
 - **Keep working tonight** (the shell bar menu, evening only) writes `late` to today's day item and `workedLate: true` to its log. Day's done is off until midnight; what was held is released at once. Focus history shows "worked late".
 - **Start my day now** (the shell bar menu, morning only) writes `early`: the morning hold ends and what was held is released.
-- **The cover.** Once per evening span in each tab, a calm cover: "Day's done." with **Wrap up** (opens Docket's Wrap up, `#/prioritizer/shutdown`) when the day is not wrapped yet (`wrapped` in Docket's `day` card), and **Just a minute**, which hides it for 15 minutes before it comes back. Quick capture still works under it. The morning has no cover.
+- **The cover.** Once per evening span in each tab, a calm cover: "Day's done." with **Wrap up** (opens Tasks' Wrap up, `#/tasks/shutdown`) when the day is not wrapped yet (`wrapped` in Tasks' `day` card), and **Just a minute**, which hides it for 15 minutes before it comes back. Quick capture still works under it. The morning has no cover.
 - **The bar** reads "Day's done" in the evening and "Day starts at 9:00" in the morning.
 - With `afterEnd` off, or no `end` for today, there is no Day's done. A missing `start` means no morning hold.
 - If no tab was open when the morning hold ended, the first tab opened later that day releases it, once per browser.

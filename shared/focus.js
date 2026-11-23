@@ -1,5 +1,5 @@
 /* Workshop: focus hours and lunch (docs/focus.md). Weekly focus hours and the lunch block live in Settings'
-   `focus` collection (settings.focus v1); Docket's Day plan can replace them for a day (its `day` summary card).
+   `focus` collection (settings.focus v1); Tasks' Day plan can replace them for a day (its `day` summary card).
    This module is pure where it can be, so Node tests drive it with a fake clock (shared/test/focus.test.mjs):
 
      resolveFocus({settings, day, dayplan, bounds, prevDay, now})  what is focused now: {state, until, source, span, ...}
@@ -7,7 +7,7 @@
      createActivity()                              active minutes in this tab, shared with other tabs
      lunch rules                                   lunchOutcome, workingThrough, pushedMissed, missedOffer
      transitions                                   headsUp (the 5-minute line), createSeen (once per event per browser)
-     watchFocus(ws, onChange)                      reads Settings and Docket's summary, follows the clock
+     watchFocus(ws, onChange)                      reads Settings and Tasks' summary, follows the clock
      createHolder(ws, {label, route})              an app's held toasts and its `held` summary card
 
    With focus hours off (no collection, or meta.enabled false) resolveFocus always says off, so nothing is held
@@ -135,7 +135,7 @@ export function validateSettings(meta) {
 /* ---------- what is focused now ---------- */
 const OFF = Object.freeze({ state: 'off', until: null, source: null, nextStart: null, nextBoundary: null, lunchStatus: null, span: null, spans: [], blocks: [], lunchBlocks: [], date: null, enabled: false, dayStart: null, dayEnd: null, afterEnd: false, late: false });
 
-/** Today's Day plan blocks from Docket's `day` summary card entry, or null when the day has no Day plan. */
+/** Today's Day plan blocks from Tasks' `day` summary card entry, or null when the day has no Day plan. */
 export function dayplanOf(entry) {
   if (!entry || typeof entry !== 'object' || (!('focus' in entry) && !('lunch' in entry))) return null;
   const out = {};
@@ -145,7 +145,7 @@ export function dayplanOf(entry) {
   return out;
 }
 
-/** The day's start and end from Docket's `day` summary card entry: {start, end}, each HH:MM or null. */
+/** The day's start and end from Tasks' `day` summary card entry: {start, end}, each HH:MM or null. */
 export function dayBoundsOf(entry) {
   const e = entry && typeof entry === 'object' ? entry : {};
   return { start: isTime(e.start) ? e.start : null, end: isTime(e.end) ? e.end : null };
@@ -207,8 +207,8 @@ function plannedLunch(s, day, dp, wd) {
 
 /**
  * What is focused now (docs/focus.md, What is focused now). settings: the collection's meta. day: today's day
- * item (another date's is ignored). dayplan: dayplanOf(Docket's day entry for today), or null. bounds:
- * dayBoundsOf(Docket's day entry for today), or null. prevDay: yesterday's day item (only `late` is read). now: a Date.
+ * item (another date's is ignored). dayplan: dayplanOf(Tasks' day entry for today), or null. bounds:
+ * dayBoundsOf(Tasks' day entry for today), or null. prevDay: yesterday's day item (only `late` is read). now: a Date.
  * Returns {state, until, source, nextStart, nextBoundary, lunchStatus, span, blocks, lunchBlocks, date, enabled,
  * dayStart, dayEnd, afterEnd, late}:
  *   state       off | focus | lunch | skipped | dayDone
@@ -313,7 +313,7 @@ export const isHeldNow = f => !!f && (f.state === 'focus' || f.state === 'lunch'
 /** Lunch and Day's done: everything is held and nothing breaks through, blocking pull requests included. */
 export const holdsAll = f => !!f && (f.state === 'lunch' || f.state === 'dayDone');
 /** True only for a blocking pull request, and only during focus (never during lunch). item: {blocking} or
-    {breakThrough}, or a Docket task with pr.tier "blocking" that is not waiting on its author. */
+    {breakThrough}, or a Tasks task with pr.tier "blocking" that is not waiting on its author. */
 export function isBreakThrough(item, f) {
   if (!f || f.state !== 'focus' || !item) return false;
   if (item.blocking === true || item.breakThrough === true) return true;
@@ -665,9 +665,9 @@ export function releaseText(parts, kind = 'focus') {
   return `${head} ${n} held: ${parts.map(p => p.label).join(', ')}.`;
 }
 
-/* ---------- watching: settings, Docket's Day plan and the clock ---------- */
+/* ---------- watching: settings, Tasks' Day plan and the clock ---------- */
 /**
- * Follows focus for an app or the shell. Reads settings.focus and Docket's `day` summary card, re-checks at the
+ * Follows focus for an app or the shell. Reads settings.focus and Tasks' `day` summary card, re-checks at the
  * next boundary, at midnight, on window focus and every 60 seconds, and calls onChange(f, w) only when the
  * result changes. Returns {current, settings, day, env, refresh(), stop()}.
  */
@@ -689,7 +689,7 @@ export function watchFocus(ws, onChange = () => {}, { now = () => new Date(), ti
   }
   async function readDayplan() {
     try {
-      const cards = readCards(await ws.data.get('summary', { app: 'prioritizer' }), 'prioritizer');
+      const cards = readCards(await ws.data.get('summary', { app: 'tasks' }), 'tasks');
       dpEntry = cards ? cardDay(cards.get('day'), dateStr(now())) : null;
     } catch (e) { dpEntry = null; }
   }
@@ -713,7 +713,7 @@ export function watchFocus(ws, onChange = () => {}, { now = () => new Date(), ti
   const onWinFocus = () => compute();
   const unsubs = [];
   try { unsubs.push(ws.data.subscribe(COLLECTION, () => readSettings().then(compute), { app: APP })); } catch (e) { /* no events */ }
-  try { unsubs.push(ws.data.subscribe('summary', () => readDayplan().then(compute), { app: 'prioritizer' })); } catch (e) { /* no events */ }
+  try { unsubs.push(ws.data.subscribe('summary', () => readDayplan().then(compute), { app: 'tasks' })); } catch (e) { /* no events */ }
   if (win) win.addEventListener('focus', onWinFocus);
   interval = timers.setInterval(() => { readDayplanIfNewDay(); compute(); }, 60000);
   w.ready = w.refresh();

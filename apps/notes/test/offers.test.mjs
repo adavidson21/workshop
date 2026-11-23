@@ -20,17 +20,17 @@ test('wins: lines tagged #win with the marker and tag taken out', () => {
   assert.deepEqual(wins(NOTE), [{ line: 7, text: 'Nested item' }, { line: 8, text: 'Shipped the cache layer today' }]);
 });
 
-test('a task offer is accepted and shaped for Docket; a win offer is ordinary and shaped for Rapport', () => {
+test('a task offer is accepted and shaped for Tasks; a win offer is ordinary and shaped for People', () => {
   const now = new Date('2026-11-05T15:00:00Z');
   const note = { path: 'meetings/sync.md', title: 'Sync' };
   const task = offerFor('task', note, 'Draft the rollout plan', { day: '2026-11-05', now });
-  assert.equal(task.to, 'prioritizer');
+  assert.equal(task.to, 'tasks');
   assert.equal(task.accepted, true);
   assert.equal(task.payload.kind, 'task');
   assert.equal(task.payload.title, 'Draft the rollout plan');
   assert.match(task.payload.notes, /meetings\/sync\.md/);
   const win = offerFor('win', note, 'Shipped the cache layer', { day: '2026-11-05', now });
-  assert.equal(win.to, 'receipts');
+  assert.equal(win.to, 'people');
   assert.equal(win.accepted, undefined);
   assert.equal(win.payload.kind, 'win');
   for (const it of [task, win]) assert.deepEqual(schemas.validate('handoff-item', { ...it, updatedAt: now.getTime() }), []);

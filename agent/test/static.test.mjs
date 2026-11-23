@@ -32,7 +32,7 @@ test('"/" goes to the Settings page; the hub and other apps are the hosted site\
     assert.equal(res.status, 302, p);
     assert.equal(res.headers.location, '/apps/settings/', p);
   }
-  for (const p of ['/shell/shell.js', '/sw.js', '/manifest.webmanifest', '/apps/registry.json', '/apps/home/index.html', '/apps/slate/index.html', '/apps/receipts/index.html']) {
+  for (const p of ['/shell/shell.js', '/sw.js', '/manifest.webmanifest', '/apps/registry.json', '/apps/home/index.html', '/apps/builds/index.html', '/apps/people/index.html']) {
     assert.equal((await get(agent, p, { auth: 'none' })).status, 404, p);
   }
 });
@@ -53,7 +53,7 @@ test('HEAD answers without a body', async () => {
 test('never serves the agent, connectors, tests, docs, dot files or anything else at the root', async () => {
   const paths = ['/agent/server.mjs', '/agent/start.mjs', '/connectors/', '/tests/mock-agent.mjs', '/docs/agent-api.md', '/README.md', '/LICENSE',
     '/.git/HEAD', '/.github/workflows/checks.yml', '/shared/.hidden', '/shell/%2e%2e/agent/server.mjs', '/shell/..%2fagent/server.mjs',
-    '/shell%5c..%5cagent%5cserver.mjs', '/shared/%00', '/shell/shell.js::$DATA', '/icons', '/prioritizer/index.html', '/apps/', '/apps/../agent/server.mjs'];
+    '/shell%5c..%5cagent%5cserver.mjs', '/shared/%00', '/shell/shell.js::$DATA', '/icons', '/tasks/index.html', '/apps/', '/apps/../agent/server.mjs'];
   for (const p of paths) {
     const res = await get(agent, p, { auth: 'none' });
     assert.equal(res.status, 404, `${p} gave ${res.status}`);

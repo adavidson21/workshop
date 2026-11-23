@@ -1,15 +1,15 @@
 /* Notes: captures from Home and the Dispatch hub (docs/handoffs.md, docs/hub.md).
 
-   A note captured in Home's quick capture or the Loom hub arrives as an offer in that app's own `handoffs`
+   A note captured in Home's quick capture or the Builds hub arrives as an offer in that app's own `handoffs`
    collection, addressed to `notes` with payload.kind 'note' and accepted: true. The person already accepted it
    where they typed it, so Notes adds it the next time it loads, with no second click:
      - from Home: a bullet in the one Quick Notes note (`quick-notes.md`, pinned in the sidebar), newest first
        under a heading for its day. A Quick Notes that was trashed or renamed is made again on the next capture.
-     - from Loom: a new note in `inbox/`.
+     - from Builds: a new note in `inbox/`.
      - with payload.folder (quick capture's "n <folder>: ..."), from any sender: a new note in that folder. A
        folder with no notes by then (renamed or emptied) falls back to the two places above.
      - with payload.daily (a YYYY-MM-DD day), into that day's note, made from the daily template if needed:
-         - with payload.section and payload.lines (Docket's wrap-up): a `## <section>` section of bullets,
+         - with payload.section and payload.lines (Tasks' wrap-up): a `## <section>` section of bullets,
            replaced by a later offer only while it still says what Notes wrote (daily.js writeSection);
          - otherwise under the note's `## Notes` heading, as a bullet.
        The taken item also keeps {section, heading, hash} of a section it wrote.
@@ -21,9 +21,10 @@
 import { freePath, newNoteText, slugify, validFolder } from './model.js';
 import { addUnder, writeSection } from './daily.js';
 import { dailyPath, dailyText as starterDaily } from './templates.js';
+import { currentKeys } from '../../../shared/app-folders.js';
 
-// Home's sends come from the Capture box (Ctrl+.), so notes say "Quick capture" (Folio 4.12.0), not the app's name.
-export const SENDERS = { home: 'Home', slate: 'Loom', prioritizer: 'Docket' };
+// Home's sends come from the Capture box (Ctrl+.), so notes say "Quick capture" (Notes 4.12.0), not the app's name.
+export const SENDERS = { home: 'Home', builds: 'Builds', tasks: 'Tasks' };
 /* Who sends Notes captures: the manifests on this site add to this list (shared/handoffs.js, docs/handoffs.md). */
 export const INBOX = 'inbox';
 export const QUICK = 'quick-notes.md';
@@ -35,6 +36,7 @@ const isDay = s => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s);
 
 /* Accepted note offers from one sender that Notes has not taken. taken: Set of '<app>:<id>'. */
 export function acceptedNotes(app, env, taken = new Set()) {
+  taken = currentKeys(taken); // keys saved under an app's old id count too
   if (!env || env.schema !== `${app}.handoffs` || env.version !== VERSION || !Array.isArray(env.items)) return [];
   return env.items.filter(h => h && typeof h.id === 'string' && h.id && h.to === 'notes' && h.accepted === true && isDay(h.date)
       && h.payload && h.payload.kind === 'note' && typeof h.text === 'string' && h.text.trim() && !taken.has(`${app}:${h.id}`))
@@ -113,7 +115,7 @@ export function startPickup(ws, notes, { onAdded = () => {}, hold = () => false,
     try {
       const env = await taken();
       if (!env) return 0;
-      const done = new Set([...env.items.map(i => i.id), ...Object.keys(env.deleted || {})]);
+      const done = currentKeys([...env.items.map(i => i.id), ...Object.keys(env.deleted || {})]);
       const todo = [];
       for (const app of Object.keys(SENDERS)) {
         let src = null;

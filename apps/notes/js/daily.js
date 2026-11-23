@@ -1,9 +1,9 @@
 /* Notes: what other apps add to a day's note. Pure: no DOM and no SDK.
 
-   - docketPlan: the lines {{docket}} becomes in the daily template: the day's Today tasks from Docket's summary
-     (prioritizer.summary, card `board`, days[day].focus.tasks), or Docket's Up next when Today is empty, each as a
-     ws: link to the task. Links, not checkboxes: Docket owns whether a task is done.
-   - writeSection: a `## <heading>` section in a note, written by an app (Docket's wrap-up). It replaces the section
+   - tasksPlan: the lines {{tasks}} becomes in the daily template: the day's Today tasks from Tasks' summary
+     (tasks.summary, card `board`, days[day].focus.tasks), or Tasks' Up next when Today is empty, each as a
+     ws: link to the task. Links, not checkboxes: Tasks owns whether a task is done.
+   - writeSection: a `## <heading>` section in a note, written by an app (Tasks' wrap-up). It replaces the section
      only if it still says exactly what Notes wrote last time (by hash); if you edited it, a new section
      `## <heading> (2)` goes below, so your words are never overwritten.
    - addUnder: a line added under a heading (plan 5: quick capture into today's note). */
@@ -12,16 +12,16 @@ const ID = /^[A-Za-z0-9_-]{1,80}$/;
 /* Brackets would end the link text early; everything else is safe inside it. */
 const linkText = (s) => String(s || '').replace(/\s+/g, ' ').trim().replace(/\[/g, '(').replace(/\]/g, ')').slice(0, 200);
 
-/** {{docket}}'s Markdown for a day, from Docket's summary envelope; '' when there is nothing to show. */
-export function docketPlan(env, day) {
-  if (!env || env.schema !== 'prioritizer.summary' || !Array.isArray(env.items)) return '';
+/** {{tasks}}' Markdown for a day, from Tasks' summary envelope; '' when there is nothing to show. */
+export function tasksPlan(env, day) {
+  if (!env || env.schema !== 'tasks.summary' || !Array.isArray(env.items)) return '';
   const board = env.items.find(c => c && c.id === 'board' && c.kind === 'board');
   if (!board) return '';
   const today = board.days && board.days[day] && board.days[day].focus && Array.isArray(board.days[day].focus.tasks)
     ? board.days[day].focus.tasks.filter(t => t && !t.done) : [];
   const pick = today.length ? today : (Array.isArray(board.upNext) ? board.upNext : []);
   return pick.filter(t => t && typeof t.id === 'string' && ID.test(t.id) && linkText(t.title))
-    .slice(0, 10).map(t => `- [${linkText(t.title)}](ws:prioritizer/task/${t.id})`).join('\n');
+    .slice(0, 10).map(t => `- [${linkText(t.title)}](ws:tasks/task/${t.id})`).join('\n');
 }
 
 /** A short stable hash (FNV-1a, 32-bit) as base 36, of a section's text with outer blank lines and spaces ignored. */

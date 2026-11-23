@@ -1,4 +1,4 @@
-// The write action: change a work item's fields (Runway's Publish). It is `write: true` in index.mjs,
+// The write action: change a work item's fields (Roadmaps' Publish). It is `write: true` in index.mjs,
 // so the agent requires `confirm: true` from the caller (a person's click). Updates carry the revision the
 // caller read: if the item changed in ADO since, the write is refused with `conflict` and the item as it is now,
 // instead of overwriting someone else's change.
@@ -84,7 +84,7 @@ export function patchOps(changes, currentFields = {}) {
   // Long text: plain text or Markdown as written, sent as escaped HTML with line breaks kept (what ADO stores).
   if (changes.description !== undefined) set('System.Description', textToHtml(changes.description));
   if (changes.acceptance !== undefined) set('Microsoft.VSTS.Common.AcceptanceCriteria', textToHtml(changes.acceptance));
-  // Other fields by reference name (Slate's release notes field), sent as plain text. Never System.* fields:
+  // Other fields by reference name (Builds' release notes field), sent as plain text. Never System.* fields:
   // those have their own keys above.
   if (changes.custom !== undefined) {
     const entries = Object.entries(changes.custom || {});
@@ -150,9 +150,9 @@ export async function updateWorkItem(d, args) {
 export const CREATE_TYPES = ['Epic', 'Feature', 'User Story', 'Product Backlog Item', 'Bug', 'Task', 'Issue'];
 
 /**
- * "workitem.create" (Slate's Publish). args: {type, title, project?, connection?, parent?, fields: {description?,
+ * "workitem.create" (Builds' Publish). args: {type, title, project?, connection?, parent?, fields: {description?,
  * acceptance?, area?, iteration?, assignedTo?, priority?, tags?, custom?}}. `custom` is other fields by reference
- * name as plain text (Slate: a feature's release note). Creates one item, with a parent link when
+ * name as plain text (Builds: a feature's release note). Creates one item, with a parent link when
  * `parent` is given, and returns it in the itemShape shape. The project is `project`, else the parent's, else the
  * connection's. Nothing is created when a field is refused: ADO validates the whole patch first.
  */

@@ -85,7 +85,7 @@ def crawl(page, app, label):
             for x in hits_in(page.evaluate(SCAN_JS)): found.setdefault('(shell) ' + where, []).append(x)
         except Exception: pass
     scan('first view')
-    for sel in ('#setBtn', '#adoBtn'):  # Docket's Settings menu and work item sync
+    for sel in ('#setBtn', '#adoBtn'):  # Tasks' Settings menu and work item sync
         try:
             if fr.locator(sel).count() and fr.locator(sel).is_visible():
                 fr.locator(sel).click(timeout=1500); page.wait_for_timeout(500); scan(sel)
@@ -154,7 +154,7 @@ def switch_checks(b, url, token):
 
 def start(tmp, ado):
     """The real agent with every app, the given ADO setup and opencode on a fake opencode."""
-    fx = subprocess.Popen(['node', os.path.join(ROOT, 'tests', 'fixtures', 'dispatch-fixture.mjs')], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+    fx = subprocess.Popen(['node', os.path.join(ROOT, 'tests', 'fixtures', 'runs-fixture.mjs')], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
     info = json.loads(fx.stdout.readline())
     apps, conns, home = (os.path.join(tmp, d) for d in ('apps', 'connectors', 'home'))
     shutil.copytree(os.path.join(ROOT, 'apps'), apps, ignore=shutil.ignore_patterns('test', '*.md'))

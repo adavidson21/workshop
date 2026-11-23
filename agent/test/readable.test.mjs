@@ -13,11 +13,11 @@ test('README.md says what each folder is, and a README of your own is left alone
   const dd = dataDirOf(home);
   fs.mkdirSync(dd, { recursive: true });
   try {
-    const apps = [{ id: 'prioritizer', name: 'Docket', folder: 'docket' }];
+    const apps = [{ id: 'tasks', name: 'Tasks', folder: 'docket' }];
     assert.equal(await writeReadme(dd, apps), 'written');
     const text = fs.readFileSync(path.join(dd, 'README.md'), 'utf8');
     assert.ok(text.startsWith(MARK));
-    assert.match(text, /\| `docket\/` \| Docket \|/);
+    assert.match(text, /\| `docket\/` \| Tasks \|/);
     assert.match(text, /Nothing in this folder is uploaded by Workshop/);
     assert.equal(await writeReadme(dd, apps), 'same');
     fs.writeFileSync(path.join(dd, 'README.md'), '# Mine\n');
@@ -43,8 +43,8 @@ test('CSV opens in Excel: a byte order mark, quoted cells, dates from change sta
 });
 
 test('Markdown has one section per item, named by its title', () => {
-  const md = toMarkdown('Docket: tasks', { items: [{ id: 't1', updatedAt: 1, title: 'Draft plan', value: 3, notes: 'line one\nline two' }], meta: { updatedAt: 1, capacity: 20 } });
-  assert.match(md, /^# Docket: tasks\n\n## Draft plan\n\n- \*\*value:\*\* 3\n- \*\*notes:\*\*\n\n  line one\n  line two/);
+  const md = toMarkdown('Tasks: tasks', { items: [{ id: 't1', updatedAt: 1, title: 'Draft plan', value: 3, notes: 'line one\nline two' }], meta: { updatedAt: 1, capacity: 20 } });
+  assert.match(md, /^# Tasks: tasks\n\n## Draft plan\n\n- \*\*value:\*\* 3\n- \*\*notes:\*\*\n\n  line one\n  line two/);
   assert.match(md, /## Settings[\s\S]*"capacity": 20/);
   assert.match(toMarkdown('X', { items: [] }), /Nothing here yet/);
 });
@@ -80,14 +80,14 @@ test('workshop export --readable works without the agent, using the real folder 
   try {
     fs.mkdirSync(path.join(dd, 'docket'), { recursive: true });
     fs.writeFileSync(path.join(dd, 'docket', 'tasks.json'), `${JSON.stringify({ schema: 'prioritizer.tasks', version: 3, rev: 2, updatedAt: '2026-11-01T00:00:00.000Z', items: [{ id: 't1', updatedAt: 1, title: 'Ship it' }] }, null, 2)}\n`);
-    fs.mkdirSync(path.join(dd, 'notes'), { recursive: true }); // Folio not renamed yet: read where it is
-    fs.writeFileSync(path.join(dd, 'notes', 'a.md'), '# A\n');
+    fs.mkdirSync(path.join(dd, 'folio'), { recursive: true }); // old folders, not renamed yet: read where they are
+    fs.writeFileSync(path.join(dd, 'folio', 'a.md'), '# A\n');
     const r = await exportReadable({ home, dataDir: dd });
     assert.equal(r.collections, 1);
     assert.equal(r.files, 1);
-    assert.match(fs.readFileSync(path.join(dd, COPY_DIR, 'Docket', 'tasks.md'), 'utf8'), /## Ship it/);
-    assert.equal(fs.readFileSync(path.join(dd, COPY_DIR, 'Folio', 'a.md'), 'utf8'), '# A\n');
-    assert.match(fs.readFileSync(path.join(dd, 'README.md'), 'utf8'), /\| `docket\/` \| Docket \|/);
+    assert.match(fs.readFileSync(path.join(dd, COPY_DIR, 'Tasks', 'tasks.md'), 'utf8'), /## Ship it/);
+    assert.equal(fs.readFileSync(path.join(dd, COPY_DIR, 'Notes', 'a.md'), 'utf8'), '# A\n');
+    assert.match(fs.readFileSync(path.join(dd, 'README.md'), 'utf8'), /\| `docket\/` \| Tasks \|/);
   } finally { rmHome(home); }
 });
 

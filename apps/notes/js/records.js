@@ -1,16 +1,16 @@
 /* Notes: other apps' records in the [[ picker (plan 1, claude/notes-plan-1-app-links.md). Pure: no DOM and no SDK.
 
    The picker lists your notes first and, once you've typed two letters, records from other apps below a thin
-   "In other apps" divider: Docket's open tasks (prioritizer.summary, list card `tasks`) and Runway's roadmaps
-   (runway.summary, targets card `roadmaps`). Choosing one writes a standard link, [Title](ws:<app>/<route>), which
+   "In other apps" divider: Tasks' open tasks (tasks.summary, list card `tasks`) and Roadmaps' roadmaps
+   (roadmaps.summary, targets card `roadmaps`). Choosing one writes a standard link, [Title](ws:<app>/<route>), which
    renders as a chip (applinks.js). Only titles and routes from the apps' summaries; no app's own data is read. */
 import { appLink } from './applinks.js';
 
 export const SOURCES = [
-  { app: 'prioritizer', name: 'Docket', card: (c) => c.id === 'tasks' && c.kind === 'list', route: (r) => r.route || `task/${r.id}` },
-  { app: 'runway', name: 'Runway', card: (c) => c.id === 'roadmaps' && c.kind === 'targets', route: (r) => r.id },
-  // Folio 4.11.0: Loom's Tandem items (slate.summary, list card `items`), so a plan doc links its builds.
-  { app: 'slate', name: 'Loom', card: (c) => c.id === 'items' && c.kind === 'list', route: (r) => (typeof r.route === 'string' && r.route) || r.id }
+  { app: 'tasks', name: 'Tasks', card: (c) => c.id === 'tasks' && c.kind === 'list', route: (r) => r.route || `task/${r.id}` },
+  { app: 'roadmaps', name: 'Roadmaps', card: (c) => c.id === 'roadmaps' && c.kind === 'targets', route: (r) => r.id },
+  // Notes 4.11.0: Builds' Tandem items (builds.summary, list card `items`), so a plan doc links its builds.
+  { app: 'builds', name: 'Builds', card: (c) => c.id === 'items' && c.kind === 'list', route: (r) => (typeof r.route === 'string' && r.route) || r.id }
 ];
 export const MIN_QUERY = 2;
 export const MAX_RECORDS = 5;

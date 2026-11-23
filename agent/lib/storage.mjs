@@ -3,7 +3,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { looseDataDir } from './datadir.mjs';
-import { APP_FOLDERS } from '../../shared/app-folders.js';
+import { OLD_FOLDERS } from '../../shared/app-folders.js';
 
 /** Folder names that mean a sync tool uploads the folder. Matched against path segments, case ignored. */
 const SYNCED = [
@@ -84,7 +84,7 @@ export function largestFiles(dataDir, limit = 10) {
  * Everything Workshop keeps, by place. Each entry: `id`, `what` (plain words), `path`, and `size` from sizeOf
  * (null when missing). Plus the data folder's permissions and sync tool.
  */
-export function storageReport({ home, dataDir, platform = process.platform, folders = APP_FOLDERS }) {
+export function storageReport({ home, dataDir, platform = process.platform, oldFolders = OLD_FOLDERS }) {
   const data = path.join(home, 'data');
   const oldApps = [];
   try {
@@ -100,11 +100,13 @@ export function storageReport({ home, dataDir, platform = process.platform, fold
   // App folders under their old names (shared/app-folders.js): renamed on the agent's next start, or left
   // because the new folder already had files.
   const oldNames = [];
-  for (const [id, folder] of Object.entries(folders)) {
-    if (!fs.statSync(path.join(dataDir, id), { throwIfNoEntry: false })?.isDirectory()) continue;
-    const both = fs.existsSync(path.join(dataDir, folder));
-    oldNames.push({ id, folder, both });
-    if (both) leftovers.push({ ...entry(`folder-${id}`, `The ${id}/ folder, its old name (Workshop uses ${folder}/)`, path.join(dataDir, id)) });
+  for (const [folder, olds] of Object.entries(oldFolders)) {
+    for (const id of olds) {
+      if (!fs.statSync(path.join(dataDir, id), { throwIfNoEntry: false })?.isDirectory()) continue;
+      const both = fs.existsSync(path.join(dataDir, folder));
+      oldNames.push({ id, folder, both });
+      if (both) leftovers.push({ ...entry(`folder-${id}`, `The ${id}/ folder, its old name (Workshop uses ${folder}/)`, path.join(dataDir, id)) });
+    }
   }
   return {
     dataDir,

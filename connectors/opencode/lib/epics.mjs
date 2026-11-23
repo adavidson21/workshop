@@ -117,7 +117,7 @@ async function startNow(items, start) {
   return started;
 }
 
-/** For Loom: each epic you asked to build (or that has stories), its stories and where they are. */
+/** For Builds: each epic you asked to build (or that has stories), its stories and where they are. */
 export function epicsData(items) {
   const scopes = new Set(Object.keys(state.epics));
   for (const it of items || []) if (it.kind === "item" && it.story) scopes.add(it.story.epic);
@@ -169,7 +169,7 @@ export function dismissOnboarding({ product }) {
 }
 
 /**
- * For Loom: each product being onboarded, with its five steps: add, scan, gaps, trial, live, each "done", "now",
+ * For Builds: each product being onboarded, with its five steps: add, scan, gaps, trial, live, each "done", "now",
  * or "next". `files` is the model's onboarding list, `gaps` the open gaps, `items` the model's items.
  */
 export function onboardingData(files, gaps, items, sessions) {

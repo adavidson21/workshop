@@ -3,7 +3,7 @@
    Settings writes its own collections only: `glossary` (settings.glossary, shared/glossary.js) and `repos`
    (settings.repos, shared/knowledge.js: what each repo is, Keep it up to date, sections kept from an imported map).
    The repo map itself is a file in the workspace, so it goes through the opencode connector (knowledge.map.read,
-   knowledge.map.write, knowledge.repos). Product notes are read from Folio's folder, read only. */
+   knowledge.map.write, knowledge.repos). Product notes are read from Notes' folder, read only. */
 import * as P from '../../../shared/products.js';
 import * as G from '../../../shared/glossary.js';
 import * as K from '../../../shared/knowledge.js';

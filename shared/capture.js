@@ -1,25 +1,25 @@
 /* Workshop: quick capture rules (docs/hub.md, docs/handoffs.md). Pure functions with no DOM, so Node tests can
-   import them (shared/test/capture.test.mjs). Home's quick capture uses them as they are; the Loom hub uses
+   import them (shared/test/capture.test.mjs). Home's quick capture uses them as they are; the Builds hub uses
    toHandoff for the proposals Tandem returns.
 
-   parseCapture turns one line into one proposal: what it is (a Docket task or waiting on, a receipt, a note, a
+   parseCapture turns one line into one proposal: what it is (a Tasks task or waiting on, a receipt, a note, a
    question for the hub, or a place to go), the app it goes to, and a handoff payload in the shape that app
    documents (docs/handoffs.md, Receivers). No AI: prefixes, dates and names from the people directory.
 
-     t <text>   Docket task (also the default with no prefix)
-     w <text>   Docket task, waiting on someone ("waiting on ..." works too)
-     r <text>   Rapport receipt, a win ("r growth: ..." and so on for the other kinds)
+     t <text>   Tasks task (also the default with no prefix)
+     w <text>   Tasks task, waiting on someone ("waiting on ..." works too)
+     r <text>   People receipt, a win ("r growth: ..." and so on for the other kinds)
      n <text>   note ("note: ..." works too). "n <folder>: <text>" with one of Notes' folders makes a new note in that
-                folder; "n today: <text>" adds it to today's note. Otherwise to Quick Notes (Home) or inbox/ (Loom)
-     p <text>   roadmap idea for Runway: a feature, bug or any thought for a project ("idea: ..." works too).
-                "p <roadmap>: <text>" with a roadmap's name goes to that roadmap; otherwise to Runway's Pending page
-     s <text>   a request for Slate's New ("request: ..." works too). "s #1234 <note>", or a line that starts with
+                folder; "n today: <text>" adds it to today's note. Otherwise to Quick Notes (Home) or inbox/ (Builds)
+     p <text>   roadmap idea for Roadmaps: a feature, bug or any thought for a project ("idea: ..." works too).
+                "p <roadmap>: <text>" with a roadmap's name goes to that roadmap; otherwise to Roadmaps' Pending page
+     s <text>   a request for Builds' New ("request: ..." works too). "s #1234 <note>", or a line that starts with
                 "#1234", is a request for that ADO work item
-     b <text>   build it with Tandem: Loom's drop box, filled in, its kind guessed (build, diagnose a log, or ask),
+     b <text>   build it with Tandem: Builds' drop box, filled in, its kind guessed (build, diagnose a log, or ask),
                 started at once when Tandem is connected ("build: ..." works too, "build ..." is a task; a pasted block after "b " is one item)
-     ? <text>   a question for the Loom hub (a line that ends in "?" too)
-     > <app>    go to an app ("> 1:1s" opens Rapport's 1:1s tab)
-     "clean up this document" (or "tidy up my note", "polish this article"): Folio cleans up the open note
+     ? <text>   a question for the Builds hub (a line that ends in "?" too)
+     > <app>    go to an app ("> 1:1s" opens People's 1:1s tab)
+     "clean up this document" (or "tidy up my note", "polish this article"): Notes cleans up the open note
                 (apps/notes/js/cleanup.js); "... and overwrite it" (or "in place") replaces it instead of a copy
 
    Dates (tasks): today, tomorrow, a weekday, M/D, YYYY-MM-DD, optionally after "by", "on" or "due".
@@ -28,20 +28,20 @@
 /* Where each capture kind goes, app names, and places for "> <name>". These are the built-in defaults; useApps()
    replaces them in place from the manifests on this site (ws.apps.list(); docs/app-manifest.md capture and
    aliases, docs/hub.md "Which app takes a capture"), so every function here follows the apps that are there. */
-export const TARGETS = { task: 'prioritizer', waiting: 'prioritizer', receipt: 'receipts', note: 'notes', idea: 'runway', request: 'slate', build: 'slate' };
-export const TARGET_NAMES = { prioritizer: 'Docket', receipts: 'Rapport', notes: 'Notes', runway: 'Runway', slate: 'Loom' };
+export const TARGETS = { task: 'tasks', waiting: 'tasks', receipt: 'people', note: 'notes', idea: 'roadmaps', request: 'builds', build: 'builds' };
+export const TARGET_NAMES = { tasks: 'Tasks', people: 'People', notes: 'Notes', roadmaps: 'Roadmaps', builds: 'Builds' };
 export const RECEIPT_KINDS = ['win', 'feedback', 'growth', 'concern', 'note'];
 export const KINDS = ['task', 'waiting', 'receipt', 'note', 'idea', 'request'];
 const MAX_TEXT = 2000;
-const MAX_BUILD = 8000; // the drop box's description cap (Loom lanes.js dropStart)
+const MAX_BUILD = 8000; // the drop box's description cap (Builds lanes.js dropStart)
 
 /* Places "> name" can go: words people use to the app id. */
 export const PLACES = {
-  home: 'home', docket: 'prioritizer', tasks: 'prioritizer', board: 'prioritizer', dispatch: 'slate', agents: 'slate', loom: 'slate',
-  hub: 'chat', chat: 'chat', ask: 'chat', receipts: 'receipts', rapport: 'receipts', notes: 'notes', settings: 'settings', '1:1s': 'receipts',
-  '1:1': 'receipts', oneonones: 'receipts', 'one-on-ones': 'receipts', goals: 'receipts', okrs: 'receipts', runway: 'runway', roadmap: 'runway'
+  home: 'home', docket: 'tasks', tasks: 'tasks', board: 'tasks', dispatch: 'builds', agents: 'builds', loom: 'builds',
+  hub: 'chat', chat: 'chat', ask: 'chat', receipts: 'people', rapport: 'people', notes: 'notes', settings: 'settings', '1:1s': 'people',
+  '1:1': 'people', oneonones: 'people', 'one-on-ones': 'people', goals: 'people', okrs: 'people', roadmaps: 'roadmaps', roadmap: 'roadmaps'
 };
-/* Places that open a part of their app: the path after #/<app>/. 1:1s are part of Rapport since 2.0.0, Goals since 2.1.0. */
+/* Places that open a part of their app: the path after #/<app>/. 1:1s are part of People since 2.0.0, Goals since 2.1.0. */
 export const PLACE_PATHS = { '1:1s': 'people', '1:1': 'people', oneonones: 'people', 'one-on-ones': 'people', goals: 'team', okrs: 'team' };
 
 const DEFAULTS = {
@@ -168,7 +168,7 @@ export function findFolder(text, folders = []) {
   return want && hits.length === 1 ? { folder: hits[0], rest: m[2].trim() } : null;
 }
 
-/* The roadmap a "p" capture names before a colon: {map, rest} or null. maps: [{id, title}] from Runway's index.
+/* The roadmap a "p" capture names before a colon: {map, rest} or null. maps: [{id, title}] from Roadmaps' index.
    The name matches a title without case, or the start of exactly one title. */
 export function findMap(text, maps = []) {
   const m = /^([^:\n]{1,120}):\s*(\S[\s\S]*)$/.exec(String(text || ''));
@@ -181,11 +181,11 @@ export function findMap(text, maps = []) {
 }
 
 /* One line to one proposal, or null for an empty line.
-   ctx: {today: 'YYYY-MM-DD', people: the directory's items (people and groups), lists: Docket list names, maps: Runway roadmaps [{id, title}],
+   ctx: {today: 'YYYY-MM-DD', people: the directory's items (people and groups), lists: Tasks list names, maps: Roadmaps roadmaps [{id, title}],
    folders: Notes' folders [{id, title}] (with a row id 'today' for today's note)}.
    Returns {kind, to, text, title, payload} for a capture, {kind: 'ask', text} or {kind: 'go', app, text}. */
 /**
- * "clean up this document" and the like: {replace} when the line asks Folio to clean up a note, else null. The
+ * "clean up this document" and the like: {replace} when the line asks Notes to clean up a note, else null. The
  * original is kept (a cleaned copy is saved next to it) unless the words say to overwrite it.
  */
 export function cleanupAsk(line) {
@@ -202,7 +202,7 @@ export function buildAsk(text) {
   const body = m ? m[1].trim().slice(0, MAX_BUILD) : '';
   return body ? { text: body } : null;
 }
-/** A build as a proposal: open Loom's drop box filled in, started there (Loom's start/go route). */
+/** A build as a proposal: open Builds' drop box filled in, started there (Builds' start/go route). */
 const buildGo = (text) => ({ kind: 'go', app: TARGETS.build, path: 'start/go/' + encodeURIComponent(text), text, build: true });
 
 export function parseCapture(line, ctx = {}) {
@@ -215,7 +215,7 @@ export function parseCapture(line, ctx = {}) {
   let kind = null, rkind = 'win';
 
   let m;
-  // "clean up this document": Folio's Clean up on the open note (a question mark does not make it a question).
+  // "clean up this document": Notes' Clean up on the open note (a question mark does not make it a question).
   const clean = TARGETS.note === 'notes' ? cleanupAsk(s.replace(/\?$/, '')) : null;
   if (clean) return { kind: 'go', app: 'notes', path: clean.replace ? 'cleanup/replace' : 'cleanup', text: s };
   if ((m = /^>\s*(.+)$/.exec(s))) {
@@ -371,14 +371,14 @@ export function dayLabel(iso, now = new Date()) {
 /* One line describing a proposal for the review list: where it goes and what was filled in. */
 export function describe(p) {
   if (!p) return '';
-  if (p.kind === 'ask') return 'Ask in Loom';
-  if (p.kind === 'go' && p.build) return `Build with Tandem in ${TARGET_NAMES[p.app] || 'Loom'}: starts when you press Enter`;
-  if (p.kind === 'go' && /^cleanup/.test(p.path || '')) return `Clean up the open note in ${TARGET_NAMES[p.app] || 'Folio'}${p.path === 'cleanup/replace' ? ', replacing it' : ', as a copy'}`;
+  if (p.kind === 'ask') return 'Ask in Builds';
+  if (p.kind === 'go' && p.build) return `Build with Tandem in ${TARGET_NAMES[p.app] || 'Builds'}: starts when you press Enter`;
+  if (p.kind === 'go' && /^cleanup/.test(p.path || '')) return `Clean up the open note in ${TARGET_NAMES[p.app] || 'Notes'}${p.path === 'cleanup/replace' ? ', replacing it' : ', as a copy'}`;
   if (p.kind === 'go') return 'Go to ' + (TARGET_NAMES[p.app] || p.app);
   const q = p.payload || {};
-  if (p.kind === 'request') return q.ado ? `${TARGET_NAMES[p.to] || 'Loom'} · #${q.ado}${q.note ? ', with a note' : ''}` : `${TARGET_NAMES[p.to] || 'Loom'} · New`;
-  if (p.kind === 'idea') return q.map ? `Runway · ${q.mapTitle || 'roadmap'}, unscheduled` : 'Runway · Pending assignment';
-  const bits = [p.kind === 'waiting' || q.waiting ? 'Docket, waiting on' : p.kind === 'receipt' ? `Rapport, ${q.kind || 'win'}` : TARGET_NAMES[p.to] || p.to];
+  if (p.kind === 'request') return q.ado ? `${TARGET_NAMES[p.to] || 'Builds'} · #${q.ado}${q.note ? ', with a note' : ''}` : `${TARGET_NAMES[p.to] || 'Builds'} · New`;
+  if (p.kind === 'idea') return q.map ? `Roadmaps · ${q.mapTitle || 'roadmap'}, unscheduled` : 'Roadmaps · Pending assignment';
+  const bits = [p.kind === 'waiting' || q.waiting ? 'Tasks, waiting on' : p.kind === 'receipt' ? `People, ${q.kind || 'win'}` : TARGET_NAMES[p.to] || p.to];
   if (p.names && p.names.length) bits.push(p.names.join(', '));
   if (p.kind === 'note' && q.daily) bits.push("today's note");
   else if (p.kind === 'note' && q.folder) bits.push(`${q.folder}/ · new note "${String(q.title || p.title || '').slice(0, 60)}"`);

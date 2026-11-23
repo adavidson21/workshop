@@ -20,8 +20,8 @@ test('apps.json keeps the apps turned off, and never Home or Settings', async ()
   const home = tempHome();
   try {
     assert.deepEqual([...readOff(home)], [], 'no file: every app is on');
-    await writeOff(home, new Set(['notes', 'home', 'settings', 'runway']));
-    assert.deepEqual(JSON.parse(fs.readFileSync(path.join(home, APPS_FILE), 'utf8')), { off: ['notes', 'runway'] });
+    await writeOff(home, new Set(['notes', 'home', 'settings', 'roadmaps']));
+    assert.deepEqual(JSON.parse(fs.readFileSync(path.join(home, APPS_FILE), 'utf8')), { off: ['notes', 'roadmaps'] });
     fs.writeFileSync(path.join(home, APPS_FILE), JSON.stringify({ off: ['notes', 'settings', 'Bad Name', 7] }));
     assert.deepEqual([...readOff(home)], ['notes']);
     fs.writeFileSync(path.join(home, APPS_FILE), 'not json');
@@ -38,25 +38,25 @@ test('areas: kept next to the app switches, turn their apps off without touching
     await writeOff(home, new Set(['notes', 'bench']));
     assert.deepEqual([...readAreasOff(home)], ['management'], 'writing app switches keeps the areas');
     assert.deepEqual([...readOff(home)].sort(), ['bench', 'notes'], 'own switches only');
-    assert.deepEqual([...effectiveOff(home)].sort(), ['bench', 'notes', 'receipts'], 'Rapport is off with Management');
+    assert.deepEqual([...effectiveOff(home)].sort(), ['bench', 'notes', 'people'], 'People is off with Management');
     const view = appSwitches({ home, repo: REPO, schemas, workMode: false });
     contractSchemas.assert('app-switches', view, 'appSwitches with areas');
-    const rapport = view.apps.find(a => a.id === 'receipts');
+    const rapport = view.apps.find(a => a.id === 'people');
     assert.deepEqual([rapport.on, rapport.own, rapport.area], [false, true, 'management']);
     assert.deepEqual(view.areas.map(a => [a.id, a.on]), [['management', false], ['work', true]]);
     const { off } = pinApps({ home, repo: REPO, schemas });
-    assert.ok(off.has('receipts'), 'the pinned copy leaves out an area\'s apps');
+    assert.ok(off.has('people'), 'the pinned copy leaves out an area\'s apps');
     await writeAreasOff(home, new Set());
     assert.deepEqual(JSON.parse(fs.readFileSync(path.join(home, APPS_FILE), 'utf8')), { off: ['bench', 'notes'] });
-    assert.equal(appSwitches({ home, repo: REPO, schemas, workMode: false }).apps.find(a => a.id === 'receipts').on, true, 'back to its own switch');
+    assert.equal(appSwitches({ home, repo: REPO, schemas, workMode: false }).apps.find(a => a.id === 'people').on, true, 'back to its own switch');
   } finally { rmHome(home); }
 });
 
 test('the registry leaves out apps turned off', () => {
   const all = ids(buildRegistry(path.join(REPO, 'apps'), schemas));
-  assert.ok(all.includes('slate') && all.includes('home'));
-  const some = ids(buildRegistry(path.join(REPO, 'apps'), schemas, new Set(['slate'])));
-  assert.deepEqual(some, all.filter(id => id !== 'slate'));
+  assert.ok(all.includes('builds') && all.includes('home'));
+  const some = ids(buildRegistry(path.join(REPO, 'apps'), schemas, new Set(['builds'])));
+  assert.deepEqual(some, all.filter(id => id !== 'builds'));
 });
 
 test('gitHead reads the commit and release tag from .git files, without running git', { skip: !hasGit && 'git is not installed' }, () => {
@@ -81,13 +81,13 @@ test('gitHead reads the commit and release tag from .git files, without running 
 test('pinApps leaves apps turned off out of the pinned copy, files and registry', async () => {
   const home = tempHome();
   try {
-    await writeOff(home, new Set(['notes', 'receipts']));
+    await writeOff(home, new Set(['notes', 'people']));
     const { build, off } = pinApps({ home, repo: REPO, schemas });
-    assert.deepEqual([...off].sort(), ['notes', 'receipts']);
-    assert.ok(!Object.keys(build.files).some(f => f.startsWith('apps/notes/')), 'no Folio files');
-    assert.ok(!Object.keys(build.files).some(f => f.startsWith('apps/receipts/')), 'no Rapport files');
+    assert.deepEqual([...off].sort(), ['notes', 'people']);
+    assert.ok(!Object.keys(build.files).some(f => f.startsWith('apps/notes/')), 'no Notes files');
+    assert.ok(!Object.keys(build.files).some(f => f.startsWith('apps/people/')), 'no People files');
     assert.ok(build.files['apps/home/index.html'], 'Home is still there');
-    assert.ok(build.files['apps/prioritizer/index.html'], 'Docket is part of the copy');
+    assert.ok(build.files['apps/tasks/index.html'], 'Tasks is part of the copy');
     const reg = JSON.parse(fs.readFileSync(path.join(home, 'ui', 'apps', 'registry.json'), 'utf8'));
     assert.ok(!ids(reg).includes('notes'));
     assert.equal(verifyPinned(path.join(home, 'ui')).ok, true);
@@ -96,7 +96,7 @@ test('pinApps leaves apps turned off out of the pinned copy, files and registry'
     assert.equal(view.apps.find(a => a.id === 'notes').inWorkshop, false);
     assert.equal(view.apps.find(a => a.id === 'home').canTurnOff, false);
     assert.ok(view.apps.every(a => a.separate === false), 'every app is part of Workshop');
-    assert.equal(view.apps.find(a => a.id === 'prioritizer').inWorkshop, true);
+    assert.equal(view.apps.find(a => a.id === 'tasks').inWorkshop, true);
   } finally { rmHome(home); }
 });
 
@@ -112,38 +112,38 @@ test('GET and PUT /api/app-switches: changes come from this computer only, and w
     assert.equal(r.status, 200, r.text);
     contractSchemas.assert('app-switches', r.json, 'GET');
     assert.equal(r.json.workMode, true);
-    assert.equal(r.json.apps.find(a => a.id === 'slate').inWorkshop, true);
+    assert.equal(r.json.apps.find(a => a.id === 'builds').inWorkshop, true);
 
-    r = await put(agent, '/api/app-switches/slate', { on: false });
+    r = await put(agent, '/api/app-switches/builds', { on: false });
     assert.equal(r.status, 200, r.text);
     contractSchemas.assert('app-switches', r.json, 'PUT');
-    assert.equal(r.json.changed, 'slate');
-    assert.equal(r.json.apps.find(a => a.id === 'slate').inWorkshop, false);
-    assert.ok(!ids(JSON.parse(fs.readFileSync(path.join(uiDir, 'apps', 'registry.json'), 'utf8'))).includes('slate'), 'rebuilt without Slate');
-    assert.equal((await get(agent, '/apps/slate/index.html', { auth: 'cookie' })).status, 404, 'Slate is no longer served');
+    assert.equal(r.json.changed, 'builds');
+    assert.equal(r.json.apps.find(a => a.id === 'builds').inWorkshop, false);
+    assert.ok(!ids(JSON.parse(fs.readFileSync(path.join(uiDir, 'apps', 'registry.json'), 'utf8'))).includes('builds'), 'rebuilt without Builds');
+    assert.equal((await get(agent, '/apps/builds/index.html', { auth: 'cookie' })).status, 404, 'Builds is no longer served');
 
-    r = await put(agent, '/api/app-switches/slate', { on: true });
+    r = await put(agent, '/api/app-switches/builds', { on: true });
     assert.equal(r.status, 200, r.text);
-    assert.equal((await get(agent, '/apps/slate/index.html', { auth: 'cookie' })).status, 200, 'Slate is back');
+    assert.equal((await get(agent, '/apps/builds/index.html', { auth: 'cookie' })).status, 200, 'Builds is back');
 
     r = await put(agent, '/api/app-areas/work', { on: false });
     assert.equal(r.status, 200, r.text);
     contractSchemas.assert('app-switches', r.json, 'PUT area');
     assert.equal(r.json.changed, 'work');
-    assert.equal(r.json.apps.find(a => a.id === 'runway').area, 'work');
-    assert.ok(!ids(JSON.parse(fs.readFileSync(path.join(uiDir, 'apps', 'registry.json'), 'utf8'))).includes('runway'), 'rebuilt without Runway');
-    r = await put(agent, '/api/app-switches/runway', { on: true });
+    assert.equal(r.json.apps.find(a => a.id === 'roadmaps').area, 'work');
+    assert.ok(!ids(JSON.parse(fs.readFileSync(path.join(uiDir, 'apps', 'registry.json'), 'utf8'))).includes('roadmaps'), 'rebuilt without Roadmaps');
+    r = await put(agent, '/api/app-switches/roadmaps', { on: true });
     assert.equal(r.status, 400, 'an app stays off while its area is off');
     assert.match(r.json.error, /Turn Work on first/);
     assert.equal((await put(agent, '/api/app-areas/nope', { on: false })).status, 404);
     assert.equal((await put(agent, '/api/app-areas/work', { on: 1 })).status, 400);
     r = await put(agent, '/api/app-areas/work', { on: true });
-    assert.equal(r.json.apps.find(a => a.id === 'runway').on, true);
+    assert.equal(r.json.apps.find(a => a.id === 'roadmaps').on, true);
 
     assert.equal((await put(agent, '/api/app-switches/home', { on: false })).status, 400, 'Home is always on');
     assert.equal((await put(agent, '/api/app-switches/nope', { on: false })).status, 404);
-    assert.equal((await put(agent, '/api/app-switches/slate', { on: 'yes' })).status, 400);
-    assert.equal((await put(agent, '/api/app-switches/slate', { on: false }, { auth: 'cookie' })).status, 401, 'writes need the header token');
+    assert.equal((await put(agent, '/api/app-switches/builds', { on: 'yes' })).status, 400);
+    assert.equal((await put(agent, '/api/app-switches/builds', { on: false }, { auth: 'cookie' })).status, 401, 'writes need the header token');
 
   } finally { await agent.stop(); rmHome(home); }
 });
@@ -215,10 +215,10 @@ test('readManifest explains a bad app.json in plain words', () => {
     assert.match(readManifest(dir, 'x', schemas).problem, /no app\.json/);
     fs.writeFileSync(path.join(dir, 'app.json'), '{');
     assert.match(readManifest(dir, 'x', schemas).problem, /not valid JSON/);
-    const ok = JSON.parse(fs.readFileSync(path.join(REPO, 'apps', 'slate', 'app.json'), 'utf8'));
+    const ok = JSON.parse(fs.readFileSync(path.join(REPO, 'apps', 'builds', 'app.json'), 'utf8'));
     fs.writeFileSync(path.join(dir, 'app.json'), JSON.stringify(ok));
-    assert.equal(readManifest(dir, 'slate', schemas).problem, undefined);
-    assert.match(readManifest(dir, 'notes', schemas).problem, /says id "slate", not "notes"/);
+    assert.equal(readManifest(dir, 'builds', schemas).problem, undefined);
+    assert.match(readManifest(dir, 'notes', schemas).problem, /says id "builds", not "notes"/);
   } finally { rmHome(dir); }
 });
 

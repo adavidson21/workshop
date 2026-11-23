@@ -1,0 +1,578 @@
+/* Dispatch 3.0: the tabs, as HTML strings from S (plans: claude/dispatch-ui-v2-plan.md and
+   claude/runs-flows-v1-plan.md in the Workshop project). Four tabs, one job each:
+   - Inbox: everything waiting on you, answerable in place, with the file you are approving. A run that needs you is
+     only here. Go through them shows one at a time, with keys. The rail badge counts it.
+   - Chat: the hub and conversations with Tandem (chat.js draws it; main.js moves its element into #chat-slot).
+   - Work: everything else in flight, every flow (builds, spikes, epics, docs, TSDs), as rows. A row opens its page.
+   - Reviews: teammates' PRs and first-pass reviews (pr-reviews.js reviewsHtml).
+   A run's page is driven by its flow (flows.js): the step track is the navigation, the current step shows its file
+   and its buttons. No DOM: main.js paints what these return and handles the clicks. */
+import { adoIsOn } from '../../../../shared/ado.js';
+import { S } from './state.js';
+import { h, md, plural, ago, stamp, fileBtn, fileOf, asking, itemSession, isBusy, itemKey, itemForFolder, stateVar, track, nextHtml, nextBtns, autoHtml, agentHtml, leftOffHtml,
+  permHtml, questionHtml, sessionBox, reposTable, tasksHtml, kitHtml, filesHtml, prHtml, removeBtn, briefText, buildsChip, buildsOf, idLink, safeUrl, link, runBtn, runFork, autoIs,
+  activityHtml, onboardHtml, pickItem, pickupHtml, looseSessions, openAttr, bucketOf, reviewHref } from './view.js';
+import { projectChip, projectFilterHtml, inProject, runStatus, statusDot, runLabel } from './projects.js';
+import { reviewsHtml, isReviewSession, mineItems, mineState, MINE_STATE, toReviewCount, reviewsAsking } from './pr-reviews.js';
+/** A session the hub started (`/hub <text>`): it belongs to the Chat app, not to a run. */
+const isHubCommand = c => /^\/hub\s/.test(String(c || ''));
+import { docHtml } from './doc.js';
+import { publishHtml, overlapHtml, tryItHtml } from './factory.js';
+import { FLOWS, flowOf, flowTag, flowById, stepsOf, stepIndex, currentStep, hereWords, atGate, isFinished, turnHtml, gateFile, sendBackCommand,
+  folderCommand, flowTrackHtml, stepLine, miniTrack, isSlateFolder, forkHtml } from './flows.js';
+
+export { TABS } from '../board.js';
+import { TABS, BOARD_TABS, panelRun, currentNudges } from '../board.js';
+import { lanesHtml, lanesCount, laneRun, setLaneHelpers } from './lanes.js';
+import { setLanesView } from './view.js';
+setLanesView(() => lanesHtml());
+setLaneHelpers({ onboard: () => onboardHtml(), askSource: x => askSource(x.sessionID, x.folder) });
+// `work` is All runs: under Board on the tab bar (the board's toolbar opens it), every run in one list.
+export const TAB_IDS = TABS.map(t => t[0]);
+/** Dispatch 2.x's tabs: Runs, Ship and Research are all Work now. */
+// Retired tabs open Lanes (Builds 6.0.0): the Inbox is Lanes' Your turn, the Board's items are lane cards, All runs and
+// Reviews are cards too. Remove these addresses after Feb 1, 2027 with the other retired redirects.
+export const OLD_TABS = { runs: 'lanes', ship: 'lanes', research: 'lanes', work: 'lanes', inbox: 'lanes', board: 'lanes', reviews: 'lanes' };
+const L = () => S.L;
+const all = () => (S.D && S.D.items) || [];
+const newest = list => list.slice().sort((a, b) => (b.modifiedMs || 0) - (a.modifiedMs || 0));
+
+// ------------------------------------------------------------------ what goes where
+/** A run that has reached Ship (PR text written) or is done. */
+export const isShip = it => it.kind === 'item' && (it.stage === 'ship' || it.bucket === 'ship' || it.bucket === 'done');
+/** Everything a flow knows, plus folders no flow knows (not PR reviews, which are on Reviews, and not Builds' own). */
+export const workItems = () => all().filter(it => it.kind !== 'pr' && !isSlateFolder(it));
+/** Sessions Dispatch started that have no .work folder yet: a spike, epic, doc or TSD before its folder exists, and repo guides. */
+export const startingSessions = () => looseSessions().filter(o => !isReviewSession(o) && !isHubCommand(o.command));
+
+// ------------------------------------------------------------------ Inbox
+/** Everything waiting on you. asks: agent prompts and questions from any session. gates: runs at a gate (a work item
+ *  waiting for approval or autopilot waiting, an epic's approvals, a TSD to revise or publish; not ones asking you:
+ *  their ask is the row). code: runs with a code review to do. failed: runs that stopped. prs: teammates' PRs with
+ *  no first pass yet (one line; the Reviews tab has them). */
+export function inboxData() {
+  const asks = L() ? L().permissions.map(p => ({ kind: 'perm', x: p })).concat(L().questions.map(q => ({ kind: 'q', x: q }))) : [];
+  const code = mineItems().filter(it => ['fix', 'review'].includes(mineState(it)));
+  const codeSet = new Set(code);
+  const failed = newest(workItems().filter(it => it.kind === 'item' && !isShip(it) && !it.paused && !asking(it) && isStopped(it)));
+  const stopped = new Set(failed);
+  const gates = newest(workItems().filter(it => atGate(it) && !codeSet.has(it) && !stopped.has(it)));
+  // Hand-offs with no movement in 3 working days (the board half works them out; flow cards v1).
+  const nudges = currentNudges();
+  return { asks, gates, code, failed, nudges, prs: toReviewCount() };
+}
+/** A run whose last step failed or says it is blocked, or whose session stopped with an error. */
+export function isStopped(it) {
+  const s = itemSession(it);
+  return !!it.blocked || (!!s && !!s.error && !isBusy(s) && !autoIs(it, 'running'));
+}
+/** The rail badge and the Inbox tab count: rows that need you (teammates' PRs are counted on Reviews). */
+export function inboxCount(d = inboxData()) { return d.asks.length + d.gates.length + d.code.length + d.failed.length + (d.nudges || []).length; }
+/** Folders that are in the Inbox (asking, at a gate, a code review, stopped): Work leaves them out. */
+export function inboxFolders(d = inboxData()) {
+  const set = new Set([...d.gates, ...d.code, ...d.failed].map(it => it.folder));
+  for (const a of d.asks) if (a.x.folder) set.add(a.x.folder);
+  return set;
+}
+/** The Inbox as one list, for Go through them: every row with a key that stays the same across repaints. */
+export function walkList(d = inboxData()) {
+  const done = (S.ui.walk && S.ui.walk.done) || {};
+  return [].concat(
+    d.failed.map(it => ({ key: 'failed:' + it.folder, kind: 'failed', it })),
+    d.asks.map(a => ({ key: 'ask:' + a.x.id, kind: 'ask', a })),
+    d.gates.map(it => ({ key: 'gate:' + it.folder, kind: 'gate', it })),
+    d.code.map(it => ({ key: 'code:' + it.folder, kind: 'code', it })),
+    (d.nudges || []).map(n => ({ key: 'nudge:' + n.id, kind: 'nudge', n }))
+  ).filter(x => !done[x.key]);
+}
+
+/** Where an agent's prompt comes from, and the button that opens it. */
+export function askSource(sessionID, folder) {
+  const it = folder ? itemForFolder(folder) : null;
+  if (it && it.kind === 'pr') return { label: it.title, open: `data-open-item="${h(it.folder)}"`, what: 'PR review' };
+  if (it) return { label: runLabel(it), open: `data-open-run="${h(it.folder)}"`, what: flowTag(it) };
+  const o = looseSessions().find(x => x.session === sessionID);
+  const s = L() && L().sessions[sessionID];
+  const title = (s && s.title) || (o && o.command) || 'opencode session';
+  if (o && isHubCommand(o.command)) return { label: title, open: `data-open-chat="${h(sessionID)}"`, what: 'Chat' };
+  if (o && isReviewSession(o)) return { label: title, open: 'data-inbox-chip="prs"', what: 'PR review' };
+  if (o) return { label: title, open: 'data-tab="work"', what: 'Starting' };
+  return { label: title, open: `data-open-chat="${h(sessionID)}"`, what: 'Conversation' };
+}
+/** One session's open prompts and questions, answerable in place (Chat threads and hub cards). */
+export function sessionAsksHtml(sid) {
+  if (!L() || !sid) return '';
+  const perms = L().permissions.filter(p => p.sessionID === sid), qs = L().questions.filter(q => q.sessionID === sid);
+  return perms.length || qs.length ? `<div class="asks inline">${perms.map(p => permHtml(p, false)).join('')}${qs.map(q => questionHtml(q, false)).join('')}</div>` : '';
+}
+/** A run's open prompts and questions, answerable in place (the lanes' panel): by its folder, or by a session that
+ *  has no folder yet. '' when it asks nothing. */
+export function asksFor(folder, sid) {
+  if (!L()) return '';
+  const mine = x => (folder && x.folder === folder) || (sid && x.sessionID === sid);
+  const perms = L().permissions.filter(mine), qs = L().questions.filter(mine);
+  return perms.length || qs.length ? `<div class="asks inline">${perms.map(p => permHtml(p, false)).join('')}${qs.map(q => questionHtml(q, false)).join('')}</div>` : '';
+}
+function askHtml(a) {
+  const src = askSource(a.x.sessionID, a.x.folder);
+  return `<div class="inbox-ask icard" data-ask="${h(a.x.id)}"><p class="src"><span class="tag">${h(src.what)}</span><span class="st">${h(src.label)}</span>` +
+    `<button type="button" class="lnk plain" data-hot="o" ${src.open}>Open</button></p>${a.kind === 'perm' ? permHtml(a.x, false) : questionHtml(a.x, false)}</div>`;
+}
+function section(id, title, n, body, hint) {
+  return `<section class="group" id="g-${id}" aria-labelledby="gh-${id}"><h3 id="gh-${id}">${h(title)} <span class="n">${n}</span></h3>` + (hint ? `<p class="hint">${md(hint)}</p>` : '') + body + '</section>';
+}
+/** The first button gets the A key in Go through them. */
+const hot = (html, key) => html.replace(/<(button|a) /, `<$1 data-hot="${key}" `);
+/** One primary per card: the first button keeps its style, any later primary turns into a plain button. */
+const secondary = html => { let n = 0; return html.replace(/class="btn primary/g, m => (n++ ? 'class="btn' : m)); };
+
+/** A .work file shown inline: rendered, with Open (the file sheet) and, when it may be edited, Edit. peek: only the
+ *  first part, with Read all to open the rest. */
+export function fileInline(it, name, peek) {
+  if (!name) return '';
+  const f = fileOf(it.folder, name);
+  const body = !f || (f.text == null && !f.error) ? '<p class="dim">Loading.</p>' : f.text == null ? `<p class="err">${h(f.error)}</p>`
+    : f.text.trim() ? `<div class="doc">${docHtml(f.text)}</div>` : '<p class="dim">This file is empty.</p>';
+  const key = 'peek:' + it.folder + '/' + name;
+  const open = !peek || !!S.ui.open[key];
+  const long = f && f.text && f.text.split('\n').length > 14;
+  const more = peek && long ? `<button type="button" class="lnk plain" data-peek="${h(key)}" aria-expanded="${open}">${open ? 'Show less' : 'Read all'}</button>` : '';
+  return `<section class="finline${peek && long && !open ? ' peek' : ''}" aria-label="${h(name)}"><p class="fi-h"><span class="mono">${h(name)}</span>` +
+    `${fileBtn(it.folder, name, 'plain', 'Open')}<button type="button" class="lnk plain" data-file="${h(it.folder)}" data-name="${h(name)}" data-mode="edit">Edit</button></p>` +
+    `<div class="fi-body">${body}</div>${more ? `<p class="fi-more">${more}</p>` : ''}</section>`;
+}
+/** Send back with a note: the note goes under the gate file's Open questions, then the step runs again. */
+export function sendBackHtml(it) {
+  const cmd = sendBackCommand(it);
+  if (!cmd) return '';
+  const key = 'sb:' + it.folder;
+  if (!S.ui.open[key]) return '';
+  const file = gateFile(it);
+  return `<div class="sendback"><label><span class="cfg-t">What should change?</span>` +
+    `<textarea rows="3" data-draft="${h(key)}" placeholder="Say what is wrong or missing. It goes under Open questions in ${h(file || 'the file')}, then Tandem redoes the draft.">${h(S.ui.drafts[key] || '')}</textarea></label>` +
+    `<div class="row"><button type="button" class="btn primary" data-sendback="${h(it.folder)}"${S.ui.busy['sb:' + it.folder] ? ' disabled' : ''}>Send back to Tandem</button>` +
+    `<button type="button" class="btn" data-sb-toggle="${h(it.folder)}">Cancel</button><span class="dim">Runs <code>${h(cmd)}</code></span></div></div>`;
+}
+const CMD_LABEL = { approve: 'Approve', slice: 'Slice', backlog: 'Make the backlog', 'check-docs': 'Fact-check', publish: 'Publish', tsd: 'Run /tsd', scope: 'Scope' };
+function cmdLabel(cmd) { const n = String(cmd || '').split(/\s+/)[0].replace(/^\//, ''); return CMD_LABEL[n] || 'Run'; }
+/** The buttons at a folder's current step (epic, docs, TSD, spike): its next command, and what else fits there. At a
+ *  fork (a spike's findings, a doc's final read) the choices are path cards (flow cards v1). */
+export function folderActs(it, inline) {
+  const f = flowOf(it);
+  const i = stepIndex(it);
+  const out = [];
+  const edit = (file, label, primary) => `<button type="button" class="btn${primary ? ' primary' : ''}" data-file="${h(it.folder)}" data-name="${h(file)}" data-mode="edit">${h(label)}</button>`;
+  const id = f && f.id;
+  if (id === 'tsd' && i === 1) {
+    const cmd = folderCommand(it) || `/check-docs .work/${it.folder}/tsd.md`;
+    out.push(runBtn(it, cmd, 'Fact-check it'), edit('tsd.md', 'Edit tsd.md'));
+  } else if (id === 'tsd' && i === 3) {
+    out.push(runBtn(it, `/publish ${it.folder}`, 'Publish'), edit('tsd.md', 'Edit tsd.md'));
+  } else if (id === 'diagnose' && i === 1) {
+    // The diagnosis fork (Core 4.3.0): a fix that changes no code comes first; you apply it, then this closes.
+    const d = fileOf(it.folder, 'findings.md');
+    const type = String(it.fixType || '').toLowerCase();
+    const noCode = ['configuration', 'data', 'infrastructure'].includes(type);
+    const doc = (flow, label, desc, primary) => ({ label, desc, primary, attrs: `data-doc-start="${h(it.folder)}" data-doc-flow="${flow}"`, title: 'Opens Start work with the diagnosis filled in. Nothing starts until Start.' });
+    out.push(forkHtml([
+      noCode ? { label: 'Apply the change', desc: `You make the ${type} change the diagnosis names, then this closes.`, primary: true, attrs: `data-spike-close="${h(it.folder)}" data-close-how="applied the ${h(type)} change"` } : null,
+      doc('bug', noCode ? 'Fix it in code instead' : 'Fix it', 'Start Fix a bug from the diagnosis: a failing test, then the fix.', !noCode),
+      doc('spike', 'Investigate more', 'A spike on what the diagnosis leaves open.'),
+      { label: 'Save as note', desc: 'Keep the diagnosis in Notes and close it.', attrs: `data-doc-note="${h(it.folder)}"`, disabled: !(d && d.text), title: d && d.text ? '' : 'Read the diagnosis first' },
+      { label: 'Close', desc: 'Not worth fixing, or already fixed.', attrs: `data-spike-close="${h(it.folder)}"` }
+    ], 'What next for this error'));
+  } else if (id === 'spike' && i === 1) {
+    const d = fileOf(it.folder, 'findings.md');
+    const doc = (flow, label, desc) => ({ label, desc, attrs: `data-doc-start="${h(it.folder)}" data-doc-flow="${flow}"`, title: 'Opens Start work with the findings filled in. Nothing starts until Start.' });
+    out.push(forkHtml([
+      doc('feature', 'Build it', 'Start a feature from the findings.'),
+      doc('bug', 'Fix it', 'Start a bug fix from the findings.'),
+      doc('docs', 'Write it up', 'Write docs from what it found.'),
+      { label: 'Save as note', desc: 'Keep the findings in Notes and close it.', attrs: `data-doc-note="${h(it.folder)}"`, disabled: !(d && d.text), title: d && d.text ? '' : 'Read the findings first' },
+      { label: 'Close', desc: 'Nothing more to do.', attrs: `data-spike-close="${h(it.folder)}"` }
+    ], 'What next for this spike'));
+  } else if (id === 'docs' && i === 1) {
+    const cmd = folderCommand(it);
+    if (cmd) out.push(runBtn(it, cmd, 'Looks right: fact-check it'));
+    else if (inline) out.push(`<span class="docs-path"><input type="text" class="mono" data-draft="dc:${h(it.folder)}" value="${h(S.ui.drafts['dc:' + it.folder] || '')}" placeholder="Path of the doc, like docs/run-locally.md" spellcheck="false" autocomplete="off" aria-label="Path of the doc to fact-check">` +
+      `<button type="button" class="btn primary" data-docs-check="${h(it.folder)}">Fact-check</button></span>`);
+  } else if (id === 'docs' && i === 3) {
+    const busy = !!S.ui.busy['notes:' + it.folder];
+    out.push(forkHtml([
+      runFork(it, `/publish ${it.folder}`, 'Save in the repo', 'Approves it where it lives in the repo. You commit it and open the PR.'),
+      { label: busy ? 'Saving' : 'Save to Notes', desc: 'A copy in Notes, under Tandem. Nothing is committed.', attrs: `data-docs-notes="${h(it.folder)}"`, disabled: busy }
+    ], 'Where the doc goes'));
+  } else if (id === 'epic' && i === 4) {
+    if (adoIsOn()) out.push(runBtn(it, `/backlog ${it.folder} ado`, 'Create in ADO'), runBtn(it, `/backlog ${it.folder} csv`, 'Make an import file instead', true));
+    else out.push(runBtn(it, `/backlog ${it.folder} local`, 'Create the stories'));
+  } else {
+    const cmd = folderCommand(it);
+    if (cmd && !isFinished(it)) out.push(runBtn(it, cmd, cmdLabel(cmd)));
+  }
+  return out.join('');
+}
+/** One run waiting on you at a gate, as a card: whose turn and what for, the flow so far, the file to read (the first
+ *  part; Read all for the rest), and its buttons: approve, send back with a note, edit the file, open the run. */
+function gateCard(it, expanded) {
+  const file = gateFile(it);
+  // Collapsed to one card's worth by default: the draft opens on Read (Builds UX v1). Go through them shows it.
+  const key = 'card:' + it.folder;
+  const open = !!expanded || !!S.ui.open[key];
+  const sb = sendBackCommand(it);
+  const btns = it.kind === 'item' ? nextBtns(it, false) : folderActs(it, false);
+  return `<article class="icard gate" id="item-${h(itemKey(it))}" style="--state:${stateVar(it)}">` +
+    `<p class="src"><span class="tag">${h(flowTag(it))}</span><button type="button" class="st lnk plain" data-open-run="${h(it.folder)}">${it.id ? `<span class="num">#${h(it.id)}</span>` : ''}${h(it.title)}</button>` +
+    `${miniTrack(it)}<button type="button" class="lnk plain" data-hot="o" data-open-run="${h(it.folder)}">Open</button></p>` +
+    `<p class="iturn">${turnHtml(it)}</p>` + (it.kind === 'item' ? autoHtml(it) : '') + (open ? fileInline(it, file, true) : '') +
+    `<div class="row acts">${hot(secondary(btns), 'a')}` + (file ? `<button type="button" class="btn ghost" data-peek="${h(key)}" aria-expanded="${open}">${open ? 'Hide' : 'Read'} ${h(file)}</button>` : '') +
+    (sb ? `<button type="button" class="btn ghost" data-hot="s" data-sb-toggle="${h(it.folder)}" aria-expanded="${!!S.ui.open['sb:' + it.folder]}">Send back</button>` : '') + '</div>' +
+    sendBackHtml(it) + '</article>';
+}
+function failedCard(it) {
+  return `<article class="icard failed" id="item-${h(itemKey(it))}" style="--state:${stateVar(it)}">` +
+    `<p class="src"><span class="tag">${h(flowTag(it))}</span><button type="button" class="st lnk plain" data-open-run="${h(it.folder)}">${it.id ? `<span class="num">#${h(it.id)}</span>` : ''}${h(it.title)}</button>` +
+    `${miniTrack(it)}<button type="button" class="lnk plain" data-hot="o" data-open-run="${h(it.folder)}">Open</button></p>` +
+    `<p class="iturn">${turnHtml(it)}</p><div class="row acts">${hot(nextBtns(it, false), 'a')}</div></article>`;
+}
+function codeRow(it) {
+  const st = mineState(it);
+  const repo = ((it.pr || []).find(p => p.push && p.push.local && !(p.push.remote && !p.push.unpushed)) || (it.pr || [])[0] || {}).repo;
+  const review = repo && S.conn === 'on' ? `<a class="btn primary" data-hot="a" href="${h(reviewHref(it, repo))}" data-review>${st === 'fix' ? 'Open review' : 'Review'}</a>` : '';
+  return `<article class="rrow" id="item-${h(itemKey(it))}" style="--state:${stateVar(it)}">${statusDot(st === 'fix' ? 'failed' : 'review')}` +
+    `<button type="button" class="rr-t" data-open-run="${h(it.folder)}">${it.id ? `<span class="num">#${h(it.id)}</span>` : ''}${h(it.title)}</button>` +
+    `<span class="rr-m">${st === 'fix' ? 'The revision needs you' : 'Review the diff before you push'}${repo ? ` · <span class="mono">${h(repo)}</span>` : ''}</span>` +
+    `<span class="rr-act">${review}<button type="button" class="btn ghost" data-hot="o" data-open-run="${h(it.folder)}">Open</button></span></article>`;
+}
+/** A run inside its card on the board (Builds, .builds-run): at a gate, its gate card (file, Approve, Send back); stopped,
+ *  its next step; otherwise its row (step, whose turn, main button). '' when there is no such run. */
+export function runCardHtml(folder) {
+  const it = itemForFolder(folder);
+  if (!it || it.kind === 'pr') return '';
+  const d = inboxData();
+  if (d.gates.includes(it)) return gateCard(it);
+  if (d.failed.includes(it)) return failedCard(it);
+  // A ready build's Publish gate (Builds 6.2.0) sits under its row, in the lanes' panel too.
+  // Try it (connector 1.28.0) while it builds; at Publish it sits in the Publish block.
+  return `<div class="rows">${workRow(it)}</div>` + (it.stage === 'ship' ? '' : tryItHtml(it)) + publishHtml(it);
+}
+/** A hand-off with no movement: who has it, how long, and Open (its card, where Followed up is). */
+function nudgeRow(n) {
+  return `<article class="rrow nudge-row">${statusDot('review')}<button type="button" class="rr-t" data-board-item="${h(n.id)}">${h(n.title)}</button>` +
+    `<span class="rr-m">${n.assigneeName ? 'With ' + h(n.assigneeName) + ', no' : 'No'} movement in ${h(n.days)} working days</span>` +
+    `<span class="rr-act"><button type="button" class="btn" data-hot="a" data-board-item="${h(n.id)}">Open the card</button></span></article>`;
+}
+function walkRowHtml(x) {
+  if (x.kind === 'nudge') return `<div class="rows">${nudgeRow(x.n)}</div>`;
+  if (x.kind === 'ask') return askHtml(x.a);
+  if (x.kind === 'gate') return gateCard(x.it, true);
+  if (x.kind === 'code') return `<div class="rows">${codeRow(x.it)}</div>`;
+  return failedCard(x.it);
+}
+/** Go through them: one row at a time, full width. */
+function walkHtml(d) {
+  const list = walkList(d);
+  const w = S.ui.walk;
+  if (!list.length) {
+    return '<section class="walk done" aria-label="Go through them"><p class="walk-n">That is everything.</p><p class="dim">Nothing else is waiting on you.</p>' +
+      '<div class="row"><button type="button" class="btn primary" data-walk="stop">Back to the Inbox</button></div></section>';
+  }
+  const i = Math.min(Math.max(0, w.i || 0), list.length - 1);
+  const x = list[i];
+  return `<section class="walk" aria-label="Go through them" data-walk-key="${h(x.key)}"><div class="walk-head"><span class="walk-n">${i + 1} of ${list.length}</span>` +
+    `<span class="row"><button type="button" class="btn ghost" data-walk="prev"${i ? '' : ' disabled'}>Previous</button><button type="button" class="btn ghost" data-walk="next"${i < list.length - 1 ? '' : ' disabled'}>Skip</button>` +
+    `<button type="button" class="btn" data-walk="stop">Done</button></span></div>${walkRowHtml(x)}` +
+    '<p class="walk-keys"><kbd>A</kbd> approve or the main button <kbd>S</kbd> send back <kbd>N</kbd> skip <kbd>P</kbd> previous <kbd>O</kbd> open <kbd>Esc</kbd> stop</p></section>';
+}
+/** The Inbox's chips: All, Blocked, Agents need you, PRs. Each filters; All keeps the urgency order (Builds UX v1). */
+export const INBOX_CHIPS = [['all', 'All'], ['blocked', 'Blocked'], ['agents', 'Agents need you'], ['prs', 'PRs']];
+function chipCounts(d) {
+  return { all: inboxCount(d) + (d.prs || 0), blocked: d.failed.length, agents: d.asks.length + d.gates.length, prs: d.code.length + (d.prs || 0) };
+}
+export function inboxHtml() {
+  const d = inboxData();
+  const n = inboxCount(d);
+  let html = (S.digestHtml ? S.digestHtml(h) : '') + onboardHtml();
+  if (n && S.ui.walk) return html + walkHtml(d);
+  const c = chipCounts(d);
+  const chip = INBOX_CHIPS.some(([k]) => k === S.ui.inboxChip) ? S.ui.inboxChip : 'all';
+  if (c.all || chip !== 'all' || S.conn === 'on') {
+    html += `<div class="inbox-head"><div class="chips" role="tablist" aria-label="Show">${INBOX_CHIPS.map(([k, label]) =>
+      `<button type="button" role="tab" class="chip${chip === k ? ' on' : ''}" data-inbox-chip="${k}" aria-selected="${chip === k}">${h(label)}<span class="n">${c[k]}</span></button>`).join('')}</div>` +
+      (n > 1 ? '<button type="button" class="btn" data-walk="start" title="One at a time, with keys">Go through them</button>' : '') + '</div>';
+  }
+  const show = k => chip === 'all' || chip === k;
+  // Most urgent first: what is stopped, then agents waiting on you, then code to review.
+  if (show('blocked') && d.failed.length) html += section('failed', 'Stopped or blocked', d.failed.length, `<div class="icards">${d.failed.map(failedCard).join('')}</div>`);
+  if (show('agents') && d.asks.length) html += section('asks', 'Agents asking you', d.asks.length, `<div class="asks">${d.asks.map(askHtml).join('')}</div>`);
+  if (show('agents') && d.gates.length) html += section('gates', 'Ready for your review', d.gates.length, `<div class="icards">${d.gates.map(it => gateCard(it)).join('')}</div>`);
+  if (chip === 'all' && d.nudges && d.nudges.length) html += section('nudges', 'Hand-offs with no movement', d.nudges.length, `<div class="rows">${d.nudges.map(nudgeRow).join('')}</div>`, 'Check in, then mark it Followed up on its card.');
+  if (show('prs') && d.code.length) html += section('code', 'Code reviews to do', d.code.length, `<div class="rows">${d.code.map(codeRow).join('')}</div>`, 'Read the diff before anything is pushed.');
+  // Teammates' PRs: a line on All, the whole review list (Review a link, first passes, earlier reviews) on PRs.
+  if (chip === 'prs') html += `<section class="group inbox-reviews" aria-label="Teammates' PRs">${reviewsHtml()}</section>`;
+  else if (chip === 'all' && d.prs) {
+    html += `<div class="inbox-prs"><span>${plural(d.prs, "teammate's PR", "teammates' PRs")} waiting on you with no review yet.</span><button type="button" class="btn" data-inbox-chip="prs">Show PRs</button></div>`;
+  }
+  if (c.all && chip !== 'all' && chip !== 'prs' && !c[chip]) html += '<div class="empty small"><p>Nothing here right now.</p></div>';
+  if (!n) {
+    if (!d.prs) html += '<div class="empty small"><p>Nothing needs you right now.</p></div>';
+    const runs = workItems().filter(it => it.kind === 'item' && !isShip(it));
+    const by = {};
+    runs.forEach(it => { const b = bucketOf(it); (by[b] = by[b] || []).push(it); });
+    const pick = pickItem(runs, by);
+    if (pick) html += pickupHtml(pick);
+    else if (!all().length && !onboardHtml()) html += startEmpty('No work yet', 'Pick a flow: build a feature, fix a bug, investigate a question, plan an epic, or write docs.');
+  }
+  return html;
+}
+function startEmpty(title, text) {
+  return `<div class="empty"><h2>${h(title)}</h2><p>${h(text)}</p><div class="do"><button type="button" class="btn primary" data-start-open="1">Start work</button></div>` +
+    '<p class="hint">Or type <span class="cmd">/start new feature</span> in opencode.</p></div>';
+}
+
+// ------------------------------------------------------------------ Work
+/** Which group a row is in on Work. */
+export function workGroup(it) {
+  if (isFinished(it)) return 'done';
+  if (it.paused || it.bucket === 'paused') return 'paused';
+  if (isShip(it)) return 'ship';
+  if (autoIs(it, 'running') || isBusy(itemSession(it))) return 'working';
+  return 'next';
+}
+const WORK_GROUPS = [
+  ['working', 'Tandem working', ''],
+  ['next', 'Up next', 'Nothing is running. The button starts the next step.'],
+  ['ship', 'Shipping', 'PR text is written. Push from the code review, create the PR, then Remove the run once it merges.'],
+  ['paused', 'Paused', ''],
+  ['done', 'Done', 'Findings to read, published specs, backlogs made. Remove a folder when you no longer need it.']
+];
+/** The flow filter: All, then each flow with work in it. */
+function flowFilterHtml(list) {
+  const n = id => list.filter(it => (flowOf(it) || {}).id === id).length;
+  const cur = S.ui.flow || 'all';
+  const shown = FLOWS.filter(f => !f.board && n(f.id));
+  const other = list.filter(it => !flowOf(it)).length;
+  if (shown.length + (other ? 1 : 0) < 2) return '';
+  const chip = (id, label, c) => `<button type="button" class="fchip${cur === id ? ' on' : ''}" data-filter-flow="${h(id)}" aria-pressed="${cur === id}"><span>${h(label)}</span><span class="n">${c}</span></button>`;
+  return `<div class="filters" role="group" aria-label="Flow">${chip('all', 'All', list.length)}${shown.map(f => chip(f.id, f.tag + 's', n(f.id))).join('')}${other ? chip('other', 'Other', other) : ''}</div>`;
+}
+function inFlow(it) {
+  const cur = S.ui.flow || 'all';
+  if (cur === 'all') return true;
+  const f = flowOf(it);
+  return cur === 'other' ? !f : !!f && f.id === cur;
+}
+function folderDot(it) {
+  const s = itemSession(it);
+  const st = asking(it) ? ['review', 'Asking you'] : isBusy(s) ? ['running', 'Running'] : isFinished(it) ? ['done', 'Done'] : ['idle', 'Up next'];
+  return `<span class="sd ${st[0]}" aria-hidden="true" title="${st[1]}"></span>`;
+}
+/** One piece of work as a row: status, flow, title (opens its page), the step it is at, whose turn, and its main button. */
+export function workRow(it) {
+  const meta = [`<span class="tag">${h(flowTag(it))}</span>`];
+  const sl = stepLine(it);
+  if (sl) meta.push(h(sl));
+  else if (it.state) meta.push(h(it.state));
+  meta.push(`<span title="${h(stamp(it.modifiedMs))}">${ago(it.modifiedMs)}</span>`);
+  const merged = isShip(it) && (buildsOf(it) || {}).merged;
+  let turn = turnHtml(it);
+  if (merged) turn = '<span class="turnw t-done">Merged.</span> Remove the run to clean up its folder.';
+  else if (isShip(it) && (it.pr || []).length) turn = `<span class="turnw t-you">Your turn:</span> ${h(MINE_STATE[mineState(it)] || '')}`;
+  let act;
+  if (workGroup(it) === 'working') act = ''; // its page has Stop
+  else if (it.kind === 'item') act = merged ? removeBtn(it) : isShip(it) ? `<button type="button" class="btn" data-open-run="${h(it.folder)}">Open</button>` : nextBtns(it, true);
+  else act = folderActs(it, false);
+  const state = it.kind === 'item' ? stateVar(it) : asking(it) ? 'var(--gate)' : isBusy(itemSession(it)) ? 'var(--go)' : 'var(--line)';
+  return `<article class="rrow" id="item-${h(itemKey(it))}" style="--state:${state}">${it.kind === 'item' ? statusDot(runStatus(it)) : folderDot(it)}` +
+    `<button type="button" class="rr-t" data-open-run="${h(it.folder)}">${it.id ? `<span class="num">#${h(it.id)}</span>` : ''}${h(it.title)}</button>` +
+    `<span class="rr-m">${meta.join(' · ')}</span>` + (turn ? `<span class="rr-next">${turn}</span>` : '') +
+    `<span class="rr-act">${projectChip(it)}${act}</span></article>`;
+}
+function sessionCard(o) {
+  const s = o.s;
+  const perms = L().permissions.filter(p => p.sessionID === o.session), qs = L().questions.filter(q => q.sessionID === o.session);
+  const dismiss = !isBusy(s) && !perms.length && !qs.length ? `<button type="button" class="btn remove" data-dismiss="${h(o.session)}" title="Stop showing this here. The session stays in opencode.">Dismiss</button>` : '';
+  return `<article class="item" style="--state:var(--${isBusy(s) ? 'go' : 'hold'})"><div class="item-head"><h4 class="t">${h(s.title || o.command)}</h4><div class="meta"><span title="${h(stamp(o.at))}">Started ${ago(o.at)}</span>${dismiss}</div></div>` +
+    sessionBox(s, perms, qs, 'Reply to the agent. Ctrl+Enter sends.') + '</article>';
+}
+export function workHtml() {
+  const list = workItems();
+  const inbox = inboxFolders();
+  const waiting = inboxCount();
+  const mine = list.filter(it => !inbox.has(it.folder));
+  const shown = mine.filter(it => inProject(it) && inFlow(it));
+  const live = startingSessions();
+  let html = '<div class="scope-head"><h2>All runs</h2><span class="dim">Everything Tandem has in flight, every flow. Each run is on the board too; what needs you is in the Inbox.</span><button type="button" class="btn ghost sm" data-tab="board">Back to the board</button></div>';
+  if (waiting) html += `<div class="inbox-prs waiting"><span><b>${plural(waiting, 'thing is', 'things are')} waiting on you</b> in the Inbox.</span><button type="button" class="btn primary" data-tab="inbox">Open Inbox</button></div>`;
+  html += flowFilterHtml(mine) + projectFilterHtml(mine);
+  if (live.length) html += section('starting', 'Starting', live.length, `<div class="items">${live.map(sessionCard).join('')}</div>`, 'Sessions with no folder yet: a spike, epic, doc or TSD until its folder exists, and repo guides.');
+  if (!mine.length && !live.length) return html + startEmpty(list.length ? 'Nothing else in flight' : 'No work yet', 'Pick a flow: build a feature, fix a bug, investigate a question, plan an epic, or write docs.');
+  if (!shown.length && mine.length) html += '<div class="empty small"><p>Nothing here with these filters.</p></div>';
+  const by = {};
+  shown.forEach(it => { const g = workGroup(it); (by[g] = by[g] || []).push(it); });
+  WORK_GROUPS.forEach(([k, name, hint]) => {
+    const g = by[k] || [];
+    if (!g.length) return;
+    const sorted = k === 'ship' ? newest(g).sort((a, b) => (+!!(buildsOf(b) || {}).merged) - (+!!(buildsOf(a) || {}).merged)) : newest(g);
+    html += section(k, name, g.length, `<div class="rows">${sorted.map(workRow).join('')}</div>`, hint);
+  });
+  return html;
+}
+
+// ------------------------------------------------------------------ a run's page, driven by its flow
+/** The step in view on a run's page: the one picked, else the one the run is at. */
+export function selectedStep(it) {
+  const steps = stepsOf(flowOf(it), it.lane);
+  const want = S.ui.step[it.folder];
+  if (want && steps.some(s => s.key === want)) return steps.find(s => s.key === want);
+  return currentStep(it) || steps[0] || null;
+}
+/** done, here or later: where a step is relative to the run. */
+export function stepRel(it, step) {
+  const steps = stepsOf(flowOf(it), it.lane);
+  const i = stepIndex(it), j = steps.findIndex(s => s.key === step.key);
+  if (i >= steps.length) return j === steps.length - 1 && !isFinished(it) ? 'here' : 'done';
+  return j < i ? 'done' : j === i ? 'here' : 'later';
+}
+/** The file a step shows inline. Here: the file to read at a gate, else the step's own. Done: what the step wrote. */
+export function stepFile(it, step, rel) {
+  if (!step) return null;
+  const files = it.files || [];
+  if (rel === 'later') return null;
+  if (rel === 'here') {
+    const g = gateFile(it);
+    if (g) return g;
+    if (it.kind === 'item' && ['build', 'ship', 'pr'].includes(step.key)) return null; // tasks, the PR box
+  } else if (it.kind === 'item' && step.key === 'build') return null; // its tasks list
+  if (it.kind === 'item' && step.key === 'start') return files.includes('brief.md') ? 'brief.md' : null;
+  if (it.kind === 'item' && step.key === 'review') return files.includes('review.md') ? 'review.md' : null;
+  if (it.kind === 'item' && step.key === 'pr' && rel === 'done') return null; // shown on Ship
+  return step.file && files.includes(step.file) ? step.file : null;
+}
+function stepPanelHtml(it, step) {
+  const rel = stepRel(it, step);
+  const sub = rel === 'here' ? hereWords(it, step) : rel === 'done' ? 'Done' : step.you === 'blockers' ? 'Stops only on blockers' : step.you ? 'Stops for you' : 'Tandem runs this';
+  let body = '';
+  const file = stepFile(it, step, rel);
+  if (rel === 'here') {
+    if (it.kind === 'item') {
+      body += autoHtml(it) + nextHtml(it, true) + overlapHtml(it);
+      if (sendBackCommand(it)) body += `<div class="row acts"><button type="button" class="btn ghost" data-sb-toggle="${h(it.folder)}" aria-expanded="${!!S.ui.open['sb:' + it.folder]}">Send back with a note</button></div>` + sendBackHtml(it);
+      if (step.key === 'ship' || it.stage === 'ship') body += publishHtml(it) + prHtml(it);
+      if (step.key === 'build') body += tasksHtml(it);
+    } else {
+      const acts = folderActs(it, true);
+      const turn = turnHtml(it);
+      if (!file && it.summary) body += `<p class="pre">${md(it.summary)}</p>`;
+      // Path cards (a fork) go under the line, full width; buttons sit at its end.
+      const forks = /class="forks"/.test(acts);
+      body += `<div class="do"><span class="act">${turn || h(step.what)}</span>${acts && !forks ? `<span class="row" style="margin-left:auto">${acts}</span>` : ''}</div>` + (forks ? acts : '');
+      if (sendBackCommand(it)) body += `<div class="row acts"><button type="button" class="btn ghost" data-sb-toggle="${h(it.folder)}" aria-expanded="${!!S.ui.open['sb:' + it.folder]}">Send back with a note</button></div>` + sendBackHtml(it);
+    }
+    body += fileInline(it, file, false) + agentHtml(it);
+    if (it.kind === 'item') body += leftOffHtml(it);
+  } else if (rel === 'done') {
+    if (it.kind === 'item' && step.key === 'build') body += tasksHtml(it);
+    body += file ? fileInline(it, file, false) : '';
+    if (!file && !(it.kind === 'item' && step.key === 'build')) body += '<p class="dim">Nothing to show for this step.</p>';
+  } else {
+    body += `<p class="dim">${step.you === 'blockers' ? 'Tandem runs this step; it stops for you only on blockers it cannot turn into fix tasks.' : step.you ? 'This step stops for you.' : 'Tandem runs this step.'} It has not started.</p>`;
+  }
+  return `<section class="spanel ${rel}" aria-label="${h(step.name)}"><div class="sp-head"><h3>${h(step.name)}</h3><span class="sp-sub">${h(sub)}</span></div>` +
+    `<p class="sp-what">${h(step.what)}</p>${body}</section>`;
+}
+/** A folder no flow knows (Builds' folders, anything else in .work): its state, next step and files. */
+function plainPageBody(it) {
+  let body = '';
+  if (it.state) body += `<p class="doc-state"><strong>${h(it.state)}</strong></p>`;
+  if (it.summary) body += `<p class="pre">${md(it.summary)}</p>`;
+  const cmd = folderCommand(it);
+  if (it.nextText) body += `<div class="next-line"><span class="lbl">Next</span><span>${md(it.nextText)}</span>${runBtn(it, cmd)}</div>`;
+  return body + agentHtml(it);
+}
+export function runPageHtml(it) {
+  const f = flowOf(it);
+  const back = { inbox: ['inbox', 'Inbox'], work: ['work', 'All runs'], health: ['health', 'Health'] }[S.ui.back] || ['board', 'Board'];
+  const meta = [`<span class="tag">${h(flowTag(it))}</span>`];
+  if (it.adoState && adoIsOn()) meta.push(`<span title="ADO state when the item was fetched">ADO: ${h(it.adoState)}</span>`);
+  meta.push(`<span title="${h(stamp(it.modifiedMs))}">Touched ${ago(it.modifiedMs)}</span>`, projectChip(it), buildsChip(it), removeBtn(it));
+  const title = safeUrl(it.url) ? link(it.url, it.title) : h(it.title);
+  let main;
+  if (f && stepIndex(it) >= 0) {
+    const sel = selectedStep(it);
+    main = flowTrackHtml(it, sel && sel.key) + (sel ? stepPanelHtml(it, sel) : '');
+  } else main = plainPageBody(it);
+  const details = [];
+  if (it.kind === 'item') details.push(`<div class="dsec"><p class="sub-h">Repos</p>${reposTable(it)}${kitHtml(it)}</div>`);
+  const files = filesHtml(it);
+  if (files) details.push(`<div class="dsec">${files}</div>`);
+  const act = it.kind === 'item' ? activityHtml(it.folder) : '';
+  if (act) details.push(`<div class="dsec"><p class="sub-h">Activity</p>${act}</div>`);
+  return `<button type="button" class="lnk back" data-close-run="${back[0]}">&larr; ${back[1]}</button>` +
+    `<article class="item run-page" id="item-${h(itemKey(it))}" style="--state:${it.kind === 'item' ? stateVar(it) : asking(it) ? 'var(--gate)' : 'var(--line)'}">` +
+    `<div class="item-head"><h2 class="t">${it.id ? idLink(it) : ''}${title}</h2><div class="meta">${meta.join('')}</div></div>${main}` +
+    (details.length ? `<details class="run-details"${openAttr('det:' + it.folder, false)}><summary>${it.kind === 'item' ? 'Repos, files and activity' : 'Files'}</summary><div class="detail-body">${details.join('')}</div></details>` : '') +
+    '</article>';
+}
+
+/** The .work files the page in view shows inline, as [folder, file] pairs, for main.js to read (file.read). */
+export function wantedFiles() {
+  const out = [];
+  const add = (it, name) => { if (it && name) out.push([it.folder, name]); };
+  const t = S.ui.tab;
+  // The run in the board's open card (Builds): its gate's file, shown inline in the panel.
+  const pr = panelRun() && itemForFolder(panelRun());
+  if (pr && pr.kind !== 'pr' && atGate(pr)) add(pr, gateFile(pr));
+  // The run open in the lanes' panel: its gate's file, shown inline there (Builds 5.0.0).
+  const lr = t === 'lanes' && !S.ui.run && laneRun();
+  if (lr && lr.kind !== 'pr' && atGate(lr)) add(lr, gateFile(lr));
+  // A spike's first look (Core 4.6.0), shown at the top of its panel.
+  if (lr && lr.kind === 'spike' && (lr.files || []).includes('first-look.md') && !(lr.files || []).includes('findings.md')) add(lr, 'first-look.md');
+  if (S.ui.run && (BOARD_TABS.includes(t) || t === 'work' || t === 'inbox' || t === 'lanes')) {
+    const it = itemForFolder(S.ui.run);
+    if (it && it.kind !== 'pr') {
+      const sel = flowOf(it) && stepIndex(it) >= 0 ? selectedStep(it) : null;
+      if (sel) add(it, stepFile(it, sel, stepRel(it, sel)));
+      if (it.kind === 'spike') add(it, (it.files || []).includes('findings.md') ? 'findings.md' : null);
+    }
+    return out;
+  }
+  if (t === 'inbox') {
+    const d = inboxData();
+    const rows = S.ui.walk ? walkList(d).slice(Math.max(0, S.ui.walk.i || 0), (S.ui.walk.i || 0) + 2).filter(x => x.kind === 'gate').map(x => x.it) : d.gates;
+    rows.forEach(it => add(it, gateFile(it)));
+  }
+  return out;
+}
+
+// ------------------------------------------------------------------ the tab bar and the page
+function tabCount(id) {
+  if (id === 'lanes') { const n = lanesCount(); return n ? `<span class="cnt gate" title="Your turn">${n}</span>` : ''; }
+  if (id === 'inbox') { const n = inboxCount(); return n ? `<span class="cnt gate">${n}</span>` : ''; }
+  if (id === 'work') {
+    const inbox = inboxFolders();
+    const n = workItems().filter(it => !inbox.has(it.folder) && !isFinished(it)).length;
+    return n ? `<span class="n" title="In flight">${n}</span>` : '';
+  }
+  if (id === 'reviews') { const a = reviewsAsking(), n = toReviewCount(); return a ? `<span class="cnt gate" title="The reviewer is waiting for you">${a}</span>` : n ? `<span class="cnt" title="${plural(n, 'PR')} waiting on you with no review yet">${n}</span>` : ''; }
+  return '';
+}
+export function tabsHtml() {
+  return '<nav class="tabs" aria-label="Builds">' + TABS.map(([id, name]) => {
+    const on = S.ui.tab === id || (id === 'board' && S.ui.tab === 'work');
+    return `<button type="button" class="tab${on ? ' on' : ''}" data-tab="${id}"${on ? ' aria-current="page"' : ''}><span>${h(name)}</span>${S.D ? tabCount(id) : ''}</button>`;
+  }).join('') + '</nav>';
+}
+/** The tab in view. A run's page replaces the list it was opened from. */
+export function pageHtml() {
+  const t = S.ui.tab;
+  if (t === 'chat') return '<div id="chat-slot"></div>';
+  if (t === 'reviews') return reviewsHtml();
+  const it = S.ui.run ? itemForFolder(S.ui.run) : null;
+  if (it && it.kind !== 'pr') return runPageHtml(it);
+  // Board and Health are the board half's page (#board-root), shown under the tab bar.
+  if (BOARD_TABS.includes(t)) return '';
+  // All runs (Dispatch's Work tab until Builds 4.0.0): every run in one list, with the flow and project filters.
+  if (t === 'work') return workHtml();
+  if (t === 'lanes') return lanesHtml();
+  return inboxHtml();
+}

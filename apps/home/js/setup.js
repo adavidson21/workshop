@@ -1,5 +1,5 @@
 /* Home: the Get started checklist. Each step ticks itself off from what Workshop can see (connected to
-   Workshop on this computer, your name, the ADO connector, a Docket task, a receipt),
+   Workshop on this computer, your name, the ADO connector, a Tasks task, a receipt),
    so it works as an interactive guide for someone new. Any step can be skipped. Hiding the checklist and
    skipped steps are saved in Home's own collection `setup` (home.setup v1, no items; meta: {hidden,
    skipped: [step ids], machine ('work' | 'personal' | 'browser', the Connect step's choice; unset: browser until connected, then work), appsPicked, folded (you folded
@@ -43,12 +43,12 @@ export const selfName = dir => {
   return me ? String(me.name || '').trim() : '';
 };
 
-/** Active reports and manager in the people directory (ws.people, docs/people.md): the people Rapport works with. */
+/** Active reports and manager in the people directory (ws.people, docs/people.md): the people People works with. */
 export const teamCount = dir => (dir && Array.isArray(dir.people) ? dir.people.filter(p => !p.archived && (p.relation === 'report' || p.relation === 'manager')).length : 0);
 
-/** Receipts logged, from Rapport's summary (docs/summaries.md, the `entries` count card). 0 when it has none. */
+/** Receipts logged, from People's summary (docs/summaries.md, the `entries` count card). 0 when it has none. */
 export function receiptsCount(summaryEnv) {
-  const cards = readCards(summaryEnv, 'receipts');
+  const cards = readCards(summaryEnv, 'people');
   const c = cards && cards.get('entries');
   return c && c.kind === 'count' && Number.isInteger(c.count) ? c.count : 0;
 }
@@ -70,7 +70,7 @@ export async function factsFor(ws) {
   const agent = ws.backend === 'agent';
   const quiet = p => p.catch(() => null);
   const [summary, people, list, cfg, adoCfg, teams] = await Promise.all([
-    quiet(ws.data.get('summary', { app: 'receipts' })),
+    quiet(ws.data.get('summary', { app: 'people' })),
     quiet(ws.people.get()),
     agent ? quiet(ws.connectors.list()) : null,
     agent ? quiet(ws.config.get()) : null,
@@ -95,19 +95,19 @@ export async function factsFor(ws) {
 }
 
 /**
- * Pick your apps: one line per app on the rail, with the ones that cannot do much here suggested off. Loom
+ * Pick your apps: one line per app on the rail, with the ones that cannot do much here suggested off. Builds
  * without Azure DevOps and without coding agents is only a board of hand-offs; Bench needs Tandem.
  */
 export function appSuggestions(f = {}) {
   const ado = f.ado && f.ado.state === 'ready';
   const agents = f.dispatch === 'ready';
   return [
-    { id: 'prioritizer', name: 'Docket', why: 'your tasks, today and what you handed over.' },
-    { id: 'slate', name: 'Loom', why: agents ? 'requests from idea to shipped, with coding agents on each card.' : ado ? 'requests from idea to shipped. Coding agents are not set up on this computer.' : adoGone(f) ? 'requests from idea to shipped. Without coding agents it only tracks work you hand off to people.' : 'requests from idea to shipped. Without Azure DevOps or coding agents it only tracks work you hand off to people.', off: !ado && !agents },
+    { id: 'tasks', name: 'Tasks', why: 'your tasks, today and what you handed over.' },
+    { id: 'builds', name: 'Builds', why: agents ? 'requests from idea to shipped, with coding agents on each card.' : ado ? 'requests from idea to shipped. Coding agents are not set up on this computer.' : adoGone(f) ? 'requests from idea to shipped. Without coding agents it only tracks work you hand off to people.' : 'requests from idea to shipped. Without Azure DevOps or coding agents it only tracks work you hand off to people.', off: !ado && !agents },
     { id: 'chat', name: 'Chat', why: agents ? 'opencode with a better screen, and the Hub to ask Tandem or capture.' : 'captures tasks, receipts and notes in plain words. Asking Tandem needs coding agents.' },
-    { id: 'receipts', name: 'Rapport', why: '1:1s and evidence for reviews.' },
-    { id: 'notes', name: 'Folio', why: 'notes, kept as files.' },
-    { id: 'runway', name: 'Runway', why: 'roadmaps you can share as an image.' },
+    { id: 'people', name: 'People', why: '1:1s and evidence for reviews.' },
+    { id: 'notes', name: 'Notes', why: 'notes, kept as files.' },
+    { id: 'roadmaps', name: 'Roadmaps', why: 'roadmaps you can share as an image.' },
     { id: 'bench', name: 'Bench', why: agents ? "whether Tandem is helping: its eval results." : "Tandem's eval results. Needs Tandem on this computer.", off: !agents }
   ];
 }
@@ -124,9 +124,9 @@ export const STEPS = [
   { id: 'apps', core: true, title: 'Pick your apps' },
   { id: 'team', core: true, title: 'Add your team' },
   { id: 'areas', core: true, title: "Set your team's area paths", needs: 'ado' },
-  { id: 'task', core: true, title: 'Add your first task in Docket' },
+  { id: 'task', core: true, title: 'Add your first task in Tasks' },
   { id: 'receipt', core: true, title: 'Log your first receipt' },
-  { id: 'dispatch', core: false, title: 'Set up Loom for coding agents', needs: 'connect' },
+  { id: 'dispatch', core: false, title: 'Set up Builds for coding agents', needs: 'connect' },
   { id: 'login', core: false, title: 'Start Workshop when you log in', needs: 'connect' }
 ];
 
@@ -212,8 +212,8 @@ function detail(s, ctx) {
       const pick = (id, label) => `<button type="button" class="btn${id === machine ? ' primary' : ' ghost'}" data-machine="${id}" aria-pressed="${id === machine}">${label}</button>`;
       const choose = `<p class="su-pick" role="group" aria-label="Where will you use Workshop?">${pick('browser', 'Just this browser')}${pick('work', 'Work computer')}${pick('personal', 'Personal computer')}</p>`;
       if (machine === 'browser') {
-        return `${choose}<p>Nothing to install. Docket, Rapport, Folio and Runway work fully here, and your data stays in this browser.</p>
-        <p>Loom's coding agents, Chat's Hub and Bench need Workshop on your computer. Pick Work or Personal computer when you want them.</p>
+        return `${choose}<p>Nothing to install. Tasks, People, Notes and Roadmaps work fully here, and your data stays in this browser.</p>
+        <p>Builds' coding agents, Chat's Hub and Bench need Workshop on your computer. Pick Work or Personal computer when you want them.</p>
         <p>${btn('Keep using this browser', 'data-skip="connect"', true)}</p>`;
       }
       if (work) {
@@ -225,7 +225,7 @@ function detail(s, ctx) {
       const cmd = ctx.platform === 'win' ? `irm ${site}/install.ps1 | iex` : `curl -fsSL ${site}/install.sh | bash`;
       return `${choose}<p>Workshop keeps your data in files on your computer${adoGone(f) ? '' : ' and talks to Azure DevOps from there'}. Install it once, for your user only, with no admin rights:</p>
         ${copy(cmd)}
-        <p class="su-fine">Run it in ${ctx.platform === 'win' ? 'PowerShell (not as admin)' : 'a terminal'}. Answer <b>n</b> to the AI model question unless you want Loom. Running your own model (Ollama, or a company server)? Read ${`<a href="https://github.com/${SITE.repos.workshop}/blob/main/docs/local-models.md" target="_blank" rel="noopener">Local and self-hosted models</a>`} first. If piping a script is blocked, follow ${docLink('By hand')}.</p>
+        <p class="su-fine">Run it in ${ctx.platform === 'win' ? 'PowerShell (not as admin)' : 'a terminal'}. Answer <b>n</b> to the AI model question unless you want Builds. Running your own model (Ollama, or a company server)? Read ${`<a href="https://github.com/${SITE.repos.workshop}/blob/main/docs/local-models.md" target="_blank" rel="noopener">Local and self-hosted models</a>`} first. If piping a script is blocked, follow ${docLink('By hand')}.</p>
         <p>The installer opens Workshop on this computer once, which signs this browser in. Then click <b>Connect</b> on the rail and <b>Allow</b> in the small window.</p>
         <p class="su-fine">Already installed? Run <code>workshop restart</code>, then click Connect.</p>`;
     }
@@ -243,11 +243,11 @@ function detail(s, ctx) {
         <p class="su-fine">Happy with where it is? Skip this step.</p>`;
     }
     case 'team':
-      return `<p>Add your direct reports and your manager once. Rapport shows a page per report with 1:1 prep and their receipts, and quick capture on this page knows their names ("john shipped the migration" becomes a receipt for John). A long list can be imported from a spreadsheet.</p><p>${btn('Open People', 'data-open="settings" data-path="people"', true)}</p>`;
+      return `<p>Add your direct reports and your manager once. People shows a page per report with 1:1 prep and their receipts, and quick capture on this page knows their names ("john shipped the migration" becomes a receipt for John). A long list can be imported from a spreadsheet.</p><p>${btn('Open People', 'data-open="settings" data-path="people"', true)}</p>`;
     case 'areas':
-      return `<p>The Azure DevOps area paths your team works in. Loom lists your team's backlog from them (its Inbox is empty without them), and Runway's ADO roadmaps and the Loom hub use them too.</p><p>${btn('Open Team area paths', 'data-open="settings" data-path="team"', true)}</p>`;
+      return `<p>The Azure DevOps area paths your team works in. Builds lists your team's backlog from them (its Inbox is empty without them), and Roadmaps' ADO roadmaps and the Builds hub use them too.</p><p>${btn('Open Team area paths', 'data-open="settings" data-path="team"', true)}</p>`;
     case 'name':
-      return `<p>Add yourself in People: your name${adoGone(f) ? '' : ', and the name Azure DevOps knows you by'}, so Docket, Loom and Rapport know what is yours. Home greets you by it too.</p><p>${btn('Add yourself', `data-open="settings" data-path="people/you${f.name ? '/' + esc(encodeURIComponent(f.name)) : ''}"`, true)}</p>`;
+      return `<p>Add yourself in Settings, Directory: your name${adoGone(f) ? '' : ', and the name Azure DevOps knows you by'}, so Tasks, Builds and People know what is yours. Home greets you by it too.</p><p>${btn('Add yourself', `data-open="settings" data-path="people/you${f.name ? '/' + esc(encodeURIComponent(f.name)) : ''}"`, true)}</p>`;
     case 'apps': {
       const sug = appSuggestions(f);
       const rows = sug.map(a => `<li><b>${esc(a.name)}</b>: ${esc(a.why)}${a.off ? ' <span class="su-off">Suggested: off</span>' : ''}</li>`).join('');
@@ -270,13 +270,13 @@ function detail(s, ctx) {
       return `<p>${esc(a.message || 'The ADO connector is not ready yet.')}</p><p>${settingsBtn('Open Settings', 'connections')}</p>`;
     }
     case 'task':
-      return `<p>Docket decides what you work on next. <b>Take the tour</b> on its empty board shows how; <b>Load sample tasks</b> there if you just want to look around.</p><p>${btn('Open Docket', 'data-open="prioritizer"', true)}</p>`;
+      return `<p>Tasks decides what you work on next. <b>Take the tour</b> on its empty board shows how; <b>Load sample tasks</b> there if you just want to look around.</p><p>${btn('Open Tasks', 'data-open="tasks"', true)}</p>`;
     case 'receipt':
-      return `<p>Rapport keeps evidence of your and your team's work for reviews, next to your 1:1s. Add one thing you did this week.</p><p>${btn('Open Rapport', 'data-open="receipts" data-path="me"', true)}</p>`;
+      return `<p>People keeps evidence of your and your team's work for reviews, next to your 1:1s. Add one thing you did this week.</p><p>${btn('Open People', 'data-open="people" data-path="me"', true)}</p>`;
     case 'dispatch':
       return f.workMode
-        ? `<p>Loom runs coding agents with an AI provider, so work mode leaves it out. Add it only if your company allows a coding agent: follow "Dispatch in work mode" in docs/install.md (install opencode and Tandem at its release tag, set the Workspace folder, then <b>Approved AI providers</b>), or run the one-line installer again with <code>WORKSHOP_DISPATCH=1</code>.</p><p>${btn('Open Loom', 'data-open="slate" data-path="lanes"')}</p>`
-        : `<p>Loom runs opencode coding agents on your work items. It needs opencode, Tandem and an AI model; the setup guide at the top of Loom's Lanes walks you through it.</p><p>${btn('Open Loom', 'data-open="slate" data-path="lanes"', true)}</p>`;
+        ? `<p>Builds runs coding agents with an AI provider, so work mode leaves it out. Add it only if your company allows a coding agent: follow "Dispatch in work mode" in docs/install.md (install opencode and Tandem at its release tag, set the Workspace folder, then <b>Approved AI providers</b>), or run the one-line installer again with <code>WORKSHOP_DISPATCH=1</code>.</p><p>${btn('Open Builds', 'data-open="builds" data-path="lanes"')}</p>`
+        : `<p>Builds runs opencode coding agents on your work items. It needs opencode, Tandem and an AI model; the setup guide at the top of Builds' Lanes walks you through it.</p><p>${btn('Open Builds', 'data-open="builds" data-path="lanes"', true)}</p>`;
     case 'login':
       return `<p>Run Workshop by hand for a few days first. When it has been trouble free, turn on <b>Start at login</b> in ${settingsWhere} (This computer), or run:</p>${copy('workshop install --login')}<p>${settingsBtn('Open Settings', 'computer')}</p>`;
     default: return '';

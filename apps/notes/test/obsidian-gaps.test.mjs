@@ -1,4 +1,4 @@
-// Folio 4.6.0 and 4.7.0: highlights, word count, aliases, properties and bookmarks (markdown.js, model.js, props.js, bookmarks.js).
+// Notes 4.6.0 and 4.7.0: highlights, word count, aliases, properties and bookmarks (markdown.js, model.js, props.js, bookmarks.js).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { facts, inline, plainText, render } from '../js/markdown.js';

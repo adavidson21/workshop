@@ -1,6 +1,6 @@
 // Azure DevOps connector: one ADO integration for every Workshop app, replacing
 // Docket's ado-helper/ado_helper.py. Read actions, plus two write actions (workitem.update, for Runway's and Slate's Publish,
-// and workitem.create, for Slate's Publish) that the agent only runs with `confirm: true`. See connectors/ado/README.md.
+// and workitem.create, for Builds' Publish) that the agent only runs with `confirm: true`. See connectors/ado/README.md.
 import { prStatus } from './lib/pr-watch.mjs';
 import { AdoError, SettingsError } from './lib/client.mjs';
 import { normalize } from './lib/config.mjs';
@@ -88,7 +88,7 @@ export const configSchema = {
     prNotNeeded: {
       type: 'object',
       title: 'PRs that don\'t need you',
-      description: 'Left out of Docket and Dispatch. A PR where you are a required reviewer always needs you.',
+      description: 'Left out of Tasks and Dispatch. A PR where you are a required reviewer always needs you.',
       'x-workshop-page': 'pull-requests',
       additionalProperties: false,
       properties: {
@@ -100,9 +100,9 @@ export const configSchema = {
     reports: {
       type: 'object',
       title: 'Team reports',
-      description: 'How Runway\'s ADO reports count work. Most people never change these.',
+      description: 'How Roadmaps\' ADO reports count work. Most people never change these.',
       'x-workshop-page': 'work-items',
-      'x-workshop-section': 'Team reports (used by Runway)',
+      'x-workshop-section': 'Team reports (used by Roadmaps)',
       additionalProperties: false,
       properties: {
         workloadTypes: stringList('Work item types in reports', 'Empty means the same as Work item types.', []),
@@ -234,7 +234,7 @@ export default {
           pullRequests: { type: 'boolean', description: 'With details: linked pull requests.' },
           comments: { type: 'boolean', description: 'Also the comments, oldest first.' },
           history: { type: 'boolean', description: 'Also changes to state, assignee, priority, sprint, area, tags and title, newest first.' },
-          extras: { type: 'boolean', description: 'Also assignee, priority, severity, story points, system info, comment count, links and the `fields` asked for (Slate).' },
+          extras: { type: 'boolean', description: 'Also assignee, priority, severity, story points, system info, comment count, links and the `fields` asked for (Builds).' },
           pointsFields: { type: 'array', maxItems: 20, items: { type: 'string', minLength: 1, maxLength: 200, pattern: '^[A-Za-z][A-Za-z0-9_.]*$' } },
           fields: { type: 'array', maxItems: 20, items: { type: 'string', minLength: 1, maxLength: 200, pattern: '^[A-Za-z][A-Za-z0-9_.]*$' } }
         }
@@ -277,7 +277,7 @@ export default {
     },
 
     'workitem.prs': {
-      title: 'Pull requests linked to a work item and its child items, with their status (Slate)',
+      title: 'Pull requests linked to a work item and its child items, with their status (Builds)',
       write: false,
       argsSchema: {
         type: 'object',
@@ -321,7 +321,7 @@ export default {
     },
 
     backlog: {
-      title: 'Open work items in my team\'s areas, any type and parent (Slate)',
+      title: 'Open work items in my team\'s areas, any type and parent (Builds)',
       write: false,
       argsSchema: {
         type: 'object',
@@ -393,7 +393,7 @@ export default {
     },
 
     'workitem.create': {
-      title: 'Create a work item (Slate: epic, feature, story or bug, with its description and acceptance criteria)',
+      title: 'Create a work item (Builds: epic, feature, story or bug, with its description and acceptance criteria)',
       write: true,
       argsSchema: {
         type: 'object',
@@ -418,7 +418,7 @@ export default {
               tags: { type: 'array', maxItems: 20, items: { type: 'string', minLength: 1, maxLength: 100 } },
               custom: {
                 type: 'object',
-                description: 'Other fields by reference name, as plain text (at most 5; not System.* fields). Slate: a feature\'s release note.',
+                description: 'Other fields by reference name, as plain text (at most 5; not System.* fields). Builds: a feature\'s release note.',
                 propertyNames: { type: 'string', maxLength: 200, pattern: '^(?!System\\.)[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z0-9_]+)+$' },
                 additionalProperties: { type: 'string', maxLength: 4000 }
               }

@@ -103,7 +103,7 @@ test('templates: starters always offered, file wins; text, fields, placeholders 
   assert.equal(tpl, '---\ntemplate: Retro (team)\n---\n# {{title}}\n\n## Went well\n');
   assert.equal(fill(tpl, { title: 'Sprint 15' }), '# Sprint 15\n\n## Went well\n');
   assert.deepEqual(placeholdersFor('templates/meeting.md'), ['title', 'date', 'time', 'slug']);
-  assert.ok(placeholdersFor('templates/daily.md').includes('docket'));
+  assert.ok(placeholdersFor('templates/daily.md').includes('tasks'));
 });
 
 test('preview: clickable task boxes with their line, plain bullets keep their marker, placeholder chips', () => {

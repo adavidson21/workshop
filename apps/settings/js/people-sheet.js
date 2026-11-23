@@ -27,12 +27,12 @@ export const MAX_ROWS = 2000;
 export const HELP = [
   ['Column', 'What to put in it'],
   ['Name', 'Required. Full name.'],
-  ['Handle', 'Optional. What you type after @ in Docket and quick capture. Filled in from the first name when empty.'],
+  ['Handle', 'Optional. What you type after @ in Tasks and quick capture. Filled in from the first name when empty.'],
   ['Relation', 'You, Manager, Direct report, Peer or Contact. Empty means Contact for someone new and no change for someone already here. At most one You and one Manager.'],
   ['On my team', 'Yes or No. Empty means yes for You and direct reports, no for everyone else.'],
   ['Azure DevOps', 'Optional. Their email or exact display name in Azure DevOps.'],
   ['Role', 'Optional. Their title.'],
-  ['Owns', 'Optional. Products, repos or area paths they own, comma separated. Slate suggests them for work that touches these.'],
+  ['Owns', 'Optional. Products, repos or area paths they own, comma separated. Builds suggests them for work that touches these.'],
   ['Groups', 'Optional. Group handles, comma separated, for example @leadership, @platform. New groups are made for you.'],
   [],
   ['Importing', 'A row with the handle or name of someone already in People updates them; other rows add someone. You see every change before anything is saved.']

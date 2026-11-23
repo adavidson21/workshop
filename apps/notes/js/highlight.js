@@ -1,4 +1,4 @@
-/* Folio: syntax colors for code blocks in the preview. Pure, so Node tests run it.
+/* Notes: syntax colors for code blocks in the preview. Pure, so Node tests run it.
 
    A small scanner, not a parser: comments, strings, numbers, keywords, function calls, types and a few
    language-specific bits (JSON keys, YAML keys, shell variables, HTML tags, diff lines). Every character is

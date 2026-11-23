@@ -1,4 +1,4 @@
-// Folio is a whole app (apps/notes/ in Workshop): the manifest is valid, every file it lists exists, and the page
+// Notes is a whole app (apps/notes/ in Workshop): the manifest is valid, every file it lists exists, and the page
 // loads only files that exist (its own, or Workshop's shared files). Workshop's service worker caches it.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -14,7 +14,7 @@ const schemas = SchemaSet.fromDir(join(ROOT, '..', '..', 'docs', 'schemas'));
 test('app.json is a valid Workshop manifest for the notes app', () => {
   assert.deepEqual(schemas.validate('app', app), []);
   assert.equal(app.id, 'notes');
-  assert.deepEqual(app.handoffs.sends, ['prioritizer', 'receipts']);
+  assert.deepEqual(app.handoffs.sends, ['tasks', 'people']);
   assert.ok(app.data.includes('handoffs') && app.data.includes('summary') && app.data.includes('taken'));
 });
 

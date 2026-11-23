@@ -6,12 +6,12 @@
 // plan.md, bug.md or review.md while the step needs you).
 //
 // writeWorkFile: one .md file at the top of an existing .work folder, with file.write's conflict check
-// (lib/slate.mjs). Refused while Tandem is working on that folder (its session is busy or autopilot runs it), so
+// (lib/builds.mjs). Refused while Tandem is working on that folder (its session is busy or autopilot runs it), so
 // you never edit a plan the agent is writing.
 import fs from "node:fs";
 import path from "node:path";
 import { httpError } from "./context.mjs";
-import { MAX_FILE, PM_FILE } from "./slate.mjs";
+import { MAX_FILE, PM_FILE } from "./builds.mjs";
 
 // A .work folder name: what the parser lists (41207-fix-login, spike-cache, pr-4812, L3-local).
 export const WORK_FOLDER = /^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$/;

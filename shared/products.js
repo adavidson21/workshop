@@ -1,5 +1,5 @@
 /* Your products (docs/products.md): collection `products` in Settings' folder (settings.products v1), like the
-   people directory and team area paths. Settings' Products page writes it with ws.data; Folio reads it with
+   people directory and team area paths. Settings' Products page writes it with ws.data; Notes reads it with
    {app: 'settings'} and makes each product's note, products/<slug>.md. Pure, no DOM or SDK
    (shared/test/products.test.mjs). */
 export const APP = 'settings';
@@ -24,7 +24,7 @@ export function slugOf(name) {
     .replace(/[^a-z0-9]+/g, '-').replace(/^-+/, '').slice(0, 40).replace(/-+$/, '');
 }
 
-/** Folio's path for a product's note. */
+/** Notes' path for a product's note. */
 export const notePath = p => `products/${p.slug}.md`;
 
 /** A list from a form field: split on commas or new lines (or an array), trimmed, no blanks or repeats (case ignored), at most `max`. */
@@ -161,7 +161,7 @@ export function ownersOf(product, people) {
 }
 
 /* ---------- the product filter (Workshop UX v1) ----------
-   Loom, Runway, Docket and Folio can show one product's work. A thing is that product's when it names the product
+   Builds, Roadmaps, Tasks and Notes can show one product's work. A thing is that product's when it names the product
    (`productId`), sits under one of its ADO area paths, touches one of its repos, or says its name or another name
    as a whole word. Pure; each app hands in what it knows about a thing. */
 const areaKey = p => String(p || '').split(/[\\/]/).map(x => x.trim()).filter(Boolean).join('\\').toLowerCase();

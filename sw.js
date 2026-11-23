@@ -28,7 +28,7 @@ const CORE = [
   './icons/app-maskable-512.png', './icons/app-touch-180.png'
 ];
 // Caches from earlier names of this site, removed on activate.
-const OLD_PREFIXES = ['emhub-', 'prioritizer-'];
+const OLD_PREFIXES = ['emhub-', 'tasks-'];
 const ROOT = new URL('./', self.location).pathname; // '/' on the agent, '/workshop/' on a project site
 
 // Requests the worker must leave to the browser.

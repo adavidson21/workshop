@@ -1,5 +1,5 @@
-/* Workshop: who sends an app handoff offers (docs/handoffs.md, Senders). One copy for every receiver (Docket,
-   Runway, Rapport, Notes) instead of one in each. */
+/* Workshop: who sends an app handoff offers (docs/handoffs.md, Senders). One copy for every receiver (Tasks,
+   Roadmaps, People, Notes) instead of one in each. */
 
 /**
  * Senders for the receiver `self`: every app on this site whose manifest lists `self` in handoffs.sends

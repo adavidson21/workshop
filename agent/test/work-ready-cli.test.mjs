@@ -57,7 +57,7 @@ test('install picks the company OneDrive only on a new install', () => {
     assert.match(chooseDataDir(set, { oneDrive: true }, { home, env, defaultDir })[0], /stays there/);
     assert.equal(set.dataDir, '/somewhere/else');
     // Data already in the default folder stays there: changing dataDir never moves files.
-    fs.mkdirSync(path.join(defaultDir, 'prioritizer'), { recursive: true });
+    fs.mkdirSync(path.join(defaultDir, 'tasks'), { recursive: true });
     const used = {};
     assert.match(chooseDataDir(used, { oneDrive: true }, { home, env, defaultDir })[0], /workshop data-folder/);
     assert.equal(used.dataDir, undefined);
@@ -76,15 +76,15 @@ test('data-folder copies everything to an empty folder, switches to it, and keep
   const io = { out: s => out.push(s), env: { WORKSHOP_HOME: home }, defaultDataDir: oldDir, probe: async () => null };
   try {
     writeConfig(home);
-    fs.mkdirSync(path.join(oldDir, 'receipts', 'entries'), { recursive: true });
-    fs.writeFileSync(path.join(oldDir, 'receipts', 'entries', 'me.json'), '{"a":1}');
+    fs.mkdirSync(path.join(oldDir, 'people', 'entries'), { recursive: true });
+    fs.writeFileSync(path.join(oldDir, 'people', 'entries', 'me.json'), '{"a":1}');
     fs.writeFileSync(path.join(oldDir, 'notes.md'), 'hi');
     assert.equal(await main(['data-folder'], io), 0);
     assert.match(out.join('\n'), new RegExp(`Your data is in ${oldDir.replace(/\\/g, '\\\\')}`));
     out.length = 0;
     assert.equal(await main(['data-folder', target], io), 0, out.join('\n'));
     assert.equal(readConfig(home).dataDir, target);
-    assert.equal(fs.readFileSync(path.join(target, 'receipts', 'entries', 'me.json'), 'utf8'), '{"a":1}');
+    assert.equal(fs.readFileSync(path.join(target, 'people', 'entries', 'me.json'), 'utf8'), '{"a":1}');
     assert.ok(fs.existsSync(path.join(oldDir, 'notes.md')), 'old folder kept');
     assert.match(out.join('\n'), /Copied 2 files/);
     // Already there.

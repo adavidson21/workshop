@@ -5,7 +5,7 @@
 // back here (`published.record`). This module decides what follows, never pushing anything itself:
 //   - CI failed, and the same check passes on the target branch: write ci/failure-<n>.md (the failed checks and the end
 //     of their logs) and start autopilot with `/pr-fix <id> ci auto`, at most 2 rounds per PR. Tandem commits a fix on
-//     the branch; Loom shows Push fix, and you push it.
+//     the branch; Builds shows Push fix, and you push it.
 //   - The PR conflicts with its base: ci/conflict-<n>.md and `/pr-fix <id> conflict auto` (a merge, never a rebase).
 //   - Teammates' comments: kept in memory for the code review screen (lib/review.mjs), where you can send them back.
 //   - Merged: the item is done. Its worktrees are removed (the .work folder stays) and `/retro <id> auto` runs.
@@ -13,7 +13,7 @@
 // The state lives in published.json (lib/publish.mjs), per repo under `watch`.
 //
 // 1.29.0, merge without a PR (lib/merge.mjs): a merge that conflicts writes ci/conflict-<n>.md and starts the same
-// `/pr-fix <id> conflict auto` (startMergeFix); Loom shows its result and you publish again. A merge that went through
+// `/pr-fix <id> conflict auto` (startMergeFix); Builds shows its result and you publish again. A merge that went through
 // finishes like a merged PR (finishMerged): worktrees removed, /retro.
 
 import fs from "node:fs";
@@ -96,7 +96,7 @@ export async function startMergeFix(it, c) {
   broadcastLive();
 }
 
-/** Tandem's merge of the target into the branch after a merge conflict, for Loom, or null. */
+/** Tandem's merge of the target into the branch after a merge conflict, for Builds, or null. */
 export const mergeFixOf = (folder) => mergeFixes.get(folder) || null;
 export const clearMergeFix = (folder) => mergeFixes.delete(folder);
 

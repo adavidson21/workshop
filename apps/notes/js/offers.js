@@ -1,16 +1,16 @@
-/* Notes: action items to Docket and wins to Rapport (Workshop docs/handoffs.md).
+/* Notes: action items to Tasks and wins to People (Workshop docs/handoffs.md).
 
    In a note, `- [ ] ...` lines are action items, and lines tagged #win, #feedback, #growth or #concern are for
-   Rapport. `@handle`s on a line name people from Workshop's People directory (plan 2). The side panel lists them
+   People. `@handle`s on a line name people from Workshop's people directory (Settings, Directory) (plan 2). The side panel lists them
    with a button each. Clicking sends:
-     - an action item as a Docket task. The click is the acceptance (handoffs.md, rule 4), so it is an accepted
-       offer, payload.kind 'task', and Docket adds it with no second click. The line's people go in payload.who.
-     - a tagged line as an ordinary offer to Rapport (app id `receipts`), payload.kind the tag's kind. One offer
-       per direct report named, with payload.about their id, so it lands on their page. Rapport only files
+     - an action item as a Tasks task. The click is the acceptance (handoffs.md, rule 4), so it is an accepted
+       offer, payload.kind 'task', and Tasks adds it with no second click. The line's people go in payload.who.
+     - a tagged line as an ordinary offer to People (app id `people`), payload.kind the tag's kind. One offer
+       per direct report named, with payload.about their id, so it lands on their page. People only files
        receipts under you or your reports, so a line naming no report goes as your own.
    Offers go in Notes' own `handoffs` collection (notes.handoffs v1); Notes never writes another app's data.
    The same line sent again keeps its id, so a receiver never sees it twice. Ticking the item in the note does
-   not close the task: after you send it, Docket owns it.
+   not close the task: after you send it, Tasks owns it.
 
    Pure: no DOM and no SDK. main.js reads and writes the collection. */
 import { frontmatter } from './markdown.js';
@@ -38,8 +38,8 @@ function proseLines(text) {
   return out;
 }
 
-/* An item that is only a link to a Docket task is already Docket's: never offered back to it. */
-const DOCKET_ONLY = /^\[[^\]]*\]\(\s*ws:prioritizer\/[^)\s]*\s*\)$/;
+/* An item that is only a link to a Tasks task is already Tasks': never offered back to it. */
+const DOCKET_ONLY = /^\[[^\]]*\]\(\s*ws:(?:tasks|prioritizer)\/[^)\s]*\s*\)$/;
 
 /** Open and done action items: [{line, text, done}]. */
 export function actionItems(text) {
@@ -58,8 +58,8 @@ export function handlesIn(text) {
   return out;
 }
 
-/** Lines for Rapport: [{line, kind, text, handles}], text with the list marker, checkbox and tags taken out. */
-export function forRapport(text) {
+/** Lines for People: [{line, kind, text, handles}], text with the list marker, checkbox and tags taken out. */
+export function forPeople(text) {
   const out = [];
   for (const { line, text: l } of proseLines(text)) {
     const m = TAG.exec(l);
@@ -69,12 +69,12 @@ export function forRapport(text) {
   }
   return out;
 }
-/** Lines tagged #win (forRapport's wins). */
-export const wins = (text) => forRapport(text).filter(r => r.kind === 'win').map(({ line, text: t }) => ({ line, text: t }));
+/** Lines tagged #win (forPeople's wins). */
+export const wins = (text) => forPeople(text).filter(r => r.kind === 'win').map(({ line, text: t }) => ({ line, text: t }));
 
 /**
  * Who a line is about, from the People directory (shared/people.js directory()): {people, reports, others}.
- * people: every active person or group a handle names. reports: the direct reports among them (Rapport files a
+ * people: every active person or group a handle names. reports: the direct reports among them (People files a
  * receipt only under you or a report). others: the people who aren't reports, for the panel's "isn't a report".
  */
 export function whoOf(handles, dir) {
@@ -109,23 +109,23 @@ export const offerId = (kind, path, text, about = '') => `n-${kind}-${hash(`${pa
  */
 export function offerFor(kind, note, text, { day, now = new Date(), dir = null, about = '', shown = '' } = {}) {
   const t = String(text).trim().slice(0, 2000);
-  const from = `From the note "${note.title || note.path}" (${note.path}) in Folio.`;
+  const from = `From the note "${note.title || note.path}" (${note.path}) in Notes.`;
   const body = (shown || readable(t, dir)).trim().slice(0, 2000);
   if (kind === 'task') {
     const who = whoOf(handlesIn(t), dir).people.slice(0, 10).map(p => p.id);
-    return { id: offerId(kind, note.path, t), to: 'prioritizer', date: day, createdAt: now.toISOString(), text: body, source: { app: 'notes', id: note.path },
+    return { id: offerId(kind, note.path, t), to: 'tasks', date: day, createdAt: now.toISOString(), text: body, source: { app: 'notes', id: note.path },
       accepted: true, payload: { kind: 'task', title: body.slice(0, 300), notes: from, ...(who.length ? { who } : {}) } };
   }
   const k = RAPPORT_KINDS.includes(kind) ? kind : 'win';
-  return { id: offerId(k, note.path, t, about), to: 'receipts', date: day, createdAt: now.toISOString(), text: body, source: { app: 'notes', id: note.path },
+  return { id: offerId(k, note.path, t, about), to: 'people', date: day, createdAt: now.toISOString(), text: body, source: { app: 'notes', id: note.path },
     payload: { kind: k, note: from, ...(about ? { about } : {}) } };
 }
 
 /**
- * The Rapport offers for one line (forRapport): one per report it names, each with payload.about, or one as your
+ * The People offers for one line (forPeople): one per report it names, each with payload.about, or one as your
  * own when it names none. [{offer, who}] where who is the report's name or 'You'.
  */
-export function rapportOffers(note, item, { day, now = new Date(), dir = null } = {}) {
+export function peopleOffers(note, item, { day, now = new Date(), dir = null } = {}) {
   const { reports } = whoOf(item.handles, dir);
   const shown = readable(item.text, dir);
   if (!reports.length) return [{ offer: offerFor(item.kind, note, item.text, { day, now, dir, shown }), who: 'You' }];

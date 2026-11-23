@@ -11,12 +11,12 @@ export const SITE = Object.freeze({
   workshop: WORKSHOP,
   // Apps that had a site of their own, by app id. Retired: these domains redirect to Pop out (docs/site.md).
   apps: Object.freeze({
-    prioritizer: DOCKET,
-    runway: 'https://runway.alexisdavidson.org',
-    receipts: 'https://receipts.alexisdavidson.org',
+    tasks: DOCKET,
+    roadmaps: 'https://runway.alexisdavidson.org',
+    people: 'https://receipts.alexisdavidson.org',
     notes: 'https://notes.alexisdavidson.org',
-    // Dispatch's old domain: Dispatch is part of Loom (app id slate) since Loom 4.0.0.
-    slate: 'https://dispatch.alexisdavidson.org'
+    // Dispatch's old domain: Dispatch is part of Builds (app id builds) since Builds 4.0.0.
+    builds: 'https://dispatch.alexisdavidson.org'
   }),
   // Sites a new install allows to pair (config hosted.origins); each still needs a click in the pairing window.
   allowedSites: Object.freeze([WORKSHOP, 'https://dispatch.alexisdavidson.org', DOCKET, 'https://runway.alexisdavidson.org', 'https://receipts.alexisdavidson.org', 'https://notes.alexisdavidson.org']),

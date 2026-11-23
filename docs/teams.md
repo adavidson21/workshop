@@ -1,6 +1,6 @@
 # Teams
 
-The Azure DevOps area paths your team works in, kept once and read by every app that pulls work items: Runway's ADO roadmaps, the Dispatch hub. It lives in Settings' folder, like the people directory ([people.md](people.md)), and is edited in Settings, on the Team area paths page.
+The Azure DevOps area paths your team works in, kept once and read by every app that pulls work items: Roadmaps' ADO roadmaps, the Dispatch hub. It lives in Settings' folder, like the people directory ([people.md](people.md)), and is edited in Settings, on the Team area paths page.
 
 Version: the `settings.teams` collection is version 1.
 
@@ -32,7 +32,7 @@ Settings keeps one collection named `teams`, so its schema is `settings.teams`, 
 ## Rules
 
 1. **Written only through `ws.teams`** ([sdk.md](sdk.md), Teams), which Settings' Team area paths page uses. Other apps read it with `ws.data.get('teams', {app: 'settings'})`.
-2. **Missing means not set up.** Apps leave area paths empty (Runway asks for them in its dialog) and never write it themselves.
+2. **Missing means not set up.** Apps leave area paths empty (Roadmaps asks for them in its dialog) and never write it themselves.
 3. **One read per connection.** An app that reads ADO by area path groups `areas` by connection (`areaConnections`, then `connection`) and reads each group on its own connection. Work item ids are unique only within a collection, so with more than one connection an id alone does not name an item: keep the connection with the id, and when only an id is known, look it up on every connection (the ADO connector's `workitem.find`) and ask when more than one has it.
 3a. **GitHub areas.** An area written `github:owner/repo` (or `github:owner/repo/<area>`, for issues with the label `area: <area>`) is a GitHub repo. Its connection is the repo itself (`owner/repo`), whatever `connection` and `areaConnections` say, and apps read it through the GitHub connector: the connector takes a repo as `connection` and names items by issue number, so the rules here hold unchanged. ADO connection names never contain a slash, so a connection with one is always a repo. `shared/teams.js` (`githubRepoOf`, `isGitHubConnection`) does this.
 4. **Not secret.** Area paths and connection names only. PATs stay in environment variables ([security.md](security.md)).

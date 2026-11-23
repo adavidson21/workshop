@@ -3,14 +3,14 @@
   "intent": "capture",
   "proposals": [
     {
-      "to": "prioritizer",
+      "to": "tasks",
       "text": "Onboarding doc for Person One",
       "payload": {"kind": "task", "title": "Onboarding doc for Person One", "who": ["p_one"], "value": 3},
       "confidence": 0.8,
       "reason": "A reminder about a report, no date given"
     },
     {
-      "to": "receipts",
+      "to": "people",
       "text": "Person One shipped the migration a week early",
       "payload": {"kind": "win", "impact": 2, "about": "p_one"},
       "confidence": 0.9,

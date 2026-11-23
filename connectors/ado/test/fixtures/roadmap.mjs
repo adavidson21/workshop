@@ -38,7 +38,7 @@ export function roadmapScenario() {
       Main: {
         wiql: [
           // Epics and Features in Team A (with closed ones).
-          // Slate's backlog: every type, open only.
+          // Builds' backlog: every type, open only.
           { match: ["IN ('Epic', 'Feature', 'User Story', 'Product Backlog Item', 'Bug', 'Issue')", "UNDER 'Web App\\Team A'", 'NOT IN'], ids: [701, 711, 802, 804] },
           { match: ["IN ('Epic', 'Feature')", "UNDER 'Web App\\Team A'", 'NOT IN'], ids: [701, 711, 712, 702] },
           { match: ["IN ('Epic', 'Feature')", "UNDER 'Web App\\Team A'"], ids: [701, 711, 712, 702, 713] }

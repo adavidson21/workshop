@@ -1,4 +1,4 @@
-// opencode connector: the workspace actions Dispatch needs to be used on its own, without Docket or a
+// opencode connector: the workspace actions Dispatch needs to be used on its own, without Tasks or a
 // terminal. Start a described (local) work item, start a spike, review a teammate's PR, add a repo,
 // write a repo's guide, and say whether ADO is set up.
 //
@@ -219,7 +219,7 @@ export async function runLoose(name, args, find) {
 
 /**
  * Sends `text` to Tandem's agent `agent` in a new session titled `title`, listed in `others` like runLoose, for a
- * job that has no Tandem command of its own (Rapport's Tidy notes). Resolves {session}.
+ * job that has no Tandem command of its own (People's Tidy notes). Resolves {session}.
  */
 export async function promptLoose(title, text, agent) {
   needOpencode();
@@ -246,7 +246,7 @@ export async function promptLoose(title, text, agent) {
 export const TIMEBOXES = ["1h", "2h", "4h", "1d"];
 export const MAX_LOG = 100000;
 /**
- * A spike: a question to answer, or an error log to diagnose (Core 4.3.0 /spike <folder> --log, Loom's Fix a bug from
+ * A spike: a question to answer, or an error log to diagnose (Core 4.3.0 /spike <folder> --log, Builds' Fix a bug from
  * an error log). With a log, the connector makes the spike-log-<name> folder and writes log.md (secrets masked)
  * itself, because a log is many lines and a command argument is one.
  */
@@ -261,7 +261,7 @@ export function startSpike({ topic, timebox, log: logText, where }, root = workR
     const { text, count } = redactLog(raw);
     const w = String(where || "").replace(/[\r\n]+/g, " ").trim().slice(0, 300);
     const fence = "````";
-    const body = [`# Error log`, "", `Pasted in Loom on ${new Date().toISOString().slice(0, 10)}.${count ? ` ${count} value${count === 1 ? "" : "s"} that looked like secrets or email addresses ${count === 1 ? "was" : "were"} masked.` : ""}`,
+    const body = [`# Error log`, "", `Pasted in Builds on ${new Date().toISOString().slice(0, 10)}.${count ? ` ${count} value${count === 1 ? "" : "s"} that looked like secrets or email addresses ${count === 1 ? "was" : "were"} masked.` : ""}`,
       ...(w ? ["", `Where: ${redactLog(w).text}`] : []), ...(t ? ["", `Note: ${redactLog(t).text}`] : []), "", fence + "text", text.replace(/`{4,}/g, "```").trimEnd(), fence, ""].join("\n");
     fs.mkdirSync(path.join(root, folder));
     fs.writeFileSync(path.join(root, folder, "log.md"), body);
@@ -277,7 +277,7 @@ export function startSpike({ topic, timebox, log: logText, where }, root = workR
 }
 
 /** Masks what looks like a secret or personal data in a log: key=value secrets, bearer tokens, JWTs, keys in
- *  connection strings, and email addresses. {text, count}. A safety net, not a guarantee: Loom asks you to remove
+ *  connection strings, and email addresses. {text, count}. A safety net, not a guarantee: Builds asks you to remove
  *  secrets before you paste. */
 export function redactLog(input) {
   let count = 0;
