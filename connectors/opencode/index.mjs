@@ -5,7 +5,7 @@
 // The live server's HTTP routes are the actions below; its event stream is connector events.
 import fs from "node:fs";
 import path from "node:path";
-import { REPO_FOLDER_MAX, VERSION, configure, current, every, httpError, log, opt, shutdown, workRoot } from "./lib/context.mjs";
+import { REPO_FOLDER_MAX, VERSION, configure, current, every, httpError, later, log, opt, shutdown, workRoot } from "./lib/context.mjs";
 import { installInfo, tandemHealth } from "./lib/tandem-health.mjs";
 import { ARMS, MAX_MODELS, MAX_RUNS, PRESETS, commandFor, evalsHome, listCases, listExperiments, listResults, openEvalsTerminal, readCommands, readGuards, readResult, runArgs, scriptArgs } from "./lib/evals.mjs";
 import { clearModelHooks, model, modelError, onModel, parserGone, refresh, resetModel, watchWork } from "./lib/model.mjs";
@@ -84,6 +84,7 @@ import { MAX_FILE, PM_FOLDER, approveFolder, startHandoff, startRefine, startSco
 import { listDocs, writeWorkFile } from "./lib/docs.mjs";
 import { WORK_RESET_PHRASE, resetWork } from "./lib/reset.mjs";
 import { forgetRun } from "./lib/projects.mjs";
+import { resetWarm, warmUp, watchActivity } from "./lib/warm.mjs";
 
 export const configSchema = {
   type: "object",
@@ -262,6 +263,13 @@ export const configSchema = {
       default: "auto",
       "x-workshop-hosted": true,
     },
+    warmUp: {
+      type: "boolean",
+      title: "Warm up the model",
+      description: "Asks opencode for one tiny answer (\"OK\") in a scratch session when it connects, and when Chat opens after a local model sat idle for 4 minutes, so your first answer streams right away instead of waiting for opencode to load and the model server to load the model. The scratch session is deleted right after. Turn off to save that small request.",
+      default: true,
+      "x-workshop-hosted": true,
+    },
     suggestPrompts: {
       type: "boolean",
       title: "Suggest a next prompt in Chat",
@@ -323,6 +331,7 @@ function resetAll() {
   resetHub();
   resetChats();
   resetSearch();
+  resetWarm();
   resetSuggest();
   resetTerms();
   resetVoice();
@@ -1123,6 +1132,18 @@ const actions = {
       return chatChanges(args);
     },
   },
+  // 1.41.0: Chat asks when it opens; a local model idle long enough to be unloaded gets loaded again (lib/warm.mjs).
+  "chat.warm": {
+    title: "Warm up: load a local model again if it sat idle, so the next answer starts right away",
+    write: false,
+    argsSchema: obj([], {}),
+    async run() {
+      needReady();
+      const config = ctxRef && ctxRef.config;
+      warmUp({ reason: "open", local: !!(opt && opt.local), off: !!(config && config.warmUp === false) });
+      return { ok: true };
+    },
+  },
   "chat.suggest": {
     title: "A suggested next message for a chat, from its last exchange only (Settings can turn it off)",
     write: false,
@@ -1802,7 +1823,10 @@ export default {
       if (!m || !oc.connected) return;
       return startWaiting(m.items); // passes run one at a time (epics.mjs)
     });
+    watchActivity();
     onConnected(() => {
+      // 1.41.0: opencode's first answer after it starts loads its plugins mid answer (bursts); do that now instead.
+      later(() => { warmUp({ reason: "connect", local: !!(opt && opt.local), off: !!(ctxRef && ctxRef.config && ctxRef.config.warmUp === false) }); }, 1500);
       resumeQueued();
       termResume(); // Chat's terminals (lib/pty.mjs) stream again after a restart
     });

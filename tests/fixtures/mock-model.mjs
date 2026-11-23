@@ -75,11 +75,13 @@ const server = http.createServer((req, res) => {
     const last = textOf((body.messages || []).filter((m) => m.role === "user").slice(-1));
     const isCleanup = last.includes("<<<INPUT");
     const isQuick = all.includes("You answer quick questions");
-    seen.push({ chars: all.length, hasInput: isCleanup, tools: (body.tools || []).length, quick: isQuick, notes: [...all.matchAll(/^\[([^\]\n]+\.(?:md|json))\]/gm)].map((m) => m[1]), effort: body.reasoning_effort || body.reasoningEffort || null });
-    const slow = !isCleanup && chat && ((body.tools || []).length > 0 || isQuick);
+    seen.push({ at: Date.now(), warm: last.includes("Reply with the single word OK"), chars: all.length, hasInput: isCleanup, tools: (body.tools || []).length, quick: isQuick, notes: [...all.matchAll(/^\[([^\]\n]+\.(?:md|json))\]/gm)].map((m) => m[1]), effort: body.reasoning_effort || body.reasoningEffort || null });
+    // The connector's warm up (lib/warm.mjs) asks for one word: answered at once, like the title step.
+    const isWarm = last.includes("Reply with the single word OK");
+    const slow = !isCleanup && !isWarm && chat && ((body.tools || []).length > 0 || isQuick);
     // A quick answer (Chat's chat.quick) cites the first note it was given.
     const cite = (seen.at(-1).notes || [])[0];
-    const reply = isCleanup ? answer(last) : slow ? (isQuick ? `${chat.quickText || "From your notes."}${cite ? `\n\nSources:\n- \`${cite}\`` : ""}` : chat.text) : "Clean up a document";
+    const reply = isCleanup ? answer(last) : isWarm ? "OK" : slow ? (isQuick ? `${chat.quickText || "From your notes."}${cite ? `\n\nSources:\n- \`${cite}\`` : ""}` : chat.text) : "Clean up a document";
     const id = `chatcmpl-${seen.length}`;
     const chunk = (delta, finish = null, usage) => `data: ${JSON.stringify({ id, object: "chat.completion.chunk", created: 1, model: body.model || "qwen-mock", choices: [{ index: 0, delta, finish_reason: finish }], ...(usage ? { usage } : {}) })}\n\n`;
     if (!body.stream) {

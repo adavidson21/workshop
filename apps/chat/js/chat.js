@@ -1168,7 +1168,16 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
   });
   if (typeof window !== 'undefined') window.addEventListener('beforeunload', e => { if (workFiles.unsaved().length) { e.preventDefault(); e.returnValue = ''; } });
 
-  ws.on('visible', p => { inView = !!(p && p.visible); });
+  /* Chat 4.7.0 (connector 1.41.0): a local model that sat idle is unloaded by its server; ask the connector to load it
+     again as Chat comes into view or you start typing, so the answer does not wait for that. At most once a minute. */
+  let warmAt = 0;
+  const warm = () => {
+    if (!aiReady().ready || Date.now() - warmAt < 60000) return;
+    warmAt = Date.now();
+    ws.connectors.call(OC, 'chat.warm', {}).catch(() => {});
+  };
+  ws.on('visible', p => { inView = !!(p && p.visible); if (inView) warm(); });
+  el.addEventListener('focusin', warm);
   if (rewrite) rewrite.setBar({ picks: picksHtml, pop: popHtml });
   draw();
   bench.start();

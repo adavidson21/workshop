@@ -142,6 +142,19 @@ def main():
                     time.sleep(0.025)
                 return samples
 
+            # 0. The connector warms opencode and the model up when it connects (connector 1.41.0). In use that is long
+            # before your first message; here, wait for it, so the first answer is measured the way you would see it.
+            def warm_done():
+                if not any(r.get('warm') for r in to_model({'requests': True})['requests']): return False
+                import urllib.request
+                try: sessions = json.loads(urllib.request.urlopen(ocurl + '/session', timeout=5).read())
+                except Exception: return False
+                return not any(x.get('title') == 'Workshop: warming up' for x in sessions)  # it deletes its scratch session when done
+            check('the connector warms opencode up when it connects', bool(wait_for(warm_done, 60)))
+            # opencode keeps loading for a few seconds after that first answer (its model catalog, plugins' own setup), in
+            # the background; in use that is long done by the time you type. 5 seconds covers it here and on CI.
+            time.sleep(5)
+
             # 1. A new chat, then a follow up in it (the TUI's usual loop).
             for label in ('first message (new chat)', 'follow up'):
                 s = ask('Why did the build fail?' if label.startswith('first') else 'And how do I fix it?')
@@ -154,10 +167,14 @@ def main():
                 print(f'info  {label}: first text at {first}s (model starts ~{model_first:.1f}s plus opencode), whole answer at {full}s (model ends ~{model_last:.1f}s plus opencode), done at {done}s, {steps} visible steps while streaming')
                 check(f'{label}: the answer shows', first is not None and full is not None, s[-3:])
                 if first is None or full is None: continue
-                # opencode itself sends a new chat's first answer in bursts (its text deltas stop for about a second, twice,
-                # then arrive together; the connector's event loop shows no lag), so that one needs fewer steps.
-                need = 12 if label.startswith('first') else 20
+                # The first answer after opencode starts used to come in bursts (opencode loads its plugins then); the
+                # connector's warm up (connector 1.41.0, lib/warm.mjs) does that before you ask, so both stream the same.
+                need = 20
                 check(f'{label}: the answer grows as it streams (at least {need} steps)', steps >= need, steps)
+                grow = [t for (t, n, _), (_, m, _) in zip(s[1:], s) if n != m and 0 < m and n <= len(ANSWER)]
+                pause = max((b - a for a, b in zip(grow, grow[1:])), default=0)
+                print(f'info  {label}: longest pause while streaming {pause:.2f}s')
+                check(f'{label}: no pause over 0.6s while it streams', pause < 0.6, round(pause, 2))
                 check(f'{label}: the chat is done within 1.5s of the whole answer', done is not None and done - full < 1.5, (full, done))
 
             # 2. A selection in the thread survives the next answer streaming in (Chat used to redraw every node).
