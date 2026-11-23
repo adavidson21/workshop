@@ -53,7 +53,7 @@
         "manifestVersion": 1,
         "id": "tasks",
         "name": "Tasks",
-        "version": "12.4.0",
+        "version": "12.5.0",
         "description": "Decide what to work on next, and plan your day around it.",
         "icon": "icon.svg",
         "entry": "index.html",
@@ -68,6 +68,10 @@
           {
             "path": "today",
             "title": "Today"
+          },
+          {
+            "path": "all",
+            "title": "All tasks"
           },
           {
             "path": "inbox",
@@ -270,7 +274,9 @@
           "js/summary.js",
           "js/util.js",
           "js/views.js",
-          "js/ws.js"
+          "js/ws.js",
+          "js/all-model.js",
+          "js/all-view.js"
         ]
       }
     },
@@ -280,7 +286,7 @@
         "manifestVersion": 1,
         "id": "builds",
         "name": "Builds",
-        "version": "6.21.0",
+        "version": "6.22.0",
         "description": "Tandem's runs on a floor: a code line and a research line of stations, or a list, plus Health. Drop in a story, an error log, a question or a hand-off; a card stops only when it needs you.",
         "icon": "icon.svg",
         "entry": "index.html",
@@ -721,7 +727,7 @@
         "manifestVersion": 1,
         "id": "notes",
         "name": "Notes",
-        "version": "4.13.0",
+        "version": "4.14.0",
         "description": "Notes, your notebook: notes, daily notes, product notes, templates, Tandem's documents and a Links directory, as Markdown files. Diagrams, backlinks, tags, search and images.",
         "icon": "icon.svg",
         "entry": "index.html",
@@ -810,7 +816,8 @@
           "bookmarks",
           "handoffs",
           "summary",
-          "links-ignored"
+          "links-ignored",
+          "tandem-archive"
         ],
         "files": [
           "js/applinks.js",
@@ -851,7 +858,8 @@
           "notes.css",
           "vendor/codemirror.js",
           "vendor/mermaid.min.js",
-          "js/builds-items.js"
+          "js/builds-items.js",
+          "js/tandem-archive.js"
         ],
         "aliases": [
           "folio",

@@ -22,6 +22,7 @@ import { dismissBack, gotBackTask, nudgedTask, openAssign, toggleWaiting } from 
 import { nameOf } from './directory-model.js';
 import { ws } from './ws.js';
 import { setCapOpen, carryLeft, closeNeed, openNeed, openInboxAnyway, setPeopleFilter, setReviewsOpen, setTrayQ, sortKey, toggleStaleOnly, copyText, recapData, recapText } from './views.js';
+import { setAllFilter } from './all-view.js';
 /* Tasks: Sidebar collapse, global click/keyboard handlers, day rollover, tooltips. */
 /* ---------- sidebar collapse + mobile menu ---------- */
 let midOpen = false, mobileOpen = false;
@@ -106,6 +107,8 @@ document.addEventListener('click', e => {
   const pa = t.closest('[data-act="prai"]'); if (pa){ const x = findTask(pa.closest('[data-id]').dataset.id); if (x && x.pr) prAiOpen(x); return; }
   const lo = t.closest('[data-left]'); if (lo){ carryLeft(lo.dataset.left === 'carry'); return; }
   const pf = t.closest('[data-pfilter]'); if (pf){ setPeopleFilter(pf.dataset.pfilter); return; }
+  const af = t.closest('[data-allf]'); if (af){ setAllFilter(af.dataset.allf); render(); return; }
+  if (t.closest('[data-allshow]')){ state.product = 'all'; state.prs = 'all'; commit(); return; }
   const nd = t.closest('[data-need]'); if (nd){ openNeed(nd.dataset.need); return; }
   const dp = t.closest('[data-dir-person]');
   if (dp){ const id = dp.dataset.dirPerson; askText(`Add a task for ${nameOf(id)}`, '', v => addTask(v, {who: [id]}), 'Add'); return; }
@@ -216,7 +219,7 @@ document.addEventListener('keydown', e => {
   if (k === 'n' || k === '/'){ e.preventDefault(); openCmd(); }
   else if (k === 'o' && state.view === 'today' && !planWeek()){ e.preventDefault(); openSortRun(); }
   else if (k === '4' && state.view === 'today'){ setPlanWeek(!planWeek()); }
-  else if (/^[1-6]$/.test(k)){ setView(NAV_KEYS[k]); }
+  else if (/^[1-7]$/.test(k)){ setView(NAV_KEYS[k]); }
   else if ((k === 'ArrowLeft' || k === 'ArrowRight') && state.view === 'today'){
     const cols = [...main.querySelectorAll('.col[data-col]:not(.rail)')].map(c => c.dataset.col); if (!cols.length) return;
     const i = cols.indexOf(col), j = i < 0 ? (k === 'ArrowLeft' ? 0 : cols.length - 1) : Math.max(0, Math.min(cols.length - 1, i + (k === 'ArrowLeft' ? -1 : 1)));

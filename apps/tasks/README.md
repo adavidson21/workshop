@@ -285,6 +285,8 @@ When Workshop runs on this computer with the opencode connector on (see [Agents]
 
 An ADO task not started yet gets **Start as feature** or **Start as bug** in its details. That runs `/start` in opencode for you.
 
+**All tasks (12.5.0).** A place in the sidebar (or `7`) with every open task in the lists you picked, grouped by list: To sort, ranked, waiting and PR reviews alike, so a task that is not on a day is never out of sight. Filter to **Not on a day**, **To sort** or **Waiting**. New work items from ADO waiting to be added show at the top, and when the Personal tasks switch or a product or PR filter hides tasks, it says how many and how to see them. The Lists menu now counts only what picking a list shows (`js/all-view.js`, `js/all-model.js`).
+
 **Build with Tandem (12.4.0).** Any other open task can go to Builds' agents too: **Build with Tandem** in its details, or `B` on a selected task. Builds' drop box gets the title, first step, notes and a link back to the task, guesses whether it is a build, a log to diagnose or a question, and starts it once Tandem is ready. The click or key is the approval. Inside Workshop only, while Builds is on (`js/tandem-build.js`).
 
 Stages update when the connector reports a change, and when you switch back to the page. Without the connector (browser mode, or the connector off) nothing changes.

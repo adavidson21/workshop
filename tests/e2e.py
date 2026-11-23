@@ -1337,6 +1337,10 @@ def agents_checks(b, watch):
         check('a card on the floor opens the same panel as the lanes', af.locator('.fl-body .ln-panel .icard.gate').count() == 1)
         if os.environ.get('LOOM_SHOTS'):
             pg.screenshot(path='/tmp/builds-pop.png')
+            pg.evaluate("localStorage.setItem('workshop.theme','dark')"); pg.emulate_media(color_scheme='dark'); pg.wait_for_timeout(600); pg.screenshot(path='/tmp/builds-pop-dark.png')
+            af.click('.ln-panel [data-lane-close]'); pg.wait_for_timeout(300); pg.screenshot(path='/tmp/builds-floor-dark.png')
+            af.click('.fl-code .st-plan [data-lane-open="41300-export-retry-fails"]'); pg.wait_for_timeout(300)
+            pg.evaluate("localStorage.setItem('workshop.theme','light')"); pg.emulate_media(color_scheme='light'); pg.wait_for_timeout(300)
             af.click('.ln-panel [data-lane-close]'); af.click('.ln-drop .ln-more summary'); pg.wait_for_timeout(200); pg.screenshot(path='/tmp/builds-menu.png')
             af.click('.ln-drop .ln-more summary'); af.click('.fl-code .st-plan [data-lane-open="41300-export-retry-fails"]'); pg.wait_for_timeout(300)
         af.click('.ln-panel [data-lane-close]'); pg.wait_for_timeout(200)
@@ -1373,10 +1377,10 @@ def agents_checks(b, watch):
         if folders != sorted(['41207-fix-login-timeout', '41300-export-retry-fails', '41455-audit-log-filter', '41502-csv-export', '41610-rate-limit-headers', '41720-show-item-count', 'spike-cache-options']): print('    lanes have:', folders)
         af.click('.fl-rowb[data-lane-open="41300-export-retry-fails"]'); pg.wait_for_timeout(800)
         check('the card\'s panel holds its run: the step to read and its buttons', seen(af, '.ln-panel .builds-run .icard.gate') and af.locator('.ln-panel [data-act=approve-start]').count() == 1)
-        check('the panel keeps the draft closed until Read', af.locator('.ln-panel .finline').count() == 0)
-        af.click('.ln-panel [data-peek="card:41300-export-retry-fails"]'); pg.wait_for_timeout(400)
-        check('Read shows the file you are approving (file.read)', seen(af, '.ln-panel .finline .doc') and 'Root cause' in af.inner_text('.ln-panel .finline'))
-        af.click('.ln-panel [data-peek="card:41300-export-retry-fails"]'); pg.wait_for_timeout(200)
+        # Builds 6.22.0: the panel previews the file you are approving right away; Hide folds it.
+        check('the panel shows the file you are approving (file.read)', seen(af, '.ln-panel .finline .doc') and 'Root cause' in af.inner_text('.ln-panel .finline'))
+        af.click('.ln-panel [data-peek="card:41300-export-retry-fails"]'); pg.wait_for_timeout(300)
+        check('Hide folds it', af.locator('.ln-panel .finline').count() == 0)
         af.click('.ln-panel [data-sb-toggle]'); pg.wait_for_timeout(500)
         check('the run\'s buttons work inside the panel (Send back opens its note box there)', af.locator('.ln-panel [data-sb-toggle][aria-expanded=true]').count() == 1
               and af.locator('.ln-panel textarea').count() == 1)
@@ -1842,10 +1846,10 @@ def main():
             # Wait for Tasks to draw instead of a fixed pause: the service worker may still be precaching
             # every app's files (Dispatch's code viewer among them) on this first visit.
             try:
-                sp.wait_for_function("() => document.querySelectorAll('#snav .sitem').length >= 3 && !!document.querySelector('.ws-bar [data-theme-toggle]')", timeout=15000)
+                sp.wait_for_function("() => document.querySelectorAll('#snav .sitem').length >= 4 && !!document.querySelector('.ws-bar [data-theme-toggle]')", timeout=15000)
             except Exception:
                 pass
-            check('Tasks still works on its own, with the top bar and light/dark toggle', sp.locator('.ws-bar [data-theme-toggle]').is_visible() and 'Tasks' in sp.text_content('.ws-bar .here') and sp.locator('#snav .sitem').count() == 3)  # Tasks 10.5: Today, People, Done (Week folded into Today)
+            check('Tasks still works on its own, with the top bar and light/dark toggle', sp.locator('.ws-bar [data-theme-toggle]').is_visible() and 'Tasks' in sp.text_content('.ws-bar .here') and sp.locator('#snav .sitem').count() == 4)  # Tasks 12.5: Today, All tasks, People, Done
             check('Tasks defines no globals except its test hook', sp.evaluate(PRIORITIZER_GLOBALS) == ['__tasks'])
             tasks = "() => window.__tasks.state.tasks.map(t => [t.title, t.item ? String(t.item.id) : '']).sort()"
             before = sp.evaluate(tasks)

@@ -188,8 +188,8 @@ def main():
         # ---------- Today: Inbox, Up next and Today; Plan week ----------
         check('Today has the Inbox, Up next and Today columns', pg.evaluate("() => [...document.querySelectorAll('main .col')].map(c => c.dataset.col)") == ['inbox', 'rank', 'today'] and pg.locator('.col-rank.upnext').count() == 1)
         check('no Needs you strip and no Now card', pg.locator('.needs').count() == 0 and pg.locator('.nowcard').count() == 0)
-        check('the sidebar: three places, Today, People and Done (Tasks 10.5.0), no group headings and no lists',
-              pg.evaluate("() => [...document.querySelectorAll('#snav .sitem')].map(b => b.dataset.nav)") == ['today', 'people', 'archive']
+        check('the sidebar: Today, All tasks, People and Done (Tasks 12.5.0), no group headings and no lists',
+              pg.evaluate("() => [...document.querySelectorAll('#snav .sitem')].map(b => b.dataset.nav)") == ['today', 'all', 'people', 'archive']
               and pg.locator('#snav .snav-h').count() == 0 and pg.locator('#slists').count() == 0)
         check('Today is named for its day, with the date and the day arrows', pg.inner_text('#phead h1') == pg.evaluate("new Date().toLocaleDateString(undefined, {weekday: 'long'})")
               and pg.locator('#phead .pdate').count() == 1 and pg.locator('#phead [data-dayjump]').count() == 2)
@@ -754,7 +754,15 @@ def main():
         pg.keyboard.press('Escape'); pg.wait_for_timeout(150)
         if pg.locator('.col.colon').count(): pg.keyboard.press('Escape'); pg.wait_for_timeout(150)
         check('Esc leaves the Inbox column', pg.locator('.col.colon').count() == 0)
-        check('the sidebar has the four places', pg.eval_on_selector_all('#snav .sitem', 'els => els.map(e => e.dataset.nav)') == ['today', 'people', 'archive'])
+        check('the sidebar has the four places', pg.eval_on_selector_all('#snav .sitem', 'els => els.map(e => e.dataset.nav)') == ['today', 'all', 'people', 'archive'])
+        # All tasks (Tasks 12.5.0): every open task in the scope, in one place, whether or not it is on a day.
+        pg.click('#snav [data-nav="all"]'); pg.wait_for_timeout(300)
+        want_open = pg.evaluate("() => { const P = window.__tasks; return P.state.tasks.filter(t => !t.done).length; }")
+        check('All tasks lists every open task', pg.locator('.allview .row[data-id]').count() == want_open and want_open > 0)
+        pg.click('[data-allf="noday"]'); pg.wait_for_timeout(200)
+        noday = pg.evaluate("() => { const P = window.__tasks, d = new Date(), t0 = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); return P.state.tasks.filter(t => !t.done && t.focusOn !== t0 && !t.waiting).length; }")
+        check('Not on a day shows the tasks no day holds', pg.locator('.allview .row[data-id]').count() == noday)
+        pg.click('[data-allf="all"]'); pg.click('#snav [data-nav="today"]'); pg.wait_for_timeout(300)
         # ---------- Places (Tasks 8.0.0): Plan week in the sidebar, the drawer closes on a new place, Done renders ----------
         some0 = pg.evaluate(f"() => {P}.state.tasks.find(t => !t.done && t.value && t.effort && !t.waiting && !t.pr).id")
         pg.evaluate(f"id => {P}.openDrawer(id)", some0); pg.wait_for_timeout(200)

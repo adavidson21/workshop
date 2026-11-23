@@ -446,3 +446,35 @@ test('an empty floor is calm: one row of station names per line, not thirteen st
   assert.match(html, /<span class="fl-calm-name">Code line<\/span>/);
   assert.equal(flowSummary(fd).items.length, 0);
 });
+
+test('Builds 6.22.0: only runs still starting stand at the Plan desk; a finished Teach or backlog run leaves, a failed one is pulled off', async () => {
+  const { stillStarting } = await import('../js/runs/pages.js');
+  const o = (command, s) => ({ command, s });
+  assert.equal(stillStarting(o('/spike how', { status: 'busy' })), true);
+  assert.equal(stillStarting(o('/spike how', { status: 'idle', text: 'Which login?' })), true, 'a spike that replied waits on you');
+  assert.equal(stillStarting(o('/spike how', { status: 'idle' })), false);
+  assert.equal(stillStarting(o('/backlog scope local', { status: 'idle', text: 'Made 4 stories.' })), false, 'finished, no folder to make');
+  assert.equal(stillStarting(o('/teach gap-1 use the v2 API', { status: 'busy' })), false, 'Teach is not work on a line');
+  assert.equal(stillStarting(o('Tidy 1:1 notes', { status: 'busy' })), false);
+  assert.equal(stillStarting(o('/backlog scope local', { status: 'idle' }), 1), true, 'asking you');
+  load();
+  S.L.sessions.ses_t = { id: 'ses_t', status: 'idle', command: '/teach gap-1 yes', text: 'Saved.', folder: null };
+  S.L.sessions.ses_b = { id: 'ses_b', status: 'idle', command: '/spike why', error: 'model not loaded', folder: null };
+  S.L.others = [{ session: 'ses_t', command: '/teach gap-1 yes', at: S.now }, { session: 'ses_b', command: '/spike why', at: S.now }];
+  const cards = lanesData('all').cards.filter(c => c.session === 'ses_t' || c.session === 'ses_b');
+  assert.deepEqual(cards.map(c => c.session), ['ses_b']);
+  assert.equal(stationOf(cards[0]), 'stuck');
+  assert.ok(floorData(lanesData('all')).stuck.some(c => c.session === 'ses_b'));
+});
+
+test('Builds 6.22.0: the open card previews its document right on the floor', async () => {
+  const { previewFile, inboxData } = await import('../js/runs/pages.js');
+  load();
+  const gate = inboxData().gates.find(it => previewFile(it));
+  assert.ok(gate, 'the fixture has a run at a gate with its file');
+  const name = previewFile(gate);
+  S.files[gate.folder + '/' + name] = { text: '# The plan\n\nShip the **fix** first.', at: gate.modifiedMs };
+  S.ui.laneSel = gate.folder;
+  const html = lanesHtml();
+  assert.match(html, /class="fl-pop[\s\S]*<strong>fix<\/strong>/, 'the gate file reads in the popup, not behind Read');
+});
