@@ -7,6 +7,7 @@
 //   - isLocal: is the model Tandem's runs use local or self-hosted? (the Local model setting, or a known provider)
 //   - promptFit: will a Tandem command fit in the model's context window, using evals/commands.json's sizes?
 //   - checkLocalModels: what `workshop doctor` says about local models in opencode's config.
+//   - probeLocalServers (1.34.0): does each local model server answer, and does it have the models opencode names?
 import fs from "node:fs";
 import os from "node:os";
 import { configSources, stripJsonc } from "./providers.mjs";
@@ -92,8 +93,10 @@ export function checkLocalModels({ workspace, setting, env = process.env, platfo
     if (!isObj(cfg) || !isObj(cfg.provider)) continue;
     for (const [id, p] of Object.entries(cfg.provider)) {
       if (!isObj(p)) continue;
-      const entry = providers.get(id) || { local: false, models: new Map() };
+      const entry = providers.get(id) || { local: false, models: new Map(), url: null, apiKey: null };
       const url = isObj(p.options) ? p.options.baseURL : null;
+      if (typeof url === "string" && url) entry.url = url;
+      if (isObj(p.options) && typeof p.options.apiKey === "string" && p.options.apiKey) entry.apiKey = p.options.apiKey;
       // With Local model on, any provider with its own address counts (a company server on a public name).
       if (LOCAL_PROVIDERS.has(id.toLowerCase()) || privateUrl(url) || (localSetting(setting) === "on" && !!url)) entry.local = true;
       for (const [mid, m] of Object.entries(isObj(p.models) ? p.models : {})) {
@@ -123,7 +126,62 @@ export function checkLocalModels({ workspace, setting, env = process.env, platfo
       else lines.push(`Local model ${id}/${mid}: ${ctx}-token window.${id.toLowerCase() === "ollama" ? " Make sure Ollama really serves that size (OLLAMA_CONTEXT_LENGTH or num_ctx); it cuts longer prompts without an error." : ""}`);
     }
   }
-  return { state: bad ? "bad" : warn ? "warn" : "ok", lines };
+  const servers = local.filter(([, p]) => p.url).map(([id, p]) => ({ id, url: p.url, apiKey: p.apiKey, models: [...p.models.keys()] }));
+  return { state: bad ? "bad" : warn ? "warn" : "ok", lines, servers };
+}
+
+// opencode's {env:NAME} in a config value.
+const fromEnv = (v, env) => String(v).replace(/\{env:([A-Za-z_][A-Za-z0-9_]*)\}/g, (_, n) => env[n] || "");
+
+/**
+ * Does each local model server answer? `servers` comes from checkLocalModels. Asks each one's OpenAI-style
+ * `<baseURL>/models` (Ollama, LM Studio, llama.cpp, vLLM and most company gateways have it), with the provider's
+ * apiKey when opencode's config has one. Returns {state, lines} like checkLocalModels: "bad" when a server does
+ * not answer (every build step would fail), "warn" when it answers but does not list a model opencode names.
+ * Never prints a URL or a key. `fetchFn` is for tests.
+ */
+export async function probeLocalServers(servers, { env = process.env, fetchFn = globalThis.fetch, timeout = 4000 } = {}) {
+  const lines = [];
+  let bad = false;
+  let warn = false;
+  for (const s of servers || []) {
+    let url;
+    try { url = new URL(String(s.url).replace(/\/+$/, "") + "/models"); } catch { continue; }
+    const headers = {};
+    const key = s.apiKey ? fromEnv(s.apiKey, env) : "";
+    if (key) headers.authorization = `Bearer ${key}`;
+    let r;
+    try {
+      r = await fetchFn(url, { headers, signal: AbortSignal.timeout(timeout) });
+    } catch (e) {
+      bad = true;
+      const why = e && (e.name === "TimeoutError" || e.name === "AbortError") ? `no answer in ${Math.round(timeout / 1000)} seconds` : "could not connect";
+      lines.push(`Local model server ${s.id}: not answering (${why}). Every build step would fail. Start it (Ollama: ollama serve), or connect to the network or VPN it is on, then run doctor again.`);
+      continue;
+    }
+    if (r.status === 401 || r.status === 403) {
+      warn = true;
+      lines.push(`Local model server ${s.id}: answers, but refused the request (${r.status}). Check the key opencode uses for it (opencode auth login, or options.apiKey).`);
+      continue;
+    }
+    if (!r.ok) {
+      warn = true;
+      lines.push(`Local model server ${s.id}: answers, but its model list gave HTTP ${r.status}, so its models were not checked.`);
+      continue;
+    }
+    let have = null;
+    try {
+      const j = await r.json();
+      const list = Array.isArray(j && j.data) ? j.data : Array.isArray(j && j.models) ? j.models : null;
+      if (list) have = new Set(list.map((m) => String((m && (m.id || m.name || m.model)) || "")).filter(Boolean));
+    } catch { /* not JSON: answering is enough */ }
+    const missing = have && have.size ? s.models.filter((m) => !have.has(m) && !have.has(`${m}:latest`)) : [];
+    if (missing.length) {
+      warn = true;
+      lines.push(`Local model server ${s.id}: answering, but it does not list ${missing.join(", ")}. Pull it (Ollama: ollama pull <model>) or fix the model id in opencode's config.`);
+    } else lines.push(`Local model server ${s.id}: answering.`);
+  }
+  return { state: bad ? "bad" : warn ? "warn" : lines.length ? "ok" : "skipped", lines };
 }
 
 /** True for an http(s) URL on this computer or a private network (10/8, 172.16/12, 192.168/16, .local, .internal). */
