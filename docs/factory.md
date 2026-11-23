@@ -16,6 +16,7 @@ Since connector 1.34.0. A build is meant to run for hours without you, so a mode
 - **A model or connection error** (the model server restarted, a VPN blip, a 500): autopilot runs the same step again in a fresh session, 1 minute and then 5 minutes later. Loom's card says so with the time of the next try. After the third failure it waits for you: check the model server (`workshop doctor`), then **Resume**.
 - **A stalled step** (no word from opencode for the stall time, and no permission prompt or question waiting on you): the step is stopped and handled like a model error.
 - **Workshop restarts** (an update, a reboot, `workshop restart`) mid-build: the build carries on once opencode is connected, from the step it was on. A step still running in opencode's own service is waited for, not started twice.
+- **Long steps** (over 5 minutes, usual on a local model) no longer stop the build with "fetch failed".
 - **Resume** after a failed **Approve** approves the plan again, then builds.
 - `workshop doctor` asks each local model server for its model list: a server that does not answer fails doctor, and a model it does not have is a warning.
 

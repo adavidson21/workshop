@@ -85,7 +85,8 @@ export const autoTiming = { retryDelays: [60e3, 5 * 60e3], missedIdleMs: 20e3 };
 // No word from opencode on a step for this long (and no prompt waiting on you): a stall.
 const stallMs = () => Math.max(5, (opt && opt.autoStallMinutes) || 30) * 60e3;
 // Errors that are not worth a retry: you stopped it, or the command itself is wrong.
-const NO_RETRY = /^Stopped\.?$|has no \/|not found|refused|too small|does not fit/i;
+// ("connection refused" is not here: a model server that is down is the main case to retry.)
+const NO_RETRY = /^Stopped\.?$|has no \/|not found|context window|Not a command/i;
 const clock = (ms) => new Date(Date.now() + ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
 // { "<folder>": { status, message, command, lastCommand, session, inFlight, sawBusy,

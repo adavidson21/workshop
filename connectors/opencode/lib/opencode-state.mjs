@@ -6,6 +6,8 @@
 
 import { spawn } from "node:child_process";
 import { EventEmitter } from "node:events";
+import http from "node:http";
+import https from "node:https";
 import { cancel, ctx, isWin, later, log, opt } from "./context.mjs";
 import { autoOnBusy, autoOnIdle } from "./autopilot.mjs";
 import { broadcastLive, emitDone } from "./live.mjs";
@@ -119,7 +121,40 @@ export function refreshPromptsSoon() {
 
 // ------------------------------------------------------------------ HTTP helpers for opencode
 
+// A request with no time limit (a whole Tandem command, which can run for an hour on a local model). Node's fetch
+// gives up after 5 minutes without response headers ("fetch failed"), and opencode answers /command only when the
+// command ends, so these go through node:http, which has no such limit (1.34.0).
+function httpLong(url, { method, body, headers, signal }) {
+  return new Promise((resolve, reject) => {
+    const u = new URL(url);
+    const payload = body !== undefined ? JSON.stringify(body) : null;
+    const req = (u.protocol === "https:" ? https : http).request(u, {
+      method,
+      headers: { ...(payload !== null ? { "content-type": "application/json", "content-length": Buffer.byteLength(payload) } : {}), ...headers },
+      signal,
+    }, (res) => {
+      const chunks = [];
+      res.on("data", (c) => chunks.push(c));
+      res.on("error", reject);
+      res.on("end", () => {
+        const text = Buffer.concat(chunks).toString("utf8");
+        let data = null;
+        try { data = text ? JSON.parse(text) : null; } catch { data = text; }
+        const st = res.statusCode || 0;
+        resolve({ ok: st >= 200 && st < 300, status: st, data, type: String(res.headers["content-type"] || "") });
+      });
+    });
+    req.on("error", reject);
+    if (payload !== null) req.write(payload);
+    req.end();
+  });
+}
+
 export async function httpJson(url, { method = "GET", body, headers = {}, timeout = 15000 } = {}) {
+  if (!timeout) {
+    const signal = ctx && ctx.signal ? ctx.signal : undefined;
+    return httpLong(url, { method, body, headers, signal });
+  }
   const ctrl = new AbortController();
   const t = timeout ? setTimeout(() => ctrl.abort(), timeout) : null;
   // Stopping the connector aborts every request to opencode (ctx.signal).
