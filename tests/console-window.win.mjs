@@ -34,7 +34,9 @@ const r = await openConsole({ cwd: work, ps, sh: "", title: "opencode" });
 check("openConsole resolves", r && r.ok === true);
 const out = await waitFor(() => read(marker));
 check("the window ran opencode with its arguments", /ARGS attach http:\/\/127\.0\.0\.1:4096 --session ses_abc123/.test(out), out);
-check("in the workspace folder", out.includes(`CWD ${work}`), out);
+// os.tmpdir() can be a short 8.3 name (C:\Users\RUNNER~1), while cmd prints the long one: compare the folder names.
+const cwd = (/CWD (.+)/.exec(out) || [])[1] || "";
+check("in the workspace folder", cwd.trim().toLowerCase().endsWith(path.join(path.basename(root), "my work's folder").toLowerCase()), out);
 check("with a console of its own (a window)", /Columns:\s*\d+/i.test(out), out);
 
 // 2. The window is a new console window: a PowerShell process whose window handle is not zero.

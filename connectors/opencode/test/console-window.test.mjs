@@ -3,6 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
+import path from "node:path";
 import { linuxTerminal, openConsole, windowsArgs } from "../lib/console-window.mjs";
 
 const fake = (calls) => (exe, argv, o) => { calls.push({ exe, argv, o }); const c = new EventEmitter(); c.unref = () => {}; setImmediate(() => c.emit("spawn")); return c; };
@@ -40,8 +41,8 @@ test("macOS: Terminal runs the command in the folder", async () => {
 });
 
 test("Linux: the first terminal on PATH, or a 501", async () => {
-  const exists = (f) => f === "/usr/bin/gnome-terminal" || f === "/usr/bin/xterm";
-  assert.deepEqual(linuxTerminal({ PATH: "/usr/local/bin:/usr/bin" }, exists), ["/usr/bin/gnome-terminal", ["--"]]);
+  const exists = (f) => f === path.join("/usr/bin", "gnome-terminal") || f === path.join("/usr/bin", "xterm");
+  assert.deepEqual(linuxTerminal({ PATH: ["/usr/local/bin", "/usr/bin"].join(path.delimiter) }, exists), [path.join("/usr/bin", "gnome-terminal"), ["--"]]);
   assert.equal(linuxTerminal({ PATH: "/nothing" }, () => false), null);
   const calls = [];
   await openConsole({ cwd: "/w", ps: "", sh: "'opencode'", platform: "linux", run: fake(calls), terminal: () => ["/usr/bin/xterm", ["-e"]] });
