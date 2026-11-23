@@ -73,7 +73,8 @@ async function publishOne(it) {
 import { DAY, MAX_NOTES_BYTES, MAX_PACKET_BYTES, draftOneOnOne, oneOnOneResult, resetOneOnOnes, tidyOneOnOne, tidyResult } from "./lib/one-on-one.mjs";
 import { HUB_ID, MAX_MESSAGE, hubResult, resetHub, runHub } from "./lib/hub.mjs";
 import { MAX_PROMPT as VOICE_MAX, KINDS as VOICE_KINDS, resetVoice, runVoice, voiceResult } from "./lib/voice.mjs";
-import { MAX_FILES as CHAT_FILES, MAX_IMAGES, MAX_IMAGE_DATA, MAX_TEXT as CHAT_MAX, archiveChat, chatFiles, chatImage, chatMessages, chatOptions, commandChat, compactChat, listChats, redoChat, removeChat, renameChat, resetChats, resetSearch, searchChats, sendChat, shellChat, sideChat, startChat, undoChat } from "./lib/chat.mjs";
+import { MAX_FILES as CHAT_FILES, MAX_IMAGES, MAX_IMAGE_DATA, MAX_TEXT as CHAT_MAX, archiveChat, chatFiles, chatImage, chatMessages, chatOptions, commandChat, compactChat, listChats, quickChat, redoChat, removeChat, renameChat, resetChats, resetSearch, searchChats, sendChat, shellChat, sideChat, startChat, undoChat } from "./lib/chat.mjs";
+import { resetChatLive } from "./lib/chat-live.mjs";
 import { MAX_ATTACHMENTS, MAX_PIECE, attachPiece } from "./lib/chat-attach.mjs";
 import { chatChanges, chatSuggest, resetSuggest } from "./lib/chat-more.mjs";
 import { chatReview, chatReviewState } from "./lib/chat-review.mjs";
@@ -325,6 +326,7 @@ function resetAll() {
   resetSuggest();
   resetTerms();
   resetVoice();
+  resetChatLive();
   resetObservations();
   resetGaps();
   resetEpics();
@@ -1007,6 +1009,16 @@ const actions = {
     async run(args) {
       needReady();
       return sendChat(args, { config: ctxRef && ctxRef.config });
+    },
+  },
+  // 1.38.0 (Chat 4.5.0): a quick answer from your notes, looked up in code and asked once with no tools (lib/quick.mjs).
+  "chat.quick": {
+    title: "Quick answer: look up your notes for a question and ask once, with no tools, in a chat or a new one",
+    write: true,
+    argsSchema: obj(["text"], { session: chatSession, text: str("The question", { minLength: 1, maxLength: CHAT_MAX }), model: chatPick.model }),
+    async run(args) {
+      needReady();
+      return quickChat(args, { config: ctxRef && ctxRef.config });
     },
   },
   "chat.command": {

@@ -10,6 +10,7 @@ import { loadState } from "./opencode-connect.mjs";
 import { broadcastLive } from "./live.mjs";
 import { v1Turn } from "./chat-parts.mjs";
 import { ptyEvent } from "./pty.mjs";
+import { chatChanged, chatText } from "./chat-live.mjs";
 
 export function makeV1(url) {
   const base = url.replace(/\/+$/, "");
@@ -196,11 +197,12 @@ export function makeV1(url) {
       return r.data.map((m) => v1Turn(m, opt.workspace));
     },
     /** A message with any agent and model, files as file parts (what the TUI sends for @path) and pasted images as data URLs (Chat 4.0.0). */
-    async promptRich(id, { text, agent, model, files, images }) {
+    async promptRich(id, { text, agent, model, files, images, tools, system, variant }) {
       const parts = [{ type: "text", text }];
       for (const f of files || []) parts.push({ type: "file", mime: "text/plain", url: "file://" + (f.startsWith("/") ? "" : "/") + f.replace(/\\/g, "/"), filename: f.split(/[\\/]/).pop() });
       for (const im of images || []) parts.push({ type: "file", mime: im.mime, url: `data:${im.mime};base64,${im.data}`, filename: im.name });
-      const body = { parts, ...(agent ? { agent } : {}), ...(model ? { model: { providerID: model.provider, modelID: model.id } } : {}) };
+      // tools and system: Quick answers (lib/quick.mjs) switch tools off and carry the notes; variant: reasoning effort.
+      const body = { parts, ...(agent ? { agent } : {}), ...(model ? { model: { providerID: model.provider, modelID: model.id } } : {}), ...(tools ? { tools } : {}), ...(system ? { system } : {}), ...(variant ? { variant } : {}) };
       const r = await call(`/session/${id}/prompt_async`, { method: "POST", body });
       if (!r.ok) throw httpError(502, `opencode did not take the message (${errText(r)}).`);
     },
@@ -328,14 +330,14 @@ export function makeV1(url) {
         case "message.part.updated": {
           const part = p.part || {};
           if (part.type === "tool") upsertSession(sid, { activity: toolLine(part.tool, part.state && part.state.input, part.state && part.state.title) });
-          else if (part.type === "text" && msgRole.get(part.messageID) === "assistant" && !part.synthetic) setText(sid, part.id, part.text);
+          else if (part.type === "text" && msgRole.get(part.messageID) === "assistant" && !part.synthetic) { setText(sid, part.id, part.text); chatText(sid, part.id, part.text); return true; }
           else if (part.type === "reasoning") upsertSession(sid, { activity: "Thinking" });
           break;
         }
         case "message.part.delta":
           if (p.field !== "text" || msgRole.get(p.messageID) !== "assistant") return false;
-          appendText(sid, p.partID, p.delta);
-          break;
+          chatText(sid, p.partID, appendText(sid, p.partID, p.delta)); // Chat shows it as it streams (lib/chat-live.mjs)
+          return true;
         case "permission.asked":
         case "permission.updated": // older 1.x
           if (p.id) permissions.set(p.id, normPermission(p));
@@ -365,6 +367,7 @@ export function makeV1(url) {
         default:
           return false;
       }
+      chatChanged(sid); // a chat a page is looking at reads itself again now, not at its next poll (lib/chat-live.mjs)
       return true;
     },
     terminalArgs(id) {

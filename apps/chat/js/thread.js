@@ -76,7 +76,9 @@ export function keepFocus(root) {
   return () => {
     if (!key) return;
     const el = root.querySelector(`[data-keep="${key.replace(/["\\]/g, '\\$&')}"]`);
-    if (!el) return;
+    // Still focused (Chat 4.5.0 updates in place): leave it, as setting the caret again would end a selection in the
+    // thread.
+    if (!el || el === root.ownerDocument.activeElement) return;
     el.focus();
     if (sel) try { el.setSelectionRange(sel[0], sel[1]); } catch (e) { /* not a text field */ }
   };

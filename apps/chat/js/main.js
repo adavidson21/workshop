@@ -30,6 +30,7 @@ const hub = startHub(ws, hubEl, {
   onThread: card => { if (chat) chat.opened(card); },
   onChange: () => { if (chat) chat.redraw(); },
   onStatus: () => { if (chat) chat.refresh(); },
+  onQuick: text => !!(chat && chat.quick(text)),
   asksHtml
 });
 const rewrite = startRewrite(ws);

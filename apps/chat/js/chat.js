@@ -35,10 +35,13 @@ import { startChanges } from './changes.js';
 import { ALERTS_KEY, alertText, alertsState, chatEvents, chatKey, nextNeedy, stepChat } from './alerts.js';
 import { startSplit } from './split.js';
 import { MAX_DOCS, addPictures, chipsHtml, docsIn, picturesIn, uploadDoc } from './images.js';
+import { morph } from './morph.js';
+import { withLive, pruneLive } from './live.js';
 
 const OC = 'opencode';
 const LIST_MS = 10000;
 const BUSY_MS = 1000;
+const QUIET_MS = 3000; // the poll while the connector streams the chat to this page (Chat 4.5.0): its events do the work
 const SIDE_KEY = 'dispatch.chatSide';
 const PICK_KEY = 'chat.pick';
 const ALL_KEY = 'chat.all';
@@ -49,7 +52,12 @@ const HUB = 'hub';
 const HUB_AGENT = { name: HUB, description: 'Ask Tandem, or capture a task, receipt or note for your apps' };
 const REWRITE = 'rewrite';
 const REWRITE_AGENT = { name: REWRITE, description: 'Rewrite a draft in your voice for an audience' };
-const MODES = { [HUB]: 'Hub', [REWRITE]: 'Rewrite' }; // New chat's own modes, not opencode agents
+// Quick (Chat 4.5.0, the connector's chat.quick): a fast answer from your notes, looked up in code and asked once with
+// no tools. Unlike Hub and Rewrite it works in any chat, and its follow ups stay quick until you pick another agent.
+const QUICK = 'quick';
+const QUICK_AGENT = { name: QUICK, description: 'Fast answer from your notes: one model call, no tools' };
+const QUICK_RAN = new Set(['quick', 'plan']); // the agents chat.quick sends with (Tandem's quick, else plan)
+const MODES = { [HUB]: 'Hub', [REWRITE]: 'Rewrite', [QUICK]: 'Quick' }; // Chat's own modes, not opencode agents
 
 const ICON = {
   side: '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false"><rect x="3.5" y="4.5" width="17" height="15" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.6"/><line x1="9.5" y1="4.5" x2="9.5" y2="19.5" stroke="currentColor" stroke-width="1.6"/></svg>',
@@ -109,6 +117,10 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
   const wasBusy = {}; // session -> busy at the last read, to tell Files when a turn ends
   const docs = {}; // draft key -> PDFs for the message (Chat 4.1.0): {id, name, size, state: uploading | ready | failed, done, att}
   const suggest = {}; // session -> a suggested next message ('' none), once its last answer is in (Chat 4.1.0)
+  // Live answers (Chat 4.5.0, live.js): the text opencode is writing, from the connector's chat.text events, shown
+  // before the next read; chat.changed reads the chat at once. streamAt: the last event, so the poll can slow down.
+  const live = {}; // session -> Map(part id -> text so far)
+  let streamAt = 0, convLoading = false, convAgain = false, changedTimer = 0, frame = 0;
   // Several chats (Chat 4.2.0, alerts.js): the last busy/waiting read of each chat, chats that finished while you were
   // away (a dot until opened), and whether Chat is the app in view.
   let seen = null, inView = true;
@@ -132,13 +144,17 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
     return out;
   };
   const itemOf = sid => listed().find(c => c.session === sid) || null;
-  const agents = () => (options && options.agents) || [];
+  const agents = () => ((options && options.agents) || []).filter(a => a.name !== QUICK); // Quick is Chat's own mode
+  const canQuick = () => !!(options && options.can && options.can.quick);
   const echoing = sid => !!(echo[sid] && echo[sid].length);
   const echoTurns = sid => (echo[sid] || []).map(e => ({ id: '', role: 'you', text: e.text, agent: e.agent, parts: e.files.map(f => ({ type: 'file', name: f })).concat((e.pics || []).map(id => ({ type: 'file', name: 'picture', image: true, local: id }))) }));
   /* Working: opencode says so, or a message is on its way to it. */
   const working = () => !!(sel && ((conv && conv.busy) || echoing(sel)));
   /** The agents the picker offers here: New chat adds Hub and, with Rewrite a draft on hand, Rewrite at the top. */
-  const agentChoices = () => (sel ? agents() : [HUB_AGENT, ...(rewrite ? [REWRITE_AGENT] : []), ...agents()]);
+  const agentChoices = () => {
+    const quick = canQuick() ? [QUICK_AGENT] : [];
+    return sel ? [...quick, ...agents()] : [HUB_AGENT, ...quick, ...(rewrite ? [REWRITE_AGENT] : []), ...agents()];
+  };
   function agentNow() {
     const want = sel ? (sessPick[sel] || {}).agent : pick.agent;
     const names = agentChoices().map(a => a.name);
@@ -150,7 +166,7 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
   const modelNow = () => (sel ? ((sessPick[sel] || {}).model ?? pick.model) : pick.model) || '';
   function setPick(kind, value) {
     if (sel) sessPick[sel] = { agent: agentNow(), model: modelNow(), ...(sessPick[sel] || {}), [kind]: value };
-    if (!(kind === 'agent' && MODES[value] && sel)) { pick = { ...pick, [kind]: value }; writeJson(PICK_KEY, pick); }
+    if (!(kind === 'agent' && MODES[value] && value !== QUICK && sel)) { pick = { ...pick, [kind]: value }; writeJson(PICK_KEY, pick); }
   }
   const hubMode = () => !sel && agentNow() === HUB;
   const rewriteMode = () => !sel && !!rewrite && agentNow() === REWRITE;
@@ -184,11 +200,14 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
   async function loadConv() {
     clearTimeout(convTimer);
     if (!sel) return;
+    if (convLoading) { convAgain = true; return; } // one read at a time; the newest event reads again after it
+    convLoading = true; convAgain = false;
     const want = sel;
     try {
       const r = await ws.connectors.call(OC, 'chat.messages', { session: want });
       if (sel !== want) return;
       conv = r; err = r.error || '';
+      if (live[want]) live[want] = pruneLive(live[want], r.turns, !!r.busy);
       if (echo[want]) echo[want] = liveEchoes(echo[want], r.turns, { busy: !!r.busy });
       if (wasBusy[want] && !r.busy) { workFiles.changed(); changes.changed(); }
       wasBusy[want] = !!r.busy;
@@ -197,13 +216,36 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
       if (!r.busy && !r.waiting && suggest[want] === undefined && lastTandem(r.turns || []) && options && options.can && options.can.suggest) askSuggestion(want);
       const row = itemOf(want); // keep the sidebar's spinner and dot in step without waiting for the list
       if (row) { row.busy = !!r.busy; row.waiting = !!r.waiting; watch([row]); }
-      if (!sessPick[want]) sessPick[want] = { agent: r.agent || (r.from === 'hub' ? 'chat' : pick.agent === HUB ? '' : pick.agent), model: r.model ? modelKey(r.model) : pick.model };
+      if (!sessPick[want]) sessPick[want] = { agent: r.quick && (!r.agent || QUICK_RAN.has(r.agent)) ? QUICK : r.agent || (r.from === 'hub' ? 'chat' : pick.agent === HUB ? '' : pick.agent), model: r.model ? modelKey(r.model) : pick.model };
     } catch (e) { if (sel === want) err = e.message || "Couldn't read this chat."; }
+    finally { convLoading = false; }
+    if (convAgain && sel === want) { convAgain = false; draw(); return loadConv(); }
     draw();
     if (sel !== want) return;
     if (conv && !conv.busy && !conv.waiting && (queue[want] || []).length) { flush(want); return; }
-    if (conv && (conv.busy || conv.waiting || (queue[want] || []).length || echoing(want)) && visible) convTimer = setTimeout(loadConv, BUSY_MS);
+    if (conv && (conv.busy || conv.waiting || (queue[want] || []).length || echoing(want)) && visible) convTimer = setTimeout(loadConv, Date.now() - streamAt < 5000 ? QUIET_MS : BUSY_MS);
   }
+  /* The connector's stream for the chat in view (Chat 4.5.0, connectors/opencode/lib/chat-live.mjs). */
+  function drawSoon() {
+    if (frame) return;
+    const go = () => { frame = 0; draw(); };
+    frame = typeof requestAnimationFrame === 'function' ? requestAnimationFrame(go) : setTimeout(go, 16);
+  }
+  ws.connectors.on(OC, 'chat.text', p => {
+    const d = p && p.payload;
+    if (!d || !d.session || !d.part) return;
+    streamAt = Date.now();
+    if (d.session !== sel) return;
+    (live[d.session] = live[d.session] || new Map()).set(d.part, String(d.text || ''));
+    drawSoon();
+  });
+  ws.connectors.on(OC, 'chat.changed', p => {
+    const d = p && p.payload;
+    if (!d || d.session !== sel) return;
+    streamAt = Date.now();
+    clearTimeout(changedTimer);
+    changedTimer = setTimeout(loadConv, 60);
+  });
   /* Several chats (Chat 4.2.0): a notification when a chat finishes or needs you while you look elsewhere. */
   const outOfSight = () => !inView || (typeof document !== 'undefined' && (document.hidden || !document.hasFocus()));
   function watch(list) {
@@ -310,7 +352,7 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
   const confirm = { confirm: true };
   function pickArgs() {
     const a = agentNow(), m = modelFromKey(modelNow());
-    return { ...(a && !MODES[a] ? { agent: a } : {}), ...(m ? { model: m } : {}) };
+    return { ...(a && !MODES[a] ? { agent: a } : {}), ...(m ? { model: m } : {}), ...(a === QUICK ? { quick: true } : {}) };
   }
   async function send() {
     const k = key();
@@ -323,6 +365,7 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
     const list = pics[k] || [];
     const dl = docs[k] || [];
     if ((list.length || dl.length) && parsed.kind !== 'text') { err = 'Pictures and PDFs go with a message, not with a / command or ! shell command.'; draw(); return; }
+    if ((list.length || dl.length || files.length) && parsed.kind === 'text' && agentNow() === QUICK) { err = 'Quick answers take words only. Pick another agent (Tab) to send pictures, PDFs or @ files.'; draw(); return; }
     if (dl.some(d => d.state === 'uploading')) { err = 'Wait for the PDF to finish attaching.'; draw(); return; }
     const ready = dl.filter(d => d.state === 'ready');
     const job = { parsed, files, pics: list, docs: ready, text: text.trim(), ...pickArgs() };
@@ -351,11 +394,22 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
       let r = null;
       if (parsed.kind === 'shell') r = await ws.connectors.call(OC, 'chat.shell', { ...(session ? { session } : {}), command: parsed.command, ...pickOf }, confirm);
       else if (parsed.kind === 'command') r = await ws.connectors.call(OC, 'chat.command', { ...(session ? { session } : {}), name: parsed.name, args: parsed.args, ...pickOf }, confirm);
-      else if (session) await ws.connectors.call(OC, 'chat.send', { session, text: parsed.text, ...pickOf, ...(files.length ? { files } : {}), ...images }, confirm);
+      else if (job.quick) r = await ws.connectors.call(OC, 'chat.quick', { ...(session ? { session } : {}), text: parsed.text, ...(model ? { model } : {}) }, confirm);
+      else if (session) {
+        const sent = await ws.connectors.call(OC, 'chat.send', { session, text: parsed.text, ...pickOf, ...(files.length ? { files } : {}), ...images }, confirm);
+        // A quick chat with tools off sends another agent's message to a new chat (connector 1.38.0): open it.
+        if (sent && sent.moved && sent.session) {
+          echo[session] = (echo[session] || []).filter(x => x !== mine);
+          sessPick[sent.session] = { agent: agent || '', model: model ? modelKey(model) : '' };
+          pending.set(sent.session, { session: sent.session, from: 'you', title: job.text.replace(/\s+/g, ' ').slice(0, 80), at: Date.now(), last: Date.now(), busy: true });
+          echo[sent.session] = [{ ...mine, base: 0 }];
+          sending = false; select(sent.session); loadList(); return;
+        }
+      }
       else r = await ws.connectors.call(OC, 'chat.start', { text: parsed.text, ...pickOf, ...(files.length ? { files } : {}), ...images }, confirm);
       const sid = session || (r && r.session);
       if (!session && sid) {
-        sessPick[sid] = { agent: agent || '', model: model ? modelKey(model) : '' };
+        sessPick[sid] = { agent: job.quick ? QUICK : agent || '', model: model ? modelKey(model) : '' };
         pending.set(sid, { session: sid, from: 'you', title: job.text.replace(/\s+/g, ' ').slice(0, 80), at: Date.now(), last: Date.now(), busy: true });
         echo[sid] = (echo[NEW] || []).filter(e => e === mine); echo[NEW] = (echo[NEW] || []).filter(e => e !== mine);
         sending = false;
@@ -586,7 +640,7 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
     const a = agentNow();
     const models = (options && options.models) || [];
     return `<button type="button" class="pick pick-agent${MODES[a] ? ' hub' : ''}" data-pick="agent" title="Agent (Tab switches)" aria-haspopup="listbox"><span>${esc(MODES[a] || a || 'Default agent')}</span>${ICON.caret}</button>` +
-      (MODES[a] ? '' : `<button type="button" class="pick" data-pick="model" title="Model" aria-haspopup="listbox"><span>${esc(modelLabel(modelNow(), models))}</span>${ICON.caret}</button>`);
+      (MODES[a] && a !== QUICK ? '' : `<button type="button" class="pick" data-pick="model" title="Model" aria-haspopup="listbox"><span>${esc(modelLabel(modelNow(), models))}</span>${ICON.caret}</button>`);
   }
   function composeHtml() {
     const k = key();
@@ -678,9 +732,25 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
   }
   /* Under the last answer: one quiet Start work... button; its menu has the flow cards and Save as note (Chat 2.3.0). */
   let afterOpen = false;
+  /* Go deeper (Chat 4.5.0): a quick answer's question again, to an agent that reads code and files (Tandem's chat). */
+  function deeperAgent() { const names = agents().map(a => a.name); return ['chat', 'plan', 'build'].find(n => names.includes(n)) || ''; }
+  function quickLast() {
+    if (!conv || !conv.quick) return null;
+    const you = (conv.turns || []).filter(t => t.role === 'you').pop();
+    return you && (!you.agent || QUICK_RAN.has(you.agent)) ? you : null;
+  }
+  async function goDeeper() {
+    const you = quickLast();
+    if (!you || !sel) return;
+    const a = deeperAgent();
+    setPick('agent', a);
+    const job = { parsed: { kind: 'text', text: you.text }, files: [], pics: [], docs: [], text: you.text, ...(a ? { agent: a } : {}), ...(modelFromKey(modelNow()) ? { model: modelFromKey(modelNow()) } : {}) };
+    await run(sel, job);
+  }
   function afterHtml() {
+    const deeper = quickLast() ? `<button type="button" class="btn ghost chat-after-btn" data-chat-deeper title="Ask ${esc(deeperAgent() || 'an agent')} the same question: it reads code and files, so it takes longer">Go deeper</button>` : '';
     const menu = afterOpen ? `<div class="chat-after-menu" role="menu">${flowCardsHtml(titleOf(sel), 'data-chat-flow')}<button class="btn ghost" type="button" data-builtin="export">Save as note</button></div>` : '';
-    return `<div class="chat-after"><button type="button" class="btn ghost chat-after-btn${afterOpen ? ' on' : ''}" data-chat-after aria-expanded="${afterOpen}">Start work...</button>${menu}</div>`;
+    return `<div class="chat-after">${deeper}<button type="button" class="btn ghost chat-after-btn${afterOpen ? ' on' : ''}" data-chat-after aria-expanded="${afterOpen}">Start work...</button>${menu}</div>`;
   }
   function paneHtml() {
     if (!sel && rewriteMode()) return `<div class="chat-pane chat-home is-rw">${topHtml('Rewrite a draft')}<div class="chat-rw" data-rw-home></div></div>`;
@@ -714,7 +784,7 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
       rows += '<p class="hub-meta">Loading the answer...</p>';
     }
     const { shown, undone } = splitRevert(later, conv && conv.revert);
-    rows += richRows(shown.concat(echoTurns(sel)), { open, details, session: sel, busy: busy && !(first && first.running), activity: (conv && conv.activity) || (echoing(sel) ? 'Sending' : '') });
+    rows += richRows(withLive(shown, live[sel], busy).concat(echoTurns(sel)), { open, details, session: sel, busy: busy && !(first && first.running), activity: (conv && conv.activity) || (echoing(sel) ? 'Sending' : '') });
     if (undone) rows += `<p class="divider undo"><span>Undid ${undone} message${undone === 1 ? '' : 's'} and ${undone === 1 ? 'its' : 'their'} changes. <button type="button" class="lnk" data-builtin="redo">Redo</button> brings ${undone === 1 ? 'it' : 'them'} back; your next message drops ${undone === 1 ? 'it' : 'them'}.</span></p>`;
     for (const job of queue[sel] || []) rows += `<div class="turn you queued"><span class="who">You, queued</span><div class="tx">${esc(job.text)}</div><span class="you-agent">Queued</span></div>`;
     if (!conv && !first && !fromHub && !echoing(sel)) rows += '<p class="hub-meta">Loading...</p>';
@@ -776,7 +846,7 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
     const back = keepFocus(el);
     if (hubEl && el.contains(hubEl)) hubEl.remove();
     if (rewrite && el.contains(rewrite.el)) rewrite.el.remove();
-    core.innerHTML = html;
+    morph(core, html); // in place, so a selection, hover and pictures survive an answer streaming in (Chat 4.5.0)
     lastHtml = html; lastFirst = core.firstChild;
     back();
     mountRewrite(true, inRw);
@@ -946,6 +1016,7 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
       if (box) { box.focus(); box.select(); }
     }
     else if (d.chatAfter != null) { afterOpen = !afterOpen; draw(); }
+    else if (d.chatDeeper != null) goDeeper();
     else if (d.chatFlow != null) { afterOpen = false; openFlow(d.chatFlow); }
     else if (d.builtin != null) { if (d.builtin === 'export') afterOpen = false; builtin(d.builtin, ''); }
     else if (d.pick != null) { if (pop && pop.kind === d.pick) { pop = null; draw(); } else openPop(d.pick); }
@@ -1028,6 +1099,13 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
       if (!session && (wantHub || wantRewrite)) { pick = { ...pick, agent: wantRewrite && rewrite ? REWRITE : HUB }; writeJson(PICK_KEY, pick); }
       else if (!session) leaveRewrite();
       select(session); loadList();
+    },
+    /* A question from the hub (Chat 4.5.0): a quick answer in a new chat. False when this opencode has no Quick. */
+    quick(text) {
+      if (!canQuick() || !aiReady().ready) return false;
+      select(null);
+      run(null, { parsed: { kind: 'text', text }, files: [], pics: [], docs: [], text, quick: true, ...(modelFromKey(pick.model) ? { model: modelFromKey(pick.model) } : {}) });
+      return true;
     },
     /* The hub turned a message into a chat: list it now and open it. */
     opened(card) {

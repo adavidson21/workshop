@@ -1,5 +1,7 @@
 # Chat
 
+**Chat 4.5.0** (opencode connector 1.38.0) is faster where it counts on a local model. **Answers stream**: before, Chat showed nothing until opencode had stored the whole answer, so a reply a small model wrote in a minute appeared after a minute; now the text grows as the model writes it (the connector passes opencode's stream on as `chat.text` events) and the page updates in place, so a selection survives. **Quick answers**: a question in the Hub (ends with `?` or starts like one, or Capture's `?`) or the **Quick** agent in any chat gets an answer from your notes in one request: Workshop looks up the Folio notes, Settings' products and glossary and the repo map that fit, sends them with the question, and the agent has no tools. **Go deeper** under the answer asks an agent that reads code. With Tandem's `quick` agent (eng-agents Core 4.19.0) the whole request is about 1,900 characters instead of about 11,900.
+
 **Chat 4.4.0**: a question from Capture's `?` (or `? ` typed in the Hub) goes to Tandem already routed, so it only answers (opencode connector 1.36.0). Rewrite waits up to 20 minutes for a local model (4 before).
 
 **Chat 4.3.1**: "clean up this document" in the Hub opens Folio's Clean up on the open note (a rule, so it never goes to Tandem as a question; Folio 4.13.0).

@@ -120,6 +120,28 @@ Attach a PDF with the paperclip, or paste or drop it on the composer, next to pi
 - **Turn on alerts** at the bottom of the sidebar: the browser asks once, then a notification comes when a chat finishes or needs you and Chat is out of sight; clicking it opens the chat. **Alerts on** turns them off again (kept in this browser). Tandem's runs and PR reviews (sessions from outside Chat) are left to Loom, which alerts for those.
 - Keys: Alt+N, Alt+Up and Alt+Down, Alt+J (Keys above). Not while typing in Files or the Terminal.
 
+## Chat 4.5.0 (connector 1.38.0): live answers and Quick answers
+
+### Live answers
+
+Before 4.5.0 the page read a busy chat once a second with `chat.messages`, which returns what opencode has stored, and opencode stores an answer's text when the step ends. So nothing of an answer showed until it was done. Now:
+
+- The connector passes opencode's stream on for the chats a page read in the last two minutes (`lib/chat-live.mjs`): `chat.text` `{session, part, text}` with the text so far of the part being written (at most every 80 ms, cut at 20,000 characters), and `chat.changed` `{session}` when anything else moved (a tool call, a step, a prompt, busy or idle).
+- The page puts the streamed text into the turns it last read (`js/live.js`), and reads the chat again at once on `chat.changed`. While events come, the poll slows to every 3 seconds.
+- The page updates in place (`js/morph.js`) instead of rebuilding every node, so a selection in the thread, hover states and pictures survive an answer streaming in. A focused box is left alone.
+
+`tests/chat-e2e.py` measures it with real opencode and a stand-in model that writes slowly: the text shows about 0.3 seconds after the model starts and grows in 40 or more steps; before, it showed only at the end.
+
+### Quick answers
+
+For a question that the notes answer ("when do we release?", "who owns billing?"). The agent that answered before (Tandem's `chat`, or `/hub`) reads the config, the repo map, product notes and code with one tool call after another, and each call is another full request to the model: on a small local model it felt like deep research.
+
+- **Where.** A question in the Hub (it ends with `?` or starts like one: what, how, why, who, when, where, which, is, can, does, should, explain...; Capture's `?` too) opens a chat with a quick answer. **Quick** in the agent picker (after Hub in New chat, first in a chat) does the same in any chat, and a quick chat's follow ups stay quick.
+- **How.** The connector's `chat.quick` (`lib/quick.mjs`) scores the knowledge base against the question: Folio notes (not History or templates), Settings' products and glossary, and the workspace repo map, cut at their headings. It sends the best passages (up to 6,000 characters with Local model on, 9,000 otherwise) in the request's system text, with no tools, and the answer streams like any other. It ends with a Sources list; a Folio note there opens in Folio.
+- **Agent.** Tandem's `quick` agent (eng-agents Core 4.19.0) has no tools and a short prompt that replaces opencode's long one: about 1,900 characters in all with the stand-in model, against about 11,900 with `plan`. Without it Chat uses `plan` with tools off; opencode keeps that for the session, so in such a chat a message to another agent (or Go deeper) continues in a new chat.
+- **Go deeper** under a quick answer sends the same question to Tandem's `chat` agent (else `plan`, else `build`), which reads code and files.
+- Quick takes words only: pictures, PDFs and `@` files need another agent.
+
 ## Sources
 
 When an answer ends with a `Sources:` list (Tandem's hub and chat agents always add one), Chat shows it as chips under the answer (`js/sources.js`, [knowledge.md](knowledge.md), Citations): a Folio note has **Open** and **That's wrong** (both open it in Folio, the second with a reminder to fix the line there), a Settings file opens its page, and anything else is shown as a path. Only a list at the very end counts; the text is escaped like the rest of the answer.
@@ -143,6 +165,7 @@ When an answer ends with a `Sources:` list (Tandem's hub and chat agents always 
 | `files.read` | no | `path` | `{path, mtime, size, content}`, or `binary: true` or `tooBig: true` (over 900 KB) instead of `content` |
 | `files.write` | yes | `path`, `content`, optional `mtime`, `create`, `force` | `{ok: true, path, mtime, size}`, or `{ok: false, conflict: "changed" \| "gone" \| "exists", mtime}` and nothing written |
 | `files.stat` | no | `paths` (up to 50) | `{mtimes: {path: mtime \| null}}` |
+| `chat.quick` | yes | `text`, optional `session`, `model` | `{session, sources}` (1.38.0): a quick answer from your notes, in that chat or a new one (Quick answers above). `chat.messages` says `quick: true` for such a chat. `chat.send` in a quick chat whose session has tools off answers `{ok, session, moved: true}`: the message went to a new chat |
 | `chat.command` | yes | `name`, optional `session`, `args`, `agent`, `model` | `{session}`: runs `/name args`, in a new chat when there is no session. Returns at once; an error from opencode shows on the chat |
 | `chat.shell` | yes | `command`, optional `session`, `agent`, `model` | `{session}`: `!command` through opencode, as above |
 | `chat.undo` | yes | `session` | `{ok, text}`: reverts the last message not yet undone (and its file changes); `text` is that message |
@@ -161,7 +184,7 @@ When an answer ends with a `Sources:` list (Tandem's hub and chat agents always 
 | `chat.suggest` | no | `session` | `{text}` or `{text: null}` (1.29.0); `{off: true}` when Settings turned it off |
 | `chat.attach` | yes | `data` (base64, up to 700,000 characters), then `id`; the first piece also `name`, `mime: "application/pdf"` | `{id, bytes}` (1.29.0). `chat.start` and `chat.send` take `attachments: [{id}]` |
 
-Stop is the connector's `abort` action, and **opencode window** (`/tui`) its `terminal` action. Events for the Terminal, on `/api/events` as `connector` events: `term.out` `{id, at, data}` (at most 8,000 characters each; a page that sees `at` past what it has calls `term.read`), `term.exit` `{id, exitCode}` and `term.gone` `{id}`. The list lives in the data folder, `<dataDir>/chat/chats.json` (mode 0600, newest 100), so it stays with your data if Workshop is removed. Connector 1.18.0 copies it there once from `<Workshop home>/data/_connectors/opencode/chats.json` and keeps the old file. Each hub entry keeps its intent once `hub.result` reads the route (older entries: read from the request's `route.json`), so captures and go stay out of the list. The turns stay in opencode.
+Stop is the connector's `abort` action, and **opencode window** (`/tui`) its `terminal` action. Live answers (1.38.0): `chat.text` `{session, part, text}` and `chat.changed` `{session}`, for chats a page read in the last two minutes (Live answers above). Events for the Terminal, on `/api/events` as `connector` events: `term.out` `{id, at, data}` (at most 8,000 characters each; a page that sees `at` past what it has calls `term.read`), `term.exit` `{id, exitCode}` and `term.gone` `{id}`. The list lives in the data folder, `<dataDir>/chat/chats.json` (mode 0600, newest 100), so it stays with your data if Workshop is removed. Connector 1.18.0 copies it there once from `<Workshop home>/data/_connectors/opencode/chats.json` and keeps the old file. Each hub entry keeps its intent once `hub.result` reads the route (older entries: read from the request's `route.json`), so captures and go stay out of the list. The turns stay in opencode.
 
 ## opencode versions
 
