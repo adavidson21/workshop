@@ -144,9 +144,16 @@ def main():
 
             # 0. The connector warms opencode and the model up when it connects (connector 1.41.0). In use that is long
             # before your first message; here, wait for it, so the first answer is measured the way you would see it.
-            warmed = wait_for(lambda: any(r.get('warm') for r in to_model({'requests': True})['requests']), 60)
-            check('the connector warms opencode up when it connects', bool(warmed))
-            time.sleep(1.5)
+            def warm_done():
+                if not any(r.get('warm') for r in to_model({'requests': True})['requests']): return False
+                import urllib.request
+                try: sessions = json.loads(urllib.request.urlopen(ocurl + '/session', timeout=5).read())
+                except Exception: return False
+                return not any(x.get('title') == 'Workshop: warming up' for x in sessions)  # it deletes its scratch session when done
+            check('the connector warms opencode up when it connects', bool(wait_for(warm_done, 60)))
+            # opencode keeps loading for a few seconds after that first answer (its model catalog, plugins' own setup), in
+            # the background; in use that is long done by the time you type. 5 seconds covers it here and on CI.
+            time.sleep(5)
 
             # 1. A new chat, then a follow up in it (the TUI's usual loop).
             for label in ('first message (new chat)', 'follow up'):
