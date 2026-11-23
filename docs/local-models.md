@@ -1,6 +1,6 @@
 # Local and self-hosted models
 
-How to run Tandem (Chat, Loom, autopilot, the hub) on a model you host: Ollama, LM Studio, llama.cpp or vLLM on your own computer, or your company's own model server. Since opencode connector 1.33.0.
+How to run Tandem (Chat, Builds, autopilot, the hub) on a model you host: Ollama, LM Studio, llama.cpp or vLLM on your own computer, or your company's own model server. Since opencode connector 1.33.0.
 
 A hosted model has a large context window and serves many requests at once. A model you host usually has a much smaller window and one GPU. Workshop's defaults assumed the first, so this page covers what to set up and what Workshop changes for you.
 
@@ -56,17 +56,17 @@ Set **Model for agent runs** too. Workshop checks prompts against that model's w
 
 ## What Workshop checks
 
-- **Before every Tandem command** (a Loom button, autopilot, `/start` from Docket), Workshop looks up the command's size in eng-agents' `evals/commands.json` and the model's window from opencode. When the command's own instructions cannot fit, the run is refused with the reason, instead of running a model that never saw its instructions. When it fits but leaves under about 40% of the window for code, the run goes ahead and Workshop logs a warning. This check runs for any model whose window opencode knows, local or not.
+- **Before every Tandem command** (a Builds button, autopilot, `/start` from Tasks), Workshop looks up the command's size in eng-agents' `evals/commands.json` and the model's window from opencode. When the command's own instructions cannot fit, the run is refused with the reason, instead of running a model that never saw its instructions. When it fits but leaves under about 40% of the window for code, the run goes ahead and Workshop logs a warning. This check runs for any model whose window opencode knows, local or not.
 - **`workshop doctor`** lists each local model in opencode's config with its window: too small (under 16K) fails; no `limit.context` is a warning; a big enough Ollama window gets a reminder to set the same size on the server. A provider counts as local when its id is a known local one or its address is on this computer or a private network; with Local model on, any provider with its own address counts. Since connector 1.34.0 doctor also asks each local server for its model list (`<baseURL>/models`, with the provider's key when the config has one): no answer fails doctor (every build step would fail), a refused key or a model the server does not list is a warning. Run it after connecting to the VPN, before you start a day of builds.
 - **While a build runs**, a model error or a stalled step is tried again twice before autopilot waits for you ([factory.md](factory.md), When the model fails). A slow model that streams nothing for a long time (a big prompt on a small GPU) can look stalled: raise Settings, Factory, **Stalled after** for it.
 
-- **Board runs too** (connector 1.36.0): triage, the interview, scope, docs, investigate, PR reviews, the hub and Rapport's drafts get the same context check, one retry after a model error, and the same stall time.
+- **Board runs too** (connector 1.36.0): triage, the interview, scope, docs, investigate, PR reviews, the hub and People's drafts get the same context check, one retry after a model error, and the same stall time.
 
 ## What Workshop changes for a local model
 
-- **PR first-pass reviews** stop reviewing each new PR and commit as soon as they are found (Settings, Azure DevOps, Pull requests, turn it on there to keep it), so Docket no longer holds PRs back waiting for a review. Review all and the nightly run still work, and a review waits while a build runs.
+- **PR first-pass reviews** stop reviewing each new PR and commit as soon as they are found (Settings, Azure DevOps, Pull requests, turn it on there to keep it), so Tasks no longer holds PRs back waiting for a review. Review all and the nightly run still work, and a review waits while a build runs.
 - **No retro after a merge.** Run `/retro <id>` when you want one.
-- Approving a story draft in Loom is no longer a model run, and the hub answers a `?` question without routing it first.
+- Approving a story draft in Builds is no longer a model run, and the hub answers a `?` question without routing it first.
 - **Chat** (4.5.0): answers stream as the model writes them, and a question gets a **Quick answer**: the notes that fit are looked up in code and sent with it, and the model answers in one request with no tools (Tandem's `quick` agent keeps the whole request near 2,000 characters). With Local model on, Quick sends at most 6,000 characters of notes. See [chat.md](chat.md).
 
 ## What still depends on you

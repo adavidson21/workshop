@@ -13,7 +13,7 @@ test('ADO fields are spread across Connections, Work items, Pull requests and Re
   assert.deepEqual(P.formKeys('ado', adoSchema, 'pull-requests'), ['prTeams', 'prNotNeeded'], 'PR sources are drawn by hand');
   assert.deepEqual(P.formKeys('ado', adoSchema, 'repos'), []);
   assert.deepEqual(P.formPages('ado', adoSchema).sort(), ['connections', 'pull-requests', 'work-items']);
-  assert.equal(adoSchema.properties.reports['x-workshop-section'], 'Team reports (used by Runway)');
+  assert.equal(adoSchema.properties.reports['x-workshop-section'], 'Team reports (used by Roadmaps)');
 });
 
 test('opencode: everything on Agents except PR reviews, which go on Pull requests', () => {

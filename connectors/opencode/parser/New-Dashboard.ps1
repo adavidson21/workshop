@@ -633,7 +633,7 @@ foreach ($dir in @(Get-ChildItem -LiteralPath $workRootFull -Directory | Where-O
             $fixType = Get-Field $f "Fix type"
             if ($fixType) { $base.fixType = $fixType }
             if (Test-Path -LiteralPath (Join-Path $folder "log.md")) { $base.fromLog = $true }
-            # Loom's findings fork (flow cards v1): every path but Investigate again writes closed.md, "Closed: <what next>".
+            # Builds' findings fork (flow cards v1): every path but Investigate again writes closed.md, "Closed: <what next>".
             $closed = Read-Text (Join-Path $folder "closed.md")
             if ($f -and $closed) {
                 $base.state = "Closed"
@@ -684,7 +684,7 @@ foreach ($dir in @(Get-ChildItem -LiteralPath $workRootFull -Directory | Where-O
             $hasCheck = Test-Path -LiteralPath (Join-Path $folder "check.md")
             $sources = Read-Text (Join-Path $folder "sources.md")
             # Saved: /publish docs-<name> writes "Status: SAVED to <path> on <date>" in sources.md (eng-agents Core 4.2.0),
-            # and Loom's Save to Folio writes saved.md.
+            # and Builds' Save to Notes writes saved.md.
             $savedMd = Read-Text (Join-Path $folder "saved.md")
             $sm = $null
             if ($sources) { $sm = [regex]::Match($sources, '(?mi)^[ \t]*Status:[ \t]*SAVED\b([^\r\n]*)') }
@@ -694,7 +694,7 @@ foreach ($dir in @(Get-ChildItem -LiteralPath $workRootFull -Directory | Where-O
             }
             else {
                 $base.state = $(if ($hasCheck) { "Fact-checked" } else { "Written, not checked yet" })
-                $base.nextText = $(if ($hasCheck) { "Read check.md and fix anything it flags, then save it to the repo or Folio." } else { "Read the draft, then run /check-docs in a new session." })
+                $base.nextText = $(if ($hasCheck) { "Read check.md and fix anything it flags, then save it to the repo or Notes." } else { "Read the draft, then run /check-docs in a new session." })
             }
         }
         [void]$items.Add($base)

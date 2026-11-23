@@ -10,9 +10,9 @@
    Follow-ups go through chat.send in chat.js. Only captures, go and errors stay as cards on the New chat pane.
 
    - capture: proposal rows to review. Enter (or Accept all) accepts them; each row can be accepted, edited,
-     changed (Tab) or dismissed. Accepted captures go to Loom's own `handoffs` collection with accepted: true
-     (shared/capture-box.js); Docket, Rapport and Notes add them when they load. Nothing else is written.
-   - ask: the answer, with sources. Flow cards (Start work in Loom on the flow the ask fits), Save as note.
+     changed (Tab) or dismissed. Accepted captures go to Builds' own `handoffs` collection with accepted: true
+     (shared/capture-box.js); Tasks, People and Notes add them when they load. Nothing else is written.
+   - ask: the answer, with sources. Flow cards (Start work in Builds on the flow the ask fits), Save as note.
    - go: opens the app. act: a button with its own confirm, only for the actions in hub-model.js ACTS.
    - clarify: chips that send the message again with the choice (a new chat).
    Nothing here assigns, creates or changes anything in Azure DevOps or git by itself.
@@ -72,7 +72,7 @@ export function startHub(ws, root, { onThread = () => {}, onChange = () => {}, o
   }
   async function readContext() {
     const get = (c, app) => ws.data.get(c, { app }).catch(() => null);
-    const [dir, summary, teams] = await Promise.all([ws.people.get().catch(() => null), get('summary', 'prioritizer'), get('teams', 'settings')]);
+    const [dir, summary, teams] = await Promise.all([ws.people.get().catch(() => null), get('summary', 'tasks'), get('teams', 'settings')]);
     src = { dir, summary, teams };
   }
   const rulesCtx = () => {
@@ -87,10 +87,10 @@ export function startHub(ws, root, { onThread = () => {}, onChange = () => {}, o
     const q = /^\?\s*(.+)$/.exec(text);
     if (q) { text = q[1].trim(); asked = true; }
     if (!text) return;
-    // "clean up this document" is a rule, not a question for Tandem: Folio cleans up its open note (Folio 4.13.0).
+    // "clean up this document" is a rule, not a question for Tandem: Notes cleans up its open note (Notes 4.13.0).
     const clean = TARGETS.note === 'notes' && cleanupAsk(text.replace(/\?$/, ''));
     if (clean) { ws.open({ app: 'notes', path: clean.replace ? 'cleanup/replace' : 'cleanup' }); return; }
-    // "b <text>": straight to Loom's agents, as from Capture (Loom 6.20.0 start/go), with or without Tandem here.
+    // "b <text>": straight to Builds' agents, as from Capture (Builds 6.20.0 start/go), with or without Tandem here.
     const built = TARGETS.build && buildAsk(text);
     if (built) { ws.open({ app: TARGETS.build, path: 'start/go/' + encodeURIComponent(built.text) }); return; }
     if (!status.ready) return rulesOnly(asked ? `? ${text}` : text);
@@ -218,8 +218,8 @@ export function startHub(ws, root, { onThread = () => {}, onChange = () => {}, o
     catch (e) { ws.toast(e.message || 'Could not start that.', { kind: 'error' }); }
     draw();
   }
-  /** A flow card: Loom's Start work on that flow, filled in with the ask. Nothing starts until Start there. */
-  function openFlow(id, text) { ws.open({ app: 'slate', path: flowRoute(id, text) }).catch(() => ws.toast('Turn Loom on in Settings, Apps.', { kind: 'warn' })); }
+  /** A flow card: Builds' Start work on that flow, filled in with the ask. Nothing starts until Start there. */
+  function openFlow(id, text) { ws.open({ app: 'builds', path: flowRoute(id, text) }).catch(() => ws.toast('Turn Builds on in Settings, Apps.', { kind: 'warn' })); }
   async function saveNote(card) {
     await noteOf(card.text, card.answer || card.said || '');
   }
@@ -256,7 +256,7 @@ export function startHub(ws, root, { onThread = () => {}, onChange = () => {}, o
     // No answer file: show what the session said, so a reply is never lost behind an error.
     if (card.answer == null && card.said && card.state !== 'running' && (asked || card.badRoute)) body += `<p class="hub-meta">Tandem said:</p><div class="hub-answer">${answerHtml(card.said)}</div>`;
     // Flow cards and Save as note sit under Tandem's newest answer only (a chat with follow-ups has its own).
-    // Flow cards (Loom flow cards v1) replace Make it a spike: the one or two flows the ask fits, plus Save as note.
+    // Flow cards (Builds flow cards v1) replace Make it a spike: the one or two flows the ask fits, plus Save as note.
     if (actions && asked && card.state !== 'running' && (card.answer != null || card.said)) body += flowCardsHtml(card.text, 'data-hub-flow') + `<p class="hub-actions"><button class="btn ghost" type="button" data-hub-note>Save as note</button></p>`;
     if (card.state === 'noanswer' && !card.said) body += '<p class="hub-meta">The hub ended without an answer. Ask again, or rephrase.</p>';
     if (card.badRoute) body += '<p class="hub-meta">Tandem\'s routing did not match what Chat expects, so nothing was captured or opened. Its reply is shown as is.</p>';
@@ -343,7 +343,7 @@ export function startHub(ws, root, { onThread = () => {}, onChange = () => {}, o
 
   readContext();
   ws.people.subscribe(readContext);
-  ws.data.subscribe('summary', readContext, { app: 'prioritizer' });
+  ws.data.subscribe('summary', readContext, { app: 'tasks' });
   ws.data.subscribe('teams', readContext, { app: 'settings' });
   if (ws.backend === 'agent') { ws.connectors.onStatus(OC, check); ws.on('online', p => { if (p && p.online) check(); }); }
   store.load().catch(() => {});

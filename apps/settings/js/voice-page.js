@@ -76,7 +76,7 @@ export async function mountWriting({ ws, toast, pageEl, sleep = ms => new Promis
         if (r.state === 'done') return r.text;
         if (r.state === 'failed') throw new Error(r.error || 'The step failed.');
       }
-      throw new Error('That took more than 20 minutes. Check the session in Loom, then try again.');
+      throw new Error('That took more than 20 minutes. Check the session in Builds, then try again.');
     } finally { busy = ''; paint(); }
   }
   const aiError = e => {

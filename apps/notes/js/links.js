@@ -1,4 +1,4 @@
-/* Folio: Links, one directory of the web links you keep going back to (SharePoint, Sheets, ADO, Teams, the wiki).
+/* Notes: Links, one directory of the web links you keep going back to (SharePoint, Sheets, ADO, Teams, the wiki).
 
    They live in one plain note, links.md at the top of the folder, so the file reads and edits fine anywhere:
 
@@ -12,7 +12,7 @@
    (or a bare URL), then optional #tags and words. Everything else in the file is left as it is. The kind of link
    (SharePoint, Google Sheets, ADO, ...) is read from its address for the icon and never stored.
 
-   Pure functions of the file's text, plus createIgnored: the URLs from "Found in notes" you said no to, in Folio's
+   Pure functions of the file's text, plus createIgnored: the URLs from "Found in notes" you said no to, in Notes'
    own collection `links-ignored` (notes.links-ignored v1, items {id: <url>, at}). */
 import { safeHref } from './markdown.js';
 

@@ -4,20 +4,20 @@
    - `list` (id `recent`): the 10 notes changed last, each opening that note.
    - `list` (id `mentions`): notes that link to another app's record with a ws: link (applinks.js): each record's
      newest 3 notes, then the rest newest first, up to 50.
-     Each row's `note` is the record, '<app>/<route>' (for example 'prioritizer/task/t_k2f9'), so that app can
+     Each row's `note` is the record, '<app>/<route>' (for example 'tasks/task/t_k2f9'), so that app can
      show "Notes about this" by matching it. Its title is the note's title; `route` opens the note.
    - `count` (id `review`): product notes Tandem changed since your last review (products.js); `route` is
      `review`, which opens that list.
    - `targets` (id `folders`, capture `note`): where quick capture can put a note: a `today` row (today's note),
      then folders with notes in them, most recently used first, up to 199 (Workshop's "n <folder>: ..."). Leaves out
      templates/, daily/, history/ and attachments/.
-   - `list` (id `docs`, Folio 4.11.0): plan docs (newest first), then product notes, up to 200 (loom.js docsCard): `id`
-     and `route` the path, `note` `Plan` or `Product note`, and an extra `product` field. Loom's Link a doc lists them.
+   - `list` (id `docs`, Notes 4.11.0): plan docs (newest first), then product notes, up to 200 (builds-items.js docsCard): `id`
+     and `route` the path, `note` `Plan` or `Product note`, and an extra `product` field. Builds' Link a doc lists them.
    Templates are left out. Pure: no DOM and no SDK. */
 import { appRefs } from './applinks.js';
 import { DAILY, TEMPLATES } from './templates.js';
 import { toReview } from './products.js';
-import { docsCard } from './loom.js';
+import { docsCard } from './builds-items.js';
 
 const RECENT = 10;
 const FOLDERS = 199;

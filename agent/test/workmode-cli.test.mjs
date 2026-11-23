@@ -28,7 +28,7 @@ test('update, pin and install read their options', () => {
   assert.match(parseUpdateArgs(['--latest']).error, /plain "workshop update"/, 'plain update already means the newest releases');
   assert.deepEqual(parseUpdateArgs(['--help']), { help: true });
   assert.deepEqual(parseUpdateArgs(['--tag', 'v1.0.0', '-h']), { help: true }, 'help wins over other options');
-  // Docket, Runway, Rapport and Folio are part of Workshop now: their tag options are gone, with a plain reason.
+  // Tasks, Roadmaps, People and Notes are part of Workshop now: their tag options are gone, with a plain reason.
   for (const k of ['docket', 'runway', 'receipts', 'notes']) assert.match(parseUpdateArgs([`--${k}-tag`, 'v3.0.0']).error, /part of Workshop now/);
   assert.deepEqual(parseUpdateArgs(['--tag', 'v1.0.0']).opts, { tag: 'v1.0.0', engAgentsTag: null, engAgents: null, latest: false, check: false, verbose: false, restart: false });
   assert.ok(parseUpdateArgs(['--tag']).error);
@@ -63,7 +63,7 @@ test('pin builds a checked copy from this install, and doctor reports it', async
   try {
     const r = pin({ home, repo: REPO });
     assert.ok(r.build.files['index.html']);
-    for (const id of ['prioritizer', 'runway', 'receipts', 'notes']) assert.ok(r.build.files[`apps/${id}/index.html`], `${id} is part of the copy`);
+    for (const id of ['tasks', 'roadmaps', 'people', 'notes']) assert.ok(r.build.files[`apps/${id}/index.html`], `${id} is part of the copy`);
     assert.ok(!Object.keys(r.build.files).some(f => /^apps\/[^/]+\/test\//.test(f)), 'no app tests in the copy');
     assert.equal(verifyPinned(path.join(home, 'ui')).ok, true);
 
@@ -182,7 +182,7 @@ test('a plain update picks the newest release tag of each checkout found, Tandem
     const userHome = path.join(root, 'home');
     const plan = planLatest(ws, () => {}, { userHome });
     assert.deepEqual(plan.tags, { tag: 'v1.1.0', engAgentsTag: 'core-v2.1.0' }, 'Workshop and Tandem are behind');
-    assert.ok(!plan.lines.some(l => /Docket/.test(l)), 'Docket is part of Workshop: no line of its own');
+    assert.ok(!plan.lines.some(l => /Tasks/.test(l)), 'Tasks is part of Workshop: no line of its own');
     assert.ok(plan.lines.some(l => /Tandem \(eng-agents\): not installed in opencode -> core-v2\.1\.0/.test(l)), plan.lines.join('\n'));
     assert.ok(parseUpdateArgs(['--eng-agents-tag', 'core-v2.1.0']).opts.engAgentsTag === 'core-v2.1.0');
     assert.equal(fs.readFileSync(path.join(ws, 'f.txt'), 'utf8'), 'one', 'planning changes nothing');
@@ -217,7 +217,7 @@ test('a plain update never moves a checkout back to an older release, and versio
   };
   try {
     const wsOrigin = origin('workshop', (d, v) => { fs.mkdirSync(path.join(d, 'agent'), { recursive: true }); fs.writeFileSync(path.join(d, 'agent', 'version.mjs'), `export const VERSION = '${v}';\n`); });
-    const appOrigin = origin('docket', (d, v) => fs.writeFileSync(path.join(d, 'app.json'), JSON.stringify({ id: 'prioritizer', version: v })));
+    const appOrigin = origin('docket', (d, v) => fs.writeFileSync(path.join(d, 'app.json'), JSON.stringify({ id: 'tasks', version: v })));
     const ws = clone(wsOrigin, 'workshop');           // main: 1.2.0, newer than any release
     const docket = clone(appOrigin, 'docket', 'v1.0.0'); // an old release: moves forward
 

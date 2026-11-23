@@ -4,7 +4,7 @@
   pip install playwright && python -m playwright install chromium
   python tests/popout-e2e.py
 
-Browser mode on a static site (127.0.0.1:8822). Every rail app pops out (several at once, marked on the rail); Folio
+Browser mode on a static site (127.0.0.1:8822). Every rail app pops out (several at once, marked on the rail); Notes
 pops out into its own window on the note that was open,
 the main window goes Home, links to other apps go back to the main window, and Back to Workshop closes it.
 Exit 1 if any check fails.
@@ -31,7 +31,7 @@ def frame_of(page, app):
 
 def main():
     if not os.path.isfile(os.path.join(e2e.NOTES, 'app.json')):
-        sys.exit(f'Folio is missing at {e2e.NOTES}.')
+        sys.exit(f'Notes is missing at {e2e.NOTES}.')
     e2e.serve(8822, functools.partial(e2e.Static, directory=e2e.ROOT))
     with sync_playwright() as p:
         b = p.chromium.launch(**({'executable_path': os.environ['CHROME_PATH']} if os.environ.get('CHROME_PATH') else {}))
@@ -48,9 +48,9 @@ def main():
 
         pg.goto(HUB + '/#/notes'); pg.wait_for_timeout(1500)
         nf = frame_of(pg, 'notes')
-        check('Folio opens in the shell', nf is not None)
-        check('the pop-out button shows on Folio and names it', pg.locator('#popBtn').is_visible() and 'Pop out Folio' in (pg.get_attribute('#popBtn', 'title') or ''))
-        # A note to come back to: Folio remembers the last note per browser.
+        check('Notes opens in the shell', nf is not None)
+        check('the pop-out button shows on Notes and names it', pg.locator('#popBtn').is_visible() and 'Pop out Notes' in (pg.get_attribute('#popBtn', 'title') or ''))
+        # A note to come back to: Notes remembers the last note per browser.
         nf.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'notes'});
           await ws.files.write('popout-check.md', '# Popout check\\n\\nhello from the main window\\n', {create: true}); }""")
         pg.evaluate("location.hash = '#/notes/popout-check.md'"); pg.wait_for_timeout(1200)
@@ -59,26 +59,26 @@ def main():
             pg.click('#popBtn')
         pop = pop_info.value
         pop.wait_for_load_state(); pop.wait_for_timeout(2000)
-        check('the pop-out opens Folio on its own address', '?solo=notes' in pop.url and pop.url.endswith('#/notes'))
+        check('the pop-out opens Notes on its own address', '?solo=notes' in pop.url and pop.url.endswith('#/notes'))
         check('the pop-out has no rail', pop.locator('#rail').is_hidden())
-        check('the pop-out shows the app name and a Back to Workshop button', pop.inner_text('#topbar .crumbs').strip().lower() == 'folio' and pop.inner_text('#popBtn').strip() == 'Back to Workshop')
+        check('the pop-out shows the app name and a Back to Workshop button', pop.inner_text('#topbar .crumbs').strip().lower() == 'notes' and pop.inner_text('#popBtn').strip() == 'Back to Workshop')
         pf = frame_of(pop, 'notes')
         check('the pop-out opens on the note that was open', pf is not None and 'hello from the main window' in pf.evaluate("document.body.innerText"))
-        check('only Folio loads in the pop-out (no background apps)', [f.url for f in pop.frames if '/apps/' in f.url and '/apps/notes/' not in f.url] == [])
+        check('only Notes loads in the pop-out (no background apps)', [f.url for f in pop.frames if '/apps/' in f.url and '/apps/notes/' not in f.url] == [])
         pg.wait_for_timeout(300)
-        check('the main window goes to the first rail app', (pg.url == HUB + '/' or pg.url.startswith(HUB + '/#/prioritizer/')) and pg.title() == 'Docket · Workshop')
+        check('the main window goes to the first rail app', (pg.url == HUB + '/' or pg.url.startswith(HUB + '/#/tasks/')) and pg.title() == 'Tasks · Workshop')
 
-        # Another app from the pop-out opens in the main window; the pop-out stays on Folio.
+        # Another app from the pop-out opens in the main window; the pop-out stays on Notes.
         pop.evaluate("location.hash = '#/settings'"); pop.wait_for_timeout(1200)
         check('another app from the pop-out opens in the main window', pg.url.endswith('#/settings') and pop.url.endswith('#/notes'))
 
-        # Going to Folio while it is open in its own window brings that window forward: no second copy here.
+        # Going to Notes while it is open in its own window brings that window forward: no second copy here.
         before = len(ctx.pages)
         pg.evaluate("location.hash = '#/notes'"); pg.wait_for_timeout(800)
         check('going to a popped-out app brings its window forward', len(ctx.pages) == before and not pg.url.endswith('#/notes'))
 
         pop.click('#popBtn'); pg.wait_for_timeout(1200)
-        check('Back to Workshop closes the pop-out and opens Folio in the main window', pop.is_closed() and pg.url.endswith('#/notes'))
+        check('Back to Workshop closes the pop-out and opens Notes in the main window', pop.is_closed() and pg.url.endswith('#/notes'))
 
         # Every app on the rail pops out the same way, and several can be open at once, each in its own window.
         rail = pg.eval_on_selector_all('#rail .app-btn[data-app]', 'els => els.map(e => e.dataset.app)')
@@ -109,7 +109,7 @@ def main():
         pg.wait_for_timeout(800)
         check('closing the windows clears every mark', pg.locator('#rail .app-btn.popped').count() == 0)
 
-        # ws.window (docs/sdk.md): Folio's Open in new window. A second window of the app at a route, which leaves
+        # ws.window (docs/sdk.md): Notes' Open in new window. A second window of the app at a route, which leaves
         # the app in the main window and on the rail unmarked.
         pg.evaluate("location.hash = '#/notes/popout-check.md'"); pg.wait_for_timeout(1500)
         nf = frame_of(pg, 'notes')
@@ -119,10 +119,10 @@ def main():
             nf.evaluate("document.querySelector('.menu [data-act=window]').click()")
         also = info.value; also.wait_for_load_state(); also.wait_for_timeout(2000)
         af = frame_of(also, 'notes')
-        check('Open in new window opens the note in a second Folio window', '?solo=notes&also=1' in also.url and af is not None
+        check('Open in new window opens the note in a second Notes window', '?solo=notes&also=1' in also.url and af is not None
               and 'hello from the main window' in af.evaluate("document.body.innerText"))
         pg.wait_for_timeout(500)
-        check('the second window leaves Folio in the main window, unmarked on the rail', '#/notes' in pg.url
+        check('the second window leaves Notes in the main window, unmarked on the rail', '#/notes' in pg.url
               and pg.locator('#rail .app-btn.popped[data-app="notes"]').count() == 0)
         also.close()
 

@@ -1,4 +1,4 @@
-/* Folio: Mermaid diagrams in the preview, and as SVG or PNG files.
+/* Notes: Mermaid diagrams in the preview, and as SVG or PNG files.
 
    markdown.js writes each ```mermaid block as <figure class="diagram"> holding its source; paintDiagrams() draws
    them. Mermaid (vendor/mermaid.min.js, MIT) is loaded from this site only when a note has a diagram, so other
@@ -49,7 +49,7 @@ export function renderSvg(src, theme = themeNow()) {
     if (cache.has(key)) return cache.get(key);
     const m = await load();
     if (configured !== theme) { m.initialize(config(theme)); configured = theme; }
-    const id = `folio-d${++seq}`;
+    const id = `notes-d${++seq}`;
     let out;
     try {
       await m.parse(src);

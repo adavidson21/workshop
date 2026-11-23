@@ -1,7 +1,7 @@
 // opencode connector: overlap check (1.21.0). Two active items whose tasks change the same file in the same repo
 // would conflict if built side by side. tasks.md lists each task's repo and files; this reads them for every
 // item still being planned or built (not ready to publish) and reports, per item, the others it shares files with.
-// Loom shows it when you approve a plan, with Build after <other> (autopilot's `after`) or Build now.
+// Builds shows it when you approve a plan, with Build after <other> (autopilot's `after`) or Build now.
 
 import fs from "node:fs";
 import path from "node:path";

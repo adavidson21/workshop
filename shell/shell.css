@@ -101,7 +101,7 @@ body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.5 var(--sans
   .toast{bottom:4.75rem}
 }
 
-/* status: an app's one line in the top bar (Docket's running task), on every app */
+/* status: an app's one line in the top bar (Tasks' running task), on every app */
 .wstatus{flex:0 1 auto;min-width:0;margin-left:auto;display:flex;align-items:center;gap:.5rem;padding:.3rem .35rem .3rem .75rem;border-radius:999px;
   background:color-mix(in srgb,var(--accent) 12%,var(--surface));border:1px solid color-mix(in srgb,var(--accent) 35%,var(--line))}
 .wstatus[hidden]{display:none}

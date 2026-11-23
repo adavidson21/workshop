@@ -9,8 +9,8 @@ Adding an app to Workshop means adding a folder, `apps/<id>/`, with an `app.json
 ```json
 {
   "manifestVersion": 1,
-  "id": "prioritizer",
-  "name": "Docket",
+  "id": "tasks",
+  "name": "Tasks",
   "version": "3.0.0",
   "description": "Decide what to work on next.",
   "icon": "icon.svg",
@@ -33,13 +33,13 @@ Adding an app to Workshop means adding a folder, `apps/<id>/`, with an `app.json
     {"keys": "Ctrl+Shift+A", "command": "add-task", "scope": "global"}
   ],
   "files": ["app.css", "js/main.js", "js/state.js"],
-  "handoffs": {"sends": ["receipts"]},
+  "handoffs": {"sends": ["people"]},
   "capture": ["task", "waiting"],
   "aliases": ["docket", "tasks", {"name": "today", "path": "today"}]
 }
 ```
 
-More: [examples/app.prioritizer.json](examples/app.prioritizer.json), [examples/app.minimal.json](examples/app.minimal.json).
+More: [examples/app.tasks.json](examples/app.tasks.json), [examples/app.minimal.json](examples/app.minimal.json).
 
 ## Fields
 
@@ -56,7 +56,7 @@ More: [examples/app.prioritizer.json](examples/app.prioritizer.json), [examples/
 | `home` | no | `true` makes this app the home page. The Workshop logo at the top of the rail and the plain address (no `#`) open it, and it gets no rail button or `Alt+<n>`. If several apps set it, the first by `order` wins. Without a home app, the logo and the plain address open the first app on the rail. |
 | `rail` | no | `false` leaves the app off the rail: no rail button and no `Alt+<n>`. Its address, its palette commands and `ws.open` to it still work, so another app can open it. No app on this site uses it today (Chat did from 3.0.0 to 4.3.0, and new people could not find it). |
 | `panel` | no | `true` shows this app as a panel over the app you are in, opened from a button in the top bar (its icon and name), instead of a page with a rail button. Its `ws.badge` count shows on that button. `#/<id>` and `ws.open` to it open the panel over the current app; `Esc`, the button again or a click outside closes it. Use it for something you glance at from anywhere, like Needs you. Ignored with `home`. |
-| `background` | no | `true` loads the app, hidden, when Workshop opens instead of on its first visit, so a status it keeps in the top bar (`ws.status`, [sdk.md](sdk.md) Status) shows from the start. Docket uses it for the running task. Use it only for that: every background app costs a page load at start. |
+| `background` | no | `true` loads the app, hidden, when Workshop opens instead of on its first visit, so a status it keeps in the top bar (`ws.status`, [sdk.md](sdk.md) Status) shows from the start. Tasks uses it for the running task. Use it only for that: every background app costs a page load at start. |
 | `modes` | no | Run modes the app works in: any of `local`, `hosted`, `browser` ([run-modes.md](run-modes.md)). Default: all three. The shell hides an app in a mode it does not list. |
 | `routes` | no | Deep links the app handles, as patterns after `#/<id>/`. Segments starting with `:` are parameters. The shell passes the rest of the hash to the app (SDK `route` event); patterns document what is valid and power `open()` from other apps. |
 | `connectors` | no | Connectors the app uses: `{id, required}`. If a required connector is unavailable (browser mode, disabled, not ready), the shell shows the app with a notice instead of loading it. |
@@ -74,11 +74,11 @@ More: [examples/app.prioritizer.json](examples/app.prioritizer.json), [examples/
 
 ## Addresses
 
-`#/<id>/<path>` opens an app. The shell also takes the app's `name` (lowercase, spaces removed) and its string `aliases`, so `#/docket/today` opens Docket (id `prioritizer`) at `today`, and `#/rapport` opens Rapport (id `receipts`). An id always wins over a name or alias, and the shell writes the id back to the address.
+`#/<id>/<path>` opens an app. The shell also takes the app's `name` (lowercase, spaces removed) and its string `aliases`, so `#/docket/today` opens Tasks (id `tasks`) at `today`, and `#/rapport` opens People (id `people`). An id always wins over a name or alias, and the shell writes the id back to the address.
 
 ## Hosted apps
 
-An app can show another app inside itself with `hosts`, for example `"hosts": [{"app": "runway", "path": "roadmaps"}]`. The host frames the hosted app's own page in one of its tabs and stands in for the shell for it: it answers `ready`, keeps the hosted app's routes inside the tab, and passes `toast`, `notify` and `open` to other apps on to the shell. No app uses `hosts` today (Slate hosted Runway until Slate 2.0.0);
+An app can show another app inside itself with `hosts`, for example `"hosts": [{"app": "roadmaps", "path": "roadmaps"}]`. The host frames the hosted app's own page in one of its tabs and stands in for the shell for it: it answers `ready`, keeps the hosted app's routes inside the tab, and passes `toast`, `notify` and `open` to other apps on to the shell. No app uses `hosts` today (Builds hosted Roadmaps until Builds 2.0.0);
 
 While the host and the hosted app are both on:
 
@@ -90,18 +90,18 @@ Turning the host off brings the hosted app back to the rail. The rule lives in t
 
 ## Private files
 
-Any app can read another app's files ([sdk.md](sdk.md), Files), which suits files meant to be shared, such as Markdown summaries. Files that hold something personal, like Rapport's 1:1 notes and goals, should not show up in another app by accident. `privateFiles` marks them:
+Any app can read another app's files ([sdk.md](sdk.md), Files), which suits files meant to be shared, such as Markdown summaries. Files that hold something personal, like People's 1:1 notes and goals, should not show up in another app by accident. `privateFiles` marks them:
 
 - Another app's `ws.files.read` of a private file rejects with code `forbidden`, as does `ws.files.list` of the whole app (`true`) or of a private folder. A listing of the app leaves private files out. `ws.files.subscribe` does not deliver their change events.
 - The owner's own reads are unchanged, and so is Settings' full backup and import.
-- The SDK reads the rule from the site's registry, or from the agent's app list on an app's own site. When neither has the owner's manifest, a built-in fallback applies (Rapport is private).
+- The SDK reads the rule from the site's registry, or from the agent's app list on an app's own site. When neither has the owner's manifest, a built-in fallback applies (People is private).
 - This prevents accidents, not a hostile app: every page with the agent token can still call the agent's files API directly ([security.md](security.md)).
 
-Rapport sets `"privateFiles": true`.
+People sets `"privateFiles": true`.
 
 ## Every app is a folder here
 
-Docket, Runway, Rapport and Folio had repos and sites of their own until Nov 2026; they are folders in `apps/` now, like every app. Their old domains redirect to the app in a pop-out window ([site.md](site.md), Retired sites).
+Tasks, Roadmaps, People and Notes had repos and sites of their own until Nov 2026; they are folders in `apps/` now, like every app. Their old domains redirect to the app in a pop-out window ([site.md](site.md), Retired sites).
 
 The agent's own app list (`GET /api/apps`) lists app folders only. The shell never reads it: it always comes from the hosted site and reads `apps/registry.json`.
 

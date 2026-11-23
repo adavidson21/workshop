@@ -39,7 +39,7 @@ Schema: [schemas/person.schema.json](schemas/person.schema.json). Example: [exam
 | `team` | Optional. On your team, for team views. Missing means `true` for `self` and `report`, `false` otherwise. |
 | `adoIdentity` | Optional. Email or exact Azure DevOps display name, compared without case. |
 | `role` | Optional. Job title. |
-| `owns` | Optional. What they own: products, repos or area paths, as written (up to 30, each up to 200 characters, no repeats). Slate matches it against what a request touches to suggest who to delegate to; Settings' Products page and Folio's product notes list a product's owners from it ([products.md](products.md)). Facts only: never a rating. |
+| `owns` | Optional. What they own: products, repos or area paths, as written (up to 30, each up to 200 characters, no repeats). Builds matches it against what a request touches to suggest who to delegate to; Settings' Products page and Notes' product notes list a product's owners from it ([products.md](products.md)). Facts only: never a rating. |
 | `since` | Optional, no longer edited. `YYYY-MM-DD`; older directories may have it. Apps keep it as they keep any field and do not show it. |
 | `archived` | Optional. Left. Kept so old records still show a name; hidden from pickers, team views and `@` matching. Its handle is free again. |
 
@@ -70,7 +70,7 @@ Schema: [schemas/person-group.schema.json](schemas/person-group.schema.json). Ex
 
 ## Rules
 
-1. **Change it only through `ws.people`.** Any app may add, edit, archive and restore people and groups (Docket adds a contact when you type a new `@name`; Settings' People & teams pages are the full editor and import spreadsheets). The SDK applies the same checks for every app and merges concurrent changes item by item.
+1. **Change it only through `ws.people`.** Any app may add, edit, archive and restore people and groups (Tasks adds a contact when you type a new `@name`; Settings' Directory pages are the full editor and import spreadsheets). The SDK applies the same checks for every app and merges concurrent changes item by item.
 2. **Reference by id.** Apps store `p_` and `g_` ids, never names or handles. They show names with `label()` and mentions with `mention()` from the directory object, at render time.
 3. **Archive, never delete.** No app deletes an item. A tombstone (from a hand edit or an old copy) means it is gone: records pointing to it show "Unknown", never an error.
 4. **Someone is involved through their groups.** When an app asks "what involves John", it matches John's id and the ids of the active groups he is in (`reach()` and `involves()`). An archived group, or an archived member, does not count.
@@ -83,9 +83,9 @@ Schema: [schemas/person-group.schema.json](schemas/person-group.schema.json). Ex
 
 | App | Uses |
 | --- | --- |
-| `settings` (Settings, People & teams) | Edits everyone: people, groups and their members. Downloads a spreadsheet template (or the current list) and imports a filled-in one with `ws.people.saveMany`, after a preview. Also edits your team's area paths ([teams.md](teams.md)). |
-| `prioritizer` (Docket) | Tasks reference people and groups (`who`). `@handle` in Quick add; a new name becomes a contact. The People view and filters count group membership. Reports' team profile reads `team`. |
-| `receipts` (Rapport) | Lists `self`, reports, the `manager`, peers, and contacts it has 1:1s with. Receipts are kept about you (`me`), reports (their id) and the manager (`up`). 1:1s are keyed by person id. Adds and edits no one (Rapport 5.0.0): People are changed only in Settings. |
-| `slate` (Slate) | Delegate picks a person; owners (`owns`) of what the item touches come first. Requesters are matched to people by name. What is delegated to each person is in Slate's summary (`delegated`), for Rapport's 1:1 prep. |
-| `runway` (Runway) | Roadmap items' owners (`who`), set in the panel or with `who: @handle` in the outline; a new name becomes a contact. The owner filter counts group membership. |
-| Home, the Dispatch hub | Names for capture and routing (`find()`); Docket's `people` summary for counts. |
+| `settings` (Settings, Directory) | Edits everyone: people, groups and their members. Downloads a spreadsheet template (or the current list) and imports a filled-in one with `ws.people.saveMany`, after a preview. Also edits your team's area paths ([teams.md](teams.md)). |
+| `tasks` (Tasks) | Tasks reference people and groups (`who`). `@handle` in Quick add; a new name becomes a contact. The Handed off view and filters count group membership. Reports' team profile reads `team`. |
+| `people` (People) | Lists `self`, reports, the `manager`, peers, and contacts it has 1:1s with. People are kept about you (`me`), reports (their id) and the manager (`up`). 1:1s are keyed by person id. Adds and edits no one (People 5.0.0): People are changed only in Settings. |
+| `builds` (Builds) | Delegate picks a person; owners (`owns`) of what the item touches come first. Requesters are matched to people by name. What is delegated to each person is in Builds' summary (`delegated`), for People's 1:1 prep. |
+| `roadmaps` (Roadmaps) | Roadmap items' owners (`who`), set in the panel or with `who: @handle` in the outline; a new name becomes a contact. The owner filter counts group membership. |
+| Home, the Dispatch hub | Names for capture and routing (`find()`); Tasks' `people` summary for counts. |

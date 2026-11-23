@@ -138,7 +138,7 @@ function autoLog(folder, text) {
   log(`autopilot ${folder}: ${text}`);
 }
 
-/** The settings Loom needs: hands-off Quick changes and the parallel limit. */
+/** The settings Builds needs: hands-off Quick changes and the parallel limit. */
 export function autoOptions() {
   return { maxRuns: (opt && opt.autoMaxRuns) || 2, quickHandsOff: !opt || opt.quickHandsOff !== false, fairSlots: !opt || opt.fairSlots !== false, factory: (opt && opt.factory) || null };
 }

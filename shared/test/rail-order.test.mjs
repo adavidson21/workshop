@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as RO from '../rail-order.js';
 
-const DEF = ['prioritizer', 'slate', 'receipts', 'notes', 'runway', 'bench', 'chat', 'settings'];
+const DEF = ['tasks', 'builds', 'people', 'notes', 'roadmaps', 'bench', 'chat', 'settings'];
 
 test('no order is the default order', () => {
   assert.deepEqual(RO.arrange(DEF, []), DEF);
@@ -10,31 +10,31 @@ test('no order is the default order', () => {
 });
 
 test('a saved order wins; ids not on the rail are dropped', () => {
-  const order = ['notes', 'prioritizer', 'gone', 'slate', 'receipts', 'runway', 'bench', 'chat', 'settings'];
-  assert.deepEqual(RO.arrange(DEF, order), ['notes', 'prioritizer', 'slate', 'receipts', 'runway', 'bench', 'chat', 'settings']);
+  const order = ['notes', 'tasks', 'gone', 'builds', 'people', 'roadmaps', 'bench', 'chat', 'settings'];
+  assert.deepEqual(RO.arrange(DEF, order), ['notes', 'tasks', 'builds', 'people', 'roadmaps', 'bench', 'chat', 'settings']);
 });
 
 test('an app the order does not name goes after the app before it in the default order', () => {
-  const order = ['settings', 'notes', 'prioritizer', 'slate', 'receipts', 'runway', 'chat'];   // no bench
-  assert.deepEqual(RO.arrange(DEF, order), ['settings', 'notes', 'prioritizer', 'slate', 'receipts', 'runway', 'bench', 'chat']);
+  const order = ['settings', 'notes', 'tasks', 'builds', 'people', 'roadmaps', 'chat'];   // no bench
+  assert.deepEqual(RO.arrange(DEF, order), ['settings', 'notes', 'tasks', 'builds', 'people', 'roadmaps', 'bench', 'chat']);
   // A new first app with nothing before it goes first.
   assert.deepEqual(RO.arrange(['new', ...DEF], DEF.slice().reverse()), ['new', ...DEF.slice().reverse()]);
 });
 
 test('nextOrder keeps an app that is off where it was', () => {
-  const saved = ['notes', 'receipts', 'prioritizer', 'slate', 'runway', 'bench', 'chat', 'settings'];
-  // Rapport (receipts) is off; the person moves Bench first.
-  const shown = ['bench', 'notes', 'prioritizer', 'slate', 'runway', 'chat', 'settings'];
+  const saved = ['notes', 'people', 'tasks', 'builds', 'roadmaps', 'bench', 'chat', 'settings'];
+  // People (receipts) is off; the person moves Bench first.
+  const shown = ['bench', 'notes', 'tasks', 'builds', 'roadmaps', 'chat', 'settings'];
   const next = RO.nextOrder(saved, shown);
-  assert.deepEqual(next, ['bench', 'notes', 'receipts', 'prioritizer', 'slate', 'runway', 'chat', 'settings']);
-  // Turned back on, Rapport is back after Folio.
+  assert.deepEqual(next, ['bench', 'notes', 'people', 'tasks', 'builds', 'roadmaps', 'chat', 'settings']);
+  // Turned back on, People is back after Notes.
   assert.deepEqual(RO.arrange(DEF, next), next);
 });
 
 test('move clamps at the ends and returns the same array when it cannot move', () => {
-  assert.deepEqual(RO.move(DEF, 'slate', -1), ['slate', 'prioritizer', ...DEF.slice(2)]);
+  assert.deepEqual(RO.move(DEF, 'builds', -1), ['builds', 'tasks', ...DEF.slice(2)]);
   assert.deepEqual(RO.move(DEF, 'chat', 999), [...DEF.filter(x => x !== 'chat'), 'chat']);
-  assert.equal(RO.move(DEF, 'prioritizer', -1), DEF);
+  assert.equal(RO.move(DEF, 'tasks', -1), DEF);
   assert.equal(RO.move(DEF, 'nope', 1), DEF);
 });
 

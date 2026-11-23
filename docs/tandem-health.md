@@ -2,7 +2,7 @@
 
 Version: **`version: 1`**, from Tandem (eng-agents) Core 2.26.0.
 
-Loom's Health tab has a **Tandem** section that answers "is Tandem helping?". The opencode connector's read action `tandem.health` builds it on this computer from `.work`, Tandem's install record and the eval results. Nothing is stored and nothing leaves the machine.
+Builds' Health tab has a **Tandem** section that answers "is Tandem helping?". The opencode connector's read action `tandem.health` builds it on this computer from `.work`, Tandem's install record and the eval results. Nothing is stored and nothing leaves the machine.
 
 This document is the contract between the two repos for the parts that come from `.work`. Any change to the wording below, in either repo, is a contract change ([README.md](README.md), Changing a contract).
 
@@ -65,4 +65,4 @@ From `review.md` and every `history/review-*.md` (earlier rounds) in each work i
 
 ## Showing it
 
-Loom shows four parts: **Pipeline** (tiles, gates with a "rubber stamp?" mark at 80% as written over 5 or more approvals, recent items linking to their run), **Learning loop** (repeating patterns, findings by category, retro coverage), **Prompts** (latest eval run per case, change against the one before, drops marked, and a link to Bench for the lift and history) and **Setup**. Each says what to run when it has nothing to show.
+Builds shows four parts: **Pipeline** (tiles, gates with a "rubber stamp?" mark at 80% as written over 5 or more approvals, recent items linking to their run), **Learning loop** (repeating patterns, findings by category, retro coverage), **Prompts** (latest eval run per case, change against the one before, drops marked, and a link to Bench for the lift and history) and **Setup**. Each says what to run when it has nothing to show.

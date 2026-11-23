@@ -36,10 +36,10 @@ test('findPeople: full and unique first names, never self or archived', () => {
   assert.deepEqual(findPeople('leadership offsite', people), [], 'a group needs its handle');
 });
 
-test('plain text is a Docket task with filler removed and names cased', () => {
+test('plain text is a Tasks task with filler removed and names cased', () => {
   const p = parseCapture('dont forget about the onboarding doc for person', ctx);
   assert.equal(p.kind, 'task');
-  assert.equal(p.to, 'prioritizer');
+  assert.equal(p.to, 'tasks');
   assert.equal(p.title, 'The onboarding doc for Person');
   assert.deepEqual(p.payload, { kind: 'task', title: 'The onboarding doc for Person', who: ['p_one'] });
 });
@@ -62,7 +62,7 @@ test('waiting on', () => {
 
 test('receipts and notes', () => {
   const r = parseCapture('r person shipped the migration early', ctx);
-  assert.equal(r.to, 'receipts');
+  assert.equal(r.to, 'people');
   assert.deepEqual(r.payload, { kind: 'win', impact: 0, about: 'p_one' });
   assert.equal(r.text, 'Person shipped the migration early');
   assert.equal(parseCapture('r growth: led the retro', ctx).payload.kind, 'growth');
@@ -77,13 +77,13 @@ test('receipts and notes', () => {
 test('questions and places', () => {
   assert.deepEqual(parseCapture('what version of .NET is the portal on?', ctx), { kind: 'ask', text: 'what version of .NET is the portal on?' });
   assert.equal(parseCapture('? where did I leave off', ctx).kind, 'ask');
-  assert.deepEqual(parseCapture('> receipts', ctx), { kind: 'go', app: 'receipts', text: '> receipts' });
-  assert.deepEqual(parseCapture('> 1:1s', ctx), { kind: 'go', app: 'receipts', path: 'people', text: '> 1:1s' }, '1:1s are part of Rapport');
-  assert.deepEqual(parseCapture('> goals', ctx), { kind: 'go', app: 'receipts', path: 'team', text: '> goals' }, 'Goals are part of Rapport');
-  assert.deepEqual(parseCapture('> OKRs', ctx), { kind: 'go', app: 'receipts', path: 'team', text: '> OKRs' });
-  assert.deepEqual(parseCapture('> the rapport', ctx), { kind: 'go', app: 'receipts', text: '> the rapport' });
+  assert.deepEqual(parseCapture('> receipts', ctx), { kind: 'go', app: 'people', text: '> receipts' });
+  assert.deepEqual(parseCapture('> 1:1s', ctx), { kind: 'go', app: 'people', path: 'people', text: '> 1:1s' }, '1:1s are part of People');
+  assert.deepEqual(parseCapture('> goals', ctx), { kind: 'go', app: 'people', path: 'team', text: '> goals' }, 'Goals are part of People');
+  assert.deepEqual(parseCapture('> OKRs', ctx), { kind: 'go', app: 'people', path: 'team', text: '> OKRs' });
+  assert.deepEqual(parseCapture('> the rapport', ctx), { kind: 'go', app: 'people', text: '> the rapport' });
   assert.equal(parseCapture('> queue', ctx).kind, 'ask', 'Queue was removed');
-  assert.equal(parseCapture('> docket', ctx).app, 'prioritizer');
+  assert.equal(parseCapture('> docket', ctx).app, 'tasks');
   assert.equal(parseCapture('> somewhere odd', ctx).kind, 'ask');
   assert.equal(parseCapture('t is this a task?', ctx).kind, 'task', 'a prefix wins over the question mark');
   assert.equal(parseCapture('   ', ctx), null);
@@ -95,7 +95,7 @@ test('parseLines, retarget, nextKind, isCapture', () => {
   assert.equal(isCapture(ps[0]), true);
   assert.equal(isCapture(ps[2]), false);
   const r = retarget(ps[0], 'receipt', ctx);
-  assert.equal(r.to, 'receipts');
+  assert.equal(r.to, 'people');
   assert.equal(nextKind('task'), 'waiting');
   assert.equal(nextKind('note'), 'idea');
   assert.equal(nextKind('idea'), 'request');
@@ -106,7 +106,7 @@ test('toHandoff: an accepted handoff in the docs/handoffs.md shape', () => {
   const p = parseCapture('t send budget fri', ctx);
   const h = toHandoff(p, { sender: 'home', id: 'c_x', now: new Date('2026-11-03T22:00:00Z') });
   assert.equal(h.id, 'c_x');
-  assert.equal(h.to, 'prioritizer');
+  assert.equal(h.to, 'tasks');
   assert.equal(h.accepted, true);
   assert.deepEqual(h.source, { app: 'home', id: 'c_x' });
   assert.equal(h.text, 'Send budget');
@@ -117,10 +117,10 @@ test('toHandoff: an accepted handoff in the docs/handoffs.md shape', () => {
 });
 
 test('describe', () => {
-  assert.equal(describe(parseCapture('w keys from jordan fri !', ctx)), `Docket, waiting on · Jordan Two · due ${dayLabel('2026-11-06')} · urgent`);
+  assert.equal(describe(parseCapture('w keys from jordan fri !', ctx)), `Tasks, waiting on · Jordan Two · due ${dayLabel('2026-11-06')} · urgent`);
   assert.equal(dayLabel('2026-11-06', new Date(2026, 0, 1)), 'Fri, Nov 6');
   assert.equal(dayLabel('2027-01-04', new Date(2026, 0, 1)), 'Mon, Jan 4, 2027');
-  assert.equal(describe(parseCapture('r growth: x', ctx)), 'Rapport, growth');
+  assert.equal(describe(parseCapture('r growth: x', ctx)), 'People, growth');
   assert.equal(describe(parseCapture('n x', ctx)), 'Notes');
 });
 
@@ -136,21 +136,21 @@ test('handoff matches the docs schema', async () => {
   }
 });
 
-test('p: a roadmap idea for Runway, to a named roadmap or Pending', () => {
+test('p: a roadmap idea for Roadmaps, to a named roadmap or Pending', () => {
   const c = { ...ctx, maps: [{ id: 'm-docs', title: 'Docs Portal' }, { id: 'm-plat', title: 'Platform Q1' }, { id: 'm-plat2', title: 'Platform Q2' }] };
   assert.deepEqual(parseCapture('p bug: search shows archived pages', c),
-    { kind: 'idea', to: 'runway', text: 'Bug: search shows archived pages', title: 'Bug: search shows archived pages', payload: { kind: 'idea' } }, 'no roadmap called bug: Pending');
+    { kind: 'idea', to: 'roadmaps', text: 'Bug: search shows archived pages', title: 'Bug: search shows archived pages', payload: { kind: 'idea' } }, 'no roadmap called bug: Pending');
   const w = parseCapture('p docs portal: dark mode', c);
   assert.deepEqual(w.payload, { kind: 'idea', map: 'm-docs', mapTitle: 'Docs Portal' });
   assert.equal(w.text, 'Dark mode');
   assert.equal(parseCapture('idea: docs: offline reading', c).payload.map, 'm-docs', 'the start of one title matches');
   assert.equal(findMap('platform: x', c.maps), null, 'two titles start with it');
   assert.equal(parseCapture('p platform q2: x', c).payload.map, 'm-plat2');
-  assert.equal(describe(w), 'Runway · Docs Portal, unscheduled');
-  assert.equal(describe(parseCapture('p something', c)), 'Runway · Pending assignment');
+  assert.equal(describe(w), 'Roadmaps · Docs Portal, unscheduled');
+  assert.equal(describe(parseCapture('p something', c)), 'Roadmaps · Pending assignment');
   assert.equal(retarget(parseCapture('send the deck', c), 'idea', c).kind, 'idea');
   const h = toHandoff(w, { sender: 'home', id: 'c_x', now: new Date('2026-11-04T21:00:00Z') });
-  assert.equal(h.to, 'runway'); assert.equal(h.accepted, true); assert.equal(h.payload.map, 'm-docs');
+  assert.equal(h.to, 'roadmaps'); assert.equal(h.accepted, true); assert.equal(h.payload.map, 'm-docs');
 });
 
 test('useApps: capture targets, names and places come from the manifests on this site', async () => {
@@ -158,8 +158,8 @@ test('useApps: capture targets, names and places come from the manifests on this
   try {
     const apps = [
       { id: 'home', name: 'Home', order: 0, capture: [], aliases: [] },
-      { id: 'prioritizer', name: 'Docket', order: 10, capture: ['task', 'waiting'], aliases: ['tasks', { name: 'today', path: 'today' }] },
-      { id: 'receipts', name: 'Rapport', order: 30, capture: ['receipt'], aliases: [{ name: '1:1s', path: '1on1s' }] },
+      { id: 'tasks', name: 'Tasks', order: 10, capture: ['task', 'waiting'], aliases: ['tasks', { name: 'today', path: 'today' }] },
+      { id: 'people', name: 'People', order: 30, capture: ['receipt'], aliases: [{ name: '1:1s', path: '1on1s' }] },
       { id: 'notes', name: 'Notes', order: 40, capture: ['note'], aliases: [] },
       { id: 'newapp', name: 'Ideas Box', order: 60, capture: ['idea'], aliases: ['box'] }
     ];
@@ -168,25 +168,25 @@ test('useApps: capture targets, names and places come from the manifests on this
     assert.equal(C.parseCapture('p a new idea', ctx).to, 'newapp', 'a new app takes ideas from its manifest');
     assert.deepEqual(C.parseCapture('> box', ctx), { kind: 'go', app: 'newapp', text: '> box' });
     assert.deepEqual(C.parseCapture('> ideas box', ctx), { kind: 'go', app: 'newapp', text: '> ideas box' });
-    assert.deepEqual(C.parseCapture('> today', ctx), { kind: 'go', app: 'prioritizer', path: 'today', text: '> today' });
-    assert.equal(C.parseCapture('> runway', ctx).kind, 'ask', 'Runway is not on this site, so its place is gone');
+    assert.deepEqual(C.parseCapture('> today', ctx), { kind: 'go', app: 'tasks', path: 'today', text: '> today' });
+    assert.equal(C.parseCapture('> roadmaps', ctx).kind, 'ask', 'Roadmaps is not on this site, so its place is gone');
     assert.equal(C.TARGET_NAMES.newapp, 'Ideas Box');
 
     C.useApps(apps.filter(a => a.id !== 'newapp'));
     const p = C.parseCapture('p a new idea', ctx);
-    assert.equal(p.to, 'prioritizer', 'no app takes ideas: the line is a task');
+    assert.equal(p.to, 'tasks', 'no app takes ideas: the line is a task');
     assert.equal(p.title, 'P a new idea');
 
-    C.useApps([{ id: 'prioritizer', name: 'Docket', order: 10 }, { id: 'receipts', name: 'Rapport', order: 30 }]);
-    assert.equal(C.parseCapture('t write it', ctx).to, 'prioritizer', 'built-in targets count for apps that are there');
-    assert.equal(C.parseCapture('r shipped it', ctx).to, 'receipts');
+    C.useApps([{ id: 'tasks', name: 'Tasks', order: 10 }, { id: 'people', name: 'People', order: 30 }]);
+    assert.equal(C.parseCapture('t write it', ctx).to, 'tasks', 'built-in targets count for apps that are there');
+    assert.equal(C.parseCapture('r shipped it', ctx).to, 'people');
     assert.equal(C.parseCapture('> 1:1s', ctx).path, 'people', 'built-in places too');
-    assert.equal(C.parseCapture('n a note', ctx).to, 'prioritizer', 'Notes is not here');
+    assert.equal(C.parseCapture('n a note', ctx).to, 'tasks', 'Notes is not here');
 
     C.useApps([{ id: 'home', name: 'Home', order: 0 }]);
     assert.equal(C.parseCapture('write it', ctx).kind, 'ask', 'no app takes tasks: a question');
   } finally { C.useApps(null); }
-  assert.equal(C.TARGETS.idea, 'runway', 'back to the defaults');
+  assert.equal(C.TARGETS.idea, 'roadmaps', 'back to the defaults');
 });
 
 test('n <folder>: and n today: send a note to a Notes folder or today\'s note; other colons are just text', () => {
@@ -211,40 +211,40 @@ test('n <folder>: and n today: send a note to a Notes folder or today\'s note; o
   assert.equal(parseCapture('n runbooks:', ctx).text, 'runbooks:', 'nothing after the colon: the whole line');
 });
 
-test('s and #id: a request for Slate, for an ADO item or new', () => {
+test('s and #id: a request for Builds, for an ADO item or new', () => {
   const ctx = { today: '2026-11-06' };
   const a = parseCapture('s #1234 customers want CSV export', ctx);
-  assert.equal(a.kind, 'request'); assert.equal(a.to, 'slate');
+  assert.equal(a.kind, 'request'); assert.equal(a.to, 'builds');
   assert.deepEqual(a.payload, { kind: 'request', ado: 1234, note: 'customers want CSV export' });
   assert.equal(a.text, '#1234 customers want CSV export');
-  assert.equal(describe(a), 'Loom · #1234, with a note');
+  assert.equal(describe(a), 'Builds · #1234, with a note');
   assert.deepEqual(parseCapture('#1234', ctx).payload, { kind: 'request', ado: 1234 });
-  assert.equal(describe(parseCapture('#1234', ctx)), 'Loom · #1234');
+  assert.equal(describe(parseCapture('#1234', ctx)), 'Builds · #1234');
   assert.deepEqual(parseCapture('#1234: please look', ctx).payload, { kind: 'request', ado: 1234, note: 'please look' });
   const b = parseCapture('request: Export to CSV for billing', ctx);
   assert.deepEqual(b.payload, { kind: 'request', note: 'Export to CSV for billing' });
-  assert.equal(describe(b), 'Loom · New');
+  assert.equal(describe(b), 'Builds · New');
   assert.equal(parseCapture('s 3 dashboards are slow', ctx).payload.ado, undefined, 'a bare number is text, not an id');
   assert.equal(parseCapture('#12ab fix', ctx).kind, 'task', 'only digits make an id');
   assert.equal(parseCapture('fix it #ops', ctx).kind, 'task');
-  assert.equal(retarget(parseCapture('call the vendor', ctx), 'request', ctx).to, 'slate');
+  assert.equal(retarget(parseCapture('call the vendor', ctx), 'request', ctx).to, 'builds');
   const h = toHandoff(a, { sender: 'home', id: 'c_1', now: new Date('2026-11-06T12:00:00Z') });
-  assert.equal(h.to, 'slate'); assert.equal(h.accepted, true); assert.equal(h.payload.ado, 1234);
+  assert.equal(h.to, 'builds'); assert.equal(h.accepted, true); assert.equal(h.payload.ado, 1234);
 });
 
-test('requests need Slate on this site', async () => {
+test('requests need Builds on this site', async () => {
   const C = await import('../capture.js');
   try {
-    C.useApps([{ id: 'prioritizer', name: 'Docket', order: 10 }]);
+    C.useApps([{ id: 'tasks', name: 'Tasks', order: 10 }]);
     const ctx = { today: '2026-11-06' };
-    assert.equal(C.parseCapture('s export it', ctx).to, 'prioritizer', 'no Slate: the line is a task');
+    assert.equal(C.parseCapture('s export it', ctx).to, 'tasks', 'no Builds: the line is a task');
     assert.equal(C.parseCapture('#1234 look', ctx).kind, 'task');
-    C.useApps([{ id: 'prioritizer', name: 'Docket', order: 10 }, { id: 'slate', name: 'Slate', order: 15, capture: ['request'] }]);
-    assert.equal(C.parseCapture('#1234 look', ctx).to, 'slate');
+    C.useApps([{ id: 'tasks', name: 'Tasks', order: 10 }, { id: 'builds', name: 'Builds', order: 15, capture: ['request'] }]);
+    assert.equal(C.parseCapture('#1234 look', ctx).to, 'builds');
   } finally { C.useApps(null); }
 });
 
-test('"clean up this document" goes to Folio\'s Clean up, as a copy unless the words say overwrite', async () => {
+test('"clean up this document" goes to Notes\' Clean up, as a copy unless the words say overwrite', async () => {
   const { cleanupAsk, parseCapture, describe } = await import('../capture.js');
   for (const s of ['clean up this document', 'Clean up this doc.', 'please tidy up my note', 'polish this article', 'cleanup the draft', 'can you clean up this document?'])
     assert.deepEqual(parseCapture(s), { kind: 'go', app: 'notes', path: 'cleanup', text: parseCapture(s).text }, s);
@@ -256,14 +256,14 @@ test('"clean up this document" goes to Folio\'s Clean up, as a copy unless the w
   assert.match(describe(parseCapture('clean up this document')), /^Clean up the open note in .+, as a copy$/);
 });
 
-test('b and build: go to Loom\'s drop box, started there (Loom 6.20.0 start/go)', () => {
+test('b and build: go to Builds\' drop box, started there (Builds 6.20.0 start/go)', () => {
   const p = parseCapture('b fix the flaky login test', ctx);
   assert.equal(p.kind, 'go');
-  assert.equal(p.app, 'slate');
+  assert.equal(p.app, 'builds');
   assert.equal(p.build, true);
   assert.equal(p.text, 'fix the flaky login test');
   assert.equal(p.path, 'start/go/' + encodeURIComponent('fix the flaky login test'));
-  assert.match(describe(p), /Build with Tandem in Loom/);
+  assert.match(describe(p), /Build with Tandem in Builds/);
   assert.equal(parseCapture('build: add dark mode', ctx).text, 'add dark mode');
   assert.equal(parseCapture('B: Add dark mode', ctx).text, 'Add dark mode');
   // Without the colon, "build" is an ordinary task word; so are words that start with b.

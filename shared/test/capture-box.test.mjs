@@ -31,7 +31,7 @@ test('send writes accepted handoffs to the app own collection', async () => {
   assert.equal(ws.box.env.schema, 'home.handoffs');
   assert.equal(ws.box.env.items.length, 2);
   assert.ok(ws.box.env.items.every(i => i.accepted === true && i.source.app === 'home' && i.updatedAt));
-  assert.deepEqual(s.state().recent.map(i => i.to).sort(), ['prioritizer', 'receipts']);
+  assert.deepEqual(s.state().recent.map(i => i.to).sort(), ['people', 'tasks']);
 });
 
 test('withdraw leaves a tombstone', async () => {

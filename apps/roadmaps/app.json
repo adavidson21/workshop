@@ -1,0 +1,77 @@
+{
+  "manifestVersion": 1,
+  "id": "roadmaps",
+  "name": "Roadmaps",
+  "version": "3.4.0",
+  "description": "Team and project roadmaps: type an outline, drag the timeline, export an image or Markdown. Optionally from your work tracker.",
+  "icon": "icon.svg",
+  "entry": "index.html",
+  "order": 50,
+  "modes": [
+    "local",
+    "hosted",
+    "browser"
+  ],
+  "connectors": [
+    {
+      "id": "ado",
+      "required": false
+    },
+    {
+      "id": "github",
+      "required": false
+    }
+  ],
+  "capture": [
+    "idea"
+  ],
+  "aliases": [
+    "runway",
+    "roadmap"
+  ],
+  "routes": [
+    {
+      "path": ":id",
+      "title": "Open a roadmap"
+    }
+  ],
+  "commands": [
+    {
+      "id": "new-roadmap",
+      "title": "New roadmap",
+      "route": ""
+    },
+    {
+      "id": "new-item",
+      "title": "New roadmap item"
+    },
+    {
+      "id": "export",
+      "title": "Export roadmap"
+    }
+  ],
+  "files": [
+    "app.css",
+    "js/ado/index.js",
+    "js/ado/model.js",
+    "js/ado/publish.js",
+    "js/dates.js",
+    "js/example.js",
+    "js/export.js",
+    "js/main.js",
+    "js/model.js",
+    "js/offers.js",
+    "js/outline.js",
+    "js/pending.js",
+    "js/people.js",
+    "js/store.js",
+    "js/summary.js",
+    "js/timeline.js",
+    "js/view.js"
+  ],
+  "handoffs": {
+    "sends": [
+      "builds"
+    ]
+  }
+}

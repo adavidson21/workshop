@@ -1,11 +1,11 @@
 {
   "apps": [
     {
-      "base": "/apps/prioritizer/",
+      "base": "/apps/tasks/",
       "manifest": {
         "manifestVersion": 1,
-        "id": "prioritizer",
-        "name": "Prioritizer",
+        "id": "tasks",
+        "name": "Tasks",
         "version": "3.0.0",
         "description": "Decide what to work on next.",
         "icon": "icon.svg",

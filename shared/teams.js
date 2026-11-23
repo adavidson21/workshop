@@ -1,6 +1,6 @@
 /* Your team's Azure DevOps area paths (docs/teams.md): collection `teams` in Settings' folder (settings.teams v1),
-   like the people directory. The People app edits it through the SDK's `ws.teams`; Runway's ADO roadmaps and the
-   Loom hub read it with {app: 'settings'}. A team whose areas are in more than one collection keeps a
+   like the people directory. The People app edits it through the SDK's `ws.teams`; Roadmaps' ADO roadmaps and the
+   Builds hub read it with {app: 'settings'}. A team whose areas are in more than one collection keeps a
    connection per area (`areaConnections`); groups() splits the areas into one read per connection. Version 1 has one team, t_mine. Pure, no DOM or SDK
    (shared/test/teams.test.mjs). */
 export const APP = 'settings';

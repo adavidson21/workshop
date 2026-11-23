@@ -1,5 +1,5 @@
 {
-  "schema": "prioritizer.tasks",
+  "schema": "tasks.tasks",
   "version": 1,
   "rev": 0,
   "items": [],

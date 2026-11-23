@@ -1,5 +1,5 @@
 /* Settings, Cloudflare: change sets and what happened to them (connectors/cloudflare/README.md, Change sets).
-   Tandem proposes; a set waits in Approvals (Settings, Manager), the one place you approve or reject changes,
+   Tandem proposes; a set waits in Approvals (Settings, Connections & approvals), the one place you approve or reject changes,
    and runs only after you approve it there. */
 
 const when = iso => { const d = iso ? new Date(iso) : null; return d && !isNaN(d) ? d.toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : ''; };

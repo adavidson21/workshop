@@ -8,7 +8,7 @@
 
   Garnet is the brand; Workshop's own color is amethyst. Each app has its own jewel accent, so popped-out windows are
   easy to tell apart: data-app-color on an app's <html> picks it, and shared/theme.js sets the brand's data-accent from
-  it (APP_ACCENT). Docket, Chat, Settings, Needs you and the shell are amethyst; Runway is garnet; Rapport and Bench are tourmaline. No accent is green: green means done.
+  it (APP_ACCENT). Tasks, Chat, Settings, Needs you and the shell are amethyst; Roadmaps is garnet; People and Bench are tourmaline. No accent is green: green means done.
 
   Two themes, Light and Dark, picked with the round toggle in the top right corner (or the device setting until you
   use it). The swatches in shared/theme.js must match the brand's --bg and --accent (`node tests/check-themes.mjs`).
@@ -20,15 +20,15 @@
 
 /* Per-app colors (for swatches and pop-out bands): each app's jewel accent, light and dark. */
 :root,:root[data-theme=light]{
-  --c-workshop:#693375;--c-prioritizer:#693375;--c-chat:#693375;--c-notes:#33407A;--c-slate:#3E5260;--c-agents:#056374;--c-receipts:#056374;--c-bench:#056374;--c-runway:#7A1B36;
-  --c-workshop-on:#FFFFFF;--c-prioritizer-on:#FFFFFF;--c-chat-on:#FFFFFF;--c-notes-on:#FFFFFF;--c-slate-on:#FFFFFF;--c-agents-on:#FFFFFF;--c-receipts-on:#FFFFFF;--c-bench-on:#FFFFFF;--c-runway-on:#FFFFFF}
+  --c-workshop:#693375;--c-tasks:#693375;--c-chat:#693375;--c-notes:#33407A;--c-builds:#3E5260;--c-agents:#056374;--c-people:#056374;--c-bench:#056374;--c-roadmaps:#7A1B36;
+  --c-workshop-on:#FFFFFF;--c-tasks-on:#FFFFFF;--c-chat-on:#FFFFFF;--c-notes-on:#FFFFFF;--c-builds-on:#FFFFFF;--c-agents-on:#FFFFFF;--c-people-on:#FFFFFF;--c-bench-on:#FFFFFF;--c-roadmaps-on:#FFFFFF}
 :root[data-theme=dark]{
-  --c-workshop:#D1A5DB;--c-prioritizer:#D1A5DB;--c-chat:#D1A5DB;--c-notes:#B4BDF0;--c-slate:#B3C1CC;--c-agents:#7FCBDE;--c-receipts:#7FCBDE;--c-bench:#7FCBDE;--c-runway:#E59AAE;
-  --c-workshop-on:#251229;--c-prioritizer-on:#251229;--c-chat-on:#251229;--c-notes-on:#131832;--c-slate-on:#17222A;--c-agents-on:#001F26;--c-receipts-on:#001F26;--c-bench-on:#001F26;--c-runway-on:#2A0E17}
+  --c-workshop:#D1A5DB;--c-tasks:#D1A5DB;--c-chat:#D1A5DB;--c-notes:#B4BDF0;--c-builds:#B3C1CC;--c-agents:#7FCBDE;--c-people:#7FCBDE;--c-bench:#7FCBDE;--c-roadmaps:#E59AAE;
+  --c-workshop-on:#251229;--c-tasks-on:#251229;--c-chat-on:#251229;--c-notes-on:#131832;--c-builds-on:#17222A;--c-agents-on:#001F26;--c-people-on:#001F26;--c-bench-on:#001F26;--c-roadmaps-on:#2A0E17}
 @media (prefers-color-scheme: dark){
   :root:not([data-theme]){
-    --c-workshop:#D1A5DB;--c-prioritizer:#D1A5DB;--c-chat:#D1A5DB;--c-notes:#B4BDF0;--c-slate:#B3C1CC;--c-agents:#7FCBDE;--c-receipts:#7FCBDE;--c-bench:#7FCBDE;--c-runway:#E59AAE;
-    --c-workshop-on:#251229;--c-prioritizer-on:#251229;--c-chat-on:#251229;--c-notes-on:#131832;--c-slate-on:#17222A;--c-agents-on:#001F26;--c-receipts-on:#001F26;--c-bench-on:#001F26;--c-runway-on:#2A0E17}
+    --c-workshop:#D1A5DB;--c-tasks:#D1A5DB;--c-chat:#D1A5DB;--c-notes:#B4BDF0;--c-builds:#B3C1CC;--c-agents:#7FCBDE;--c-people:#7FCBDE;--c-bench:#7FCBDE;--c-roadmaps:#E59AAE;
+    --c-workshop-on:#251229;--c-tasks-on:#251229;--c-chat-on:#251229;--c-notes-on:#131832;--c-builds-on:#17222A;--c-agents-on:#001F26;--c-people-on:#001F26;--c-bench-on:#001F26;--c-roadmaps-on:#2A0E17}
 }
 /* Workshop's names for brand tokens */
 :root{
@@ -49,9 +49,9 @@
 @media (min-width:1600px){:root{--gutter:36px;--w-page:88rem}}
 @media (min-width:2100px){:root{--gutter:44px;--w-page:104rem}}
 
-/* Loom's own color, slate grey (Workshop UX v1): the brand library has four jewel accents and Folio already uses
-   sapphire, so Loom's accent is defined here, beside the brand's, with the same four tokens. AA as text on the page,
+/* Builds' own color, slate grey (Workshop UX v1): the brand library has four jewel accents and Notes already uses
+   sapphire, so Builds' accent is defined here, beside the brand's, with the same four tokens. AA as text on the page,
    on white and on the panel color, in both themes. */
-:root[data-accent=loom]{ --accent:#3E5260; --on-accent:#FFFFFF; --accent-soft:#E6ECF0; --accent-soft-ink:#3E5260; }
-:root[data-theme=dark][data-accent=loom]{ --accent:#B3C1CC; --on-accent:#17222A; --accent-soft:#26323A; --accent-soft-ink:#C9D4DC; }
-@media (prefers-color-scheme: dark){ :root:not([data-theme])[data-accent=loom]{ --accent:#B3C1CC; --on-accent:#17222A; --accent-soft:#26323A; --accent-soft-ink:#C9D4DC; } }
+:root[data-accent=builds]{ --accent:#3E5260; --on-accent:#FFFFFF; --accent-soft:#E6ECF0; --accent-soft-ink:#3E5260; }
+:root[data-theme=dark][data-accent=builds]{ --accent:#B3C1CC; --on-accent:#17222A; --accent-soft:#26323A; --accent-soft-ink:#C9D4DC; }
+@media (prefers-color-scheme: dark){ :root:not([data-theme])[data-accent=builds]{ --accent:#B3C1CC; --on-accent:#17222A; --accent-soft:#26323A; --accent-soft-ink:#C9D4DC; } }

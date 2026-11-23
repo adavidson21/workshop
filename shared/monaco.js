@@ -1,5 +1,5 @@
-/* The Monaco editor, vendored in shared/vendor/monaco (scripts/vendor-monaco.mjs), for Loom's code review and
-   Chat's Files (Chat 4.0.0; before that Loom kept its own copy).
+/* The Monaco editor, vendored in shared/vendor/monaco (scripts/vendor-monaco.mjs), for Builds' code review and
+   Chat's Files (Chat 4.0.0; before that Builds kept its own copy).
 
    loadMonaco() loads it once and resolves window.monaco. Same origin only, so it fits the pages' CSP
    (script-src 'self'; worker-src 'self'). Monaco's own worker factory wraps the worker in a blob: URL, which

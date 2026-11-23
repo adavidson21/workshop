@@ -59,20 +59,20 @@ test('the report lists trash, backups, old copies and connector content without 
     fs.writeFileSync(path.join(dd, 'notes', 'big.md'), 'y'.repeat(5000));
     fs.writeFileSync(path.join(dd, 'notes', 'small.md'), 'z');
     const data = path.join(home, 'data');
-    fs.mkdirSync(path.join(data, 'prioritizer'), { recursive: true });
-    fs.writeFileSync(path.join(data, 'prioritizer', 'tasks.json'), '{}');
+    fs.mkdirSync(path.join(data, 'tasks'), { recursive: true });
+    fs.writeFileSync(path.join(data, 'tasks', 'tasks.json'), '{}');
     fs.writeFileSync(path.join(data, 'moved.json'), '{}');
     fs.mkdirSync(path.join(data, '_connectors', 'opencode', 'hub', 'h1'), { recursive: true });
     fs.writeFileSync(path.join(data, '_connectors', 'opencode', 'hub', 'h1', 'request.md'), 'q');
     const r = storageReport({ home, dataDir: dd });
     assert.equal(r.trash.files, 1);
     assert.equal(r.backups, null);
-    assert.deepEqual(r.leftovers.map(l => l.id), ['old-prioritizer', 'opencode-hub']);
+    assert.deepEqual(r.leftovers.map(l => l.id), ['old-tasks', 'opencode-hub']);
     const text = storageLines(r, { sizes: true }).join('\n');
     assert.match(text, /Trash: 1 file, 2 KB/);
     assert.match(text, /Old copy: Old hub requests sent to opencode/);
     assert.deepEqual(largestFiles(dd).map(f => f.path), ['notes/big.md', 'notes/small.md']);
-    assert.ok(fs.existsSync(path.join(data, 'prioritizer', 'tasks.json')), 'nothing removed');
+    assert.ok(fs.existsSync(path.join(data, 'tasks', 'tasks.json')), 'nothing removed');
   } finally { rmHome(home); }
 });
 
@@ -120,14 +120,14 @@ test('the report names app folders still under their old names', () => {
   const home = tempHome();
   const dd = dataDirOf(home);
   try {
-    fs.mkdirSync(path.join(dd, 'prioritizer'), { recursive: true });
+    fs.mkdirSync(path.join(dd, 'docket'), { recursive: true });
     fs.mkdirSync(path.join(dd, 'notes'), { recursive: true });
     fs.mkdirSync(path.join(dd, 'folio'), { recursive: true });
     fs.writeFileSync(path.join(dd, 'notes', 'a.md'), 'x');
     const r = storageReport({ home, dataDir: dd });
     const text = storageLines(r).join('\n');
-    assert.match(text, /prioritizer\/ is renamed to docket\/ the next time Workshop starts/);
-    assert.match(text, /Old copy: The notes\/ folder, its old name \(Workshop uses folio\/\)/);
+    assert.match(text, /docket\/ is renamed to tasks\/ the next time Workshop starts/);
+    assert.match(text, /Old copy: The folio\/ folder, its old name \(Workshop uses notes\/\)/);
   } finally { rmHome(home); }
 });
 

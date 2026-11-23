@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Folio on its own page (apps/notes/), in headless Chrome: Workshop's repo served as a static site, with no
+"""Notes on its own page (apps/notes/), in headless Chrome: Workshop's repo served as a static site, with no
 Workshop agent. Checks that the page loads with no errors, saves in the browser, makes notes
 from templates, opens today's note, renders ws: links as chips, keeps and restores history, imports a folder of
 Markdown, survives a reload, and works offline through its service worker.
@@ -7,12 +7,12 @@ Markdown, survives a reload, and works offline through its service worker.
   pip install playwright && python -m playwright install chromium
   python apps/notes/test/e2e.py
 
-Notes inside Workshop (sending action items to Docket, Home's Recent notes) is checked by Workshop's
+Notes inside Workshop (sending action items to Tasks, Home's Recent notes) is checked by Workshop's
 tests/e2e.py. Exit 1 if any check fails."""
 import functools, http.server, os, re, sys, tempfile, threading
 from playwright.sync_api import sync_playwright
 
-# Folio is apps/notes/ in Workshop: its files are in APP, and the static site is Workshop's root (Folio's page loads
+# Notes is apps/notes/ in Workshop: its files are in APP, and the static site is Workshop's root (Notes' page loads
 # Workshop's shared files).
 APP = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ROOT = os.path.dirname(os.path.dirname(APP))
@@ -50,7 +50,7 @@ def wait_js(pg, expr, timeout=15000):
 def fill_editor(pg, text):
     """Replace the note's text, as typing would (CodeMirror's editable element). From Preview, goes to Edit first.
     Select all is CodeMirror's own command (the whole document). page.fill() on the contenteditable replaced only the
-    lines CodeMirror had drawn, so on a slow runner a long note kept its old text (the flaky Folio dev docs checks)."""
+    lines CodeMirror had drawn, so on a slow runner a long note kept its old text (the flaky Notes dev docs checks)."""
     if 'mode-preview' in (pg.get_attribute('#body', 'class') or ''):
         pg.click('[data-mode=edit]'); pg.wait_for_timeout(200)
     pg.click('.cm-content')
@@ -152,7 +152,7 @@ def live_checks(b):
 
 
 def gaps_checks(b):
-    """Folio 4.6.0 and later (Workshop project doc claude/folio-obsidian-gaps-v1-plan.md): highlights, word count,
+    """Notes 4.6.0 and later (Workshop project doc claude/folio-obsidian-gaps-v1-plan.md): highlights, word count,
     properties and aliases, bookmarks."""
     gc = b.new_context(viewport={'width': 1400, 'height': 900})
     pg = gc.new_page()
@@ -257,7 +257,7 @@ def gaps_checks(b):
 
 
 def links_checks(b):
-    """Folio 4.10.0 (Workshop project doc claude/folio-links-v1-plan.md): Links, the directory in links.md."""
+    """Notes 4.10.0 (Workshop project doc claude/folio-links-v1-plan.md): Links, the directory in links.md."""
     lc = b.new_context(viewport={'width': 1400, 'height': 900})
     pg = lc.new_page()
     errs = []
@@ -368,10 +368,10 @@ def main():
             check('a note from the meeting template keeps the title typed', txt.startswith('# Team Sync') and '## Action items' in txt)
             check('once the note has a body, the template offer goes away', pg.locator('[data-act=use-template]').count() == 0)
 
-            fill_editor(pg, '# Team Sync\n\n- [ ] Draft the rollout plan\n- Shipped the cache #win\n\nSee [the task](ws:prioritizer/task/t_1)\n')
+            fill_editor(pg, '# Team Sync\n\n- [ ] Draft the rollout plan\n- Shipped the cache #win\n\nSee [the task](ws:tasks/task/t_1)\n')
             pg.keyboard.press('Control+s'); pg.wait_for_timeout(1200)
             look(pg)
-            check('a ws: link shows as a chip with the app name', pg.locator('#preview .app-link .app-chip').inner_text().lower() == 'docket')
+            check('a ws: link shows as a chip with the app name', pg.locator('#preview .app-link .app-chip').inner_text().lower() == 'tasks')
             check('on its own and not paired, there are no send buttons', pg.locator('[data-act=send]').count() == 0)
             check('a plain bullet beside a task keeps its marker', pg.evaluate("getComputedStyle(document.querySelector('#preview li[data-line=\"3\"]')).listStyleType") != 'none')
             pg.click('#preview input[data-task="2"]'); pg.wait_for_timeout(1200)
@@ -548,7 +548,7 @@ def main():
             pg.emulate_media(media='screen'); pg.evaluate("window.dispatchEvent(new Event('afterprint'))")
             pg.click('[data-mode=edit]'); pg.wait_for_timeout(300)
 
-            # A product set up in Workshop Settings (settings.products, Workshop docs/products.md): Folio makes its note on the next load.
+            # A product set up in Workshop Settings (settings.products, Workshop docs/products.md): Notes makes its note on the next load.
             pg.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'settings'});
               await ws.data.put('products', {schema: 'settings.products', version: 1, rev: 0, deleted: {}, items: [
                 {id: 'p_sample-portal', updatedAt: 1, name: 'Sample Portal', slug: 'sample-portal', alsoCalled: ['SP'], repos: ['portal-ui'], areas: []},

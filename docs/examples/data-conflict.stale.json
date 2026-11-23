@@ -2,7 +2,7 @@
   "error": "That collection changed since you loaded it. Reload and try again.",
   "code": "conflict",
   "current": {
-    "schema": "prioritizer.tasks",
+    "schema": "tasks.tasks",
     "version": 3,
     "rev": 14,
     "updatedAt": "2026-10-18T13:02:11.000Z",

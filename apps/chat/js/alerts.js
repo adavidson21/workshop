@@ -10,7 +10,7 @@ export const ALERTS_KEY = 'chat.alerts';
 /**
  * What changed between two reads of the chat list: {events: [{kind: 'done' | 'needs', session, title}], next}.
  * `prev` is the last read ({session: {busy, waiting}}), null on the first one (no events then). Sessions from
- * outside Chat (Tandem's runs, PR reviews: from 'opencode') are left to Loom, which alerts for those.
+ * outside Chat (Tandem's runs, PR reviews: from 'opencode') are left to Builds, which alerts for those.
  */
 export function chatEvents(prev, list) {
   const next = { ...(prev || {}) };

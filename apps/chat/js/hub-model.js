@@ -8,7 +8,7 @@
 import { readCards, targetsFor } from '../../../shared/summary.js';
 import { EMPTY, find, label, membersOf } from '../../../shared/people.js';
 
-export const TARGETS = ['prioritizer', 'receipts', 'notes'];
+export const TARGETS = ['tasks', 'people', 'notes'];
 export const PAYLOAD_KINDS = ['task', 'win', 'feedback', 'growth', 'concern', 'note'];
 export const INTENTS = ['capture', 'ask', 'go', 'act', 'clarify'];
 // What an `act` may suggest: opencode actions that start Tandem work, each behind its own confirm.
@@ -24,7 +24,7 @@ export const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '
 function cleanProposal(p) {
   if (!isObj(p) || !only(p, ['to', 'text', 'payload', 'confidence', 'reason'])) return null;
   if (!TARGETS.includes(p.to) || !str(p.text, 1, 2000) || !isObj(p.payload) || !PAYLOAD_KINDS.includes(p.payload.kind)) return null;
-  const okKind = p.to === 'prioritizer' ? p.payload.kind === 'task' : p.to === 'notes' ? p.payload.kind === 'note' : p.payload.kind !== 'task';
+  const okKind = p.to === 'tasks' ? p.payload.kind === 'task' : p.to === 'notes' ? p.payload.kind === 'note' : p.payload.kind !== 'task';
   if (!okKind) return null;
   if (p.confidence !== undefined && !(typeof p.confidence === 'number' && p.confidence >= 0 && p.confidence <= 1)) return null;
   if (p.reason !== undefined && !str(p.reason, 0, 300)) return null;
@@ -105,7 +105,7 @@ export const actAllowed = a => !!(a && ACTS[a.connector] && ACTS[a.connector].in
    dropped when nothing matches, so a task only ever carries ids. */
 export function toProposal(p, dir = EMPTY) {
   const q = { ...(p.payload || {}) };
-  const kind = p.to === 'prioritizer' ? (q.waiting ? 'waiting' : 'task') : p.to === 'receipts' ? 'receipt' : 'note';
+  const kind = p.to === 'tasks' ? (q.waiting ? 'waiting' : 'task') : p.to === 'people' ? 'receipt' : 'note';
   const ids = [
     ...(Array.isArray(q.who) ? q.who.filter(id => dir.byId.has(id)) : []),
     ...(Array.isArray(q.people) ? q.people.map(n => find(dir, n)).filter(Boolean).map(it => it.id) : [])
@@ -119,12 +119,12 @@ export const LOW = 0.5;
 export const isLow = p => typeof p.confidence === 'number' && p.confidence < LOW;
 
 /* What to send with a message (docs/hub.md, request.md): names only. dir: the people directory (ws.people);
-   summary: Docket's summary envelope (its `lists` targets, docs/summaries.md); teams: Settings' teams envelope
+   summary: Tasks' summary envelope (its `lists` targets, docs/summaries.md); teams: Settings' teams envelope
    (docs/teams.md). Each optional. `items` is the directory's active items, for the rules on this page
    (parseCapture). */
 export function hubContext({ dir, summary, teams } = {}) {
   const live = dir ? dir.items.filter(it => !it.archived) : [];
-  const cards = readCards(summary, 'prioritizer');
+  const cards = readCards(summary, 'tasks');
   const targets = cards && targetsFor([cards], 'task');
   const ls = targets ? targets.map(r => ({ name: r.title })) : [];
   const team = teams && teams.schema === 'settings.teams' && teams.version === 1 && Array.isArray(teams.items)
@@ -173,8 +173,8 @@ export const HUB_GIVE_UP_MS = 10 * 60 * 1000;
 /* Sessions the hub started (their command is /hub ...): Dispatch lists them only while they need you. */
 export const isHubCommand = c => /^\/hub\s/.test(String(c || ''));
 
-/* ---------- flow suggestions (Loom flow cards v1) ----------
-   Under an answer, Chat offers the one or two Loom flow cards the ask fits, from the words in it. A card opens Loom's
+/* ---------- flow suggestions (Builds flow cards v1) ----------
+   Under an answer, Chat offers the one or two Builds flow cards the ask fits, from the words in it. A card opens Builds'
    Start work on that flow, filled in with the ask (route start/<flow>/<text>); nothing starts until Start there. */
 export const FLOW_CARDS = {
   request: ['Handle a request', 'Triage it, then pick the path.'],
@@ -203,11 +203,11 @@ export function suggestFlows(text) {
   if (out.length === 1) out.push(out[0] === 'spike' ? 'feature' : 'spike');
   return out.slice(0, 2);
 }
-/** The flow cards under an answer. Each button carries data-flow-card (the flow id); the caller opens Loom with it. */
+/** The flow cards under an answer. Each button carries data-flow-card (the flow id); the caller opens Builds with it. */
 export function flowCardsHtml(text, attr = 'data-flow-card') {
   const ids = suggestFlows(text);
   return `<div class="hub-flows" role="group" aria-label="Start work from this"><span class="hub-meta">Start work from this</span>` +
     ids.map(id => `<button type="button" class="hub-flow" ${attr}="${esc(id)}"><b>${esc(FLOW_CARDS[id][0])}</b><span>${esc(FLOW_CARDS[id][1])}</span></button>`).join('') + '</div>';
 }
-/** The Loom route for a flow card: Start work on that flow, filled in with the ask. */
+/** The Builds route for a flow card: Start work on that flow, filled in with the ask. */
 export const flowRoute = (id, text) => `start/${FLOW_CARDS[id] ? id : 'spike'}/${encodeURIComponent(String(text || '').trim().slice(0, 2000))}`;

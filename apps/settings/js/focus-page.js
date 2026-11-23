@@ -52,7 +52,7 @@ export async function mountFocus({ ws, el, toast, now = () => new Date() }) {
     try { env = await ws.data.get(F.COLLECTION); } catch (e) { env = null; }
     if (env && env.schema !== F.SCHEMA) env = null;
     ({ value: val, saved } = formValue(env));
-    try { dayplan = F.dayplanOf(cardDay(readCards(await ws.data.get('summary', { app: 'prioritizer' }), 'prioritizer')?.get('day'), F.dateStr(now()))); } catch (e) { dayplan = null; }
+    try { dayplan = F.dayplanOf(cardDay(readCards(await ws.data.get('summary', { app: 'tasks' }), 'tasks')?.get('day'), F.dateStr(now()))); } catch (e) { dayplan = null; }
     await cleanup();
     paint();
   }
@@ -129,9 +129,9 @@ export async function mountFocus({ ws, el, toast, now = () => new Date() }) {
           ${lunchErr ? `<span class="err">${esc(lunchErr.text)}</span>` : ''}
         </div>
         <div class="cfg-row cfg-check"><input type="checkbox" id="fhDp" data-dp${val.dayplanOverride ? ' checked' : ''}><label for="fhDp">Day plan can override</label>
-          <p class="cfg-help">On a day where Docket's Day plan has Focus or Lunch sections, they replace these hours for that day.</p></div>
+          <p class="cfg-help">On a day where Tasks' Day plan has Focus or Lunch sections, they replace these hours for that day.</p></div>
         <div class="cfg-row cfg-check"><input type="checkbox" id="fhAfter" data-after${val.afterEnd !== false ? ' checked' : ''}><label for="fhAfter">After my day ends</label>
-          <p class="cfg-help">From your day's end until the next morning, badges and pickups wait, like at lunch. The end time comes from Docket's Day settings (Day ends); the morning ends at Day starts or your first focus block.</p></div>
+          <p class="cfg-help">From your day's end until the next morning, badges and pickups wait, like at lunch. The end time comes from Tasks' Day settings (Day ends); the morning ends at Day starts or your first focus block.</p></div>
         <p class="fh-preview" aria-live="polite">${esc(previewText(val, dayplan, now()))}</p>
         <div class="acts left"><button class="btn primary" data-save${errors.length || saving ? ' disabled' : ''}>Save</button>
           ${errors.length ? `<span class="err">${errors.length === 1 ? 'Fix the line marked above to save.' : `Fix the ${errors.length} lines marked above to save.`}</span>` : ''}</div>

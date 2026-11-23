@@ -1,4 +1,4 @@
-// Folio 4.10.0: Links, the directory of web links in links.md (links.js).
+// Notes 4.10.0: Links, the directory of web links in links.md (links.js).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {

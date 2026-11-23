@@ -1,4 +1,4 @@
-// Folio: diagram starters and finding diagrams in a note (js/diagram-kits.js), and how they render and export.
+// Notes: diagram starters and finding diagrams in a note (js/diagram-kits.js), and how they render and export.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { KITS, blockInsert, fenceAt, fences, kit, kitBlock, lineOf, mermaidFences } from '../js/diagram-kits.js';
@@ -61,5 +61,5 @@ test('Copy for wiki: the HTML gets each diagram as a PNG, and only a data:image 
   assert.ok(html.includes(`<img src="${png}" alt="Diagram">`), html);
   assert.ok(!html.includes('javascript:'), 'a URL that is not a data:image is never used');
   assert.match(html, /<pre><code>broken<\/code><\/pre>/);
-  assert.ok(!html.includes('figure'), 'no Folio-only markup in the HTML');
+  assert.ok(!html.includes('figure'), 'no Notes-only markup in the HTML');
 });

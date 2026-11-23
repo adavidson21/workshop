@@ -252,7 +252,7 @@ for (const kind of ["v1", "v2"]) {
       await waitFor(() => fake.count(route(r.session)) === 1, "the /spike call");
       assert.equal(args(fake.bodiesFor(route(r.session)).at(-1)), `${r.folder} --log --timebox 1h`);
       const md = fs.readFileSync(path.join(ws.dir, ".work", r.folder, "log.md"), "utf8");
-      assert.match(md, /^# Error log\n\nPasted in Loom on \d{4}-\d{2}-\d{2}\. 2 values that looked like secrets or email addresses were masked\.\n\nWhere: eligibility-api, production\n\n````text\n2026-11-16 07:01:02 ERROR/);
+      assert.match(md, /^# Error log\n\nPasted in Builds on \d{4}-\d{2}-\d{2}\. 2 values that looked like secrets or email addresses were masked\.\n\nWhere: eligibility-api, production\n\n````text\n2026-11-16 07:01:02 ERROR/);
       assert.ok(!md.includes("hunter2") && !md.includes("jane@example.com") && !md.includes("\r"), "masked, one line ending");
       assert.match(md, /at Eligibility\.Client\.Check\(\) in Client\.cs:line 42/);
       const again = await call("spike", { log }, ctx());

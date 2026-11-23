@@ -144,9 +144,9 @@ export function blocksToMark(starts, changed) {
 }
 
 /* The starter product template (templates/product.md). Generic: real product names only ever live in your folder.
-   Owners are not written here: they come from Workshop's People (Owns), so the section is for anyone else to ask. */
+   Owners are not written here: they come from Workshop's Directory (Owns), so the section is for anyone else to ask. */
 export const PRODUCT_TEMPLATE = '---\ntitle: {{title}}\nalso-called: []\nrepos: []\ntags: [product, product/{{slug}}]\n---\n# {{title}}\n\n## Summary\n\n## Business rules\n\n## Gotchas\n\n## Who to ask\n\n## Decisions\n\n## Links\n\n## Remembered\n';
 
-/* The team handbook Folio makes once (team/handbook.md): how the team works, not one product. Tandem reads it on
+/* The team handbook Notes makes once (team/handbook.md): how the team works, not one product. Tandem reads it on
    every pipeline command (Get-Knowledge.ps1) and adds what it confirms. Generic headings only. */
 export const HANDBOOK = '---\ntitle: Team handbook\ntags: [team, handbook]\n---\n# Team handbook\n\nHow the team works, for you and for Tandem. One short line per fact; Tandem adds what it confirms and you review it like a product note.\n\n## Sprints\n\n<!-- For example: - Two weeks, starting Mondays. Planning Monday, demo the last Friday. -->\n\n## Work item states\n\n<!-- For example: - New, Active, In review, Resolved, Closed. Resolved means merged to main. -->\n\n## Pull requests\n\n<!-- For example: - One approval from the team. Squash merge. Title starts with the work item number. -->\n\n## Releases\n\n<!-- For example: - Every other Thursday from main, after QA signs off. -->\n\n## Definition of done\n\n<!-- For example: - Tests pass, docs updated, deployed to staging. -->\n\n## Who approves what\n\n<!-- For example: - Schema changes: the tech lead. Anything customer facing: product. -->\n\n## Remembered\n';

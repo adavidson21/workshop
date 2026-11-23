@@ -37,7 +37,7 @@ A personal productivity hub (task priorities, review notes, a work-item view, op
 ## Data
 
 - All data is plain JSON and Markdown files in the data folder. Nothing is encrypted by Workshop beyond what the disk provides; use the company's disk encryption.
-- **Rapport** (formerly Receipts, with 1:1s inside) holds performance notes, 1:1 notes and goals (OKRs) about the user, their direct reports, their manager and anyone else they meet with. Treat that folder as HR-sensitive: keep it in storage only the user can read, never a shared folder, and follow your company's rules on where manager notes may live. The review form sections a company uses are typed in on the device and never committed to the repo.
+- **People** (formerly Rapport, with 1:1s inside) holds performance notes, 1:1 notes and goals (OKRs) about the user, their direct reports, their manager and anyone else they meet with. Treat that folder as HR-sensitive: keep it in storage only the user can read, never a shared folder, and follow your company's rules on where manager notes may live. The review form sections a company uses are typed in on the device and never committed to the repo.
 - **Notes** product notes (`folio/products/`, `notes/products/` before Workshop renamed the folder) hold what the user's team knows about each product they work on: business rules, gotchas, who to ask. They are internal work knowledge; keep them where the company allows work notes. When Dispatch is on, Tandem's agents on this computer read them and add lines to them (Notes keeps each earlier version in `folio/history/` and marks the note for the user to review). Nothing else outside Notes writes them, and they never leave the data folder except as the prompts Dispatch already sends to the approved AI provider.
 - Nothing from the user's work computer goes into the Workshop repos.
 
@@ -50,7 +50,7 @@ A personal productivity hub (task priorities, review notes, a work-item view, op
 ## Known limits
 
 - Outside work mode, the UI is whatever Workshop's site serves today, and a paired site can use the agent, including Dispatch actions. Work mode removes that.
-- The installer checks Node, MinGit and PowerShell against their published SHA-256, but the Workshop, Tandem and Docket zips have no published hash. Release tags plus work mode (whose pinned copy records every file's SHA-256) are the integrity control for those.
+- The installer checks Node, MinGit and PowerShell against their published SHA-256, but the Workshop, Tandem and Tasks zips have no published hash. Release tags plus work mode (whose pinned copy records every file's SHA-256) are the integrity control for those.
 - Dispatch agents read text written by other people (pull requests, work items). Like any coding agent, they can be steered by that text; keep Dispatch off where that risk is not accepted.
 
 ## Reporting a vulnerability

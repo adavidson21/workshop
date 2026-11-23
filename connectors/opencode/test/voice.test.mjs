@@ -57,9 +57,9 @@ test("bad input and unknown runs are refused; a run with no reply fails", async 
   await rejects(runVoice({ kind: "style", prompt: "x" }, on), "unavailable");
 });
 
-test("Folio's Clean up runs as its own kind, titled for it, with the read-only agent (1.35.0)", async () => {
+test("Notes' Clean up runs as its own kind, titled for it, with the read-only agent (1.35.0)", async () => {
   const r = await runVoice({ kind: "cleanup", prompt: "Clean up the document at the end." }, on);
-  assert.equal(sessions.get(r.session).title, "Folio: clean up a document");
+  assert.equal(sessions.get(r.session).title, "Notes: clean up a document");
   assert.equal(prompts[0].agent, "plan");
   assert.deepEqual(prompts[0].tools, { "*": false }, "no tool definitions go to the model");
 });

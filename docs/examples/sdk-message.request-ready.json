@@ -4,7 +4,7 @@
   "id": "r1",
   "method": "ready",
   "params": {
-    "app": "prioritizer",
+    "app": "tasks",
     "sdk": 1
   }
 }

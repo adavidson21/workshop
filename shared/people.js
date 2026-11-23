@@ -229,7 +229,7 @@ export function create(input, items, now = Date.now()) {
 }
 
 /** People that other data already points to, as new items that keep their ids: for a one-time move from an
-    app's own list (Rapport 2.x kept its reports itself). Skips anything that is not a person with a `p_` id
+    app's own list (People 2.x kept its reports itself). Skips anything that is not a person with a `p_` id
     or a name, ids already in `items`, and ids in `deleted` (removed from the directory on purpose). A
     relation that would clash with an active you or manager becomes `contact`. Returns the new items. */
 export function adopt(list, items, deleted = {}, now = Date.now()) {

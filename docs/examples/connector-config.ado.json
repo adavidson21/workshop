@@ -182,7 +182,7 @@
       "prNotNeeded": {
         "type": "object",
         "title": "PRs that don't need you",
-        "description": "Left out of Docket and Dispatch. A PR where you are a required reviewer always needs you.",
+        "description": "Left out of Tasks and Dispatch. A PR where you are a required reviewer always needs you.",
         "x-workshop-page": "pull-requests",
         "additionalProperties": false,
         "properties": {

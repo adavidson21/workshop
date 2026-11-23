@@ -72,7 +72,7 @@ export function createNotes(ws, { onChange = () => {}, onExternal = () => {} } =
     if (isImagePath(path)) { files.set(path, { mtime: ev.mtime, size: 0 }); dropImage(path); onChange(); return; }
     if (!isNote(path)) { files.set(path, { mtime: ev.mtime, size: 0 }); return; } // history/ and the like: known, not read
     // Our own save comes back here too. Its text is already known, and a read that finishes after a newer save
-    // must not put the older text back (Folio 4.11.1): on a slow computer the editor lost what you just typed.
+    // must not put the older text back (Notes 4.11.1): on a slow computer the editor lost what you just typed.
     const known = texts.get(path);
     if (known && typeof ev.mtime === 'number' && typeof known.mtime === 'number' && ev.mtime <= known.mtime) return;
     try { if (!(await readNote(path, { newerOnly: true }))) return; } catch { return; }

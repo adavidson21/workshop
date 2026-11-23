@@ -4,7 +4,7 @@
 //   - G<n> | ... | answered <yyyy-mm-dd>: <where the answer was written>
 // <assumed> is "-" when the agent had no safe assumption and stopped: that build waits on the gap.
 //
-// Loom and Docket show open gaps as Teach cards. Answering one (gap.answer) runs Tandem's /teach, which writes
+// Builds and Tasks show open gaps as Teach cards. Answering one (gap.answer) runs Tandem's /teach, which writes
 // the answer where it belongs and closes the line. Workshop never writes gaps.md; it keeps only which answers
 // it sent, in .work/_dashboard/gaps.json, so the card shows "Saving" until /teach closes the line.
 

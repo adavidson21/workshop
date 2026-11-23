@@ -1,7 +1,7 @@
 // opencode connector: observations (eng-agents Core 4.8.0). Things Tandem's agents noticed out of scope, in
 // .work/observations.md, one line each, written only by eng-agents' Add-Observation.ps1:
 //   - O<n> | <yyyy-mm-dd> | <kind> | <repo> | <source> | <text>
-// The file is the agents'; what you did with each one (dismissed, started as a Quick change, sent to Docket) is
+// The file is the agents'; what you did with each one (dismissed, started as a Quick change, sent to Tasks) is
 // kept here, in .work/_dashboard/observations.json, so the file is never written by Workshop.
 
 import fs from "node:fs";
@@ -67,7 +67,7 @@ export function findObservation(id) {
   return o;
 }
 
-/** Records what you did with one. `status`: dismissed, started (with the folder) or sent (to Docket). */
+/** Records what you did with one. `status`: dismissed, started (with the folder) or sent (to Tasks). */
 export function decideObservation(id, status, extra = {}) {
   if (!["dismissed", "started", "sent"].includes(status)) throw httpError(400, "Bad status.");
   findObservation(id);

@@ -1,9 +1,9 @@
 {
-  "app": "receipts",
+  "app": "people",
   "collections": [
     {
       "collection": "config",
-      "schema": "receipts.config",
+      "schema": "people.config",
       "version": 1,
       "rev": 2,
       "updatedAt": "2026-10-25T13:00:00.000Z",
@@ -11,7 +11,7 @@
     },
     {
       "collection": "entries/person-one/2026",
-      "schema": "receipts.entries/person-one/2026",
+      "schema": "people.entries/person-one/2026",
       "version": 1,
       "rev": 3,
       "updatedAt": "2026-10-25T14:00:00.000Z",

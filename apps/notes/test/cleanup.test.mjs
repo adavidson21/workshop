@@ -1,4 +1,4 @@
-// Folio: Clean up this document (js/cleanup.js). Run: node --test apps/notes/test/cleanup.test.mjs
+// Notes: Clean up this document (js/cleanup.js). Run: node --test apps/notes/test/cleanup.test.mjs
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { MAX_DOC, buildPrompt, cleanedPath, compose, defaultPick, outlineOf, parseReply, rankTemplates, sureTemplate, titleOf } from '../js/cleanup.js';

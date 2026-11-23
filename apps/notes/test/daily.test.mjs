@@ -1,31 +1,32 @@
-// What other apps add to a day's note (daily.js) and Docket's wrap-up arriving through pickup.
+// What other apps add to a day's note (daily.js) and Tasks' wrap-up arriving through pickup.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { data as sdkData } from '../../../shared/workshop-sdk.js';
-import { addUnder, docketPlan, hashText, writeSection } from '../js/daily.js';
+import { addUnder, tasksPlan, hashText, writeSection } from '../js/daily.js';
 import { startPickup } from '../js/pickup.js';
 import { STARTERS, dailyText, fill } from '../js/templates.js';
 import { actionItems } from '../js/offers.js';
 
 const DAY = '2026-11-06';
-const summary = (board) => ({ schema: 'prioritizer.summary', version: 1, rev: 1, deleted: {}, items: [{ id: 'board', kind: 'board', updatedAt: 1, ...board }] });
+const summary = (board) => ({ schema: 'tasks.summary', version: 1, rev: 1, deleted: {}, items: [{ id: 'board', kind: 'board', updatedAt: 1, ...board }] });
 
-test('{{docket}}: the day\'s Today tasks as links, else Up next, else an empty checkbox', () => {
+test('{{tasks}}: the day\'s Today tasks as links, else Up next, else an empty checkbox', () => {
   const env = summary({ days: { [DAY]: { focus: { total: 3, done: 1, tasks: [
     { id: 't_1', title: 'Fix [the] login', done: false }, { id: 't_2', title: 'Done one', done: true }, { id: 'bad id', title: 'x', done: false }] } } },
     upNext: [{ id: 'u_1', title: 'Up next' }] });
-  assert.equal(docketPlan(env, DAY), '- [Fix (the) login](ws:prioritizer/task/t_1)');
-  assert.equal(docketPlan(env, '2026-11-07'), '- [Up next](ws:prioritizer/task/u_1)', 'no Today for that day: Up next');
-  assert.equal(docketPlan(null, DAY), '');
-  assert.equal(docketPlan({ ...env, schema: 'other.summary' }, DAY), '');
-  assert.match(dailyText(DAY, null, docketPlan(env, DAY)), /^# 2026-11-06\n\n## Plan\n\n- \[Fix \(the\) login\]\(ws:prioritizer\/task\/t_1\)\n\n## Notes/);
-  assert.match(dailyText(DAY), /## Plan\n\n- \[ \] \n/, 'no Docket: one empty checkbox');
-  assert.ok(STARTERS['templates/daily.md'].includes('{{docket}}'));
-  assert.equal(fill('{{docket}}', { docket: '- a' }), '- a');
+  assert.equal(tasksPlan(env, DAY), '- [Fix (the) login](ws:tasks/task/t_1)');
+  assert.equal(tasksPlan(env, '2026-11-07'), '- [Up next](ws:tasks/task/u_1)', 'no Today for that day: Up next');
+  assert.equal(tasksPlan(null, DAY), '');
+  assert.equal(tasksPlan({ ...env, schema: 'other.summary' }, DAY), '');
+  assert.match(dailyText(DAY, null, tasksPlan(env, DAY)), /^# 2026-11-06\n\n## Plan\n\n- \[Fix \(the\) login\]\(ws:tasks\/task\/t_1\)\n\n## Notes/);
+  assert.match(dailyText(DAY), /## Plan\n\n- \[ \] \n/, 'no Tasks: one empty checkbox');
+  assert.ok(STARTERS['templates/daily.md'].includes('{{tasks}}'));
+  assert.equal(fill('{{tasks}}', { tasks: '- a' }), '- a');
+  assert.equal(fill('{{docket}}', { tasks: '- a' }), '- a', 'a template saved before the rename still fills');
 });
 
-test('a Docket link on its own is not an action item to send back to Docket', () => {
-  assert.deepEqual(actionItems('- [ ] [Fix](ws:prioritizer/task/t_1)\n- [ ] Call [Fix](ws:prioritizer/task/t_1) owner\n').map(i => i.text), ['Call [Fix](ws:prioritizer/task/t_1) owner']);
+test('a Tasks link on its own is not an action item to send back to Tasks', () => {
+  assert.deepEqual(actionItems('- [ ] [Fix](ws:tasks/task/t_1)\n- [ ] Call [Fix](ws:tasks/task/t_1) owner\n').map(i => i.text), ['Call [Fix](ws:tasks/task/t_1) owner']);
 });
 
 test('writeSection: added, replaced while unchanged, a new one when you edited it', () => {
@@ -52,8 +53,8 @@ test('addUnder: at the end of the section, or a new section', () => {
 });
 
 const offer = (id, lines, at) => ({ id, updatedAt: 1, to: 'notes', date: DAY, createdAt: at, accepted: true, text: `Wrap-up for ${DAY}`,
-  payload: { kind: 'note', daily: DAY, section: 'Wrap-up', lines }, source: { app: 'prioritizer', id: 'wrap' } });
-const henv = (items) => ({ schema: 'prioritizer.handoffs', version: 1, rev: 1, items, deleted: {} });
+  payload: { kind: 'note', daily: DAY, section: 'Wrap-up', lines }, source: { app: 'tasks', id: 'wrap' } });
+const henv = (items) => ({ schema: 'tasks.handoffs', version: 1, rev: 1, items, deleted: {} });
 function fakeWs(cols, files) {
   return {
     data: {
@@ -69,19 +70,19 @@ function fakeWs(cols, files) {
   };
 }
 
-test("Docket's wrap-up lands in the day's note, is replaced by a later one, and never overwrites your edits", async () => {
+test("Tasks' wrap-up lands in the day's note, is replaced by a later one, and never overwrites your edits", async () => {
   const files = new Map(), cols = new Map();
-  cols.set('prioritizer/handoffs', henv([offer('w_1', ['Done: A.', 'Day: 1 task done, 0 switches, 0 interruptions.'], '2026-11-06T21:00:00Z')]));
+  cols.set('tasks/handoffs', henv([offer('w_1', ['Done: A.', 'Day: 1 task done, 0 switches, 0 interruptions.'], '2026-11-06T21:00:00Z')]));
   const added = [];
   const p = startPickup(fakeWs(cols, files), { files: new Map() }, { onAdded: (w) => added.push(...w), dailyText: async (d) => `# ${d}\n\n## Notes\n` });
   assert.equal(await p.run(), 1);
   assert.equal(files.get(`daily/${DAY}.md`), `# ${DAY}\n\n## Notes\n\n## Wrap-up\n\n- Done: A.\n- Day: 1 task done, 0 switches, 0 interruptions.\n`);
   assert.equal(added[0].section, 'Wrap-up');
-  cols.set('prioritizer/handoffs', henv([offer('w_2', ['Done: A, B.'], '2026-11-06T22:00:00Z')]));
+  cols.set('tasks/handoffs', henv([offer('w_2', ['Done: A, B.'], '2026-11-06T22:00:00Z')]));
   assert.equal(await p.run(), 1);
   assert.equal(files.get(`daily/${DAY}.md`), `# ${DAY}\n\n## Notes\n\n## Wrap-up\n\n- Done: A, B.\n`);
   files.set(`daily/${DAY}.md`, files.get(`daily/${DAY}.md`).replace('A, B.', 'A, B. Proud of this.'));
-  cols.set('prioritizer/handoffs', henv([offer('w_3', ['Done: A, B, C.'], '2026-11-06T23:00:00Z')]));
+  cols.set('tasks/handoffs', henv([offer('w_3', ['Done: A, B, C.'], '2026-11-06T23:00:00Z')]));
   assert.equal(await p.run(), 1);
   const final = files.get(`daily/${DAY}.md`);
   assert.ok(final.includes('Proud of this.') && final.endsWith('## Wrap-up (2)\n\n- Done: A, B, C.\n'));
@@ -90,7 +91,7 @@ test("Docket's wrap-up lands in the day's note, is replaced by a later one, and 
 
 test("the day's note waits while it has unsaved edits", async () => {
   const files = new Map(), cols = new Map();
-  cols.set('prioritizer/handoffs', henv([offer('w_1', ['Done: A.'], '2026-11-06T21:00:00Z')]));
+  cols.set('tasks/handoffs', henv([offer('w_1', ['Done: A.'], '2026-11-06T21:00:00Z')]));
   let held = true;
   const p = startPickup(fakeWs(cols, files), { files: new Map() }, { hold: () => held });
   assert.equal(await p.run(), 0);

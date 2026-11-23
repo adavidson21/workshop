@@ -1,6 +1,6 @@
 /* Chat: the Sources list at the end of an answer (Workshop docs/knowledge.md, Citations). Tandem's hub and chat agents
    end answers with "Sources:" and the files they used, one per line, as code spans. Chat shows that list as chips:
-   a Folio note opens in Folio (with That's wrong, which opens it to fix the line), a Settings file opens its page,
+   a Notes note opens in Notes (with That's wrong, which opens it to fix the line), a Settings file opens its page,
    anything else is shown as a path. Agent text is untrusted: everything is escaped, nothing is a link but these
    buttons. Pure, no DOM (test/sources.test.mjs). */
 import { esc } from './md.js';
@@ -22,8 +22,8 @@ export function classify(p) {
   const lc = path.toLowerCase();
   const note = /(?:^|\/)((?:products\/[a-z0-9][a-z0-9-]{0,39}|team\/handbook|tandem\/changes)\.md)$/.exec(lc);
   if (note) return { path, kind: 'note', note: note[1] };
-  // Any Folio note (Quick answers cite them as folio/<path>.md, Chat 4.5.0).
-  const any = /(?:^|\/)folio\/((?!products\/)(?:[^/]+\/)*[^/]+\.md)$/i.exec(path);
+  // Any note in Notes (Quick answers cite them as notes/<path>.md, Chat 4.5.0; folio/ before the rename).
+  const any = /(?:^|\/)(?:notes|folio)\/((?!products\/)(?:[^/]+\/)*[^/]+\.md)$/i.exec(path);
   if (any && !any[1].split('/').includes('..')) return { path, kind: 'note', note: any[1] };
   const set = /(?:^|\/)settings\/(products\.json|glossary\.json|repos\.json|people\.json|teams\.json|writing\.json|voice\.md)$/.exec(lc);
   if (set) {
@@ -71,7 +71,7 @@ export function splitSources(text) {
 export function sourcesHtml(sources) {
   if (!sources || !sources.length) return '';
   const chip = s => {
-    if (s.kind === 'note') return `<span class="src note"><span class="src-p" title="${esc(s.path)}">${esc(s.note)}</span><button type="button" class="lnk" data-src-note="${esc(s.note)}">Open</button><button type="button" class="lnk" data-src-wrong="${esc(s.note)}" title="Open the note in Folio to fix the line">That's wrong</button></span>`;
+    if (s.kind === 'note') return `<span class="src note"><span class="src-p" title="${esc(s.path)}">${esc(s.note)}</span><button type="button" class="lnk" data-src-note="${esc(s.note)}">Open</button><button type="button" class="lnk" data-src-wrong="${esc(s.note)}" title="Open the note in Notes to fix the line">That's wrong</button></span>`;
     if (s.kind === 'setting') return `<span class="src setting"><span class="src-p">${esc(s.path)}</span><button type="button" class="lnk" data-src-page="${esc(s.page)}">Open</button></span>`;
     return `<span class="src file"><span class="src-p">${esc(s.path)}</span></span>`;
   };

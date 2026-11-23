@@ -1,4 +1,4 @@
-// Folio: embeds (js/embeds.js), the map of links (js/map.js) and the self-contained page (export.js pageHtml).
+// Notes: embeds (js/embeds.js), the map of links (js/map.js) and the self-contained page (export.js pageHtml).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { embedHtml, embedSpec, sectionText } from '../js/embeds.js';
@@ -52,7 +52,7 @@ test('noteMap: the note, what it links to and what links to it, with the links a
   assert.equal(m.more, 0);
   assert.equal(noteMap(ix, 'a.md', 2).more, 2);
   assert.equal(noteMap(ix, 'nope.md'), null);
-  assert.equal(nodeAt('folio-d3-flowchart-n12-12'), 12);
+  assert.equal(nodeAt('notes-d3-flowchart-n12-12'), 12);
   assert.equal(nodeAt('something-else'), -1);
 });
 
@@ -67,6 +67,6 @@ test('pageHtml: a complete page with its own CSP; heading and footnote links wor
   assert.ok(page.includes(`<img src="${svg}" alt="Diagram">`));
   assert.ok(!page.includes('javascript:'));
   assert.match(page, /<a href="#h-fn-1">1<\/a>/);
-  assert.ok(!/ data-/.test(page.slice(page.indexOf('<body'))), 'no Folio-only attributes');
+  assert.ok(!/ data-/.test(page.slice(page.indexOf('<body'))), 'no Notes-only attributes');
   assert.ok(!/<script/i.test(page));
 });

@@ -1,7 +1,7 @@
 {
   "id": "h_m_platform_f1_slate",
   "updatedAt": 1794070800000,
-  "to": "slate",
+  "to": "builds",
   "date": "2026-11-07",
   "createdAt": "2026-11-07T15:00:00.000Z",
   "text": "Refunds\nPartial refunds too",
@@ -15,5 +15,5 @@
     "level": "feature",
     "ado": {"id": 42, "rev": 3, "type": "Feature", "url": "https://dev.azure.com/example/Project/_workitems/edit/42", "connection": "work", "state": "New"}
   },
-  "source": {"app": "runway", "id": "f1"}
+  "source": {"app": "roadmaps", "id": "f1"}
 }

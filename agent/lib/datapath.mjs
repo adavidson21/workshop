@@ -4,6 +4,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fail } from './http.mjs';
+import { OLD_FOLDERS, currentId, currentSchema } from '../../shared/app-folders.js';
 
 export const NAME = /^[a-z][a-z0-9-]{0,39}$/;            // app ids
 export const SEG = /^[a-z0-9][a-z0-9-]{0,39}$/;          // collection name and file path segments
@@ -40,7 +41,8 @@ export function decodeSegment(raw) {
 
 export function appId(seg) {
   if (!NAME.test(seg)) fail('bad_request', `"${seg}" is not a valid app name.`);
-  return seg;
+  return currentId(seg); // an old id (shared/app-folders.js) is the app it became
+
 }
 
 /** A collection name: 1 to 4 segments. */
@@ -93,7 +95,7 @@ export function isCollectionText(rel, text) {
   let v;
   try { v = JSON.parse(text.replace(/^﻿/, '')); } catch { return false; }
   const [app, ...rest] = rel.slice(0, -5).split('/');
-  return Boolean(v) && typeof v === 'object' && !Array.isArray(v) && v.schema === `${app}.${rest.join('/')}`;
+  return Boolean(v) && typeof v === 'object' && !Array.isArray(v) && currentSchema(v.schema) === `${app}.${rest.join('/')}`;
 }
 
 /**
@@ -102,23 +104,28 @@ export function isCollectionText(rel, text) {
 export class DataRoot {
   /**
    * @param {string} dir the data folder, absolute. Must exist.
-   * @param {Record<string, string>} [folders] app id -> folder name (shared/app-folders.js); others use the id
+   * @param {Record<string, string>} [folders] app id -> folder name, where it is not the id (an old folder the
+   *   agent could not rename); others use the id
+   * @param {Record<string, string[]>} [oldFolders] app id -> folders it used before (shared/app-folders.js)
    */
-  constructor(dir, folders = {}) {
+  constructor(dir, folders = {}, oldFolders = OLD_FOLDERS) {
     this.dir = dir;
     this.real = realpath(dir);
     this.folders = Object.freeze({ ...folders });
     this.ids = Object.freeze(Object.fromEntries(Object.entries(this.folders).map(([id, f]) => [f, id])));
     // An app id whose data is in a folder of another name: a folder under that id is an old leftover.
     this.retired = new Set(Object.entries(this.folders).filter(([id, f]) => id !== f).map(([id]) => id));
+    // A folder under a name an app used before, and no app uses now: a leftover the agent could not rename.
+    const inUse = new Set(Object.values(this.folders));
+    for (const olds of Object.values(oldFolders || {})) for (const f of olds) if (!inUse.has(f)) this.retired.add(f);
   }
 
   /** The folder an app's data is in. */
   folderOf(app) { return Object.hasOwn(this.folders, app) ? this.folders[app] : app; }
 
   /**
-   * A path relative to the data folder in app ids ("prioritizer/tasks.json", ".trash/notes/a.md",
-   * ".backups/<date>/slate/x.json") as it is on disk, with each app id swapped for its folder.
+   * A path relative to the data folder in app ids ("tasks/tasks.json", ".trash/notes/a.md",
+   * ".backups/<date>/builds/x.json") as it is on disk, with each app id swapped for its folder.
    */
   diskParts(rel) {
     const parts = rel.split('/');
@@ -128,8 +135,8 @@ export class DataRoot {
   }
 
   /**
-   * The reverse of diskParts for a path in an app folder ("docket/tasks.json" -> "prioritizer/tasks.json").
-   * Null for a folder under an app's old name (its id, when it has another folder): Workshop never reads those.
+   * The reverse of diskParts for a path in an app folder ("docket/tasks.json" -> "tasks/tasks.json").
+   * Null for a folder under an app's old name: Workshop never reads those.
    */
   idRel(diskRel) {
     const parts = diskRel.split('/');
@@ -194,7 +201,7 @@ export class DataRoot {
 
   /**
    * The apps with a folder, as app ids, sorted. A folder under an app's old name (its id, when it has another
-   * folder) is left out: it is a leftover the agent could not rename (see renameAppFolders).
+   * folder) is left out: it is a leftover the agent could not rename (see moveOldFolders).
    */
   apps() {
     try {

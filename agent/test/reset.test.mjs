@@ -71,15 +71,15 @@ test('the plan: an app takes its folder, old-name folder, trash, backups and rea
   const dd = dataDirOf(home);
   const mk = (rel, text = 'x') => { fs.mkdirSync(path.dirname(path.join(dd, rel)), { recursive: true }); fs.writeFileSync(path.join(dd, rel), text); };
   try {
-    mk('docket/tasks.json'); mk('prioritizer/tasks.json'); mk('.trash/docket/a.20261025T140500123Z.md');
-    mk('.backups/2026-10-25/docket/tasks.v2.json'); mk('Readable copy/Docket/tasks.csv'); mk('folio/a.md'); mk('.trash/folio/b.md');
+    mk('docket/tasks.json'); mk('tasks/tasks.json'); mk('.trash/docket/a.20261025T140500123Z.md');
+    mk('.backups/2026-10-25/docket/tasks.v2.json'); mk('Readable copy/Tasks/tasks.csv'); mk('folio/a.md'); mk('.trash/folio/b.md');
     mk('.scratch/opencode/hub/1/req.md'); mk('2026/mine.txt'); mk('README.md');
-    const docket = { id: 'prioritizer', name: 'Docket', folder: 'docket' };
-    const folio = { id: 'notes', name: 'Folio', folder: 'folio' };
+    const docket = { id: 'tasks', name: 'Tasks', folder: 'docket' };
+    const folio = { id: 'notes', name: 'Notes', folder: 'folio' };
     const some = resetTargets({ dataDir: dd, apps: [docket] }).map(t => t.zip);
-    assert.deepEqual(some, ['Workshop data/docket', 'Workshop data/prioritizer', 'Workshop data/.trash/docket', 'Workshop data/.backups/2026-10-25/docket', 'Workshop data/Readable copy/Docket']);
+    assert.deepEqual(some, ['Workshop data/docket', 'Workshop data/tasks', 'Workshop data/.trash/docket', 'Workshop data/.backups/2026-10-25/docket', 'Workshop data/Readable copy/Tasks']);
     const all = resetTargets({ dataDir: dd, apps: [docket, folio], everything: true }).map(t => t.zip);
-    assert.deepEqual(all, ['Workshop data/docket', 'Workshop data/prioritizer', 'Workshop data/folio', 'Workshop data/.trash', 'Workshop data/.backups', 'Workshop data/.scratch', 'Workshop data/Readable copy']);
+    assert.deepEqual(all, ['Workshop data/docket', 'Workshop data/tasks', 'Workshop data/folio', 'Workshop data/.trash', 'Workshop data/.backups', 'Workshop data/.scratch', 'Workshop data/Readable copy']);
     assert.ok(!all.some(z => z.includes('2026') && !z.includes('.backups')), 'folders that are not apps are never taken');
     const files = listFiles(resetTargets({ dataDir: dd, apps: [folio] })).map(f => f.name);
     assert.deepEqual(files, ['Workshop data/folio/a.md', 'Workshop data/.trash/folio/b.md']);

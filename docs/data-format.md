@@ -12,7 +12,7 @@ Schema: [schemas/data-envelope.schema.json](schemas/data-envelope.schema.json). 
 
 ```json
 {
-  "schema": "prioritizer.tasks",
+  "schema": "tasks.tasks",
   "version": 3,
   "rev": 14,
   "updatedAt": "2026-10-18T13:02:11.000Z",
@@ -27,13 +27,13 @@ Schema: [schemas/data-envelope.schema.json](schemas/data-envelope.schema.json). 
 
 | Field | Owner | Meaning |
 | --- | --- | --- |
-| `schema` | app | `<app>.<collection>`, with the full collection name, nested segments included (for example `receipts.entries/person-one/2026`). Must match the path it is stored under. |
+| `schema` | app | `<app>.<collection>`, with the full collection name, nested segments included (for example `people.entries/person-one/2026`). Must match the path it is stored under. |
 | `version` | app | Integer, 1 or more. The version of the item shape in this collection. See Migrations. |
 | `rev` | backend | Integer revision. `0` means "not written yet". The backend adds 1 on every write. A writer sends the `rev` it read; a different stored `rev` is a conflict. |
 | `updatedAt` | backend | ISO 8601 UTC time of the last write. Always present in what the backend returns; ignored on put. |
 | `items` | app | Array of objects. Each has a unique string `id` (1 to 200 characters) and `updatedAt` (milliseconds since 1970, the change stamp). Everything else is the app's. |
 | `deleted` | app | Optional. Tombstones: item `id` to the millisecond time it was deleted. |
-| `meta` | app | Optional. Collection-level settings that are not items (for example Prioritizer's capacity). Has its own `updatedAt` stamp in milliseconds. |
+| `meta` | app | Optional. Collection-level settings that are not items (for example Tasks' capacity). Has its own `updatedAt` stamp in milliseconds. |
 
 No other top-level fields. Apps that need more state put it in `meta` or in another collection.
 
@@ -49,7 +49,7 @@ Size limit: 10 MB per collection. Collections that grow past that should be spli
 
 ## Change stamps
 
-Change stamps let two windows, or two copies of the data, merge instead of overwriting each other. They reuse the rules of Prioritizer's `stampChanges` (`prioritizer/js/state.js`).
+Change stamps let two windows, or two copies of the data, merge instead of overwriting each other. They reuse the rules of Tasks' `stampChanges` (`tasks/js/state.js`).
 
 ### Stamping (before a write)
 
@@ -111,7 +111,7 @@ Export and import, including moving data between the browser and agent backends 
   "exportedAt": "2026-10-18T14:00:00.000Z",
   "source": {"mode": "browser", "backend": "browser"},
   "collections": [
-    {"app": "prioritizer", "collection": "tasks", "envelope": {"schema": "prioritizer.tasks", "version": 3, "rev": 14, "updatedAt": "2026-10-18T13:02:11.000Z", "items": []}}
+    {"app": "tasks", "collection": "tasks", "envelope": {"schema": "tasks.tasks", "version": 3, "rev": 14, "updatedAt": "2026-10-18T13:02:11.000Z", "items": []}}
   ]
 }
 ```
@@ -138,36 +138,38 @@ For example:
 
 ```
 ~/Workshop/
-  docket/tasks.json                       app id prioritizer, schema "prioritizer.tasks"
-  rapport/config.json
-  rapport/entries/person-one/2026.json
-  rapport/summaries/person-one/2026-h2.md
-  rapport/summaries/person-one/2026-h2.json
-  .trash/rapport/summaries/person-one/2026-h1.20261025T140500123Z.md
-  .backups/2026-10-25/docket/tasks.v2.json
+  tasks/tasks.json                        app id tasks, schema "tasks.tasks"
+  people/config.json
+  people/entries/person-one/2026.json
+  people/summaries/person-one/2026-h2.md
+  people/summaries/person-one/2026-h2.json
+  .trash/people/summaries/person-one/2026-h1.20261025T140500123Z.md
+  .backups/2026-10-25/tasks/tasks.v2.json
 ```
 
 ### App folders
 
-Each app's folder is named the way people know the app, so the data folder makes sense without Workshop. App ids (in the API, the SDK, schemas and handoffs) are internal and did not change; only the folder on disk did. The list is `shared/app-folders.js`:
+Each app's folder in the data folder is its app id, and since the rename of November 2026 every app id is the name people see: Tasks is `tasks/`, Builds `builds/`, People `people/`, Notes `notes/`, Roadmaps `roadmaps/`, and every other app its id (`settings/`, `chat/`, `home/`, `bench/`). So `schema` inside a file names the folder it is in (`"tasks.tasks"` in `tasks/tasks.json`). Paths in this document written as `<app>/...` mean the app's folder. The same names are used in `.trash/` and `.backups/`.
 
-| App | App id | Folder |
-| --- | --- | --- |
-| Docket | `prioritizer` | `docket/` |
-| Rapport | `receipts` | `rapport/` |
-| Loom | `slate` | `loom/` |
-| Folio | `notes` | `folio/` |
-| Every other app | its id | its id (`settings/`, `runway/`, `chat/`, `home/`, `bench/`) |
+What was saved before the rename keeps working. `shared/app-folders.js` lists the old names:
 
-So `schema` inside a file names the app id (`"prioritizer.tasks"` in `docket/tasks.json`). Paths in this document written as `<app>/...` mean the app's folder. The same names are used in `.trash/` and `.backups/`.
+| App | App id now | Old ids | Old folders, newest first |
+| --- | --- | --- | --- |
+| Tasks | `tasks` | `prioritizer` | `docket/`, `prioritizer/` |
+| Builds | `builds` | `slate` | `loom/`, `slate/` |
+| People | `people` | `receipts` | `rapport/`, `receipts/` |
+| Notes | `notes` | none | `folio/` |
+| Roadmaps | `roadmaps` | `runway` | `runway/` |
 
-**Renaming old folders.** On start, before anything else reads the data folder, the agent renames each folder that still has the old name (`prioritizer/` to `docket/` and so on). It is a rename, so nothing is copied and nothing can be half done. It is logged and recorded in `.backups/<yyyy-mm-dd>/renamed.json`. If the new folder already holds files, the old folder is left as it is, Workshop uses the new one, and `workshop doctor` and Settings point at the old one so you can move what you need and delete it. If a rename fails (a file held open by another program), the old folder keeps being used until the next start. The browser's folder store (no agent) cannot rename folders: it keeps using a folder under its old name while that is the only one there, and switches once the agent has renamed it.
+**Renaming old folders.** On start, before anything else reads the data folder, the agent renames each old folder to the app id (`docket/` to `tasks/` and so on), and `.trash/<old>/` with it. It is a rename, so nothing is copied and nothing can be half done. It is logged and recorded in `.backups/<yyyy-mm-dd>/renamed.json`. If the app's folder already holds files, the old folder is left as it is, Workshop uses the app's folder, and `workshop doctor` and Settings point at the old one so you can move what you need and delete it. If a rename fails (a file held open by another program), the old folder keeps being used until the next start. The browser's folder store (no agent) cannot rename folders: it keeps using an old folder while that is the only one there, and switches once the agent has renamed it.
+
+**Rewriting old ids.** Then, once, the agent rewrites collections that still name an old id: a schema's app part (`"prioritizer.tasks"` becomes `"tasks.tasks"`), a handoff's `to` and `source.app`, and Settings' app-settings ids. A copy of each file as it was goes in `.backups/<yyyy-mm-dd>/renamed-ids/`. Anything else in the file, `rev` included, stays as it was. The agent and the SDK also read an old id wherever they meet one (an address like `#/prioritizer`, a `ws:prioritizer/...` link, a handoff, an API path), so nothing has to be rewritten for it to work. In the browser (no agent), the SDK moves IndexedDB keys and this browser's settings (`localStorage`) to the new ids the first time it opens.
 
 ### What is a collection, what is a file
 
 - A `.json` file is a **collection** when it parses as a JSON object whose `schema` field is `<app>.<collection>` for its own path. Collections are read and written only through the data API (`/api/data`, `ws.data`), which checks `rev`. A collection file that fails the envelope schema is a damaged collection (below), still not a file.
 - Every other `.md` or `.json` file, and every image (`.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`), is a **file**, read and written only through the files API (`/api/files`, `ws.files`), which checks the modified time. The files API never reads, writes, lists or trashes a collection, and refuses to write `.json` content that would make one (an envelope for its own path).
-- So a collection and a file can never be the same file, even though both end in `.json`. Receipts' summary `2026-h2.md` (a file) and its sidecar `2026-h2.json` (a collection) sit side by side.
+- So a collection and a file can never be the same file, even though both end in `.json`. People's summary `2026-h2.md` (a file) and its sidecar `2026-h2.json` (a collection) sit side by side.
 
 ### What Workshop ignores
 

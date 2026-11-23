@@ -1,11 +1,13 @@
 // Rail order (docs/apps.md, Rail order): the order a person puts the apps on the rail in, by dragging a button or
-// with Alt+Shift+Up and Down on it. Plain data plus pure helpers, no imports. The shell keeps the order in
+// with Alt+Shift+Up and Down on it. Plain data plus pure helpers; the only import is shared/app-folders.js. The shell keeps the order in
 // Settings' `rail` collection (settings.rail v1, `meta.order`) through the SDK, so it follows the data folder in
 // every mode, and a copy in localStorage (CACHE_KEY) so the rail draws in that order before the data is read.
 //
 // An order lists app ids. Apps it does not name (a new app, or one turned back on) keep their place from the
 // default order: right after the app before them there. Ids of apps that are not on the rail right now (turned
 // off) stay in the saved order, so an app comes back where it was. An empty order is the default.
+import { currentId } from './app-folders.js';
+
 export const APP = 'settings';
 export const COLLECTION = 'rail';
 export const VERSION = 1;
@@ -18,7 +20,8 @@ const ID = /^[a-z][a-z0-9-]{0,39}$/;
 export function cleanOrder(v) {
   if (!Array.isArray(v)) return [];
   const out = [];
-  for (const id of v) if (typeof id === 'string' && ID.test(id) && !out.includes(id)) out.push(id);
+  // An old app id (shared/app-folders.js) is the app it became.
+  for (const v1 of v) { const id = currentId(v1); if (typeof id === 'string' && ID.test(id) && !out.includes(id)) out.push(id); }
   return out.slice(0, MAX);
 }
 

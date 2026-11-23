@@ -8,10 +8,10 @@
   },
   "collections": [
     {
-      "app": "prioritizer",
+      "app": "tasks",
       "collection": "tasks",
       "envelope": {
-        "schema": "prioritizer.tasks",
+        "schema": "tasks.tasks",
         "version": 3,
         "rev": 14,
         "updatedAt": "2026-10-18T13:02:11.000Z",
@@ -45,10 +45,10 @@
       }
     },
     {
-      "app": "prioritizer",
+      "app": "tasks",
       "collection": "lists",
       "envelope": {
-        "schema": "prioritizer.lists",
+        "schema": "tasks.lists",
         "version": 1,
         "rev": 3,
         "updatedAt": "2026-10-18T13:02:11.000Z",

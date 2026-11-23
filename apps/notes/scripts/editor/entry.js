@@ -1,4 +1,4 @@
-// The CodeMirror 6 pieces Folio's editor (js/editor.js) uses, bundled into vendor/codemirror.js by
+// The CodeMirror 6 pieces Notes' editor (js/editor.js) uses, bundled into vendor/codemirror.js by
 // scripts/build-editor.mjs. Code fences in a note get these languages' colors while you type.
 import { LanguageDescription, StreamLanguage } from '@codemirror/language';
 import { javascript } from '@codemirror/lang-javascript';

@@ -653,7 +653,7 @@ export async function readWork({ workRoot, configPath, recent = 80, gitOk, hide 
         const fixType = field(f, "Fix type");
         if (fixType) base.fixType = fixType;
         if (exists(path.join(folder, "log.md"))) base.fromLog = true;
-        // Loom's findings fork (flow cards v1): every path but Investigate again writes closed.md, "Closed: <what next>".
+        // Builds' findings fork (flow cards v1): every path but Investigate again writes closed.md, "Closed: <what next>".
         const closed = readText(path.join(folder, "closed.md"));
         if (f && closed) { base.state = "Closed"; base.nextText = cleanValue(closed.split(/\r?\n/)[0].replace(/^Closed:\s*/i, "")) || null; }
       } else if (k === "tsd") {
@@ -696,13 +696,13 @@ export async function readWork({ workRoot, configPath, recent = 80, gitOk, hide 
         const hasCheck = exists(path.join(folder, "check.md"));
         const sources = readText(path.join(folder, "sources.md"));
         // Saved: /publish docs-<name> writes "Status: SAVED to <path> on <date>" in sources.md (eng-agents Core 4.2.0),
-        // and Loom's Save to Folio writes saved.md.
+        // and Builds' Save to Notes writes saved.md.
         const savedMd = readText(path.join(folder, "saved.md"));
         const sm = sources ? /^[ \t]*Status:[ \t]*SAVED\b([^\r\n]*)/im.exec(sources) : null;
         if (savedMd || sm) { base.state = "Saved"; base.nextText = cleanValue(savedMd ? savedMd.split(/\r?\n/)[0] : "Saved" + sm[1]) || null; }
         else {
           base.state = hasCheck ? "Fact-checked" : "Written, not checked yet";
-          base.nextText = hasCheck ? "Read check.md and fix anything it flags, then save it to the repo or Folio." : "Read the draft, then run /check-docs in a new session.";
+          base.nextText = hasCheck ? "Read check.md and fix anything it flags, then save it to the repo or Notes." : "Read the draft, then run /check-docs in a new session.";
         }
       }
       items.push(base);

@@ -15,12 +15,12 @@ test('app settings: declared switches are cleaned; bad or repeated ones dropped'
 });
 
 test('app settings: defaults, then saved values; items match docs/app-settings.md', () => {
-  assert.deepEqual(A.valuesFor(null, 'prioritizer', DECL), { sprints: true });
-  const items = A.withValues([{ id: 'notes', updatedAt: 1, values: { x: true } }], 'prioritizer', { sprints: false, junk: { no: 1 }, Bad: true });
-  assert.deepEqual(items.map(i => i.id), ['notes', 'prioritizer']);
+  assert.deepEqual(A.valuesFor(null, 'tasks', DECL), { sprints: true });
+  const items = A.withValues([{ id: 'notes', updatedAt: 1, values: { x: true } }], 'tasks', { sprints: false, junk: { no: 1 }, Bad: true });
+  assert.deepEqual(items.map(i => i.id), ['notes', 'tasks']);
   const env = { ...A.blank(), items: items.map(i => ({ ...i, updatedAt: 1 })) };
-  assert.deepEqual(A.valuesFor(env, 'prioritizer', DECL), { sprints: false });
-  assert.deepEqual(A.valuesFor(env, 'prioritizer', []), { sprints: false }, 'saved values are kept without a declaration');
+  assert.deepEqual(A.valuesFor(env, 'tasks', DECL), { sprints: false });
+  assert.deepEqual(A.valuesFor(env, 'tasks', []), { sprints: false }, 'saved values are kept without a declaration');
   for (const i of env.items) assert.deepEqual(schemas.validate('app-setting', i), []);
   assert.deepEqual(schemas.validate('app', { manifestVersion: 1, id: 'x', name: 'X', version: '1.0.0', icon: 'i.svg', entry: 'index.html', settings: DECL }), []);
   assert.throws(() => A.withValues([], 'Not An Id', {}));
@@ -36,17 +36,17 @@ test('app settings: numbers, dates, text and lines are typed, clamped and kept',
   ]);
   assert.deepEqual(decl.map(d => d.default), [30, '', 'Hi', ['A', 'B']]);
   assert.equal(decl[0].min, 1);
-  const items = A.withValues([], 'receipts', { staleDays: 900, cycleStart: '2026-07-01', label: 'x', sections: ['Craft', 'Craft', 'Growth'], bad: NaN, nope: null });
+  const items = A.withValues([], 'people', { staleDays: 900, cycleStart: '2026-07-01', label: 'x', sections: ['Craft', 'Craft', 'Growth'], bad: NaN, nope: null });
   const env = { ...A.blank(), items: items.map(i => ({ ...i, updatedAt: 1 })) };
-  assert.deepEqual(A.valuesFor(env, 'receipts', decl), { staleDays: 365, cycleStart: '2026-07-01', label: 'x', sections: ['Craft', 'Growth'] });
+  assert.deepEqual(A.valuesFor(env, 'people', decl), { staleDays: 365, cycleStart: '2026-07-01', label: 'x', sections: ['Craft', 'Growth'] });
   for (const i of env.items) assert.deepEqual(schemas.validate('app-setting', i), []);
   assert.deepEqual(schemas.validate('app', { manifestVersion: 1, id: 'x', name: 'X', version: '1.0.0', icon: 'i.svg', entry: 'index.html', settings: [{ id: 'n', type: 'number', title: 'N', default: 3, min: 1 }, { id: 'l', type: 'lines', title: 'L', default: ['a'] }] }), []);
-  const wrong = { ...A.blank(), items: [{ id: 'receipts', updatedAt: 1, values: { staleDays: 'ten' } }] };
-  assert.equal(A.valuesFor(wrong, 'receipts', decl).staleDays, 30, 'a saved value of the wrong type keeps the default');
+  const wrong = { ...A.blank(), items: [{ id: 'people', updatedAt: 1, values: { staleDays: 'ten' } }] };
+  assert.equal(A.valuesFor(wrong, 'people', decl).staleDays, 30, 'a saved value of the wrong type keeps the default');
 });
 
 test('ws.apps.list(): carries each manifest\'s declared settings', () => {
-  const list = appsFromRegistry({ apps: [{ manifest: { id: 'prioritizer', name: 'Docket', settings: DECL } }] });
+  const list = appsFromRegistry({ apps: [{ manifest: { id: 'tasks', name: 'Tasks', settings: DECL } }] });
   assert.deepEqual(list[0].settings, DECL);
 });
 
@@ -63,8 +63,8 @@ function store() {
 
 test('ws.appSettings: an app reads defaults and saves its own values; only Settings changes another app\'s', async () => {
   const data = store();
-  const declOf = async (id) => (id === 'prioritizer' ? DECL : []);
-  const mine = _internals.appSettingsService(data, 'prioritizer', declOf);
+  const declOf = async (id) => (id === 'tasks' ? DECL : []);
+  const mine = _internals.appSettingsService(data, 'tasks', declOf);
   assert.deepEqual(await mine.get(), { sprints: true });
   assert.deepEqual(await mine.declared(), DECL);
   const heard = [];
@@ -75,8 +75,8 @@ test('ws.appSettings: an app reads defaults and saves its own values; only Setti
   await assert.rejects(mine.set({ x: true }, { app: 'notes' }), e => e.code === 'forbidden');
 
   const settings = _internals.appSettingsService(data, 'settings', declOf);
-  assert.deepEqual(await settings.get({ app: 'prioritizer' }), { sprints: false });
-  await settings.set({ sprints: true }, { app: 'prioritizer' });
+  assert.deepEqual(await settings.get({ app: 'tasks' }), { sprints: false });
+  await settings.set({ sprints: true }, { app: 'tasks' });
   assert.deepEqual(await mine.get(), { sprints: true });
 
   data.stored = { ...data.stored, version: 2 };

@@ -1,8 +1,8 @@
-/* Folio: a note ready to paste somewhere else, such as the company wiki, with its images inside it.
+/* Notes: a note ready to paste somewhere else, such as the company wiki, with its images inside it.
 
    Two forms of the same note, put on the clipboard together so one paste works in a visual editor or a
    Markdown box. Before either, main.js expands embeds (embeds.js expandEmbeds) so the wiki gets their text,
-   and wikiMarkdown() drops what only means something in Folio:
+   and wikiMarkdown() drops what only means something in Notes:
    - Markdown: no frontmatter; links to other notes, [[wikilinks]] and files in the folder as their plain
      text (they would lead nowhere in the wiki); every image from the folder embedded as a data: URL. Web
      links, links to headings in the note, ```mermaid blocks, callouts and footnotes stay as written.

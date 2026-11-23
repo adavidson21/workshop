@@ -1,7 +1,7 @@
 /* Settings: a short left nav grouped by task (pages.js has the list). Some nav items hold pages as tabs.
 
      Workshop          Status (Needs you first), Apps, This computer, Data & backups
-     You & your team   People & teams (tabs: People & groups, Team area paths; people.js), Products,
+     You & your team   Directory (tabs: People & groups, Team area paths; people.js), Products,
                        Focus hours, Writing voice (tabs: Voice, Audiences, Rules)
      Connections       Azure DevOps (tabs: Connections, Work items, Pull requests), opencode, Repos,
                        one item for any other connector
@@ -15,9 +15,9 @@
    whether it is set on this computer.
 
    Local mode (served by the agent): everything can be changed, including the data folder (dataDir).
-   Hosted mode (a paired site): read only, except People & teams (ws.people works in every mode) and repo
+   Hosted mode (a paired site): read only, except Directory (ws.people works in every mode) and repo
    mapping and PR sources (marked x-workshop-hosted). The agent refuses other config changes from other sites.
-   Browser mode (no agent): Status, Apps, People & teams and Data & backups.
+   Browser mode (no agent): Status, Apps, Directory and Data & backups.
 
    Nothing here needs Azure DevOps: without it the ADO pages say what to do in one line, and the rest works. */
 import { connect } from '../../../shared/workshop-sdk.js';
@@ -41,6 +41,7 @@ import { mountWriting } from './voice-page.js';
 import { mountGuide } from './guide.js';
 import { mountStorage } from './storage-page.js';
 import { mountReset } from './reset-page.js';
+import { currentId } from '../../../shared/app-folders.js';
 
 const $ = s => document.querySelector(s);
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -55,8 +56,8 @@ const ARROW = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke
 const FOLDER = '<svg class="path-ico" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M2.5 5.5a1.5 1.5 0 0 1 1.5-1.5h3.6l1.8 2h6.6a1.5 1.5 0 0 1 1.5 1.5v7a1.5 1.5 0 0 1-1.5 1.5H4a1.5 1.5 0 0 1-1.5-1.5z"/></svg>';
 // One line on what each connector is for. Unknown connectors show none.
 const ABOUT = {
-  ado: 'Your Azure DevOps work items and pull requests, for Docket, Slate and Runway. Optional: everything else works without it.',
-  opencode: 'Runs coding agents on this computer, for Loom. Optional.'
+  ado: 'Your Azure DevOps work items and pull requests, for Tasks, Builds and Roadmaps. Optional: everything else works without it.',
+  opencode: 'Runs coding agents on this computer, for Builds. Optional.'
 };
 const STATE_LABEL = { ready: 'Ready', starting: 'Starting', stopped: 'Stopped', error: 'Needs attention', disabled: 'Off' };
 
@@ -76,7 +77,7 @@ function toast(text, kind) { return ws.toast(text, { kind }); }
 
 /* ---------- the nav and its pages ----------
    A page is a panel in #content (#page-<id>). Pages live in nav panels (.navpanel), one per nav item in #nav,
-   under its group's label: most nav items hold one page, and People & teams, Writing voice and Azure DevOps
+   under its group's label: most nav items hold one page, and Directory, Writing voice and Azure DevOps
    hold several as tabs (pages.js NAV). Pages are made as the cards that go on them are made, so a page with
    nothing on it (no ADO connector, browser mode) never shows, and a tab row shows only once a nav item has two
    pages. The last page opened is remembered in this browser. On a narrow window the nav is a select. */
@@ -535,7 +536,7 @@ async function agentCall(method, pathname, body) {
   if (!r.ok) throw new Error(out.error || `Workshop answered ${r.status}.`);
   return out;
 }
-const browserOff = () => { try { const v = JSON.parse(localStorage.getItem(OFF_KEY) || '[]'); return new Set(Array.isArray(v) ? v : []); } catch (e) { return new Set(); } };
+const browserOff = () => { try { const v = JSON.parse(localStorage.getItem(OFF_KEY) || '[]'); return new Set(Array.isArray(v) ? v.map(currentId) : []); } catch (e) { return new Set(); } };
 const browserAreasOff = () => { try { return cleanAreas(JSON.parse(localStorage.getItem(AREAS_KEY) || '[]')); } catch (e) { return new Set(); } };
 // The browser-mode view of the switches, in the agent's shape (agent/lib/apps.mjs appSwitches).
 function browserView(manifests) {
@@ -600,7 +601,7 @@ async function appsCard() {
     return '';
   };
   // A grid of app cards (Settings UX v1): the app's icon in its color, its name, one line on what it is for, its
-  // switch, and its own options (like Docket's Use sprints) under Options.
+  // switch, and its own options (like Tasks' Use sprints) under Options.
   box.classList.add('app-grid');
   const short = d => { const t = String(d || '').split(/(?<=[.:])\s/)[0].replace(/[.:]$/, ''); return t.length > 90 ? t.slice(0, 88).replace(/\s+\S*$/, '') + '...' : t; };
   // Areas (docs/apps.md, Areas): one switch per kind of work, above the apps. The area wins: its apps stay off
@@ -1276,7 +1277,7 @@ function statusCard() {
 /* ---------- repos (repos.js) ----------
    The Repos page: the repos in your workspace (opencode's state), the Azure DevOps project each one uses (ADO
    `paths`) and adding one (clone, map, watch, then draft its guide). Other folders fold away at the bottom.
-   Where Docket looks for pull requests (ADO `prSources`) is a card on the Pull requests page, drawn from the
+   Where Tasks looks for pull requests (ADO `prSources`) is a card on the Pull requests page, drawn from the
    same state. Both ADO fields are marked x-workshop-page and x-workshop-hosted, so they stay out of the
    generated forms and can be saved from a paired site too. With no Azure DevOps (off, not installed or no
    connection) the page lists and adds repos with no ADO line. */
@@ -1286,9 +1287,9 @@ async function reposTab(list) {
   const ocInfo = list.find(c => c.id === 'opencode');
   if (!adoInfo && !ocInfo) return;
   const st = { ado: null, oc: null, ocCfg: null, ocError: '', rows: [], editing: null, editingMap: null, adding: false, added: null, busy: false, hiding: false };
-  const main = card('Workspace repos', '', 'repos', 20, adoIsOn() ? 'The repos in your workspace and, once Azure DevOps is connected, the project each one uses and whether Docket shows its pull requests.' : 'The repos in your workspace.');
+  const main = card('Workspace repos', '', 'repos', 20, adoIsOn() ? 'The repos in your workspace and, once Azure DevOps is connected, the project each one uses and whether Tasks shows its pull requests.' : 'The repos in your workspace.');
   const body = document.createElement('div'); main.appendChild(body);
-  const prSec = adoInfo ? card('Where Docket looks', '', 'pull-requests', 10, 'The projects Docket checks for pull requests waiting on you.') : null;
+  const prSec = adoInfo ? card('Where Tasks looks', '', 'pull-requests', 10, 'The projects Tasks checks for pull requests waiting on you.') : null;
   if (prSec) prSec.dataset.needsOn = 'ado';
   const prBody = prSec ? prSec.appendChild(document.createElement('div')) : null;
   const mapSec = adoInfo ? card('', '', 'repos', 60) : null;
@@ -1341,7 +1342,7 @@ async function reposTab(list) {
     const cats = ((st.oc && st.oc.repoCategories) || []).filter(c => !R.isHidden(list, c));
     const li = list.map(h => `<li class="person"><span class="mono">${esc(h)}</span><button type="button" class="btn ghost" data-unhide="${esc(h)}"${st.hiding ? ' disabled' : ''}>Show</button></li>`).join('');
     return `<details class="cfg-section repo-hidden"${st.hiddenOpen ? ' open' : ''}><summary>Hidden folders${list.length ? ` (${list.length})` : ''}</summary>
-      <p class="sub">Left out of Loom and this page, like a folder of tools you are building. Nothing is deleted. A category hides every repo in it.</p>
+      <p class="sub">Left out of Builds and this page, like a folder of tools you are building. Nothing is deleted. A category hides every repo in it.</p>
       ${list.length ? `<ul class="people">${li}</ul>` : '<p class="sub">None.</p>'}
       <form class="cfg" data-hide-add><div class="from-url-row"><input name="folder" class="cfg-input mono" list="hideCats" maxlength="300" placeholder="Tools or Tools/workshop" aria-label="Folder to hide" spellcheck="false" autocomplete="off" required>
         <datalist id="hideCats">${cats.map(c => `<option value="${esc(c)}">`).join('')}</datalist><button class="btn"${st.hiding ? ' disabled' : ''}>Hide</button></div><span class="msg" aria-live="polite"></span></form></details>`;
@@ -1376,7 +1377,7 @@ async function reposTab(list) {
       <div class="cfg-row"><label for="rConn">Connection</label><select id="rConn" name="connection" class="cfg-input">${connOptions(a.connection, 'None')}</select></div>
       <div class="cfg-row"><label for="rProj">Project</label><input id="rProj" name="project" class="cfg-input" maxlength="200" value="${esc(a.project)}" placeholder="${esc(projectOf(a.connection))}"></div>
       <div class="cfg-row"><label for="rName">Repo name in Azure DevOps</label><input id="rName" name="repo" class="cfg-input mono" maxlength="200" value="${esc(a.repo || r.name)}" required></div>
-      <div class="cfg-row cfg-check"><input id="rWatch" name="watch" type="checkbox"${r.watch !== 'no' || !r.ado ? ' checked' : ''}${whole ? ' disabled' : ''}><label for="rWatch">Show its pull requests in Docket</label>
+      <div class="cfg-row cfg-check"><input id="rWatch" name="watch" type="checkbox"${r.watch !== 'no' || !r.ado ? ' checked' : ''}${whole ? ' disabled' : ''}><label for="rWatch">Show its pull requests in Tasks</label>
         ${whole ? '<p class="cfg-help">Every repo in this project is shown. Change that on the Pull requests page.</p>' : ''}</div>
       <div class="acts"><span class="msg" aria-live="polite"></span><button type="button" class="btn" data-repo-cancel>Cancel</button><button class="btn primary">Save</button></div></form>`;
   }
@@ -1390,7 +1391,7 @@ async function reposTab(list) {
         <p class="cfg-help">The folder in your workspace it goes in.</p></div>
       <div class="cfg-row" data-newcat hidden><label for="raNew">New category folder</label><input id="raNew" name="newcat" class="cfg-input mono" maxlength="300" placeholder="Platform or Platform/Lighthouse" spellcheck="false"><p class="cfg-help">Use / for a folder inside a category.</p></div>
       <div class="cfg-row"><label for="raAbout">What it is, in one line</label><input id="raAbout" name="about" class="cfg-input" maxlength="200" placeholder="The web app customers use"><p class="cfg-help">Optional. Helps agents pick the right repo for a task.</p></div>
-      ${canMap() ? '<div class="cfg-row cfg-check"><input id="raWatch" name="watch" type="checkbox" checked><label for="raWatch">Show its pull requests in Docket</label><p class="cfg-help">For Azure DevOps repos. The connection and project come from the URL.</p></div>' : ''}
+      ${canMap() ? '<div class="cfg-row cfg-check"><input id="raWatch" name="watch" type="checkbox" checked><label for="raWatch">Show its pull requests in Tasks</label><p class="cfg-help">For Azure DevOps repos. The connection and project come from the URL.</p></div>' : ''}
       <div class="acts"><span class="msg" aria-live="polite"></span><button type="button" class="btn" data-add-cancel>Cancel</button><button class="btn primary"${st.busy ? ' disabled' : ''}>${st.busy ? 'Cloning...' : 'Clone into workspace'}</button></div></form>`;
   }
 
@@ -1430,7 +1431,7 @@ async function reposTab(list) {
         <select class="cfg-input src-scope" data-src-scope="${i}" aria-label="Which repos in ${esc(s.project)}"><option value="all"${all ? ' selected' : ''}>Every repo</option><option value="some"${all ? '' : ' selected'}>Only repos set to show</option></select>
         <button type="button" class="btn ghost" data-src-remove="${i}">Remove</button></li>`;
     }).join('');
-    prBody.innerHTML = (srcs.length ? `<ul class="people">${li}</ul>` : '<p class="sub">None yet, so Docket shows no pull requests. Set a repo to show its PRs above, or add a whole project.</p>')
+    prBody.innerHTML = (srcs.length ? `<ul class="people">${li}</ul>` : '<p class="sub">None yet, so Tasks shows no pull requests. Set a repo to show its PRs above, or add a whole project.</p>')
       + `<form class="cfg src-add" data-src-add><div class="from-url-row"><select name="connection" class="cfg-input" aria-label="Connection">${connOptions(cfg().defaultConnection || (conns()[0] && conns()[0].name))}</select>
         <input name="project" class="cfg-input" maxlength="200" placeholder="Project" aria-label="Project" required><button class="btn">Add whole project</button></div><span class="msg" aria-live="polite"></span></form>`;
   }
@@ -1476,7 +1477,7 @@ async function reposTab(list) {
     if (hit && hit.connection) {
       const path = R.folderPath(st.oc && st.oc.workspace, res.folder);
       const ok = await saveAdo(R.saveRepo(cfg(), { path, connection: hit.connection, project: hit.project, repo: hit.repo, watch: fd.get('watch') === 'on' }), `${res.folder} added`);
-      notes.push(ok ? `It uses ${hit.connection} · ${hit.project}${fd.get('watch') === 'on' ? ', and Docket shows its pull requests' : ''}.` : 'Its Azure DevOps project could not be saved; use Set up on its row.');
+      notes.push(ok ? `It uses ${hit.connection} · ${hit.project}${fd.get('watch') === 'on' ? ', and Tasks shows its pull requests' : ''}.` : 'Its Azure DevOps project could not be saved; use Set up on its row.');
     } else if (hit) notes.push(`Its server (${hit.base}) is not one of your Azure DevOps connections, so it is not set up for ADO.`);
     else toast(`${res.folder} added`, 'success');
     st.added = { folder: res.folder, notes };
@@ -1502,7 +1503,7 @@ async function reposTab(list) {
     if (t.matches('[data-map-all]')) { t.disabled = true; if (await saveAdo(R.mapAll(cfg(), st.rows), 'Repos saved')) paint(); else t.disabled = false; return; }
     if (t.matches('[data-guide]')) {
       t.disabled = true;
-      try { await ws.connectors.call('opencode', 'repo.guide', { repo: t.dataset.guide }, { confirm: true }); toast(`Drafting the guide for ${t.dataset.guide}. Follow it in Loom.`, 'success'); st.added = null; paint(); }
+      try { await ws.connectors.call('opencode', 'repo.guide', { repo: t.dataset.guide }, { confirm: true }); toast(`Drafting the guide for ${t.dataset.guide}. Follow it in Builds.`, 'success'); st.added = null; paint(); }
       catch (err) { t.disabled = false; toast(errText(err), 'error'); }
     }
   });
@@ -1623,7 +1624,7 @@ function dataCard() {
 }
 
 /* ---------- open Workshop (local only) ----------
-   The agent serves only this page. Workshop, its apps and Dispatch and Docket come from the allowed sites,
+   The agent serves only this page. Workshop, its apps and Dispatch and Tasks come from the allowed sites,
    which pair with this computer from their Connect button. */
 // Work mode: the pinned copy's build.json (served by the agent), or null when there is none.
 async function pinnedBuild() {
@@ -1634,11 +1635,11 @@ async function workCard() {
   if (!b) { card('Open Workshop', 'Work mode is on, but there is no usable pinned copy yet. Run <code>workshop pin</code> on this computer, then reload. Or turn work mode off in <a href="#" class="lnk" data-goto-page="computer">This computer</a>.'); return; }
   const one = (name, x) => x ? `${esc(name)} ${esc(x.ref || x.version || 'unknown version')}${x.commit ? ` <code>${esc(String(x.commit).slice(0, 12))}</code>` : ''}` : `${esc(name)} not included`;
   const sec = card('Open Workshop', '', 'overview', 50, 'Work mode is on: Workshop runs from the pinned copy on this computer, and no site can pair. The code only changes when you run workshop update. Turn apps on and off under Apps.');
-  const parts = [one('Workshop', b.workshop), one('Docket', b.docket), one('Runway', b.runway), one('Rapport', b.receipts)];
+  const parts = [one('Workshop', b.workshop), one('Tasks', b.docket), one('Roadmaps', b.roadmaps), one('People', b.receipts)];
   sec.insertAdjacentHTML('beforeend', `<p class="sub">${parts.join(' · ')} · built ${esc(new Date(b.builtAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short', hour12: true }))}</p><ul class="sites"><li><a class="lnk" href="/">Open Workshop</a></li></ul>`);
 }
 
-// One button to Workshop's own site. Docket and Dispatch open inside Workshop, so their sites are not listed
+// One button to Workshop's own site. Tasks and Dispatch open inside Workshop, so their sites are not listed
 // here; they stay under Allowed sites (This computer) for anyone who opens them on their own.
 function sitesCard(cfg) {
   const sites = cfg.allowedOrigins || [];
@@ -1699,7 +1700,7 @@ function healthCard() {
   run();
 }
 
-/* ---------- People & teams (people.js) ---------- */
+/* ---------- Directory (people.js) ---------- */
 async function peoplePages() {
   try {
     people = await mountPeople({ ws, toast, peopleEl: page('people'), teamEl: page('team') });
@@ -1789,18 +1790,18 @@ async function start() {
   if (!current) selectPage('overview');
 }
 
-// Loom's Hide on Getting set up and New lines (dispatch.view hideSetup, apps/slate/js/dispatch/local.js).
+// Builds' Hide on Getting set up and New lines (dispatch.view hideSetup, apps/builds/js/runs/local.js).
 function showLoomSetup() {
   try {
-    const v = JSON.parse(localStorage.getItem('dispatch.view') || 'null');
-    if (v && v.hideSetup) { v.hideSetup = false; localStorage.setItem('dispatch.view', JSON.stringify(v)); }
+    const v = JSON.parse(localStorage.getItem('builds.runs.view') || 'null');
+    if (v && v.hideSetup) { v.hideSetup = false; localStorage.setItem('builds.runs.view', JSON.stringify(v)); }
   } catch (e) { /* blocked storage: nothing was hidden here */ }
 }
 
-// The quiet ? hints retire after a few uses (shared/theme.js); this brings them back, with Loom's hidden setup.
+// The quiet ? hints retire after a few uses (shared/theme.js); this brings them back, with Builds' hidden setup.
 function tipsCard() {
   if (!globalThis.WorkshopTheme?.hints) return;
-  const sec = card('Tips', 'The ? hints go away once you have opened each one a few times. This also brings back Loom\'s hidden setup steps.', pages.has('computer') ? 'computer' : 'overview', 80);
+  const sec = card('Tips', 'The ? hints go away once you have opened each one a few times. This also brings back Builds\' hidden setup steps.', pages.has('computer') ? 'computer' : 'overview', 80);
   sec.insertAdjacentHTML('beforeend', '<div class="acts left"><button type="button" class="btn" data-hints-reset>Show tips again</button></div>');
   sec.addEventListener('click', e => { if (e.target.closest('[data-hints-reset]')) { globalThis.WorkshopTheme?.hints.reset(); showLoomSetup(); toast('Tips and setup steps are back.'); } });
 }

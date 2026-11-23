@@ -145,7 +145,7 @@ export function fieldText(v) {
 const MAX_LINKS = 50;
 
 /**
- * More of the item for Slate's panel: assignee, priority, severity, story points, system info, comment count,
+ * More of the item for Builds' panel: assignee, priority, severity, story points, system info, comment count,
  * links (work items with their title, type and state; hyperlinks; attachments) and any fields asked for by
  * reference name (`fields`, as plain text in `custom`). The related items cost one batch call.
  */

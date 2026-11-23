@@ -6,8 +6,8 @@ with a fake clock.
   python tests/transitions-e2e.py
 
 Browser mode on a static site (127.0.0.1:8813). Monday 9 November 2026: focus 09:00 to 11:00 and 14:00 to 16:30,
-lunch 12:00 to 13:00, and Docket's day card says the day runs 09:00 to 17:00 (written here through the SDK, as
-Docket would, with Docket switched off so it stays as written). Checks the heads-up lines (two tabs, dismiss, reload),
+lunch 12:00 to 13:00, and Tasks' day card says the day runs 09:00 to 17:00 (written here through the SDK, as
+Tasks would, with Tasks switched off so it stays as written). Checks the heads-up lines (two tabs, dismiss, reload),
 the Day's done cover (Just a minute, quick capture under it, Wrap up), the morning release, Keep working tonight,
 and the Settings switch. CHROME_PATH runs a Chrome already on the machine instead of Playwright's Chromium.
 Exit 1 if any check fails.
@@ -102,16 +102,16 @@ def main():
         pg.clock.install(time=when(MON, 10, 49))
         pg.clock.pause_at(when(MON, 10, 50))
         pg.goto(HUB + '/manifest.webmanifest')
-        pg.evaluate("() => localStorage.setItem('workshop.appsOff', JSON.stringify(['prioritizer']))")
+        pg.evaluate("() => localStorage.setItem('workshop.appsOff', JSON.stringify(['tasks']))")
         pg.goto(HUB + '/'); pg.clock.run_for(2500); pg.wait_for_timeout(800)
 
-        # Focus hours on, with a focus block that does not run into lunch, and Docket's day card with the day's end.
+        # Focus hours on, with a focus block that does not run into lunch, and Tasks' day card with the day's end.
         pg.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const F = await import('/shared/focus.js');
           const ws = await connect({app: 'settings'}); const meta = F.defaults();
           meta.week.mon = [{start: '09:00', end: '11:00'}, {start: '14:00', end: '16:30'}];
           meta.week.tue = [{start: '09:00', end: '11:00'}];
           await ws.data.put('focus', {schema: 'settings.focus', version: 1, rev: 0, items: [], deleted: {}, meta}); }""")
-        summary_card(pg, 'prioritizer', {'id': 'day', 'kind': 'day', 'days': {MON: day_entry(), TUE: day_entry(), WED: day_entry()}})
+        summary_card(pg, 'tasks', {'id': 'day', 'kind': 'day', 'days': {MON: day_entry(), TUE: day_entry(), WED: day_entry()}})
         pg.reload(); pg.clock.run_for(2500); pg.wait_for_timeout(1000)
         check('focus hours on: the bar says Focus until 11:00', wait_bar(pg, 'Focus until 11:00'))
         check('no heads-up line 10 minutes before', pg.locator('#wfocus .wf-heads').count() == 0)
@@ -170,7 +170,7 @@ def main():
         pg.click('.done-cover [data-fx=wrap-up]'); pg.wait_for_timeout(600)
         goes = pg.evaluate('window.__goes')
         if os.environ.get('DEBUG'): print('WRAP:', goes, pg.evaluate('location.hash'))
-        check('Wrap up opens Docket\'s Wrap up', '#/prioritizer/shutdown' in goes and pg.locator('.done-cover').count() == 0)
+        check('Wrap up opens Tasks\' Wrap up', '#/tasks/shutdown' in goes and pg.locator('.done-cover').count() == 0)
         pg.evaluate("location.hash = '#/home'"); pg.wait_for_timeout(300)
         pg.click('#wfocus .wf-btn'); pg.wait_for_timeout(200)
         pg.click('#wfocus [data-fx=peek]'); pg.wait_for_timeout(800)
@@ -228,7 +228,7 @@ def main():
         hist = sf.inner_text('.focus-history') if sf.locator('.focus-history').count() else ''
         check('History shows the evening worked late', 'Worked late' in hist)
         check('Settings has "After my day ends", on', sf.locator('[data-after]').count() == 1 and sf.locator('[data-after]').is_checked())
-        check('with a hint that the end comes from Docket\'s Day settings', "Docket's Day settings" in sf.inner_text('.fh-form'))
+        check('with a hint that the end comes from Tasks\' Day settings', "Tasks' Day settings" in sf.inner_text('.fh-form'))
         sf.click('label[for=fhAfter]'); pg.wait_for_timeout(300)
         sf.click('[data-save]'); pg.wait_for_timeout(1200); pg.clock.run_for(1000)
         env = get(pg, 'settings', 'focus')

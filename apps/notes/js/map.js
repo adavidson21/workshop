@@ -1,4 +1,4 @@
-/* Folio: a map of the open note's links. The note, the notes it links to, the notes that link to it, and the
+/* Notes: a map of the open note's links. The note, the notes it links to, the notes that link to it, and the
    links among those, as a Mermaid flowchart (diagrams.js draws it). Pure, so Node tests run it.
    Node n<k> is nodes[k]; diagrams draw node ids as "...-flowchart-n<k>-<k>", which nodeAt() reads back. */
 

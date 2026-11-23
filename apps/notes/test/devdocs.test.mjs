@@ -1,4 +1,4 @@
-// Folio: developer docs. Syntax colors (js/highlight.js), callouts, footnotes, code facts and search filters,
+// Notes: developer docs. Syntax colors (js/highlight.js), callouts, footnotes, code facts and search filters,
 // the new starter templates, and how they export.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

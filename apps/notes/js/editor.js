@@ -1,4 +1,4 @@
-/* Folio: the note editor. CodeMirror 6 (vendor/codemirror.js), wrapped so main.js talks to it the way it talks
+/* Notes: the note editor. CodeMirror 6 (vendor/codemirror.js), wrapped so main.js talks to it the way it talks
    to a <textarea>: value, selectionStart / selectionEnd, setSelectionRange, setRangeText, focus, readOnly,
    scrollTop, addEventListener and dispatchEvent. If the bundle can't load, the textarea itself is the editor.
 
@@ -24,7 +24,7 @@ const HANDLED = ['keydown', 'paste', 'drop', 'dragover', 'focus', 'blur'];
 
 export async function createEditor(textarea) {
   try { return mount(textarea, await import('../vendor/codemirror.js')); }
-  catch (e) { console.error('Folio: the editor could not start, so notes open in a plain text box.', e); return plain(textarea); }
+  catch (e) { console.error('Notes: the editor could not start, so notes open in a plain text box.', e); return plain(textarea); }
 }
 
 function mount(textarea, cm) {
@@ -77,7 +77,7 @@ function mount(textarea, cm) {
     markdown({ base: markdownLanguage, codeLanguages, addKeymap: false }),
     syntaxHighlighting(style),
     search({ top: true }),
-    // Folding (Folio 4.8.0): a heading folds its section, a list or quote its lines. An arrow in a slim gutter
+    // Folding (Notes 4.8.0): a heading folds its section, a list or quote its lines. An arrow in a slim gutter
     // (shown on hover), Ctrl+Shift+[ and ] on the cursor's section, Ctrl+Alt+[ and ] for all. For this visit only.
     codeFolding({ placeholderDOM: (view, onclick) => {
       const b = document.createElement('button');
@@ -95,7 +95,7 @@ function mount(textarea, cm) {
     } }),
     keymap.of([...markdownKeymap, ...searchKeymap, ...historyKeymap, ...foldKeymap, indentWithTab, ...defaultKeymap]),
     editable.of([]),
-    EditorView.editorAttributes.of({ class: 'editor cm-folio' }),
+    EditorView.editorAttributes.of({ class: 'editor cm-notes' }),
     liveSlotExt,
     EditorView.contentAttributes.of({ spellcheck: 'true', autocapitalize: 'sentences', autocorrect: 'on', 'aria-label': 'Note text (Markdown)', 'aria-multiline': 'true' }),
     EditorView.updateListener.of((u) => {

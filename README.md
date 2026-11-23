@@ -9,12 +9,12 @@ One page for an engineering manager's whole day: what to work on next, new reque
 | App | What it's for | Needs |
 | --- | --- | --- |
 | **Needs you** | A panel from the top bar on every app: what waits on you across apps, what's coming up, Weekly status and the **Get started** checklist | Nothing |
-| **Docket** | Decide what to work on next; plan your day | Nothing (Azure DevOps or GitHub adds your work items and PRs) |
+| **Tasks** | Decide what to work on next; plan your day | Nothing (Azure DevOps or GitHub adds your work items and PRs) |
 | **Chat** | opencode with a better screen: any agent and model, /commands, @files, !shell, tool calls and diffs, permission prompts, every session in the workspace. Its Hub agent asks Tandem or captures a task, receipt or note | opencode and an AI provider (captures work without them) |
-| **Loom** | Every piece of work as a card, from request to resolved, with Tandem's coding agents on each card; one Inbox for what needs you, PR reviews included | Nothing for the board (Azure DevOps adds your backlog; Azure DevOps or GitHub adds PRs waiting on you; the agents need opencode and an AI provider) |
-| **Runway** | Team and project roadmaps | Nothing (Azure DevOps can import Epics and Features) |
-| **Rapport** | 1:1 prep, notes, goals and "receipts" for reviews | Nothing |
-| **Folio** | Your notebook of Markdown files | Nothing |
+| **Builds** | Every piece of work as a card, from request to resolved, with Tandem's coding agents on each card; one Inbox for what needs you, PR reviews included | Nothing for the board (Azure DevOps adds your backlog; Azure DevOps or GitHub adds PRs waiting on you; the agents need opencode and an AI provider) |
+| **Roadmaps** | Team and project roadmaps | Nothing (Azure DevOps can import Epics and Features) |
+| **People** | 1:1 prep, notes, goals and "receipts" for reviews | Nothing |
+| **Notes** | Your notebook of Markdown files | Nothing |
 | **Bench** | Is Tandem helping? Its eval results: the lift over a plain prompt, history and compare | Tandem (eng-agents) and opencode on this computer |
 | **Settings** | People, teams, Azure DevOps, GitHub, Cloudflare, Google Play, repos, apps on or off | Nothing (Cloudflare and Google Play: your own computer, a token or key in its secret store; Tandem proposes changes and releases, you approve them) |
 
@@ -81,23 +81,23 @@ If your company blocks piping a script into PowerShell, use the by-hand steps in
 The first time, the **Needs you** panel opens with a **Get started** checklist (it opens from the top bar any time after). Each step ticks itself off when it's done, tells you exactly what to do, and can be skipped:
 
 1. **Connect Workshop:** pick Just this browser (nothing to install), Work computer or Personal computer.
-2. **Add yourself** in Settings, People.
+2. **Add yourself** in Settings, Directory.
 3. **Back up your data:** company OneDrive at work, or any folder your computer backs up.
 4. **Connect Azure DevOps** (optional): create a personal access token with **Work Items (Read & write)** and **Code (Read)**, then click **Add token** on its connection in Settings (or run `workshop pat`). It goes into this computer's secret store.
 5. **Pick your apps:** turn off what you won't use.
 6. **Add your team** and its area paths (skipped without Azure DevOps).
-7. **Add your first task** in Docket and **log your first receipt** in Rapport.
+7. **Add your first task** in Tasks and **log your first receipt** in People.
 
 When the checklist is done, you're set up. **Hide** puts it away; **Get started** in the panel's More menu brings it back.
 
 ## Your day in Workshop
 
-- **Morning:** Workshop opens on **Docket's Today**. **Needs you** in the top bar (its count is on the button) lists everything waiting on you in the other apps.
+- **Morning:** Workshop opens on **Tasks' Today**. **Needs you** in the top bar (its count is on the button) lists everything waiting on you in the other apps.
 - **Any time:** press `Ctrl+.` (`Cmd+.` on a Mac) to capture from anywhere: `t` task, `w` waiting on someone, `r` receipt, `n` note, `p` roadmap idea, `?` ask Tandem.
-- **New requests:** **Slate**.
+- **New requests:** **Builds**.
 - **Building:** **Dispatch**.
-- **1:1s:** **Rapport** preps you with what changed since last time.
-- **End of day:** **Wrap up** on Docket's Today. On Fridays, **Weekly status** in Needs you drafts your update.
+- **1:1s:** **People** preps you with what changed since last time.
+- **End of day:** **Wrap up** on Tasks' Today. On Fridays, **Weekly status** in Needs you drafts your update.
 
 Shortcuts: `Alt+1`, `Alt+2` and so on switch apps, in the order they are on the rail (drag them, or `Alt+Shift+Up` and `Down`, to reorder). `Ctrl+K` (`Cmd+K`) opens the command palette.
 

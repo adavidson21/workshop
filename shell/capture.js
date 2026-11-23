@@ -1,7 +1,7 @@
 /* Workshop shell: the capture bar. One place to capture a task, waiting-on, receipt, note or roadmap idea, or to ask
    Tandem, from any app: the Capture button in the top bar, or Ctrl+. (Cmd+. on a Mac). It is the one quick capture
    (shared/capture-box.js, its rules and Recent list), saved as the `home` app (Needs you) to its `handoffs`
-   collection, so Docket, Rapport, Folio, Runway and Slate add it when they next load.
+   collection, so Tasks, People, Notes, Roadmaps and Builds add it when they next load.
 
    The SDK is connected as `home` the first time the bar opens, so pages that never capture pay nothing for it. */
 import { connect } from '../shared/workshop-sdk.js';

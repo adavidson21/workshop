@@ -3,12 +3,12 @@
 
    Waiting for the folder: in browser mode Chrome may have to be asked again before Workshop can use the
    data folder (a bar in the shell has the Allow button). Reads then fail with code `unavailable`. Like
-   Docket, Home then shows a message instead of an empty panel, saves nothing, and loads again once
+   Tasks, Home then shows a message instead of an empty panel, saves nothing, and loads again once
    `online` turns true. */
 import { agentCounts, approvalRows, blockingRows, boardFromSummary, dateStr, inboxRows, upcomingRows, weekRows } from './view.js';
 import { readCards } from '../../../shared/summary.js';
 
-const P = { app: 'prioritizer' };
+const P = { app: 'tasks' };
 const OC = 'opencode';
 
 export function createHome(ws, { onChange = () => {}, now = () => new Date() } = {}) {
@@ -22,12 +22,12 @@ export function createHome(ws, { onChange = () => {}, now = () => new Date() } =
     return true;
   }
 
-  /* How many tasks Docket has (Get started's "a Docket task" step), from Docket's summary (docs/summaries.md): its
+  /* How many tasks Tasks has (Get started's "a Tasks task" step), from Tasks' summary (docs/summaries.md): its
      `board` card for today. No summary yet is an empty board; one with no entry for today is unknown (null). */
   async function loadBoard() {
     try {
       const env = await ws.data.get('summary', P);
-      const cards = readCards(env, 'prioritizer');
+      const cards = readCards(env, 'tasks');
       const board = cards && boardFromSummary(cards.get('board'), dateStr(now()));
       v.board = !env ? { total: 0 } : board ? { total: board.total } : null;
     } catch (e) { waitFor(e); v.board = null; }
@@ -52,15 +52,15 @@ export function createHome(ws, { onChange = () => {}, now = () => new Date() } =
   }
 
   /* Needs you and the week, from every app's summary (docs/summaries.md): `needs` and `done-week` list cards,
-     Docket's included. Agents waiting (the opencode connector) join the inbox here. */
+     Tasks' included. Agents waiting (the opencode connector) join the inbox here. */
   async function loadInbox() {
     try {
       if (!v.apps.length) v.apps = (await ws.apps.list().catch(() => [])).filter(a => a.id !== 'home');
       const sums = await Promise.all(v.apps.map(a => ws.data.get('summary', { app: a.id }).then(env => readCards(env, a.id)).catch(() => null)));
       const byApp = v.apps.map((a, i) => ({ app: a.id, name: a.name, cards: sums[i] }));
       v.inbox = inboxRows(byApp);
-      const docket = byApp.find(a => a.app === 'prioritizer');
-      v.blocking = blockingRows(docket && docket.cards);
+      const tasksApp = byApp.find(a => a.app === 'tasks');
+      v.blocking = blockingRows(tasksApp && tasksApp.cards);
       v.week = weekRows(byApp);
       v.upcoming = upcomingRows(byApp, dateStr(now()));
     } catch (e) { waitFor(e); }

@@ -1,8 +1,8 @@
-/* Workshop: the service worker every app with a site of its own uses (Docket, Runway, Rapport), so the caching
+/* Workshop: the service worker every app with a site of its own uses (Tasks, Roadmaps, People), so the caching
    rules live in one place. The app's own sw.js is two lines:
 
      importScripts('./shared/app-sw.js');
-     appServiceWorker({ name: 'runway', version: '1.8.0' });
+     appServiceWorker({ name: 'roadmaps', version: '1.8.0' });
 
    It lets the app install as its own window and open offline. What it caches: the page, the manifest, app.json,
    the icon and every file app.json lists, so adding a file to app.json is all it takes. What it never touches:

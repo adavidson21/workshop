@@ -1,4 +1,4 @@
-/* Folio: bookmarks, the notes you pinned under Quick Notes. Folio's own collection `bookmarks`
+/* Notes: bookmarks, the notes you pinned under Quick Notes. Notes' own collection `bookmarks`
    (notes.bookmarks v1): items {id: <note path>, at}, in the order they were added. Renames and moves carry a
    bookmark along; trashing a note drops it.
 

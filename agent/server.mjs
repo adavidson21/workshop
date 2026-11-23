@@ -22,8 +22,8 @@ import { Store } from './lib/store.mjs';
 import { Files } from './lib/files.mjs';
 import { Tracker, FolderWatch } from './lib/watch.mjs';
 import { rawApiSegments, decodeSegment, appId, collectionName, folderName, filePath, DataRoot } from './lib/datapath.mjs';
-import { defaultDataDir, dataDirProblem, prepareDataDir, removeDataTmpFiles, moveOldData, looseDataDir, cleanScratch, SCRATCH_DAYS, renameAppFolders } from './lib/datadir.mjs';
-import { APP_FOLDERS } from '../shared/app-folders.js';
+import { defaultDataDir, dataDirProblem, prepareDataDir, removeDataTmpFiles, moveOldData, looseDataDir, cleanScratch, SCRATCH_DAYS, moveOldFolders, renameSavedIds } from './lib/datadir.mjs';
+import { OLD_FOLDERS } from '../shared/app-folders.js';
 import { writeReadme, makeReadableCopy } from './lib/readable.mjs';
 import { storageReport, sizeOf } from './lib/storage.mjs';
 import { ResetTickets, expectedPhrase, resetTargets, listFiles, writeZip, readZip, backupPath, readmeText, deleteTargets } from './lib/reset.mjs';
@@ -111,10 +111,12 @@ export async function createAgent(o) {
   // cannot be used the agent stops with a message rather than fall back to another folder.
   const dataDirOverride = o.dataDir !== undefined;
   const dataDirSetting = dataDirOverride ? o.dataDir : (config.dataDir ?? defaultDataDir());
-  // App folders use the names people see (shared/app-folders.js); old names are renamed once, here, first.
+  // App folders are the app ids (shared/app-folders.js); old folders are renamed, and old ids in what they hold
+  // rewritten, here, first.
   const checked = prepareDataDir(dataDirSetting, home);
-  const { folders } = renameAppFolders(checked.dir, o.appFolders ?? APP_FOLDERS, log.for('data'));
+  const { folders } = moveOldFolders(checked.dir, o.oldFolders ?? OLD_FOLDERS, log.for('data'));
   const dataRoot = new DataRoot(checked.dir, folders);
+  renameSavedIds(checked.dir, id => dataRoot.folderOf(id), log.for('data'));
   const dataDir = path.resolve(dataRoot.dir);
   for (const rel of removeDataTmpFiles(dataRoot)) log.warn(`Removed a leftover temp file from an interrupted write: ${rel} in the data folder.`);
   const loose = looseDataDir(dataDir);

@@ -350,7 +350,7 @@ export function createFocusShell(opts) {
       case 'not-today': return updateDay((it, g, d) => F.notToday(it, d));
       case 'cover-minute': return justAMinute();
       case 'done-minute': return doneMinute();
-      case 'wrap-up': hideCover(); return opts.go('prioritizer', 'shutdown');
+      case 'wrap-up': hideCover(); return opts.go('tasks', 'shutdown');
       case 'keep-working': hideCover(); return updateDay((it, g, d) => F.keepWorking(it, d));
       case 'start-day': return updateDay((it, g, d) => F.startDay(it, d));
       case 'heads-dismiss': { const hu = F.headsUp(f, now()); if (hu) seen.dismiss(hu.key); return render(); }

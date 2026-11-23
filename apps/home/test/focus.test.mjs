@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { blockingRows, heldInbox, render } from '../js/view.js';
 
-const rows = [{ app: 'slate', appName: 'Slate', title: 'Decide on X', note: '', route: '', flag: '' }, { app: 'receipts', appName: 'Rapport', title: '1:1 due', note: '', route: '', flag: 'waiting' }];
+const rows = [{ app: 'builds', appName: 'Builds', title: 'Decide on X', note: '', route: '', flag: '' }, { app: 'people', appName: 'People', title: '1:1 due', note: '', route: '', flag: 'waiting' }];
 const card = new Map([['blocking', { id: 'blocking', kind: 'list', title: 'PRs blocked on you', rows: [{ id: 't1', title: 'PR 12: Fix login', route: 'task/t1', flag: 'urgent' }] }]]);
 
 test('Needs you outside a block, and with focus hours off: unchanged', () => {

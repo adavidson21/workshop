@@ -22,19 +22,19 @@ test('the button waits out the agent\'s wait', () => {
 });
 
 test('only the reset apps\' view settings are cleared, never the pairing', () => {
-  const keys = ['slate.view', 'loom.x', 'notes.side', 'runway.mode', 'workshop.agent', 'workshop.home.introduced', 'prioritizer.v1.moved'];
-  assert.deepEqual(viewKeys(keys, [{ id: 'slate', folder: 'loom' }, { id: 'prioritizer', folder: 'docket' }]), ['slate.view', 'loom.x', 'prioritizer.v1.moved']);
+  const keys = ['builds.view', 'loom.x', 'slate.view', 'notes.side', 'roadmaps.mode', 'workshop.agent', 'workshop.home.introduced', 'prioritizer.v1.moved'];
+  assert.deepEqual(viewKeys(keys, [{ id: 'builds', folder: 'builds' }, { id: 'tasks', folder: 'tasks' }]), ['builds.view', 'loom.x', 'slate.view', 'prioritizer.v1.moved'], 'old ids and folders too');
   assert.deepEqual(viewKeys(keys, [{ id: 'workshop' }]), ['workshop.home.introduced'], 'workshop.agent is never removed');
   assert.deepEqual(viewKeys(keys, []), []);
 });
 
 test('the result says what went, where the backup is, and what was kept', () => {
   const lines = resultLines({
-    everything: false, apps: [{ id: 'prioritizer', name: 'Docket' }, { id: 'notes', name: 'Folio' }],
+    everything: false, apps: [{ id: 'tasks', name: 'Tasks' }, { id: 'notes', name: 'Notes' }],
     backup: { path: '/Users/a/Workshop backup 2026-11-19 1600.zip', files: 12 },
     tandem: { removed: 3, stopped: 1, kept: ['.worktrees/x/api: has changes'], failed: [] }, failed: ['/x/y: EBUSY']
   });
-  assert.match(lines[0], /^Deleted Docket, Folio\. Backup: \/Users\/a\/Workshop backup 2026-11-19 1600\.zip \(12 files\)\.$/);
+  assert.match(lines[0], /^Deleted Tasks, Notes\. Backup: \/Users\/a\/Workshop backup 2026-11-19 1600\.zip \(12 files\)\.$/);
   assert.match(lines[1], /removed 3 work items, after stopping 1 running agent/);
   assert.match(lines[2], /Kept worktree \.worktrees\/x\/api/);
   assert.match(lines[3], /Could not delete \/x\/y: EBUSY/);

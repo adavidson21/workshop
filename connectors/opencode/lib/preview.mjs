@@ -3,7 +3,7 @@
 // A build keeps its app running while Tandem checks each task's pages (eng-agents scripts/ui/Start-UiApp.ps1, the
 // record in .work/<item>/ui/app.json). Try it opens that app for you: the connector asks opencode to run
 // Start-UiApp.ps1 in a session of its own (opencode's shell API, so Workshop's agent still starts no program), waits
-// for app.json and the address to answer, and Loom opens it in a new tab. Stop runs Stop-UiApp.ps1 the same way.
+// for app.json and the address to answer, and Builds opens it in a new tab. Stop runs Stop-UiApp.ps1 the same way.
 // An app nothing has opened or built with for 30 minutes is stopped on its own.
 
 import fs from "node:fs";
@@ -93,7 +93,7 @@ export function previewData(items) {
   return out;
 }
 
-/** `preview.open`: start (or reuse) the build's app and say its address. Loom polls state for it. */
+/** `preview.open`: start (or reuse) the build's app and say its address. Builds polls state for it. */
 export async function openPreview({ folder, repo }, findItem) {
   const it = findItem(folder);
   if (!it || it.kind !== "item") throw httpError(404, "No such work item. Refresh the page.");

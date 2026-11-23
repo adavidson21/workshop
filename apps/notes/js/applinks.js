@@ -1,12 +1,13 @@
 /* Notes: links to other apps' records, written as standard Markdown links with a ws: address:
 
-     [Fix the login timeout](ws:prioritizer/task/t_k2f9)
-     [Platform roadmap](ws:runway)
+     [Fix the login timeout](ws:tasks/task/t_k2f9)
+     [Platform roadmap](ws:roadmaps)
 
    ws:<app>/<route> opens that app at that route inside Workshop (ws.open), or Workshop's site from Notes' own
    site. The renderer shows them as chips. Only an app id and route characters are accepted, so a ws: link can
    never become a script or another site. Pure: no DOM and no SDK. */
 
+import { currentId } from '../../../shared/app-folders.js';
 const APP = /^[a-z][a-z0-9-]{0,39}$/;
 const ROUTE = /^[A-Za-z0-9._~:@-]+(?:\/[A-Za-z0-9._~:@-]+){0,7}$/;
 
@@ -16,14 +17,14 @@ export function appLink(href) {
   if (!m || !APP.test(m[1])) return null;
   const path = m[2] || '';
   if (path && (!ROUTE.test(path) || path.split('/').some(s => s === '.' || s === '..'))) return null;
-  return { app: m[1], path };
+  return { app: currentId(m[1]), path }; // a link written before the rename opens the app it became
 }
 
 /** The ws: href for an app and route. */
 export function appHref(app, path = '') {
   if (!APP.test(app)) throw new RangeError('Not an app id.');
   const href = `ws:${app}${path ? '/' + path : ''}`;
-  if (!appLink(href)) throw new RangeError('Not a route Folio can link to.');
+  if (!appLink(href)) throw new RangeError('Not a route Notes can link to.');
   return href;
 }
 

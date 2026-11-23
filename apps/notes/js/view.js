@@ -1,13 +1,13 @@
 /* Notes: HTML for the page. Pure functions of state; every piece of note text is escaped here or by
    markdown.js. main.js owns events and the editor. */
 import { esc, plainText, safeHref } from './markdown.js';
-import { inLoomHtml } from './loom.js';
+import { inBuildsHtml } from './builds-items.js';
 import { KINDS, LINKS, filterLinks, hostOf } from './links.js';
 import { filterOptions } from '../../../shared/products.js';
 import { age, baseName, dirOf, stem, wordCount } from './model.js';
 import { HIDDEN, READ_ONLY, readProps } from './props.js';
 import { QUICK, QUICK_TITLE } from './pickup.js';
-import { actionItems, forRapport, handlesIn, offerId, rapportOffers, readable, whoOf } from './offers.js';
+import { actionItems, forPeople, handlesIn, offerId, peopleOffers, readable, whoOf } from './offers.js';
 import { needsReview, productNotes, staleWhy, toReview } from './products.js';
 import { SECTIONS, dailyGroups, visibleSections } from './sections.js';
 import { PLACEHOLDERS, placeholdersFor, templatesIn } from './templates.js';
@@ -51,10 +51,10 @@ export function sectionsHtml(state) {
   const sideOpen = !ui.sideClosed;
   return `<button class="ibtn drawer-btn" data-act="drawer" aria-label="Pages" title="Pages">${ICON.drawer}</button>
     <button class="ibtn fold-btn side-btn" data-act="side" aria-pressed="${sideOpen}" aria-label="${sideOpen ? 'Hide' : 'Show'} the pages list" title="${sideOpen ? 'Hide' : 'Show'} the pages list (Ctrl+\\)">${ICON.sideL}</button>
-    <p class="nb-name">Folio</p>
+    <p class="nb-name">Notes</p>
     <div class="sec-tabs" role="tablist" aria-label="Sections">${shown.map(s => `<button role="tab" class="sec sec-${s.id}${ui.section === s.id ? ' on' : ''}" aria-selected="${ui.section === s.id}" data-section="${s.id}" title="${esc(s.hint)}"><span class="sec-dot" aria-hidden="true"></span>${esc(s.name)}${badge(s.id)}</button>`).join('')}</div>`;
 }
-/* The page panel's fold button (outline, backlinks, tags). Folio 4.0.0: in the note's header, not the section tabs. */
+/* The page panel's fold button (outline, backlinks, tags). Notes 4.0.0: in the note's header, not the section tabs. */
 function panelBtn(ui) {
   const panelOpen = !ui.panelClosed;
   return `<button class="ibtn fold-btn panel-btn" data-act="panel" aria-pressed="${panelOpen}" aria-label="${panelOpen ? 'Hide' : 'Show'} the page panel" title="${panelOpen ? 'Hide' : 'Show'} outline, backlinks and tags (Ctrl+Shift+\\)">${ICON.sideR}</button>`;
@@ -193,7 +193,7 @@ function templatesHtml(state) {
 function tandemHtml(state) {
   const { tandem, ui } = state;
   if (!tandem.loaded) return '<p class="side-note">Reading .work.</p>';
-  if (!tandem.items.length) return '<p class="side-note">No documents yet. Plans, specs and reviews show here as Tandem writes them in Loom.</p>';
+  if (!tandem.items.length) return '<p class="side-note">No documents yet. Plans, specs and reviews show here as Tandem writes them in Builds.</p>';
   const { review, rest } = groupItems(tandem.items);
   const group = (it) => {
     const open = ui.path && ui.path.startsWith(tandemPath(it.folder, ''));
@@ -319,15 +319,15 @@ function tandemHeader(state) {
   const d = parseTandem(ui.path);
   const it = doc.item;
   const lock = doc.busy ? `<div class="bar warn" role="status"><span class="bar-msg">${esc(doc.busy)}. This page is read-only until it stops.</span></div>` : '';
-  const gate = it && it.review === d.file ? `<div class="bar tandem" role="status"><span class="bar-msg">${ICON.tandem} Tandem is waiting for you to review this ${esc(docName(d.file).toLowerCase())}. Edit it here, then approve in Loom.</span>
-      <span class="bar-acts"><button class="btn" data-act="open-dispatch">Open in Loom</button></span></div>` : '';
+  const gate = it && it.review === d.file ? `<div class="bar tandem" role="status"><span class="bar-msg">${ICON.tandem} Tandem is waiting for you to review this ${esc(docName(d.file).toLowerCase())}. Edit it here, then approve in Builds.</span>
+      <span class="bar-acts"><button class="btn" data-act="open-builds">Open in Builds</button></span></div>` : '';
   return `<div class="note-head">
     <div class="crumbs"><span class="mono soft">Tandem / ${esc(it ? itemLabel(it) : d.folder)} / ${esc(d.file)}</span>
       <span class="status ${ui.status.kind}" role="status">${esc(ui.status.kind === 'saved' ? (doc.busy ? 'Read-only' : 'In .work') : statusText(ui.status, null))}</span></div>
     <div class="head-actions">
       ${state.brief ? lensSegHtml(state) : ''}${segHtml(state)}
-      <button class="btn ghost" data-act="open-dispatch" title="This run in Loom">Open in Loom</button>
-      ${menuHtml(ui, [['open-dispatch', 'Open in Loom'], ['copy', 'Copy Markdown'], ['download', 'Download .md'], ['download-html', state.brief ? 'Download brief (HTML)' : 'Download HTML']])}${panelBtn(ui)}
+      <button class="btn ghost" data-act="open-builds" title="This run in Builds">Open in Builds</button>
+      ${menuHtml(ui, [['open-builds', 'Open in Builds'], ['copy', 'Copy Markdown'], ['download', 'Download .md'], ['download-html', state.brief ? 'Download brief (HTML)' : 'Download HTML']])}${panelBtn(ui)}
     </div></div>
     ${conflictBar(ui, true) || lock || gate}`;
 }
@@ -346,18 +346,18 @@ function statusText(s, known) {
   if (s.kind === 'saving') return 'Saving';
   if (s.kind === 'dirty') return 'Edited';
   if (s.kind === 'failed') return `Not saved yet. ${s.message || ''}`.trim();
-  if (s.kind === 'conflict') return 'Changed outside Folio';
-  if (s.kind === 'gone') return 'Moved or trashed outside Folio';
+  if (s.kind === 'conflict') return 'Changed outside Notes';
+  if (s.kind === 'gone') return 'Moved or trashed outside Notes';
   return known ? `Saved ${age(known.mtime)}` : '';
 }
 function conflictBar(ui, tandem = false) {
   if (ui.status.kind === 'failed') return `<div class="bar warn"><span class="bar-msg">Your edits are kept here.</span>
       <span class="bar-acts"><button class="btn" data-act="retry">Retry now</button></span></div>`;
-  if (ui.status.kind === 'conflict') return `<div class="bar warn" role="alert"><span class="bar-msg">This page changed outside Folio since you opened it. Your edits are still here.</span>
+  if (ui.status.kind === 'conflict') return `<div class="bar warn" role="alert"><span class="bar-msg">This page changed outside Notes since you opened it. Your edits are still here.</span>
       <span class="bar-acts"><button class="btn" data-act="take-theirs">Load the new version</button>
       ${tandem ? '' : '<button class="btn" data-act="keep-copy">Save mine as a copy</button>'}
       <button class="btn ghost" data-act="overwrite">Overwrite with mine</button></span></div>`;
-  if (ui.status.kind === 'gone') return `<div class="bar warn" role="alert"><span class="bar-msg">This page was moved or trashed outside Folio. Your text is still here.</span>
+  if (ui.status.kind === 'gone') return `<div class="bar warn" role="alert"><span class="bar-msg">This page was moved or trashed outside Notes. Your text is still here.</span>
       <span class="bar-acts"><button class="btn" data-act="restore">Save it again</button></span></div>`;
   return '';
 }
@@ -383,7 +383,7 @@ export function panel(state) {
         return `<li><a href="#" data-open="${esc(b.from)}" data-line="${b.line}"><span class="r-title">${esc(from ? from.title : b.from)}</span><span class="r-line">${esc(line.slice(0, 160))}</span></a></li>`;
       }).join('')}</ul>` : ''}</section>` : ''}
     ${mentionsHtml(state)}
-    ${state.loomInfo && state.loomOn ? inLoomHtml(state.loomInfo, { loomOn: true, open: ui.loomOpen !== false }) : ''}
+    ${state.buildsInfo && state.buildsOn ? inBuildsHtml(state.buildsInfo, { buildsOn: true, open: ui.buildsOpen !== false }) : ''}
     ${productLinksHtml(state)}
     ${sendHtml(state, n)}
     ${state.versions ? `<section><h2 class="section-label">History</h2>
@@ -425,7 +425,7 @@ function propsHtml(state, n) {
   const ro = (k) => READ_ONLY.includes(k.toLowerCase());
   return `<section class="props"><h2 class="section-label">Properties${props.length ? ` <span class="count">${props.length}</span>` : ''}</h2>
     ${props.length ? `<ul class="prop-list">${props.map(p => `<li><label class="prop"><span class="prop-k mono" title="${esc(p.key)}">${esc(p.key)}</span>
-      <input data-prop="${esc(p.key)}" data-list="${p.list ? '1' : ''}" value="${esc(p.value)}"${ro(p.key) ? ' readonly title="Set by Folio"' : p.list ? ' placeholder="a, b" title="Comma-separated"' : ''} autocomplete="off" spellcheck="false"></label>
+      <input data-prop="${esc(p.key)}" data-list="${p.list ? '1' : ''}" value="${esc(p.value)}"${ro(p.key) ? ' readonly title="Set by Notes"' : p.list ? ' placeholder="a, b" title="Comma-separated"' : ''} autocomplete="off" spellcheck="false"></label>
       ${ro(p.key) ? '' : `<button class="ibtn mini" data-act="prop-remove" data-prop-key="${esc(p.key)}" title="Remove ${esc(p.key)}" aria-label="Remove ${esc(p.key)}">${ICON.unpin}</button>`}</li>`).join('')}</ul>` : ''}
     <button class="linkish small" data-act="prop-add">Add a property</button></section>`;
 }
@@ -443,7 +443,7 @@ function tandemPanel(state) {
         const p = tandemPath(it.folder, f.file);
         return `<li><a href="#" data-open="${esc(p)}"${p === ui.path ? ' aria-current="page"' : ''}><span class="r-title">${esc(docName(f.file))}</span><span class="r-line mono">${esc(f.file)}</span></a></li>`;
       }).join('')}</ul></section>
-    <section><h2 class="section-label">About</h2><p class="soft small">${esc(it.stage ? `Stage: ${it.stage}. ` : '')}Saved straight to <code>.work/${esc(it.folder)}/</code>, where Tandem reads it. Approving is still a step in Loom.</p></section>` : ''}`;
+    <section><h2 class="section-label">About</h2><p class="soft small">${esc(it.stage ? `Stage: ${it.stage}. ` : '')}Saved straight to <code>.work/${esc(it.folder)}/</code>, where Tandem reads it. Approving is still a step in Builds.</p></section>` : ''}`;
 }
 
 /* Action items and wins in the open note, each with a button that sends it (offers.js). Only where the receivers
@@ -452,12 +452,12 @@ function sendHtml(state, n) {
   const { ui, notes, sent, canSend, dir } = state;
   if (!canSend) {
     const text = notes.texts.get(ui.path)?.content || '';
-    return actionItems(text).some(i => !i.done) && !state.hintSeen ? '<section class="hint"><h2 class="section-label">Action items</h2><p class="soft small">Paired with Workshop on this computer, these go to Docket in one click. Pair from <b>Use Workshop on this computer</b> at the foot of the Notes section.</p><button class="linkish small" data-act="hint-seen">Got it</button></section>' : '';
+    return actionItems(text).some(i => !i.done) && !state.hintSeen ? '<section class="hint"><h2 class="section-label">Action items</h2><p class="soft small">Paired with Workshop on this computer, these go to Tasks in one click. Pair from <b>Use Workshop on this computer</b> at the foot of the Notes section.</p><button class="linkish small" data-act="hint-seen">Got it</button></section>' : '';
   }
   const text = notes.texts.get(ui.path)?.content || '';
   const items = actionItems(text).filter(i => !i.done);
-  const rapport = forRapport(text);
-  if (!items.length && !rapport.length) return '';
+  const forPeopleRows = forPeople(text);
+  if (!items.length && !forPeopleRows.length) return '';
   const note = { path: ui.path, title: '' };
   // One line of meaning per row: the text (names put in), who it's about and the kind (muted), one button.
   const row = (it, label, ids, act, to) => {
@@ -468,21 +468,21 @@ function sendHtml(state, n) {
   };
   const taskRow = (it) => {
     const who = whoOf(handlesIn(it.text), dir).people.map(p => p.name.split(/\s+/)[0]);
-    return row(it, who.join(', '), [offerId('task', ui.path, it.text)], 'task', 'To Docket');
+    return row(it, who.join(', '), [offerId('task', ui.path, it.text)], 'task', 'To Tasks');
   };
-  const rapportRow = (it) => {
+  const peopleRow = (it) => {
     const { reports, others } = whoOf(it.handles, dir);
-    const offers = rapportOffers(note, it, { day: '2000-01-01', dir });
+    const offers = peopleOffers(note, it, { day: '2000-01-01', dir });
     const names = reports.length ? reports.map(p => p.name.split(/\s+/)[0]).join(', ') : 'You';
     const why = !reports.length && others.length ? ` (${others[0].name.split(/\s+/)[0]} isn't a report)` : '';
-    return row(it, `${names} · ${it.kind}${why}`, offers.map(o => o.offer.id), 'rapport', offers.length > 1 ? `To Rapport (${offers.length})` : 'To Rapport');
+    return row(it, `${names} · ${it.kind}${why}`, offers.map(o => o.offer.id), 'people', offers.length > 1 ? `To People (${offers.length})` : 'To People');
   };
-  const open = (list, kind) => list.filter(it => kind === 'task' ? !sent.has(offerId('task', ui.path, it.text)) : rapportOffers(note, it, { day: '2000-01-01', dir }).some(o => !sent.has(o.offer.id))).length;
+  const open = (list, kind) => list.filter(it => kind === 'task' ? !sent.has(offerId('task', ui.path, it.text)) : peopleOffers(note, it, { day: '2000-01-01', dir }).some(o => !sent.has(o.offer.id))).length;
   const all = (list, kind, to) => { const n = open(list, kind); return n > 1 ? ` <button class="linkish send-all" data-act="send-all" data-kind="${kind}" title="Send every open one ${to}">Send all (${n})</button>` : ''; };
-  return `${items.length ? `<section><h2 class="section-label">Action items <span class="count">${items.length}</span>${all(items, 'task', 'to Docket')}</h2>
+  return `${items.length ? `<section><h2 class="section-label">Action items <span class="count">${items.length}</span>${all(items, 'task', 'to Tasks')}</h2>
       <ul class="sendables">${items.map(taskRow).join('')}</ul></section>` : ''}
-    ${rapport.length ? `<section><h2 class="section-label">For Rapport <span class="count">${rapport.length}</span>${all(rapport, 'rapport', 'to Rapport')}</h2>
-      <ul class="sendables">${rapport.map(rapportRow).join('')}</ul></section>` : ''}`;
+    ${forPeopleRows.length ? `<section><h2 class="section-label">For People <span class="count">${forPeopleRows.length}</span>${all(forPeopleRows, 'people', 'to People')}</h2>
+      <ul class="sendables">${forPeopleRows.map(peopleRow).join('')}</ul></section>` : ''}`;
 }
 
 /* ---------- empty states ---------- */

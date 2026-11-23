@@ -3,10 +3,10 @@
    small writer over ws.data, no DOM, so Node tests can drive them.
 
    Writer (in the app that owns the data):
-     const summary = createSummaryWriter({ data: ws.data, app: 'prioritizer', build: () => cards });
+     const summary = createSummaryWriter({ data: ws.data, app: 'tasks', build: () => cards });
      summary.schedule();   // after a save: writes a moment later, only when a card changed
    Reader (in another app):
-     const cards = readCards(await ws.data.get('summary', { app: 'prioritizer' }), 'prioritizer');
+     const cards = readCards(await ws.data.get('summary', { app: 'tasks' }), 'tasks');
      const today = cardDay(cards.get('board'), '2026-11-04');   // null when missing or stale */
 
 export const SUMMARY = 'summary';

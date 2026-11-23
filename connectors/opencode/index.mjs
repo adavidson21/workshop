@@ -80,7 +80,7 @@ import { chatChanges, chatSuggest, resetSuggest } from "./lib/chat-more.mjs";
 import { chatReview, chatReviewState } from "./lib/chat-review.mjs";
 import { MAX_INPUT as TERM_INPUT, resetTerms, termClose, termInput, termList, termOpen, termRead, termResize, termResume } from "./lib/pty.mjs";
 import { MAX_EDIT, filesRead, filesStat, filesTree, filesWrite } from "./lib/workfiles.mjs";
-import { MAX_FILE, PM_FOLDER, approveFolder, startHandoff, startRefine, startScope, startShape, startSlice, startTriage, writePmFile } from "./lib/slate.mjs";
+import { MAX_FILE, PM_FOLDER, approveFolder, startHandoff, startRefine, startScope, startShape, startSlice, startTriage, writePmFile } from "./lib/builds.mjs";
 import { listDocs, writeWorkFile } from "./lib/docs.mjs";
 import { WORK_RESET_PHRASE, resetWork } from "./lib/reset.mjs";
 import { forgetRun } from "./lib/projects.mjs";
@@ -176,7 +176,7 @@ export const configSchema = {
         onSync: {
           type: "boolean",
           title: "Review new PRs as soon as they are found",
-          description: "Each time Docket or Dispatch checks Azure DevOps, new PRs waiting on you (and PRs with a new commit) get a first-pass review right away, blocking ones first. Docket then shows them already reviewed. Drafts only, nothing is posted. Off: only Review all and the nightly run. With a local model it is off unless you turn it on here, and reviews wait while a build runs.",
+          description: "Each time Tasks or Dispatch checks Azure DevOps, new PRs waiting on you (and PRs with a new commit) get a first-pass review right away, blocking ones first. Tasks then shows them already reviewed. Drafts only, nothing is posted. Off: only Review all and the nightly run. With a local model it is off unless you turn it on here, and reviews wait while a build runs.",
           default: true,
           "x-workshop-hosted": true,
         },
@@ -246,7 +246,7 @@ export const configSchema = {
     runModel: {
       type: "string",
       title: "Model for agent runs",
-      description: "The model Tandem's runs use: Loom builds, autopilot, replies to a run, Writing and other jobs Workshop starts. Opencode's default leaves it to each agent's own model, or opencode's. Chat keeps its own picker. The list shows the models of the providers opencode is signed in to.",
+      description: "The model Tandem's runs use: Builds builds, autopilot, replies to a run, Writing and other jobs Workshop starts. Opencode's default leaves it to each agent's own model, or opencode's. Chat keeps its own picker. The list shows the models of the providers opencode is signed in to.",
       maxLength: 300,
       pattern: "^$|^[A-Za-z0-9._-]{1,100}/\\S{1,200}$",
       default: "",
@@ -382,14 +382,14 @@ function readWorkFile({ folder, file }) {
   }
 }
 
-// The doc a docs-<name> folder is about (Write docs, Save to Folio): sources.md names it on a "Doc:" line (eng-agents
+// The doc a docs-<name> folder is about (Write docs, Save to Notes): sources.md names it on a "Doc:" line (eng-agents
 // Core 4.2.0 /docs), relative to the workspace. Only a Markdown or text file inside the workspace, at most 1 MB.
 export const DOC_LINE = /^Doc:\s*`?([^`\r\n]+?)`?\s*$/im;
 function readDocOf({ folder: f }) {
   if (!/^docs-[A-Za-z0-9._-]{1,120}$/.test(String(f || ""))) throw httpError(400, "Only a docs-<name> folder has a doc.");
   const sources = readWorkFile({ folder: f, file: "sources.md" }).text;
   const m = DOC_LINE.exec(sources);
-  if (!m) throw httpError(404, "sources.md does not say where the doc is (no Doc: line). Run /docs again, or copy the doc into Folio yourself.");
+  if (!m) throw httpError(404, "sources.md does not say where the doc is (no Doc: line). Run /docs again, or copy the doc into Notes yourself.");
   const rel = m[1].trim().replace(/\\/g, "/");
   const base = path.resolve(opt.workspace);
   const full = path.resolve(base, rel);
@@ -724,7 +724,7 @@ const actions = {
       return startTsd(args);
     },
   },
-  // Slate's PM steps (lib/slate.mjs). Each runs a Tandem command in a new session, like a spike.
+  // Builds' PM steps (lib/builds.mjs). Each runs a Tandem command in a new session, like a spike.
   "triage.start": {
     title: "Triage a request (/triage, writes triage.md, never posts)",
     write: true,
@@ -810,7 +810,7 @@ const actions = {
     }),
     async run(args) {
       needReady();
-      // Slate's PM folders keep their own rules; any other folder is Notebook's and Dispatch's editor (lib/docs.mjs).
+      // Builds' PM folders keep their own rules; any other folder is Notebook's and Dispatch's editor (lib/docs.mjs).
       if (PM_FOLDER.test(String(args.folder || ""))) return writePmFile(args);
       return writeWorkFile(args, { root: workRoot, busyFor });
     },
@@ -946,7 +946,7 @@ const actions = {
             handle: str("Handle", { maxLength: 40 }), kind: { type: "string", title: "Kind", enum: ["person", "group"] },
             relation: { type: "string", title: "Relation", enum: ["self", "report", "manager", "peer", "contact"] }, team: { type: "boolean", title: "On my team" },
             members: { type: "array", title: "Group members", maxItems: 200, items: str("Person id", { maxLength: 110 }) } } } },
-          lists: { type: "array", maxItems: 200, items: str("Docket list", { maxLength: 120 }) },
+          lists: { type: "array", maxItems: 200, items: str("Tasks list", { maxLength: 120 }) },
           areas: { type: "array", maxItems: 200, items: str("Team area path", { maxLength: 300 }) },
         },
       },
@@ -1464,7 +1464,7 @@ const actions = {
     },
   },
   "observation.sent": {
-    title: "Mark something Tandem noticed as sent to Docket",
+    title: "Mark something Tandem noticed as sent to Tasks",
     write: true,
     argsSchema: obj(["id"], { id: observationId }),
     async run(args) {
@@ -1522,7 +1522,7 @@ const actions = {
     },
   },
   "onboarding.dismiss": {
-    title: "Stop showing a product's onboarding on Loom's floor",
+    title: "Stop showing a product's onboarding on Builds' floor",
     write: false,
     argsSchema: obj(["product"], { product: str("Product name", { minLength: 1, maxLength: 120 }) }),
     async run(args) {

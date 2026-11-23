@@ -7,7 +7,7 @@ export const dateStr = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d
 export const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
 
-/* Symbols, in the same line style as Docket's rows: color only when something needs you. */
+/* Symbols, in the same line style as Tasks' rows: color only when something needs you. */
 const svg = (d, w = 1.5) => `<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
 export const ICON = {
   ring: svg('<circle cx="10" cy="10" r="6.5"/><path d="M10 3.5a6.5 6.5 0 0 1 6.5 6.5H10z" fill="currentColor" stroke="none"/>'),
@@ -23,7 +23,7 @@ export function agentCounts(state) {
   return { needYou, working };
 }
 
-/* Docket's `board` card entry for today (docs/summaries.md): Get started counts its tasks. */
+/* Tasks' `board` card entry for today (docs/summaries.md): Get started counts its tasks. */
 export function boardFromSummary(card, today) {
   const d = card && card.days && card.days[today];
   if (!d) return null;
@@ -41,8 +41,8 @@ export function boardFromSummary(card, today) {
 const RANK = { urgent: 0, '': 1, waiting: 2 };
 
 /**
- * One list of what needs you, from every app: each app's summary `needs` card (docs/summaries.md, Docket's
- * included from Docket 7.0.0). Agents waiting for an answer come in Loom's card, one row each (Home 5.2.0 dropped
+ * One list of what needs you, from every app: each app's summary `needs` card (docs/summaries.md, Tasks'
+ * included from Tasks 7.0.0). Agents waiting for an answer come in Builds' card, one row each (Home 5.2.0 dropped
  * its own "N agents waiting" row, which counted the same runs again). byApp: [{app, name, cards: Map | null}].
  * Rows: [{app, appName, id, title, note, route, flag}], urgent first, at most 12.
  */
@@ -56,12 +56,12 @@ export function inboxRows(byApp) {
       out.push({ app: a.app, appName: a.name, id: typeof r.id === 'string' ? r.id : '', title: r.title.slice(0, 200), note: typeof r.note === 'string' ? r.note.slice(0, 200) : '', route: typeof r.route === 'string' ? r.route : '', flag: ['urgent', 'waiting'].includes(r.flag) ? r.flag : '' });
     }
   }
-  // One row for pull requests: Docket's "PRs blocked on you" (from Docket 7.0.0) keeps its place and takes
-  // Loom's "waiting for your review" count as its note, instead of two rows about the same reviews.
-  const docketPrs = out.find(r => r.app === 'prioritizer' && r.id === 'prs');
-  const agentPrs = out.findIndex(r => r.app === 'slate' && r.id === 'prs');
-  if (docketPrs && agentPrs >= 0) {
-    docketPrs.note = `${out[agentPrs].title} in Loom`.slice(0, 200);
+  // One row for pull requests: Tasks' "PRs blocked on you" (from Tasks 7.0.0) keeps its place and takes
+  // Builds' "waiting for your review" count as its note, instead of two rows about the same reviews.
+  const tasksPrs = out.find(r => r.app === 'tasks' && r.id === 'prs');
+  const agentPrs = out.findIndex(r => r.app === 'builds' && r.id === 'prs');
+  if (tasksPrs && agentPrs >= 0) {
+    tasksPrs.note = `${out[agentPrs].title} in Builds`.slice(0, 200);
     out.splice(agentPrs, 1);
   }
   return out.map((r, i) => [RANK[r.flag] ?? 1, i, r]).sort((x, y) => x[0] - y[0] || x[1] - y[1]).map(x => x[2]).slice(0, 12);
@@ -123,7 +123,7 @@ export function statusDraft(week, { name = '', now = new Date() } = {}) {
   const head = `# Weekly status${name ? `: ${name}` : ''}, week of ${new Date(now.getTime() - 6 * 864e5).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
   if (!week.length) return `${head}
 
-Nothing logged this week yet. Finish tasks in Docket, decide in Slate, ship with Dispatch, and it shows up here.
+Nothing logged this week yet. Finish tasks in Tasks, decide in Builds, ship with Dispatch, and it shows up here.
 `;
   const parts = [head, ''];
   for (const w of week) {
@@ -140,7 +140,7 @@ Nothing logged this week yet. Finish tasks in Docket, decide in Slate, ship with
  * Needs you during focus hours (docs/focus.md): during focus only blocking pull requests show and the rest folds
  * to "N held until 12:00"; during lunch and Day's done everything folds ("held until morning" in the evening).
  * Outside a block (or with focus hours off): the rows.
- * focus: resolveFocus() or null. blocking: Docket's `blocking` rows as inbox rows.
+ * focus: resolveFocus() or null. blocking: Tasks' `blocking` rows as inbox rows.
  */
 export function heldInbox(rows, focus, blocking = []) {
   const state = focus && focus.state;
@@ -150,11 +150,11 @@ export function heldInbox(rows, focus, blocking = []) {
   return { rows: blocking, held: rows.length, until };
 }
 
-/** Docket's `blocking` card (PRs blocked on you) as inbox rows. */
+/** Tasks' `blocking` card (PRs blocked on you) as inbox rows. */
 export function blockingRows(cards) {
   const c = cards && cards.get('blocking');
   if (!c || c.kind !== 'list' || !Array.isArray(c.rows)) return [];
-  return c.rows.filter(r => r && typeof r.title === 'string').slice(0, 12).map(r => ({ app: 'prioritizer', appName: 'Docket', title: r.title.slice(0, 200), note: typeof r.note === 'string' ? r.note.slice(0, 200) : 'Blocked on you', route: typeof r.route === 'string' ? r.route : '', flag: 'urgent' }));
+  return c.rows.filter(r => r && typeof r.title === 'string').slice(0, 12).map(r => ({ app: 'tasks', appName: 'Tasks', title: r.title.slice(0, 200), note: typeof r.note === 'string' ? r.note.slice(0, 200) : 'Blocked on you', route: typeof r.route === 'string' ? r.route : '', flag: 'urgent' }));
 }
 
 const fmtUntil = s => { const h = +String(s).slice(0, 2); return Number.isFinite(h) ? `${h % 12 || 12}:${String(s).slice(3, 5)}` : ''; };
@@ -203,7 +203,7 @@ export function weekCard(week) {
     <div class="weekcols">${week.map(w => `<div class="wk"><p class="wkh">${esc(w.title)} <span class="num">${w.count}</span></p><ul>${w.rows.slice(0, 4).map(r => `<li>${esc(r.title)}</li>`).join('')}${w.count > 4 ? `<li class="soft">and ${w.count - Math.min(4, w.rows.length)} more</li>` : ''}</ul></div>`).join('')}</div></section>`;
 }
 
-/* Shown instead of the page while Chrome must be asked again for the data folder. Same words as Prioritizer. */
+/* Shown instead of the page while Chrome must be asked again for the data folder. Same words as Tasks. */
 export function waitingCard(embedded) {
   return `<section class="card note waiting" role="status"><h2>Allow Workshop to use your folder to see your day</h2>
     <p>${embedded ? 'Click <b>Allow</b> in the bar at the top of Workshop. Chrome asks again after it restarts.'

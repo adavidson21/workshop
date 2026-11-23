@@ -8,6 +8,7 @@ import path from 'node:path';
 import { writeJsonAtomic, DATA_MODES } from './fsutil.mjs';
 import { HttpError, fail } from './http.mjs';
 import { floorMs, isCollectionText } from './datapath.mjs';
+import { renameSaved } from '../../shared/app-folders.js';
 
 const LIST_READ_MAX = 16 * 1024 * 1024;
 
@@ -34,6 +35,8 @@ export class Store {
     let env;
     try { env = JSON.parse(text.replace(/^﻿/, '')); } catch { env = undefined; }
     const errs = env === undefined ? ['not valid JSON'] : this.#schemas.validate('data-envelope', env);
+    // Saved under an app's old id (shared/app-folders.js): read as it is now; the next write saves it so.
+    if (!errs.length) env = renameSaved(rest.join('/'), env);
     if (errs.length || env.schema !== `${app}.${rest.join('/')}`) {
       this.#log.error(`${rel} cannot be read as a collection. Left untouched.`, { problem: errs[0] || 'schema name does not match its path' });
       fail('internal', `${rel} cannot be read as a collection. Workshop left it untouched; fix or move the file, see the log.`);
@@ -88,6 +91,7 @@ export class Store {
     const file = this.#root.inside(rel);
     const errs = this.#schemas.validate('data-envelope', body);
     if (errs.length) fail('bad_request', `That data does not match the envelope format: ${errs[0]}`);
+    body = renameSaved(collection, body); // a page from before the rename may still say an old app id
     if (body.schema !== `${app}.${collection}`) fail('bad_request', `schema must be "${app}.${collection}".`);
     const ids = new Set();
     for (const it of body.items) {

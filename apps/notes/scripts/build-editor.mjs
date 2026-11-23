@@ -1,9 +1,9 @@
-// Builds vendor/codemirror.js: CodeMirror 6 and the code languages Folio's editor uses, as one ES module.
+// Builds vendor/codemirror.js: CodeMirror 6 and the code languages Notes' editor uses, as one ES module.
 // The site loads only files from itself (CSP script-src 'self'), so the editor is vendored, not fetched.
 //
 //   cd scripts/editor && npm install && cd ../.. && node scripts/build-editor.mjs
 //
-// Commit the result. js/editor.js loads it; without it, Folio falls back to a plain textarea.
+// Commit the result. js/editor.js loads it; without it, Notes falls back to a plain textarea.
 import { build } from './editor/node_modules/esbuild/lib/main.js';
 import { readFileSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';

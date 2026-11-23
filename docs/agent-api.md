@@ -149,7 +149,7 @@ Every pair response sends `Content-Security-Policy: frame-ancestors 'none'` and 
 Apps found in `apps/*/app.json`, ordered by `order` then `name`. Schema [apps-response](schemas/apps-response.schema.json), example [apps-response.two-apps.json](examples/apps-response.two-apps.json).
 
 ```json
-{"apps": [{"base": "/apps/prioritizer/", "manifest": {"manifestVersion": 1, "id": "prioritizer", "name": "Prioritizer", "version": "3.0.0", "icon": "icon.svg", "entry": "index.html"}}]}
+{"apps": [{"base": "/apps/tasks/", "manifest": {"manifestVersion": 1, "id": "tasks", "name": "Tasks", "version": "3.0.0", "icon": "icon.svg", "entry": "index.html"}}]}
 ```
 
 `base` is where the agent serves that app's folder. A folder whose `app.json` fails [schemas/app.schema.json](schemas/app.schema.json), or whose `id` does not match the folder name, is skipped and logged.
@@ -174,10 +174,10 @@ No body. Workshop on this computer only (`403 local_only` from a paired site). O
 
 ### `GET /api/data/<app>`
 
-Lists every collection of the app, nested ones included, sorted by name. Only collection files are listed ([data-format.md](data-format.md), What is a collection); other files, damaged files and names that break the rules are left out (damaged files are logged). Schema [data-list](schemas/data-list.schema.json), example [data-list.prioritizer.json](examples/data-list.prioritizer.json).
+Lists every collection of the app, nested ones included, sorted by name. Only collection files are listed ([data-format.md](data-format.md), What is a collection); other files, damaged files and names that break the rules are left out (damaged files are logged). Schema [data-list](schemas/data-list.schema.json), example [data-list.tasks.json](examples/data-list.tasks.json).
 
 ```json
-{"app": "prioritizer", "collections": [{"collection": "tasks", "schema": "prioritizer.tasks", "version": 2, "rev": 14, "updatedAt": "2026-10-18T13:02:11.000Z", "items": 42}]}
+{"app": "tasks", "collections": [{"collection": "tasks", "schema": "tasks.tasks", "version": 2, "rev": 14, "updatedAt": "2026-10-18T13:02:11.000Z", "items": 42}]}
 ```
 
 An app with no data returns an empty list, not `404`.
@@ -204,7 +204,7 @@ Response `200` ([data-put-response](schemas/data-put-response.schema.json)):
 {"rev": 15, "updatedAt": "2026-10-18T13:05:00.000Z"}
 ```
 
-Apps write only their own collections. The one shared collection is the people directory (`settings/people`), which every app changes through the SDK's `ws.people` ([people.md](people.md)). Any app may read another app's collections (for example Home reading Prioritizer tasks). The agent cannot tell apps apart, so this is a rule for app code, enforced in review and by the SDK (`data.put` has no `app` option).
+Apps write only their own collections. The one shared collection is the people directory (`settings/people`), which every app changes through the SDK's `ws.people` ([people.md](people.md)). Any app may read another app's collections (for example Home reading tasks from Tasks). The agent cannot tell apps apart, so this is a rule for app code, enforced in review and by the SDK (`data.put` has no `app` option).
 
 ## Files
 
@@ -223,7 +223,7 @@ For app files that are not envelopes, such as Markdown summaries, a JSON file an
 Lists the app's files, or the files under one folder, at every depth, sorted by `path`. Paths are relative to the app folder and use `/`. A missing app or folder gives an empty list, not `404`. Schema [file-list](schemas/file-list.schema.json), example [file-list.summaries.json](examples/file-list.summaries.json).
 
 ```json
-{"app": "receipts", "files": [{"path": "summaries/person-one/2026-h2.md", "mtime": 1792937100000, "size": 61}]}
+{"app": "people", "files": [{"path": "summaries/person-one/2026-h2.md", "mtime": 1792937100000, "size": 61}]}
 ```
 
 ### `GET /api/files/<app>/<path>`
@@ -231,7 +231,7 @@ Lists the app's files, or the files under one folder, at every depth, sorted by 
 Schema [file](schemas/file.schema.json), examples [file.summary.json](examples/file.summary.json) and [file.image.json](examples/file.image.json). A missing file gets `200` with the body `null` (before agent 1.1.0, `404 not_found`; the SDK reads both as `null`). Deleting a missing file is still `404 not_found`. `size` is the file's size in bytes.
 
 ```json
-{"app": "receipts", "path": "summaries/person-one/2026-h2.md", "mtime": 1792937100000, "size": 61, "content": "# Person One, 2026 H2\n"}
+{"app": "people", "path": "summaries/person-one/2026-h2.md", "mtime": 1792937100000, "size": 61, "content": "# Person One, 2026 H2\n"}
 ```
 
 ### `PUT /api/files/<app>/<path>`
@@ -250,7 +250,7 @@ Conflict body: [file-conflict](schemas/file-conflict.schema.json), examples [fil
 On success the agent writes atomically (temp file, then rename), creating folders as needed, sends a `file` event, and answers `200` ([file-put-response](schemas/file-put-response.schema.json)):
 
 ```json
-{"app": "receipts", "path": "summaries/person-one/2026-h2.md", "mtime": 1792937160000, "size": 61}
+{"app": "people", "path": "summaries/person-one/2026-h2.md", "mtime": 1792937160000, "size": 61}
 ```
 
 ### `DELETE /api/files/<app>/<path>`
@@ -258,7 +258,7 @@ On success the agent writes atomically (temp file, then rename), creating folder
 Moves the file to the trash, `<dataDir>/.trash/<app>/<path without extension>.<stamp>.<ext>` ([data-format.md](data-format.md), Trash). Never removes it. Optional query `?mtime=<the mtime you read>`: if the file's `mtime` is different, `409 conflict` with `current` and nothing moves. A missing file gets `404 not_found`. Sends a `file` event with `mtime: null`. Response `200` ([file-delete-response](schemas/file-delete-response.schema.json)):
 
 ```json
-{"app": "receipts", "path": "summaries/person-one/2026-h2.md", "trash": ".trash/receipts/summaries/person-one/2026-h2.20261025T140500123Z.md"}
+{"app": "people", "path": "summaries/person-one/2026-h2.md", "trash": ".trash/receipts/summaries/person-one/2026-h2.20261025T140500123Z.md"}
 ```
 
 ### `GET /api/storage`
@@ -332,7 +332,7 @@ Schema [connector-config](schemas/connector-config.schema.json), example [connec
 
 ### Secrets (Tokens & sign-ins, agent 1.17.0)
 
-Settings, Manager, **Tokens & sign-ins** uses these. A value goes in once and never comes back out. All but `GET /api/secrets` and the callback are local only (`local_only` from a hosted page) and need the `X-Workshop-Token` header.
+Settings, Connections & approvals, **Tokens & sign-ins** uses these. A value goes in once and never comes back out. All but `GET /api/secrets` and the callback are local only (`local_only` from a hosted page) and need the `X-Workshop-Token` header.
 
 | Method and path | What it does |
 |---|---|
@@ -399,7 +399,7 @@ Wire format:
 
 ```
 event: data
-data: {"app":"prioritizer","collection":"tasks","rev":15,"updatedAt":"2026-10-18T13:05:00.000Z","client":"w-7f3a"}
+data: {"app":"tasks","collection":"tasks","rev":15,"updatedAt":"2026-10-18T13:05:00.000Z","client":"w-7f3a"}
 
 ```
 

@@ -1,4 +1,4 @@
-// Folio: Copy for wiki's Markdown (export.js wikiMarkdown) and embeds expanded into it (embeds.js expandEmbeds).
+// Notes: Copy for wiki's Markdown (export.js wikiMarkdown) and embeds expanded into it (embeds.js expandEmbeds).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { wikiMarkdown } from '../js/export.js';

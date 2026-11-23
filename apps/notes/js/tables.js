@@ -1,4 +1,4 @@
-/* Folio: line up a Markdown pipe table's columns (Format table, Ctrl+Alt+T). Pure, so Node tests run it. */
+/* Notes: line up a Markdown pipe table's columns (Format table, Ctrl+Alt+T). Pure, so Node tests run it. */
 
 const SEP = /^ *\|?(?: *:?-+:? *\|)+ *:?-*:? *\|? *$/;
 const isRow = (l) => /\|/.test(l) && l.trim() !== '';

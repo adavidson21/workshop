@@ -4,7 +4,7 @@
   pip install playwright && python -m playwright install chromium
   python tests/e2e.py
 
-Every app is in apps/ (Docket, Runway, Rapport and Folio had their own repos until Nov 2026).
+Every app is in apps/ (Tasks, Roadmaps, People and Notes had their own repos until Nov 2026).
 
 Five parts:
   1. Browser mode: serves this repo as a static site on 127.0.0.1:8802.
@@ -13,11 +13,11 @@ Five parts:
      localhost:8804 also lists two sample apps). Workshop on this computer (the agent's Settings page): the
      data folder, connectors and their forms. Required connectors and data events through the hub.
   3. Hosted Settings is read-only, and the agent serves no hub.
-  4. Prioritizer storage (WS5): the board in the data folder, the one-time move from the old browser
+  4. Tasks storage (WS5): the board in the data folder, the one-time move from the old browser
      copy, Excel and backup round trips, two windows in sync, and a failed write.
   5. Agents (WS6): the real agent with the opencode connector, a synthetic workspace and a fake opencode
-     (tests/fixtures/dispatch-fixture.mjs). The page, its buttons, prompts, the code review (Review, then Approve and
-     Push PR to a bare origin), deep links, theme, and Prioritizer's
+     (tests/fixtures/runs-fixture.mjs). The page, its buttons, prompts, the code review (Review, then Approve and
+     Push PR to a bare origin), deep links, theme, and Tasks'
      stages and Start through the connector.
   6. The data folder (WS11c): browser mode on a folder (Chrome's private folder stands in for one picked by
      hand, since the picker cannot be automated), the move from IndexedDB, files, other tabs and outside
@@ -37,15 +37,15 @@ HOSTED = 'http://localhost:8803'
 SAMPLES = 'http://localhost:8804'
 def _app_dir(app_id, env):
     return os.environ.get(env) or os.path.join(ROOT, 'apps', app_id)
-DOCKET = _app_dir('prioritizer', 'DOCKET_DIR')
+DOCKET = _app_dir('tasks', 'DOCKET_DIR')
 # What the agent's apps folder gets from the Docket checkout: the site, not its tests, tools or Android project.
 DOCKET_SKIP = shutil.ignore_patterns('.git', '.github', 'mobile', 'test', 'scripts', 'node_modules', '*.md', 'wrangler.jsonc', 'workshop-files.json')
 # Runway and Rapport (apps/remote.json) are served the same way from their checkouts.
-RUNWAY = _app_dir('runway', 'RUNWAY_DIR')
-RECEIPTS = _app_dir('receipts', 'RECEIPTS_DIR')
+RUNWAY = _app_dir('roadmaps', 'RUNWAY_DIR')
+RECEIPTS = _app_dir('people', 'RECEIPTS_DIR')
 NOTES = _app_dir('notes', 'NOTES_DIR')
 REMOTE_DIRS = {}  # every app is in apps/ (they had their own repos until Nov 2026)
-# E2E_PART=hub runs part 1 (browser mode, Home, Docket on its own); E2E_PART=agent runs parts 2 to 6. CI runs the two
+# E2E_PART=hub runs part 1 (browser mode, Home, Tasks on its own); E2E_PART=agent runs parts 2 to 6. CI runs the two
 # halves side by side (.github/workflows/checks.yml). Unset runs everything.
 PART = os.environ.get('E2E_PART') or 'all'
 
@@ -78,14 +78,14 @@ class WithSamples(Static):
 
 
 def samples_registry(tmp):
-    """apps/registry.json with the sample apps added (Board after the repo's apps, so Docket stays first)."""
+    """apps/registry.json with the sample apps added (Board after the repo's apps, so Tasks stays first)."""
     with open(os.path.join(ROOT, 'apps', 'registry.json')) as f: reg = json.load(f)
     # Like the Worker, list Docket with its live app.json (here, the checkout's) instead of the snapshot.
     live = os.path.join(DOCKET, 'app.json')
     if os.path.isfile(live):
         with open(live) as f: dm = json.load(f)
         for a in reg['apps']:
-            if a['manifest'].get('id') == 'prioritizer': a['manifest'] = dm
+            if a['manifest'].get('id') == 'tasks': a['manifest'] = dm
     for app, order in (('pages', None), ('board', 50)):
         with open(os.path.join(ROOT, 'tests', 'fixtures', 'apps', app, 'app.json')) as f: m = json.load(f)
         if order is not None: m['order'] = order
@@ -96,10 +96,10 @@ def samples_registry(tmp):
 
 
 def docket_personal_on(frame, page):
-    """Docket 12.0.0 hides personal tasks inside Workshop by default (its agent queue). Checks that use Docket's own
+    """Tasks 12.0.0 hides personal tasks inside Workshop by default (its agent queue). Checks that use Tasks' own
     tasks turn the Personal tasks switch on first, the way Settings, Apps does (ws.appSettings)."""
     if not docket_declares('personalTasks'): return
-    frame.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'prioritizer'}); await ws.appSettings.set({personalTasks: true}); }""")
+    frame.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'tasks'}); await ws.appSettings.set({personalTasks: true}); }""")
     page.wait_for_timeout(800)
 
 
@@ -158,7 +158,7 @@ def stab(frame, tab):
 
 
 def skip_docket_tour(frame):
-    # Docket opens a first-run tour on a brand new board (docket #6). Skip it like a person would.
+    # Tasks opens a first-run tour on a brand new board (docket #6). Skip it like a person would.
     skip = frame.locator('[data-skip]')
     if skip.count() and skip.first.is_visible():
         skip.first.click(); frame.wait_for_timeout(200)
@@ -166,13 +166,13 @@ def skip_docket_tour(frame):
 
 def add_ado_task(frame, tid, title, ado_id, typ):
     skip_docket_tour(frame)
-    frame.evaluate("""([tid, title, id, typ]) => { const P = window.__prioritizer;
+    frame.evaluate("""([tid, title, id, typ]) => { const P = window.__tasks;
       P.state.tasks.push({id: tid, title, listId: P.state.lists[0].id, value: 3, effort: 'S', created: '2026-10-14', ado: {id, type: typ, state: 'Active', url: 'http://ado/' + id, project: 'p'}});
       P.state = P.sanitize(P.state); P.commit(); }""", [tid, title, ado_id, typ])
 
 
 # Globals a page defines beyond a blank page, minus the shared classic scripts (theme, service worker
-# registration, SheetJS). Prioritizer is ES modules, so only its test hook should remain.
+# registration, SheetJS). Tasks is ES modules, so only its test hook should remain.
 PRIORITIZER_GLOBALS = """() => {
   const f = document.createElement('iframe'); document.body.appendChild(f);
   const blank = new Set(Object.getOwnPropertyNames(f.contentWindow)); f.remove();
@@ -215,7 +215,7 @@ SDK_BROWSER = """async () => {
 def browser_mode_checks(ctx, pg, frame, watch):
     """Part 1, browser mode (static site, no agent): the platform pieces WS4 added."""
     rail = pg.eval_on_selector_all('.app-btn[data-app]', 'els => els.map(e => e.dataset.app)')
-    check('rail is built from the app registry, Runway on its own button, Loom in place of Slate and Dispatch, Chat back on the rail after Bench (Chat 4.3.0), Settings last', rail == ['prioritizer', 'slate', 'receipts', 'notes', 'runway', 'bench', 'chat', 'settings'])
+    check('rail is built from the app registry, Roadmaps on its own button, Builds in place of Builds and Dispatch, Chat back on the rail after Bench (Chat 4.3.0), Settings last', rail == ['tasks', 'builds', 'people', 'notes', 'roadmaps', 'bench', 'chat', 'settings'])
     pg.click('#capBtn'); pg.wait_for_timeout(800)
     check('the top bar Capture button opens the capture bar', pg.locator('.capbar').is_visible())
     pg.keyboard.press('Escape'); pg.wait_for_timeout(300)
@@ -229,20 +229,20 @@ def browser_mode_checks(ctx, pg, frame, watch):
     check('a palette command reaches the app through the SDK', frame.evaluate("document.getElementById('cmd').classList.contains('open')"))
     frame.press('#cmdInput', 'Escape'); pg.wait_for_timeout(200)
 
-    tid = frame.evaluate("window.__prioritizer.state.tasks.find(t => t.title === 'Fix login').id")
-    pg.evaluate(f"location.hash = '#/prioritizer/task/{tid}'"); pg.wait_for_timeout(600)
-    # Docket is the first rail app, so its plain address is the bare page; from Docket 8.0.0 it writes where it is.
-    check('a deep link opens the task', frame.evaluate("document.getElementById('app').classList.contains('drawer-open')") and pg.url in (HUB + '/', HUB + f'/#/prioritizer/task/{tid}'))
+    tid = frame.evaluate("window.__tasks.state.tasks.find(t => t.title === 'Fix login').id")
+    pg.evaluate(f"location.hash = '#/tasks/task/{tid}'"); pg.wait_for_timeout(600)
+    # Tasks is the first rail app, so its plain address is the bare page; from Tasks 8.0.0 it writes where it is.
+    check('a deep link opens the task', frame.evaluate("document.getElementById('app').classList.contains('drawer-open')") and pg.url in (HUB + '/', HUB + f'/#/tasks/task/{tid}'))
     frame.press('#drawer', 'Escape'); pg.wait_for_timeout(200)
 
     pg.keyboard.press('Alt+3'); pg.wait_for_timeout(1200)
-    rf = next((f for f in pg.frames if '/apps/receipts/' in f.url), None)
-    check('Rapport opens from the rail', rf is not None and pg.url.endswith('#/receipts'))
+    rf = next((f for f in pg.frames if '/apps/people/' in f.url), None)
+    check('People opens from the rail', rf is not None and pg.url.endswith('#/people'))
     if rf:
-        check('Rapport opens on People, with one Log box', rf.locator('.v-people').count() == 1 and rf.locator('form.logbox').count() == 1)
+        check('People opens on People, with one Log box', rf.locator('.v-people').count() == 1 and rf.locator('form.logbox').count() == 1)
         rf.fill('#log-text', 'Shipped the e2e check'); rf.press('#log-text', 'Enter'); pg.wait_for_timeout(500)
-        pg.evaluate("location.hash = '#/receipts/me'"); pg.wait_for_timeout(800)
-        check('Rapport saves a receipt in browser storage, in your Log', rf.locator('.entry').count() == 1 and 'Shipped the e2e check' in rf.inner_text('.list'))
+        pg.evaluate("location.hash = '#/people/me'"); pg.wait_for_timeout(800)
+        check('People saves a receipt in browser storage, in your Log', rf.locator('.entry').count() == 1 and 'Shipped the e2e check' in rf.inner_text('.list'))
 
     pg.keyboard.press('Alt+4'); pg.wait_for_timeout(1200)
     nf = next((f for f in pg.frames if '/apps/notes/' in f.url), None)
@@ -250,19 +250,19 @@ def browser_mode_checks(ctx, pg, frame, watch):
     if nf: notes_flow(pg, nf, 'browser')
     if nf: notes_ecosystem(pg, nf)
 
-    # The running Docket task in the top bar (ws.status), on every app, with Pause asking for a breadcrumb.
-    pg.evaluate(f"location.hash = '#/prioritizer/task/{tid}'"); pg.wait_for_timeout(1500)
-    frame = next(f for f in pg.frames if '/apps/prioritizer/' in f.url)  # Notes reloaded the page
-    # Needs a Docket that sends its running task (docket#19). CI checks out Docket's main, so until that is merged
+    # The running Tasks task in the top bar (ws.status), on every app, with Pause asking for a breadcrumb.
+    pg.evaluate(f"location.hash = '#/tasks/task/{tid}'"); pg.wait_for_timeout(1500)
+    frame = next(f for f in pg.frames if '/apps/tasks/' in f.url)  # Notes reloaded the page
+    # Needs a Tasks that sends its running task (docket#19). CI checks out Tasks' main, so until that is merged
     # these checks are skipped instead of failing.
     docket_status = frame.evaluate("() => fetch('js/focus.js').then(r => r.text()).then(t => t.includes('w.status.set'))")
     if not docket_status:
-        print('SKIP  the top bar status checks: this Docket does not send ws.status yet')
+        print('SKIP  the top bar status checks: this Tasks does not send ws.status yet')
         frame.press('#drawer', 'Escape'); pg.wait_for_timeout(200)
     else:
         frame.click('#drawer [data-d="focus-start"]'); pg.wait_for_timeout(300); frame.press('#drawer', 'Escape')
         pg.wait_for_function("() => !document.querySelector('#wstatus').hidden", timeout=5000)
-        check('a running Docket task shows in the top bar, and Docket\'s own band steps aside',
+        check('a running Tasks task shows in the top bar, and Tasks\' own band steps aside',
               'Fix login' in pg.inner_text('#wstatus .ws-main') and pg.inner_text('#wstatus .ws-time').strip() == '0m'
               and not frame.is_visible('#nowbar') and pg.title().startswith('\u25CF 0m Fix login'))
         pg.keyboard.press('Alt+4'); pg.wait_for_timeout(500)
@@ -271,61 +271,61 @@ def browser_mode_checks(ctx, pg, frame, watch):
         check('Pause in the top bar asks where you left off', pg.locator('.ws-prompt').is_visible() and 'Where did you leave off?' in pg.inner_text('.ws-prompt'))
         pg.fill('.ws-prompt input', 'check the token refresh'); pg.keyboard.press('Enter'); pg.wait_for_timeout(500)
         check('and pauses the task with that breadcrumb, from Notes',
-              pg.locator('#wstatus').is_hidden() and frame.evaluate(f"window.__prioritizer.focusModel.activeOf(window.__prioritizer.focusLog, new Date().toLocaleDateString('en-CA'))") is None
-              and frame.evaluate(f"window.__prioritizer.state.tasks.find(t => t.id === '{tid}').crumbs.at(-1).text") == 'check the token refresh'
+              pg.locator('#wstatus').is_hidden() and frame.evaluate(f"window.__tasks.focusModel.activeOf(window.__tasks.focusLog, new Date().toLocaleDateString('en-CA'))") is None
+              and frame.evaluate(f"window.__tasks.state.tasks.find(t => t.id === '{tid}').crumbs.at(-1).text") == 'check the token refresh'
               and pg.url.endswith('#/notes'))
-        pg.evaluate(f"location.hash = '#/prioritizer/task/{tid}'"); pg.wait_for_timeout(600)
+        pg.evaluate(f"location.hash = '#/tasks/task/{tid}'"); pg.wait_for_timeout(600)
         frame.click('#drawer [data-d="focus-start"]'); pg.wait_for_timeout(300); frame.press('#drawer', 'Escape')
-        frame.evaluate('window.__prioritizer.saved()'); pg.wait_for_timeout(500)
+        frame.evaluate('window.__tasks.saved()'); pg.wait_for_timeout(500)
         pg.goto(HUB + '/#/notes'); pg.wait_for_timeout(2500)
-        frame = next(f for f in pg.frames if '/apps/prioritizer/' in f.url)
-        check('Docket loads in the background, so the task is in the top bar before Docket is opened',
+        frame = next(f for f in pg.frames if '/apps/tasks/' in f.url)
+        check('Tasks loads in the background, so the task is in the top bar before Tasks is opened',
               pg.url.endswith('#/notes') and pg.is_visible('#wstatus') and 'check the token refresh' in pg.inner_text('#wstatus .ws-detail'))
         pg.click('#wstatus [aria-label="Pause"]'); pg.wait_for_timeout(200); pg.keyboard.press('Escape'); pg.wait_for_timeout(500)
         check('Esc skips the breadcrumb and still pauses', pg.locator('#wstatus').is_hidden() and pg.locator('.ws-prompt').count() == 0)
 
-    # 1:1s are part of Rapport (2.0.0): the old 1:1s address opens People (5.0.0), then the copy of the old 1:1s app's data on a fresh open.
-    pg.evaluate("location.hash = '#/receipts/1on1s'"); pg.wait_for_timeout(800)
-    of = next((f for f in pg.frames if '/apps/receipts/' in f.url), None)
+    # 1:1s are part of People (2.0.0): the old 1:1s address opens People (5.0.0), then the copy of the old 1:1s app's data on a fresh open.
+    pg.evaluate("location.hash = '#/people/1on1s'"); pg.wait_for_timeout(800)
+    of = next((f for f in pg.frames if '/apps/people/' in f.url), None)
     check('the old 1:1s address opens People, which asks who you work with', of is not None and 'Who do you work with?' in of.inner_text('#app'))
     op = ctx.new_page(); watch(op); op.goto(HUB + '/apps/settings/'); op.wait_for_timeout(500)
     op.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'oneonones'});
       await ws.data.put('people', {schema: 'oneonones.people', version: 1, rev: 0, deleted: {}, items: [{id: 'p_old1', updatedAt: 1, name: 'Old Peer', links: {}, cadenceDays: 7, archived: false}]});
       await ws.files.write('notes/p-old1/2026-10-01.md', '# 1:1 with Old Peer\\n', {create: true}); }""")
-    op.goto(HUB + '/apps/receipts/#/1on1s')
+    op.goto(HUB + '/apps/people/#/1on1s')
     op.wait_for_function("() => document.querySelector('.plist') && document.querySelector('.plist').innerText.includes('Old Peer')", timeout=10000)
-    check('Rapport copies the old 1:1s people in on first open; People lists them as not in People', 'Not in People' in op.inner_text('.plist'))
+    check('People copies the old 1:1s people in on first open; People lists them as not in People', 'Not in People' in op.inner_text('.plist'))
     moved = op.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js');
-      const r = await connect({app: 'receipts'}); const o = await connect({app: 'oneonones'});
+      const r = await connect({app: 'people'}); const o = await connect({app: 'oneonones'});
       const files = await r.files.list('oneonones/notes'); const old = await o.files.list('notes');
       const people = await r.data.get('oneonones/people'); return [files.map(f => f.path), old.length, people && people.schema]; }""")
-    check('Rapport copies old 1:1 notes and keeps the old ones', moved == [['oneonones/notes/p-old1/2026-10-01.md'], 1, 'receipts.oneonones/people'])
+    check('People copies old 1:1 notes and keeps the old ones', moved == [['oneonones/notes/p-old1/2026-10-01.md'], 1, 'people.oneonones/people'])
     op.close()
 
-    pg.evaluate("location.hash = '#/runway'"); pg.wait_for_timeout(2500)
-    wf = next((f for f in pg.frames if '/apps/runway/' in f.url), None)
-    check('#/runway opens Runway itself', wf is not None and pg.url.endswith('#/runway'))
+    pg.evaluate("location.hash = '#/roadmaps'"); pg.wait_for_timeout(2500)
+    wf = next((f for f in pg.frames if '/apps/roadmaps/' in f.url), None)
+    check('#/roadmaps opens Roadmaps itself', wf is not None and pg.url.endswith('#/roadmaps'))
     if not os.path.isfile(os.path.join(RUNWAY, 'app.json')):
-        print(f'SKIP  Runway in browser mode (missing at {RUNWAY})')
+        print(f'SKIP  Roadmaps in browser mode (missing at {RUNWAY})')
     elif wf:
         wf.wait_for_function('() => window.__runway && window.__runway.store.v.loaded', timeout=10000)
-        check('Runway in browser mode makes ad hoc roadmaps, with no ADO offer', wf.locator('[data-new]').count() > 0 and wf.locator('[data-fromado]').count() == 0)
+        check('Roadmaps in browser mode makes ad hoc roadmaps, with no ADO offer', wf.locator('[data-new]').count() > 0 and wf.locator('[data-fromado]').count() == 0)
 
     pg.keyboard.press('Alt+2'); pg.wait_for_timeout(1500)
-    slf = next((f for f in pg.frames if '/apps/slate/' in f.url), None)
-    check('Loom is on the rail and opens', slf is not None and pg.url.endswith('#/slate'))
+    slf = next((f for f in pg.frames if '/apps/builds/' in f.url), None)
+    check('Builds is on the rail and opens', slf is not None and pg.url.endswith('#/builds'))
     if slf:
-        # Loom 6.0.0: two tabs, Lanes and Health. A request starts from Other flows; without Tandem it waits as a card
+        # Builds 6.0.0: two tabs, Lanes and Health. A request starts from Other flows; without Tandem it waits as a card
         # in Clarify and opens the board's own panel as a drawer over Lanes (the Board and the Inbox are retired).
         slf.wait_for_selector('#ln-drop', timeout=10000)
-        check('Loom is Lanes and Health, no Start work button; without Tandem the setup folds into one line', slf.eval_on_selector_all('#app .tabs .tab', 'bs => bs.map(b => b.dataset.tab)') == ['lanes', 'health']
+        check('Builds is Lanes and Health, no Start work button; without Tandem the setup folds into one line', slf.eval_on_selector_all('#app .tabs .tab', 'bs => bs.map(b => b.dataset.tab)') == ['lanes', 'health']
               and slf.locator('.ln-setup').count() == 1 and slf.locator('#app .top-start').count() == 0)
         slf.click('#app .ln-drop .ln-more summary'); slf.click('#app .ln-drop [data-start-open]'); pg.wait_for_timeout(400)
         check('Other flows offers only Handle a request, Plan an epic and Write docs', slf.eval_on_selector_all('.fcard', 'cs => cs.map(c => c.dataset.flow)') == ['request', 'epic', 'docs'])
         slf.click('.fcard[data-flow=request]'); pg.wait_for_timeout(300)
         slf.fill('[data-draft="start:title"]', 'Export orders to CSV'); slf.fill('[data-draft="start:desc"]', 'Finance asked for it')
         slf.click('[data-start-go]'); pg.wait_for_timeout(1000)
-        # Loom 6.4.0: on the floor, a request is under the lines ("Also on the floor"); List has a row per card.
+        # Builds 6.4.0: on the floor, a request is under the lines ("Also on the floor"); List has a row per card.
         check('on the floor (the default view), a request sits under the lines, waiting on you', seen(slf, '.fl-other .fl-card.mine[data-lane-open^="board:"]', 5000))
         slf.click('[data-lane-view=list]'); pg.wait_for_timeout(300)
         check('a request is a card in Clarify, waiting on you', seen(slf, '.fl-rowb.mine[data-lane=clarify][data-lane-open^="board:"]', 5000)
@@ -336,12 +336,12 @@ def browser_mode_checks(ctx, pg, frame, watch):
         shown = slf.eval_on_selector_all('.panel .next .acts button', 'bs => bs.map(b => b.dataset.act)')
         check('without Dispatch the request shows Write it myself and Who builds it?; Add to roadmap and Move to are in More', shown == ['write-myself', 'to-decide']
               and slf.locator('.panel details.more:not([open])').count() == 1)
-        stored = slf.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'slate'}); const e = await ws.data.get('items'); return [e.schema, e.items.length, e.items[0].stage]; }""")
-        check('Slate keeps items in its own collection (slate.items v1)', stored == ['slate.items', 1, 'new'])
+        stored = slf.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'builds'}); const e = await ws.data.get('items'); return [e.schema, e.items.length, e.items[0].stage]; }""")
+        check('Builds keeps items in its own collection (builds.items v1)', stored == ['builds.items', 1, 'new'])
         slf.click('.panel details.more > summary'); pg.wait_for_timeout(200)
         slf.click('.panel .more [data-act=roadmap-add]'); pg.wait_for_timeout(600)
-        offered = slf.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'slate'}); const e = await ws.data.get('handoffs'); return e.items.map(h => [h.to, h.accepted, h.payload.kind]); }""")
-        check('Add to roadmap (in More) offers the idea to Runway, and the menu closes', offered == [['runway', True, 'idea']] and slf.locator('.panel details.more[open]').count() == 0)
+        offered = slf.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'builds'}); const e = await ws.data.get('handoffs'); return e.items.map(h => [h.to, h.accepted, h.payload.kind]); }""")
+        check('Add to roadmap (in More) offers the idea to Roadmaps, and the menu closes', offered == [['roadmaps', True, 'idea']] and slf.locator('.panel details.more[open]').count() == 0)
         slf.click('.panel details.more > summary'); pg.wait_for_timeout(200)
         skip_opts = slf.eval_on_selector_all('#backTo optgroup[label="Skip ahead"] option', 'os => os.map(o => o.value)')
         check('a new card can only skip ahead (to Who builds it? or Define), from More', skip_opts == ['decide', 'defining'] and slf.locator('#backTo optgroup[label="Move back"]').count() == 0)
@@ -355,27 +355,27 @@ def browser_mode_checks(ctx, pg, frame, watch):
         slf.click('.panel details.more > summary'); pg.wait_for_timeout(200)
         slf.select_option('#backTo', 'new'); slf.click('.panel [data-act=back]'); slf.wait_for_selector('dialog form[data-form=confirm]')
         slf.click('dialog button[type=submit]'); pg.wait_for_timeout(600)
-        moved = slf.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'slate'}); const e = await ws.data.get('items'); const it = e.items[0]; return [it.stage, it.reopened, it.history.map(h => h.stage)]; }""")
+        moved = slf.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'builds'}); const e = await ws.data.get('items'); const it = e.items[0]; return [it.stage, it.reopened, it.history.map(h => h.stage)]; }""")
         check('Move back takes a done card back to new and holds it there: in Clarify again', moved == ['new', 'new', ['new', 'decide', 'done', 'new']] and slf.locator('.fl-rowb[data-lane=clarify][data-lane-open^="board:"]').count() == 1)
         details = slf.locator('.panel details.fold[data-fold=details]')
         check('Details starts closed', details.count() == 1 and details.get_attribute('open') is None)
         slf.click('.panel details.fold[data-fold=details] > summary'); pg.wait_for_timeout(200)
-        check('opening Details is remembered in this browser', slf.evaluate("localStorage.getItem('slate.fold.details')") == '1')
+        check('opening Details is remembered in this browser', slf.evaluate("localStorage.getItem('builds.fold.details')") == '1')
         slf.click('#board-root .panel [data-act=close]'); pg.wait_for_timeout(500)
         check('the drawer\'s Close closes it', slf.locator('#board-root').evaluate('el => el.hidden') and slf.locator('.fl-rowb.on').count() == 0)
         slf.click('#app .tabs [data-tab=health]'); pg.wait_for_timeout(1500)
         hrows = slf.eval_on_selector_all('.htable tbody th', 'ts => ts.map(t => t.textContent)')
         check('Health lists the four lanes, with Sprints inside it', hrows == ['Shape', 'Decide', 'Build', 'Done'] and slf.locator('#sprints #sprintsBox').count() == 1)
-        check('Health shows Team reports itself, no frame and no trip to Runway', slf.locator('iframe').count() == 0 and slf.locator('[data-act=reports]').count() == 0
+        check('Health shows Team reports itself, no frame and no trip to Roadmaps', slf.locator('iframe').count() == 0 and slf.locator('[data-act=reports]').count() == 0
               and slf.locator('#reports #reportsBox').count() == 1)
         slf.wait_for_function("() => (document.querySelector('#reportsBox')?.innerText || '').trim().length > 0", timeout=8000)
         check('Team reports in Health say what they need or ask for a team profile', any(t in slf.inner_text('#reportsBox') for t in ('Connect Azure DevOps', 'Set up your team profile', 'No report data yet')))
-        pg.evaluate("location.hash = '#/runway/reports'"); pg.wait_for_timeout(3000)
-        check("Runway's old #/reports link opens Loom's Health", '#/slate' in pg.url and not slf.locator('#board-root').evaluate('el => el.hidden')
+        pg.evaluate("location.hash = '#/roadmaps/reports'"); pg.wait_for_timeout(3000)
+        check("Roadmaps' old #/reports link opens Builds' Health", '#/builds' in pg.url and not slf.locator('#board-root').evaluate('el => el.hidden')
               and slf.locator('#reports #reportsBox').count() == 1 and slf.locator('#app .tabs [data-tab=health][aria-current=page]').count() == 1)
-        pg.evaluate("location.hash = '#/slate/roadmaps'"); pg.wait_for_timeout(2000)
-        check('an old #/slate/roadmaps link opens Runway', pg.url.endswith('#/runway'))
-    pg.keyboard.press('Alt+8'); pg.wait_for_timeout(1200)  # Notes Alt+4, Runway Alt+5, Bench Alt+6, Chat Alt+7
+        pg.evaluate("location.hash = '#/builds/roadmaps'"); pg.wait_for_timeout(2000)
+        check('an old #/builds/roadmaps link opens Roadmaps', pg.url.endswith('#/roadmaps'))
+    pg.keyboard.press('Alt+8'); pg.wait_for_timeout(1200)  # Notes Alt+4, Roadmaps Alt+5, Bench Alt+6, Chat Alt+7
     sf = next((f for f in pg.frames if '/apps/settings/' in f.url), None)
     check('Settings opens from the rail', sf is not None and pg.url.endswith('#/settings'))
     check('Settings in browser mode offers the data folder and data, no connectors', sf is not None and 'not running' in sf.inner_text('#content') and sf.locator('[data-export]').count() == 1 and sf.locator('.conn:not(.app-row)').count() == 0)
@@ -385,20 +385,18 @@ def browser_mode_checks(ctx, pg, frame, watch):
     check('Settings loads the self-hosted fonts', sf is not None and sf.evaluate("() => document.fonts.ready.then(() => [...document.fonts].some(f => f.family.includes('Figtree') && f.status === 'loaded'))"))
 
     nav = sf.evaluate("[...document.querySelectorAll('.nav-item')].map(b => b.dataset.nav)") if sf else []
-    check('Settings in browser mode: Status, Apps, Data & backups, People & teams, Knowledge and Focus hours in the nav, nothing that needs the agent', nav == ['overview', 'apps', 'data', 'people-teams', 'knowledge', 'focus'])
-    check('People & teams holds People & groups and Team area paths as tabs', sf is not None and sf.evaluate("[...document.querySelectorAll('.navpanel[data-nav=people-teams] .tab')].map(t => t.dataset.page).join()") == 'people,team'
+    check('Settings in browser mode: Status, Apps, Data & backups, Directory, Knowledge and Focus hours in the nav, nothing that needs the agent', nav == ['overview', 'apps', 'data', 'people-teams', 'knowledge', 'focus'])
+    check('Directory holds People & groups and Team area paths as tabs', sf is not None and sf.evaluate("[...document.querySelectorAll('.navpanel[data-nav=people-teams] .tab')].map(t => t.dataset.page).join()") == 'people,team'
           and sf.locator('.navpanel[data-nav=people-teams] .tabs').get_attribute('role') == 'tablist')
     check('the User guide is a link under the nav that opens its page', sf is not None and sf.locator('.nav-help').is_visible())
     if sf:
         sf.click('.nav-help'); sf.wait_for_timeout(200)
         check('the User guide link opens the guide', sf.locator('#page-guide').is_visible())
 
-    # People directory (docs/people.md), in Settings' People & teams: add yourself, then a report whose name is markup.
-    # The old People app's address opens it (shell RENAMED).
-    pg.evaluate("location.hash = '#/people'"); pg.wait_for_timeout(1500)
+    # People directory (docs/people.md), in Settings' Directory: add yourself, then a report whose name is markup.
+    pg.evaluate("location.hash = '#/settings/people'"); pg.wait_for_timeout(1500)
     sf = next((f for f in pg.frames if '/apps/settings/' in f.url), None)
-    check('#/people opens Settings at People & groups, and People has no rail button', sf is not None and pg.locator('.app-btn[data-app=people]').count() == 0
-          and sf.locator('#page-people').is_visible() and pg.url.endswith('#/settings'))
+    check('#/settings/people opens Settings at People & groups', sf is not None and sf.locator('#page-people').is_visible() and pg.url.endswith('#/settings'))
     if sf:
         sf.wait_for_selector('[data-person-new]', timeout=5000)
         sf.click('[data-person-new]'); sf.fill('#pName', 'Engineer A'); sf.click('[data-person-form] button.primary'); sf.wait_for_timeout(500)
@@ -441,7 +439,7 @@ def browser_mode_checks(ctx, pg, frame, watch):
         sf.click('[data-product-new]'); sf.fill('#prName', 'Sample <i>Portal</i>'); sf.fill('#prAka', 'SP, Portal')
         sf.fill('#prRepos', 'Platform/portal-ui\nportal-api'); sf.fill('#prAreas', 'Project\\Team\\Portal')
         sf.click('[data-product-form] button.primary'); sf.wait_for_timeout(500)
-        check('Products: added, listed with its note path and an Open Folio button', sf.locator('#products .product h3').all_inner_texts() == ['Sample <i>Portal</i>']
+        check('Products: added, listed with its note path and an Open Notes button', sf.locator('#products .product h3').all_inner_texts() == ['Sample <i>Portal</i>']
               and 'products/sample-i-portal-i.md' in sf.inner_text('#products') and sf.locator('[data-product-open]').count() == 1)
         sf.click('[data-product-new]'); sf.fill('#prName', 'sample <I>portal</I>'); sf.click('[data-product-form] button.primary'); sf.wait_for_timeout(300)
         check('Products: a second product with the same name is refused', 'already a product' in sf.inner_text('[data-product-form] .msg'))
@@ -451,21 +449,21 @@ def browser_mode_checks(ctx, pg, frame, watch):
         check('Products: saved as settings.products v1, renaming keeps the slug', prods == ['settings.products', 1, [['p_sample-i-portal-i', 'Portal Next', 'sample-i-portal-i', ['SP', 'Portal'], ['Platform/portal-ui', 'portal-api'], ['Project\\Team\\Portal']]]])
         stab(sf, 'people')
         rp.close()
-        # Receipts lists the report from the directory (by hash, so new rail apps don't shift it).
-        pg.evaluate("location.hash = '#/receipts/people'"); pg.wait_for_timeout(1500)
-        rf2 = next((f for f in pg.frames if '/apps/receipts/' in f.url), None)
-        check('Rapport lists reports from People, as text, and adds no one itself', rf2 is not None and '<b>Dev</b> One' in rf2.locator('.plist .pname b').all_inner_texts()
+        # People lists the report from the directory (by hash, so new rail apps don't shift it).
+        pg.evaluate("location.hash = '#/people/people'"); pg.wait_for_timeout(1500)
+        rf2 = next((f for f in pg.frames if '/apps/people/' in f.url), None)
+        check('People lists reports from People, as text, and adds no one itself', rf2 is not None and '<b>Dev</b> One' in rf2.locator('.plist .pname b').all_inner_texts()
               and rf2.locator('[data-act=people-settings]').count() >= 1 and rf2.locator('[data-act=add-person]').count() == 0)
         if rf2:
             # A report's page: the 1:1 tab, today's note, Wrap up twice: each follow-up and win once.
-            # Reports are in 1:1s without adding them (Rapport 4.3.0): the page offers today's note, not Start 1:1s.
+            # Reports are in 1:1s without adding them (People 4.3.0): the page offers today's note, not Start 1:1s.
             rf2.locator('.plist a[data-path^="p/"]', has_text='Dev').first.click(); rf2.wait_for_selector('[data-start-note], [data-start-dir]', timeout=5000)
             check('a report is in 1:1s without adding them, on a page with 1:1, Log, Goals and Review',
-                  rf2.locator('[data-start-dir]').count() == 0 and rf2.locator('.tabs button').all_inner_texts() == ['1:1', 'Log', 'Goals', 'Review'])
+                  rf2.locator('[data-start-dir]').count() == 0 and rf2.locator('.tabs button').all_inner_texts() == ['1:1', 'Log', 'Goals', 'Perf review'])
             if rf2.locator('[data-start-dir]').count(): rf2.click('[data-start-dir]'); rf2.wait_for_selector('[data-start-note]', timeout=5000)
             rf2.click('[data-start-note]'); rf2.wait_for_selector('#oo-editor', timeout=5000)
             text = rf2.input_value('#oo-editor')
-            check("Rapport's report page starts a 1:1 note, the name as text", text.startswith('# 1:1 with <b>Dev</b> One, '))
+            check("People's report page starts a 1:1 note, the name as text", text.startswith('# 1:1 with <b>Dev</b> One, '))
             rf2.fill('#oo-editor', text.replace('## Wins\n\n- ', '## Wins\n\n- Led the e2e review')
                      .replace('## Follow-ups\n\n- [ ] ', '## Follow-ups\n\n- [ ] <b>Dev</b> to share the e2e runbook\n- [ ] Book the e2e retro @me\n- [ ] '))
             rf2.press('#oo-editor', 'Control+s'); rf2.wait_for_timeout(500)
@@ -481,19 +479,19 @@ def browser_mode_checks(ctx, pg, frame, watch):
             rf2.click('.tabs button:has-text("Log")'); rf2.wait_for_selector('.list', timeout=3000)
             check('a win from Wrap up becomes one receipt in the report\'s Log', rf2.inner_text('.list').count('Led the e2e review') == 1
                   and 'From a 1:1' in rf2.inner_text('.list'))
-            # Follow-ups land in Docket as tasks with no second click: delegated to the report (waiting, a
+            # Follow-ups land in Tasks as tasks with no second click: delegated to the report (waiting, a
             # follow-up date) or yours. Logged twice, added once (docs/handoffs.md, rule 4).
-            pg.evaluate("location.hash = '#/prioritizer'"); pg.wait_for_timeout(1500)
-            got = pg.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'prioritizer'});
+            pg.evaluate("location.hash = '#/tasks'"); pg.wait_for_timeout(1500)
+            got = pg.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'tasks'});
               const dev = (await ws.people.get()).people.find(p => p.relation === 'report'); const e = await ws.data.get('tasks');
-              const mine = (e && e.items || []).filter(t => t.from && t.from.app === 'receipts');
+              const mine = (e && e.items || []).filter(t => t.from && t.from.app === 'people');
               return mine.map(t => [t.title, !!t.waiting, JSON.stringify(t.who || []) === JSON.stringify([dev.id]), /^\\d{4}-\\d{2}-\\d{2}$/.test(t.nudgeOn || '')]).sort(); }""")
-            check("1:1 follow-ups land in Docket once each: theirs waiting on the report with a follow-up date, yours a plain task",
+            check("1:1 follow-ups land in Tasks once each: theirs waiting on the report with a follow-up date, yours a plain task",
                   got == [['<b>Dev</b> to share the e2e runbook', True, True, True], ['Book the e2e retro', False, False, False]])
-            # Rapport Goals: start the team's goals, then the report's; the report's objective sits under the team's.
+            # People Goals: start the team's goals, then the report's; the report's objective sits under the team's.
             # The old goals address opens My team (5.0.0).
-            pg.evaluate("location.hash = '#/receipts/goals'"); pg.wait_for_timeout(1200)
-            gf = next((f for f in pg.frames if '/apps/receipts/' in f.url), None)
+            pg.evaluate("location.hash = '#/people/goals'"); pg.wait_for_timeout(1200)
+            gf = next((f for f in pg.frames if '/apps/people/' in f.url), None)
             check('Goals: an empty quarter offers Start team goals', gf is not None and 'No team goals for' in gf.inner_text('main') and gf.locator('[data-g-start=team]').count() == 1)
             if gf:
                 gf.click('[data-g-start=team]'); gf.wait_for_selector('[data-g-editor]', timeout=5000)
@@ -502,19 +500,19 @@ def browser_mode_checks(ctx, pg, frame, watch):
                 gf.click('.g-missing [data-g-start]'); gf.wait_for_selector('[data-g-editor]', timeout=5000)
                 check("Goals: a report's doc opens on their page's Goals tab", gf.locator('.tabs button.on').inner_text() == 'Goals' and gf.locator('[data-g-back]').count() == 0
                       and '<b>Dev</b> One' in gf.inner_text('.ptitle'))
-                pg.evaluate("location.hash = '#/receipts/team'"); gf.wait_for_selector('.g-tree', timeout=5000)
+                pg.evaluate("location.hash = '#/people/team'"); gf.wait_for_selector('.g-tree', timeout=5000)
                 gf.click('[data-g-expand=all]'); gf.wait_for_timeout(300)
                 check("Goals: the report's first objective sits under the first team objective, the name as text",
                       gf.locator('[data-g-node="s:0:0"] .g-who').text_content() == '<b>Dev</b> One' and gf.locator('[data-g-node="s:0:0"] .g-otitle').inner_text() == 'First objective')
                 gf.locator('[data-g-node="o:0"] > ul .g-krs button.g-prog').first.click(); gf.wait_for_selector('#g-pop-progress', timeout=3000)
                 gf.fill('#g-pop-progress', '50%'); gf.select_option('.g-pop select', 'at risk'); gf.click('.g-pop button.primary'); gf.wait_for_timeout(800)
-                team = gf.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'receipts'});
+                team = gf.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'people'});
                   const q = document.querySelector('[data-g-quarter]').value; return (await ws.files.read('goals/team/' + q + '.md')).content; }""")
                 lines = team.split('\n')
                 check('Goals: updating a KR from the tree rewrites only that line', "- First key result, with how you'll measure it: 50% [at risk]" in lines
                       and len([l for l in lines if '[at risk]' in l]) == 1 and lines.count('- Second key result: 0%') == 2 and lines.count('- Third key result: 0%') == 2
                       and lines[0].startswith('# Team goals, Q'))
-                gf.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'receipts'});
+                gf.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'people'});
                   const f = (await ws.files.list('goals')).find(x => !x.path.includes('/team/')); const r = await ws.files.read(f.path);
                   await ws.files.write(f.path, r.content.replace('Supports: Second objective', 'Supports: Nothing by this name') + '\\n## <script>alert(1)</script>\\n\\n- x: 1%\\n', {mtime: r.mtime}); }""")
                 gf.wait_for_timeout(1200); gf.click('[data-g-expand=all]'); gf.wait_for_timeout(300)
@@ -542,7 +540,7 @@ def browser_mode_checks(ctx, pg, frame, watch):
     cached = pg.evaluate("""async () => { await navigator.serviceWorker.ready; await new Promise(r => setTimeout(r, 500));
       const k = (await caches.keys()).find(n => n.startsWith('workshop-')); if (!k) return [];
       return (await (await caches.open(k)).keys()).map(r => new URL(r.url).pathname); }""")
-    check('service worker precaches every app\'s files from the registry', '/apps/prioritizer/js/people.js' in cached and '/apps/settings/js/forms.js' in cached and '/apps/settings/icon.svg' in cached)
+    check('service worker precaches every app\'s files from the registry', '/apps/tasks/js/people.js' in cached and '/apps/settings/js/forms.js' in cached and '/apps/settings/icon.svg' in cached)
     check('service worker caches nothing under /api', not any(p.startswith('/api') for p in cached))
     pg.keyboard.press('Alt+1'); pg.wait_for_timeout(300)
 
@@ -555,19 +553,19 @@ PASTE_IMAGE = """(b64) => { const bin = atob(b64); const bytes = new Uint8Array(
 
 
 def notes_write(page, nf):
-    """Folio has no Split view (4.3.0): back to Live (or Edit) to type, from Preview."""
+    """Notes has no Split view (4.3.0): back to Live (or Edit) to type, from Preview."""
     if 'mode-preview' in (nf.get_attribute('#body', 'class') or ''):
         nf.click('[data-mode=live]' if nf.locator('[data-mode=live]').count() else '[data-mode=edit]'); page.wait_for_timeout(200)
 
 
 def notes_look(page, nf):
-    """Switch Folio to Preview to read what the note draws."""
+    """Switch Notes to Preview to read what the note draws."""
     nf.click('[data-mode=preview]'); page.wait_for_timeout(400)
 
 
 def notes_append(page, nf, text):
-    """Add text at the end of the open note. Folio 3.3 edits in CodeMirror, which continues lists and closes brackets
-    as you type, so set the whole text at once (as Folio's own e2e does) instead of typing it."""
+    """Add text at the end of the open note. Notes 3.3 edits in CodeMirror, which continues lists and closes brackets
+    as you type, so set the whole text at once (as Notes' own e2e does) instead of typing it."""
     notes_write(page, nf)
     # Not fill(): on a slow runner it replaces only the lines CodeMirror has drawn. Insert at the end instead.
     nf.click('.cm-content'); nf.press('.cm-content', 'Control+End')
@@ -588,52 +586,52 @@ def notes_new(page, nf, title, folder_button=None):
 
 
 def notes_ecosystem(pg, nf):
-    """Notes with the other apps: an action item sent to Docket, a ws: link that opens Docket, and Home's Recent notes."""
+    """Notes with the other apps: an action item sent to Tasks, a ws: link that opens Tasks, and Home's Recent notes."""
     pg.evaluate("location.hash = '#/notes'"); pg.wait_for_timeout(1200)
     nf = next(f for f in pg.frames if '/apps/notes/' in f.url)  # notes_flow reloaded the page
     seen(nf, '.side')
     notes_new(pg, nf, 'Team Sync')
-    notes_append(pg, nf, '- [ ] Draft the rollout plan\n- Shipped the cache layer #win\n\nSee [today](ws:prioritizer/today)\n')
+    notes_append(pg, nf, '- [ ] Draft the rollout plan\n- Shipped the cache layer #win\n\nSee [today](ws:tasks/today)\n')
     nf.press('.cm-content', 'Control+s'); pg.wait_for_timeout(1200)
-    check('Notes: the panel lists the action item and the win (For Rapport), each with a send button',
-          nf.locator('[data-act=send][data-kind=task]').count() == 1 and nf.locator('[data-act=send][data-kind=rapport]').count() == 1)
+    check('Notes: the panel lists the action item and the win (For People), each with a send button',
+          nf.locator('[data-act=send][data-kind=task]').count() == 1 and nf.locator('[data-act=send][data-kind=people]').count() == 1)
     notes_look(pg, nf)
-    check('Notes: a ws: link shows as a chip with the app\'s name', nf.locator('#preview .app-link .app-chip').count() == 1 and nf.inner_text('#preview .app-chip').lower() == 'docket')
+    check('Notes: a ws: link shows as a chip with the app\'s name', nf.locator('#preview .app-link .app-chip').count() == 1 and nf.inner_text('#preview .app-chip').lower() == 'tasks')
     nf.click('[data-act=send][data-kind=task]'); pg.wait_for_timeout(1200)
     check('Notes: a sent action item shows Sent', 'sent' in nf.inner_text('.sendables').lower())
     nf.click('#preview .app-link'); pg.wait_for_timeout(1500)
-    # The shell opens Docket at the route, then tidies the address (Docket is the plain address), or Docket 8.0.0 writes its place.
-    check('Notes: clicking a ws: link opens that app', pg.url == HUB + '/' or '#/prioritizer/' in pg.url)
-    df = next(f for f in pg.frames if '/apps/prioritizer/' in f.url)
+    # The shell opens Tasks at the route, then tidies the address (Tasks is the plain address), or Tasks 8.0.0 writes its place.
+    check('Notes: clicking a ws: link opens that app', pg.url == HUB + '/' or '#/tasks/' in pg.url)
+    df = next(f for f in pg.frames if '/apps/tasks/' in f.url)
     pg.wait_for_timeout(1500)
-    check('Docket adds the sent action item as a task, with no second click', 'Draft the rollout plan' in df.inner_text('body'))
-    # Plan 3: Docket's wrap-up writes into today's note.
-    pg.evaluate("location.hash = '#/prioritizer/shutdown'"); pg.wait_for_timeout(1500)
-    df = next(f for f in pg.frames if '/apps/prioritizer/' in f.url)
+    check('Tasks adds the sent action item as a task, with no second click', 'Draft the rollout plan' in df.inner_text('body'))
+    # Plan 3: Tasks' wrap-up writes into today's note.
+    pg.evaluate("location.hash = '#/tasks/shutdown'"); pg.wait_for_timeout(1500)
+    df = next(f for f in pg.frames if '/apps/tasks/' in f.url)
     box = df.locator('.shutdown [data-wrapnote]')
-    check('Docket: Wrap up offers to add a wrap-up to today\'s note, ticked', box.count() == 1 and box.is_checked())
+    check('Tasks: Wrap up offers to add a wrap-up to today\'s note, ticked', box.count() == 1 and box.is_checked())
     df.click('.shutdown footer .btn.primary'); pg.wait_for_timeout(1000)
-    check('Docket: the toast offers Open today\'s note', "today's note" in df.inner_text('#toast').lower() if df.locator('#toast').count() else False)
+    check('Tasks: the toast offers Open today\'s note', "today's note" in df.inner_text('#toast').lower() if df.locator('#toast').count() else False)
     pg.evaluate("location.hash = '#/notes/today'"); pg.wait_for_timeout(2500)
     nf = next(f for f in pg.frames if '/apps/notes/' in f.url)
     today = nf.input_value('#editor')
-    check('Notes: today\'s note has the wrap-up from Docket', '## Wrap-up' in today and '- Day: ' in today)
+    check('Notes: today\'s note has the wrap-up from Tasks', '## Wrap-up' in today and '- Day: ' in today)
     if '## Wrap-up' not in today: print('      today:', today[:300].replace('\n', ' | '))
-    # Plan 1: the [[ picker offers Docket's tasks; the task's details list the note.
+    # Plan 1: the [[ picker offers Tasks' tasks; the task's details list the note.
     notes_write(pg, nf)
     nf.click('.cm-content'); nf.press('.cm-content', 'Control+End')
     nf.type('.cm-content', '\nFollow up on [[Draft the')
     pg.wait_for_timeout(1500)
     picker_text = nf.inner_text('#picker') if nf.locator('#picker').count() else ''
-    check('Notes: the [[ picker lists Docket tasks under In other apps', 'in other apps' in picker_text.lower() and 'Draft the rollout plan' in picker_text)
+    check('Notes: the [[ picker lists tasks from Tasks under In other apps', 'in other apps' in picker_text.lower() and 'Draft the rollout plan' in picker_text)
     nf.press('.cm-content', 'Enter'); nf.press('.cm-content', 'Control+s'); pg.wait_for_timeout(1500)
-    m = re.search(r'\[Draft the rollout plan\]\(ws:prioritizer/task/([^)]+)\)', nf.input_value('#editor'))
+    m = re.search(r'\[Draft the rollout plan\]\(ws:tasks/task/([^)]+)\)', nf.input_value('#editor'))
     check('Notes: choosing a task writes its ws: link', bool(m))
     if m:
-        pg.evaluate(f"location.hash = '#/prioritizer/task/{m.group(1)}'"); pg.wait_for_timeout(2500)
-        df = next(f for f in pg.frames if '/apps/prioritizer/' in f.url)
+        pg.evaluate(f"location.hash = '#/tasks/task/{m.group(1)}'"); pg.wait_for_timeout(2500)
+        df = next(f for f in pg.frames if '/apps/tasks/' in f.url)
         about = df.inner_text('.d-about') if df.locator('.d-about').count() else ''
-        check("Docket: the task's details list the note that links to it, and Copy link", 'Copy link' in about and today.split('\n')[0].lstrip('# ') in about)
+        check("Tasks: the task's details list the note that links to it, and Copy link", 'Copy link' in about and today.split('\n')[0].lstrip('# ') in about)
         if 'Copy link' not in about or today.split('\n')[0].lstrip('# ') not in about: print('      about:', about)
     # Plan 5: "n today: ..." in the top bar's Capture lands in today's note.
     pg.click('#capBtn'); pg.wait_for_timeout(800)
@@ -719,13 +717,13 @@ def notes_flow(page, nf, where):
 def start_agent(tmp, config=None):
     """Starts the real agent with copies of the repo's apps plus test fixtures. Returns (process, url, token, home)."""
     apps, conns, home = (os.path.join(tmp, d) for d in ('apps', 'connectors', 'home'))
-    for name in ('home', 'prioritizer', 'slate', 'settings'):
+    for name in ('home', 'tasks', 'builds', 'settings'):
         copy_app(name, os.path.join(apps, name))
     for name in ('pages', 'board'):
         shutil.copytree(os.path.join(ROOT, 'tests', 'fixtures', 'apps', name), os.path.join(apps, name))
     board = os.path.join(apps, 'board', 'app.json')
     with open(board) as f: m = json.load(f)
-    m['order'] = 50  # after the repo's apps, so Prioritizer stays first on the rail
+    m['order'] = 50  # after the repo's apps, so Tasks stays first on the rail
     with open(board, 'w') as f: json.dump(m, f)
     shutil.copytree(os.path.join(ROOT, 'connectors', 'ado'), os.path.join(conns, 'ado'))
     shutil.copytree(os.path.join(ROOT, 'tests', 'fixtures', 'connectors', 'echo'), os.path.join(conns, 'echo'))
@@ -764,7 +762,7 @@ def agent_checks(b, watch):
               and sf.locator('#page-work-items form.cfg:visible').count() == 0)
         stab(sf, 'repos')
         check('Repos works with no Azure DevOps: no ADO lines or other folders', sf.locator('#page-repos .repo-meta').count() == 0 and not sf.locator('#page-repos .cfg-section:not(.repo-hidden)').is_visible())
-        gone = sf.evaluate("""async () => Promise.all(['/shell/shell.js', '/sw.js', '/apps/registry.json', '/apps/home/index.html', '/apps/slate/index.html']
+        gone = sf.evaluate("""async () => Promise.all(['/shell/shell.js', '/sw.js', '/apps/registry.json', '/apps/home/index.html', '/apps/builds/index.html']
           .map(p => fetch(p).then(r => r.status)))""")
         check('the agent serves no hub and no other app', gone == [404] * 5)
         check('and registers no service worker', sf.evaluate("navigator.serviceWorker.getRegistration().then(r => !r)"))
@@ -777,12 +775,12 @@ def agent_checks(b, watch):
         ap.goto(SAMPLES + '/'); ap.wait_for_timeout(1500)
         check('the paired hub runs in hosted mode', ap.evaluate('document.documentElement.dataset.mode') == 'hosted')
         rail = ap.eval_on_selector_all('.app-btn[data-app]', 'els => els.map(e => e.dataset.app)')
-        check('sample apps in the site\'s registry appear in the rail', rail[0] == 'prioritizer' and 'pages' in rail and 'board' in rail and rail[-1] == 'settings')
-        check('the hub opens the first rail app at the plain address', ap.title() == 'Docket · Workshop' and not ap.is_visible('#spanel'))
-        ap.evaluate("location.hash = '#/prioritizer'"); ap.wait_for_timeout(1200)
-        check('Docket loads in the hub', any('/apps/prioritizer/' in f.url for f in ap.frames) and ap.title() == 'Docket · Workshop')
-        pf = next(f for f in ap.frames if '/apps/prioritizer/' in f.url)
-        check('Docket uses the agent backend', pf.evaluate("async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'prioritizer'}); return ws.mode + '/' + ws.backend; }") == 'hosted/agent')
+        check('sample apps in the site\'s registry appear in the rail', rail[0] == 'tasks' and 'pages' in rail and 'board' in rail and rail[-1] == 'settings')
+        check('the hub opens the first rail app at the plain address', ap.title() == 'Tasks · Workshop' and not ap.is_visible('#spanel'))
+        ap.evaluate("location.hash = '#/tasks'"); ap.wait_for_timeout(1200)
+        check('Tasks loads in the hub', any('/apps/tasks/' in f.url for f in ap.frames) and ap.title() == 'Tasks · Workshop')
+        pf = next(f for f in ap.frames if '/apps/tasks/' in f.url)
+        check('Tasks uses the agent backend', pf.evaluate("async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'tasks'}); return ws.mode + '/' + ws.backend; }") == 'hosted/agent')
         ap.evaluate("location.hash = '#/pages'"); ap.wait_for_timeout(800)
         check('the sample app opens in a frame', any(f.url.endswith('/apps/pages/index.html') for f in ap.frames))
         ap.evaluate("location.hash = '#/board'"); ap.wait_for_timeout(800)
@@ -870,25 +868,25 @@ def agent_checks(b, watch):
         p2.wait_for_timeout(800)
         check('agent backend: other pages hear writes through the event stream', rev == 1 and p2.evaluate('window.__heard') == [1])
         check(f'one event stream for every app and window of the site, not one each ({len(streams)} opened)', len(streams) == 1)
-        with open(os.path.join(tmp, 'Workshop', 'folio', 'pages.json')) as f:
+        with open(os.path.join(tmp, 'Workshop', 'notes', 'pages.json')) as f:
             check('agent backend: data is a file in the data folder', json.load(f)['items'][0]['title'] == 'A')
-        # App settings (docs/app-settings.md): Docket's Use sprints, declared in its app.json, under it on Settings' Apps tab.
+        # App settings (docs/app-settings.md): Tasks' Use sprints, declared in its app.json, under it on Settings' Apps tab.
         stab(p1, 'apps'); p1.wait_for_timeout(300)
-        sw = p1.locator('.app-row[data-app=prioritizer] [data-app-setting=sprints]')
+        sw = p1.locator('.app-row[data-app=tasks] [data-app-setting=sprints]')
         if not docket_declares('sprints'): print('SKIP  app settings (the Docket checkout declares no sprints setting yet)')
         else:
             check('Settings shows the switch an app declares in its manifest, at its default', sw.count() == 1 and sw.is_checked())
-            p1.click('.app-row[data-app=prioritizer] .app-opts > summary')  # an app's own switches fold under Options (Settings 6.3.0)
+            p1.click('.app-row[data-app=tasks] .app-opts > summary')  # an app's own switches fold under Options (Settings 6.3.0)
             sw.click()
             # The save is async: poll for it (up to 6 s) instead of one fixed wait, which flaked on a slow CI runner.
             got, settings_file = {}, os.path.join(tmp, 'Workshop', 'settings', 'app-settings.json')
             for _ in range(24):
                 p1.wait_for_timeout(250)
-                got = p2.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'prioritizer'}); return ws.appSettings.get(); }""")
+                got = p2.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'tasks'}); return ws.appSettings.get(); }""")
                 if got.get('sprints') is False and os.path.isfile(settings_file): break
             check('turning it off saves it where the app reads it (ws.appSettings)', got.get('sprints') is False)
             with open(settings_file) as f:
-                check('app settings are a file in Settings\' folder', any(i['id'] == 'prioritizer' and i['values'] == {'sprints': False} for i in json.load(f)['items']))
+                check('app settings are a file in Settings\' folder', any(i['id'] == 'tasks' and i['values'] == {'sprints': False} for i in json.load(f)['items']))
         p2.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'notes'});
           window.__files = []; ws.files.subscribe('summaries', e => window.__files.push([e.path, typeof e.mtime])); await new Promise(r => setTimeout(r, 300)); }""")
         wrote = p1.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'notes'});
@@ -898,7 +896,7 @@ def agent_checks(b, watch):
         p2.wait_for_timeout(800)
         check('agent backend: ws.files writes, reads and refuses a stale mtime', wrote == {'mtime': 'number', 'conflict': 'conflict', 'read': '# Q4\n'})
         check('agent backend: other pages hear file writes through the event stream', p2.evaluate('window.__files') == [['summaries/q4.md', 'number']])
-        with open(os.path.join(tmp, 'Workshop', 'folio', 'summaries', 'q4.md')) as f:
+        with open(os.path.join(tmp, 'Workshop', 'notes', 'summaries', 'q4.md')) as f:
             check('agent backend: a file is a file in the data folder', f.read() == '# Q4\n')
         cached = ap.evaluate("""async () => { await navigator.serviceWorker.ready; await new Promise(r => setTimeout(r, 500));
           const k = (await caches.keys()).find(n => n.startsWith('workshop-')); if (!k) return null;
@@ -924,7 +922,7 @@ def agent_checks(b, watch):
         if hs:
             stab(hs, 'people')
             hs.click('[data-person-new]'); hs.fill('#pName', 'Hosted Person'); hs.click('[data-person-form] button.primary'); hs.wait_for_timeout(800)
-        check('hosted Settings still edits People & teams', hs is not None and 'Hosted Person' in hs.inner_text('#page-people'))
+        check('hosted Settings still edits Directory', hs is not None and 'Hosted Person' in hs.inner_text('#page-people'))
         hctx.close()
         lctx.close()
     finally:
@@ -989,25 +987,25 @@ def reset_checks(b, watch):
 
 
 def storage_checks(b, watch):
-    """Part 4: Prioritizer's board saved through the SDK (WS5)."""
+    """Part 4: Tasks' board saved through the SDK (WS5)."""
     with open(os.path.join(FIX, 'today-localstorage.json')) as f: legacy = json.load(f)
     want = sorted(t['title'] for t in legacy['tasks'])
-    titles = "() => window.__prioritizer.state.tasks.map(t => t.title).sort()"
+    titles = "() => window.__tasks.state.tasks.map(t => t.title).sort()"
 
     # Browser mode: a board saved by the localStorage versions moves into Workshop storage once.
     ctx = b.new_context(viewport={'width': 1280, 'height': 800}, accept_downloads=True)
     pg = ctx.new_page(); watch(pg)
     pg.goto(HUB + '/manifest.webmanifest')
     pg.evaluate("raw => localStorage.setItem('prioritizer.v1', raw)", json.dumps(legacy))
-    pg.goto(HUB + '/apps/prioritizer/'); pg.wait_for_timeout(1200)
+    pg.goto(HUB + '/apps/tasks/'); pg.wait_for_timeout(1200)
     check('the old browser board moves in on first load', pg.evaluate(titles) == want)
     stored = pg.evaluate("""() => new Promise(res => { const r = indexedDB.open('workshop'); r.onsuccess = () => {
-      const q = r.result.transaction('data').objectStore('data').get('prioritizer/tasks'); q.onsuccess = () => res(q.result); }; })""")
-    check('browser mode saves the board as a prioritizer.tasks envelope', stored and stored['schema'] == 'prioritizer.tasks' and len(stored['items']) == len(want))
+      const q = r.result.transaction('data').objectStore('data').get('tasks/tasks'); q.onsuccess = () => res(q.result); }; })""")
+    check('browser mode saves the board as a tasks.tasks envelope', stored and stored['schema'] == 'tasks.tasks' and len(stored['items']) == len(want))
     # t2 has no names on it; t1's names become directory ids once the directory loads, which is a change.
     check('the move keeps the old change stamps', stored and {t['id']: t['updatedAt'] for t in stored['items']}['t2'] == next(t['updatedAt'] for t in legacy['tasks'] if t['id'] == 't2'))
     check('the old copy is kept, and marked as moved', pg.evaluate("localStorage.getItem('prioritizer.v1') !== null && localStorage.getItem('prioritizer.v1.moved') !== null"))
-    pg.evaluate("() => { const P = window.__prioritizer; P.state.tasks = P.state.tasks.filter(t => t.id !== 't7'); P.commit(); return P.saved(); }")
+    pg.evaluate("() => { const P = window.__tasks; P.state.tasks = P.state.tasks.filter(t => t.id !== 't7'); P.commit(); return P.saved(); }")
     pg.reload(); pg.wait_for_timeout(1200)
     check('it moves only once: a deleted task stays deleted after reload', pg.evaluate(titles) == [t for t in want if t != 'Untriaged idea'])
     check('the folder icon is a file menu now', pg.evaluate("document.querySelector('#syncBtn').dataset.sync") == 'on')
@@ -1015,7 +1013,7 @@ def storage_checks(b, watch):
     menu = pg.inner_text('.menu')
     check('the file menu says where the board is saved, and has no folder sync', 'Saved in this browser' in menu and 'Download a backup' in menu and 'folder' not in menu.lower())
     pg.keyboard.press('Escape')
-    with pg.expect_download() as dl: pg.evaluate('window.__prioritizer.downloadBackup()')
+    with pg.expect_download() as dl: pg.evaluate('window.__tasks.downloadBackup()')
     bundle_path = os.path.join(tempfile.mkdtemp(), dl.value.suggested_filename); dl.value.save_as(bundle_path)
     with open(bundle_path) as f: bundle = json.load(f)
     check('a backup is a Workshop bundle named workshop-<date>.json', bundle['schema'] == 'workshop.bundle' and dl.value.suggested_filename.startswith('workshop-')
@@ -1025,43 +1023,43 @@ def storage_checks(b, watch):
     tmp = tempfile.mkdtemp()
     proc, url, token, home = start_agent(tmp, {'configVersion': 1, 'port': 4380, 'allowedOrigins': [HOSTED],
                                                'features': {'startAtLogin': False, 'hostedMode': True}, 'connectors': {}})
-    data = os.path.join(tmp, 'Workshop', 'docket')  # Docket's folder (shared/app-folders.js)
+    data = os.path.join(tmp, 'Workshop', 'tasks')  # Tasks' folder (its app id)
     try:
-        # Docket on the hosted site, paired with the agent.
+        # Tasks on the hosted site, paired with the agent.
         actx = b.new_context(viewport={'width': 1280, 'height': 800}, accept_downloads=True)
         pair(actx, HOSTED, url, token)
         p1 = actx.new_page(); watch(p1)
-        p1.goto(HOSTED + '/apps/prioritizer/'); p1.wait_for_timeout(1200)
+        p1.goto(HOSTED + '/apps/tasks/'); p1.wait_for_timeout(1200)
 
         # Round trip: export from today's app (the fixture), import, export again: identical tasks.
         p1.set_input_files('#importFile', os.path.join(FIX, 'today-export.xlsx')); p1.wait_for_timeout(600)
-        p1.evaluate('window.__prioritizer.saved()')
+        p1.evaluate('window.__tasks.saved()')
         with open(os.path.join(data, 'tasks.json')) as f: on_disk = json.load(f)
-        check('with Workshop running, the board is a file in the data folder', on_disk['schema'] == 'prioritizer.tasks' and sorted(t['title'] for t in on_disk['items']) == want)
+        check('with Workshop running, the board is a file in the data folder', on_disk['schema'] == 'tasks.tasks' and sorted(t['title'] for t in on_disk['items']) == want)
         check('lists and settings are files too', all(os.path.exists(os.path.join(data, c + '.json')) for c in ('lists', 'settings')))
         p1.reload(); p1.wait_for_timeout(1200)
-        with p1.expect_download() as dl: p1.evaluate('window.__prioritizer.exportXlsx()')
+        with p1.expect_download() as dl: p1.evaluate('window.__tasks.exportXlsx()')
         again = os.path.join(tempfile.mkdtemp(), 'again.xlsx'); dl.value.save_as(again)
         first, second = p1.evaluate(SHEET_ROWS, b64(os.path.join(FIX, 'today-export.xlsx'))), p1.evaluate(SHEET_ROWS, b64(again))
         check('round trip: export from today\'s app, import, export again gives identical tasks', first == second and sum(len(v) for k, v in first.items() if k != 'Lists') == len(want))
 
         # Moving between backends: the browser-mode backup merges into the agent board.
         p1.set_input_files('#importFile', bundle_path); p1.wait_for_timeout(500)
-        p1.click('[data-merge]'); p1.wait_for_timeout(600); p1.evaluate('window.__prioritizer.saved()')
+        p1.click('[data-merge]'); p1.wait_for_timeout(600); p1.evaluate('window.__tasks.saved()')
         check('a backup from browser mode imports into the agent board without duplicates', p1.evaluate(titles) == want)
 
         # Two windows stay in sync through the event stream.
         p2 = actx.new_page(); watch(p2)
-        p2.goto(HOSTED + '/apps/prioritizer/'); p2.wait_for_timeout(1200)
-        p1.evaluate("""() => { const P = window.__prioritizer; P.state.tasks.push({id: 'w1', title: 'From window one', listId: P.state.lists[0].id, value: 3, effort: 'S'});
+        p2.goto(HOSTED + '/apps/tasks/'); p2.wait_for_timeout(1200)
+        p1.evaluate("""() => { const P = window.__tasks; P.state.tasks.push({id: 'w1', title: 'From window one', listId: P.state.lists[0].id, value: 3, effort: 'S'});
           P.state = P.sanitize(P.state); P.commit(); return P.saved(); }""")
         p2.wait_for_timeout(800)
         check('two windows: the other window shows a new task without reloading', 'From window one' in p2.evaluate(titles))
-        p2.evaluate("() => { const P = window.__prioritizer; P.state.tasks.find(t => t.id === 'w1').title = 'Edited in window two'; P.commit(); return P.saved(); }")
+        p2.evaluate("() => { const P = window.__tasks; P.state.tasks.find(t => t.id === 'w1').title = 'Edited in window two'; P.commit(); return P.saved(); }")
         p1.wait_for_timeout(800)
         check('two windows: an edit in either one reaches the other', 'Edited in window two' in p1.evaluate(titles) and 'From window one' not in p1.evaluate(titles))
-        p1.evaluate("() => { const P = window.__prioritizer; P.state.tasks.find(t => t.id === 't1').title = 'Plan (one)'; P.commit(); }")
-        p2.evaluate("() => { const P = window.__prioritizer; P.state.tasks.find(t => t.id === 't2').title = 'Onboarding (two)'; P.commit(); }")
+        p1.evaluate("() => { const P = window.__tasks; P.state.tasks.find(t => t.id === 't1').title = 'Plan (one)'; P.commit(); }")
+        p2.evaluate("() => { const P = window.__tasks; P.state.tasks.find(t => t.id === 't2').title = 'Onboarding (two)'; P.commit(); }")
         p1.wait_for_timeout(1500)
         both = [p.evaluate(titles) for p in (p1, p2)]
         check('two windows editing at the same time merge instead of overwriting', both[0] == both[1] and 'Plan (one)' in both[0] and 'Onboarding (two)' in both[0])
@@ -1069,7 +1067,7 @@ def storage_checks(b, watch):
         # A failed write never loses the previous file; the edit waits and is saved on retry.
         with open(os.path.join(data, 'tasks.json')) as f: before = f.read()
         os.makedirs(os.path.join(data, 'tasks.json.tmp'))  # the agent's temp file can't be created
-        p1.evaluate("() => { const P = window.__prioritizer; P.state.tasks.push({id: 'f1', title: 'Written while the disk fails', listId: P.state.lists[0].id}); P.state = P.sanitize(P.state); P.commit(); }")
+        p1.evaluate("() => { const P = window.__tasks; P.state.tasks.push({id: 'f1', title: 'Written while the disk fails', listId: P.state.lists[0].id}); P.state = P.sanitize(P.state); P.commit(); }")
         p1.wait_for_timeout(1200)
         with open(os.path.join(data, 'tasks.json')) as f: during = f.read()
         check('a failed write leaves the previous file as it was', during == before)
@@ -1083,13 +1081,13 @@ def storage_checks(b, watch):
         p2.wait_for_timeout(300)
         check('and the other window gets it', 'Written while the disk fails' in p2.evaluate(titles))
 
-        # A data file the agent can't read: Prioritizer says so and writes nothing over it.
+        # A data file the agent can't read: Tasks says so and writes nothing over it.
         with open(os.path.join(data, 'tasks.json'), 'w') as f: f.write('{not json')
         p3 = actx.new_page(); watch(p3)
-        p3.goto(HOSTED + '/apps/prioritizer/'); p3.wait_for_timeout(1200)
-        p3.evaluate("() => { const P = window.__prioritizer; P.state.capacity = 7; P.commit(); }"); p3.wait_for_timeout(800)
+        p3.goto(HOSTED + '/apps/tasks/'); p3.wait_for_timeout(1200)
+        p3.evaluate("() => { const P = window.__tasks; P.state.capacity = 7; P.commit(); }"); p3.wait_for_timeout(800)
         with open(os.path.join(data, 'tasks.json')) as f: damaged = f.read()
-        check('a damaged data file: Prioritizer says it can\'t load and never writes over it', damaged == '{not json'
+        check('a damaged data file: Tasks says it can\'t load and never writes over it', damaged == '{not json'
               and p3.evaluate("document.querySelector('#syncBtn').dataset.sync") == 'error' and 'Could not load your board' in p3.inner_text('#toast'))
         actx.close()
     finally:
@@ -1135,19 +1133,19 @@ FOLDER_FILES = """async () => { const {connect} = await import('/shared/workshop
 
 def folder_checks(b, watch):
     """Part 6: the data folder in browser mode, and the move from IndexedDB (WS11c)."""
-    titles = "() => window.__prioritizer.state.tasks.map(t => t.title).sort()"
+    titles = "() => window.__tasks.state.tasks.map(t => t.title).sort()"
     ctx = b.new_context(viewport={'width': 1280, 'height': 800})
     ctx.add_init_script(HANDLES)
     pg = ctx.new_page(); watch(pg)
-    pg.goto(HUB + '/#/prioritizer'); pg.wait_for_timeout(1500)
-    pf = next(f for f in pg.frames if '/apps/prioritizer/' in f.url)
-    pf.evaluate("""() => { const P = window.__prioritizer; P.state.tasks.push({id: 'b1', title: 'Saved in the browser first', listId: P.state.lists[0].id, value: 3, effort: 'S'});
+    pg.goto(HUB + '/#/tasks'); pg.wait_for_timeout(1500)
+    pf = next(f for f in pg.frames if '/apps/tasks/' in f.url)
+    pf.evaluate("""() => { const P = window.__tasks; P.state.tasks.push({id: 'b1', title: 'Saved in the browser first', listId: P.state.lists[0].id, value: 3, effort: 'S'});
       P.state = P.sanitize(P.state); P.commit(); return P.saved(); }""")
     pg.evaluate("""async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'notes'});
       await ws.files.write('summaries/q4.md', '# Q4 from the browser', {create: true}); }""")
-    check('before a folder is chosen, browser mode saves in IndexedDB, files too', pg.evaluate(IDB_GET, ['data', 'prioritizer/tasks']) is not None
+    check('before a folder is chosen, browser mode saves in IndexedDB, files too', pg.evaluate(IDB_GET, ['data', 'tasks/tasks']) is not None
           and (pg.evaluate(IDB_GET, ['files', 'notes/summaries/q4.md']) or {}).get('content') == '# Q4 from the browser')
-    pg.evaluate(OPFS, ['Workshop/folio/summaries/q4.md', '# Q4 already in the folder'])
+    pg.evaluate(OPFS, ['Workshop/notes/summaries/q4.md', '# Q4 already in the folder'])
 
     # Settings: Choose folder. The picker is replaced by the stand-in folder; everything after it is real.
     pg.evaluate("location.hash = '#/settings'"); pg.wait_for_timeout(1200)
@@ -1162,24 +1160,24 @@ def folder_checks(b, watch):
           and sf.inner_text('[data-folder-name]') == 'Workshop' and sf.locator('[data-folder] [data-choose]').inner_text() == 'Change folder')
     check('Settings summarizes what was copied', 'Now using Workshop' in text and bool(re.search(r'[1-9] collections? copied in \([1-9] new, 0 merged', text)) and 'kept as it was' in text)
     check('a different file already in the folder is kept, the browser copy is written beside it',
-          pg.evaluate(OPFS, ['Workshop/folio/summaries/q4.md', None]) == '# Q4 already in the folder'
-          and pg.evaluate(OPFS, ['Workshop/folio/summaries/q4-from-browser.md', None]) == '# Q4 from the browser' and 'q4-from-browser.md' in text)
-    on_disk = json.loads(pg.evaluate(OPFS, ['Workshop/docket/tasks.json', None]) or '{}')
-    check('the board is copied into the folder as docket/tasks.json', on_disk.get('schema') == 'prioritizer.tasks' and 'Saved in the browser first' in [t['title'] for t in on_disk.get('items', [])])
+          pg.evaluate(OPFS, ['Workshop/notes/summaries/q4.md', None]) == '# Q4 already in the folder'
+          and pg.evaluate(OPFS, ['Workshop/notes/summaries/q4-from-browser.md', None]) == '# Q4 from the browser' and 'q4-from-browser.md' in text)
+    on_disk = json.loads(pg.evaluate(OPFS, ['Workshop/tasks/tasks.json', None]) or '{}')
+    check('the board is copied into the folder as docket/tasks.json', on_disk.get('schema') == 'tasks.tasks' and 'Saved in the browser first' in [t['title'] for t in on_disk.get('items', [])])
     moved = pg.evaluate(IDB_GET, ['data', '_moved'])
-    check('the IndexedDB copy is kept and marked moved', pg.evaluate(IDB_GET, ['data', 'prioritizer/tasks']) is not None and bool(moved) and moved['movedTo'] == 'Workshop')
+    check('the IndexedDB copy is kept and marked moved', pg.evaluate(IDB_GET, ['data', 'tasks/tasks']) is not None and bool(moved) and moved['movedTo'] == 'Workshop')
 
-    # Prioritizer on the folder: round trip through files.
-    pg.evaluate("location.hash = '#/prioritizer'"); pg.wait_for_timeout(1500)
-    pf = next(f for f in pg.frames if '/apps/prioritizer/' in f.url)
-    check('Prioritizer runs on the folder store', pf.evaluate("async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'prioritizer'}); return [ws.backend, ws.storage, ws.online]; }") == ['browser', 'folder', True])
+    # Tasks on the folder: round trip through files.
+    pg.evaluate("location.hash = '#/tasks'"); pg.wait_for_timeout(1500)
+    pf = next(f for f in pg.frames if '/apps/tasks/' in f.url)
+    check('Tasks runs on the folder store', pf.evaluate("async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'tasks'}); return [ws.backend, ws.storage, ws.online]; }") == ['browser', 'folder', True])
     check('the board loads from the folder', 'Saved in the browser first' in pf.evaluate(titles))
-    pf.evaluate("""() => { const P = window.__prioritizer; P.state.tasks.push({id: 'f1', title: 'Saved in the folder', listId: P.state.lists[0].id, value: 3, effort: 'S'});
+    pf.evaluate("""() => { const P = window.__tasks; P.state.tasks.push({id: 'f1', title: 'Saved in the folder', listId: P.state.lists[0].id, value: 3, effort: 'S'});
       P.state = P.sanitize(P.state); P.commit(); return P.saved(); }""")
-    on_disk = json.loads(pg.evaluate(OPFS, ['Workshop/docket/tasks.json', None]))
+    on_disk = json.loads(pg.evaluate(OPFS, ['Workshop/tasks/tasks.json', None]))
     check('an edit is written to the folder', 'Saved in the folder' in [t['title'] for t in on_disk['items']])
     pg.reload(); pg.wait_for_timeout(1500)
-    pf = next(f for f in pg.frames if '/apps/prioritizer/' in f.url)
+    pf = next(f for f in pg.frames if '/apps/tasks/' in f.url)
     check('the board round-trips through the folder across a reload', {'Saved in the browser first', 'Saved in the folder'} <= set(pf.evaluate(titles)))
     pf.evaluate("document.querySelector('#syncBtn').click()"); pg.wait_for_timeout(200)
     check('the file menu says the board is in the Workshop folder', 'Saved in your Workshop folder' in pf.inner_text('.menu'))
@@ -1187,14 +1185,14 @@ def folder_checks(b, watch):
 
     # Another tab hears writes (BroadcastChannel); a change made outside Workshop is found by lastModified.
     p2 = ctx.new_page(); watch(p2)
-    p2.goto(HUB + '/apps/prioritizer/'); p2.wait_for_timeout(1500)
-    pf.evaluate("() => { const P = window.__prioritizer; P.state.tasks.find(t => t.id === 'f1').title = 'Edited in tab one'; P.commit(); return P.saved(); }")
+    p2.goto(HUB + '/apps/tasks/'); p2.wait_for_timeout(1500)
+    pf.evaluate("() => { const P = window.__tasks; P.state.tasks.find(t => t.id === 'f1').title = 'Edited in tab one'; P.commit(); return P.saved(); }")
     p2.wait_for_timeout(1000)
     check('folder store: another tab shows an edit without reloading', 'Edited in tab one' in p2.evaluate(titles))
-    env = json.loads(pg.evaluate(OPFS, ['Workshop/docket/tasks.json', None]))
+    env = json.loads(pg.evaluate(OPFS, ['Workshop/tasks/tasks.json', None]))
     env['rev'] += 1
     env['items'].append(dict(env['items'][0], id='o1', title='Added outside Workshop', updatedAt=int(time.time() * 1000)))
-    pg.evaluate(OPFS, ['Workshop/docket/tasks.json', json.dumps(env, indent=2) + '\n'])
+    pg.evaluate(OPFS, ['Workshop/tasks/tasks.json', json.dumps(env, indent=2) + '\n'])
     p2.wait_for_timeout(6500)
     check('folder store: a change made outside Workshop shows up within the 5-second check', 'Added outside Workshop' in p2.evaluate(titles))
     p2.close()
@@ -1204,35 +1202,35 @@ def folder_checks(b, watch):
           r['storage'] == 'folder' and r['online'] and r.get('exists') == 'conflict' and r.get('stale') == 'conflict' and r.get('current') == '# H2, edited' and r['newer'])
     check('folder store: ws.files lists and trashes into .trash/', r['list'] == ['summaries/h2.md', 'summaries/q4-from-browser.md', 'summaries/q4.md']
           and r['trash'].startswith('.trash/notes/summaries/h2.') and r['after'] == ['summaries/q4-from-browser.md', 'summaries/q4.md']
-          and pg.evaluate(OPFS, ['Workshop/' + r['trash'].replace('.trash/notes/', '.trash/folio/', 1), None]) == '# H2, edited')  # the API names app ids, the disk folders
+          and pg.evaluate(OPFS, ['Workshop/' + r['trash'], None]) == '# H2, edited')  # the API names app ids, the disk folders
     check('folder status names the folder', r['status'] == {'storage': 'folder', 'name': 'Workshop', 'permission': 'granted', 'moved': True, 'missing': False})
 
     # After a browser restart Chrome asks again: the shell shows one bar; apps wait, then load on Allow.
     ctx.add_init_script(ASK_AGAIN)
     p3 = ctx.new_page(); watch(p3)
-    p3.goto(HUB + '/#/prioritizer'); p3.wait_for_timeout(1800)
+    p3.goto(HUB + '/#/tasks'); p3.wait_for_timeout(1800)
     bar = p3.locator('#folderBar')
     check('when Chrome must ask again, the shell shows a bar with the Allow button', bar.count() == 1 and 'Allow Workshop to use the folder Workshop' in bar.inner_text())
-    pf3 = next(f for f in p3.frames if '/apps/prioritizer/' in f.url)
-    check('meanwhile Prioritizer shows no board, says to allow the folder, and says it is not saving',
+    pf3 = next(f for f in p3.frames if '/apps/tasks/' in f.url)
+    check('meanwhile Tasks shows no board, says to allow the folder, and says it is not saving',
           'Allow Workshop to use your folder to see your board' in pf3.inner_text('#main') and 'in the bar at the top of Workshop' in pf3.inner_text('#main')
           and pf3.locator('.row').count() == 0 and pf3.evaluate("document.querySelector('#syncBtn').dataset.sync") == 'error')
     pf3.click('#main'); p3.keyboard.press('n'); p3.wait_for_timeout(300)
     no_key = not pf3.evaluate("document.getElementById('cmd').classList.contains('open')")
     p3.keyboard.press('Control+k'); p3.wait_for_timeout(300); p3.keyboard.type('add a task'); p3.keyboard.press('Enter'); p3.wait_for_timeout(400)
     no_palette = not pf3.evaluate("document.getElementById('cmd').classList.contains('open')")
-    check('while waiting, adding a task is not possible (N, the palette, New list)', no_key and no_palette and pf3.locator('#phead [data-scopemenu]').count() == 0)   # Docket 9.0.0: New list is in the list pill's menu
-    before = pg.evaluate(OPFS, ['Workshop/docket/tasks.json', None])
-    pf3.evaluate("() => { const P = window.__prioritizer; P.state.tasks.push({id: 'w9', title: 'Typed while waiting', listId: P.state.lists[0].id}); P.commit(); }")
+    check('while waiting, adding a task is not possible (N, the palette, New list)', no_key and no_palette and pf3.locator('#phead [data-scopemenu]').count() == 0)   # Tasks 9.0.0: New list is in the list pill's menu
+    before = pg.evaluate(OPFS, ['Workshop/tasks/tasks.json', None])
+    pf3.evaluate("() => { const P = window.__tasks; P.state.tasks.push({id: 'w9', title: 'Typed while waiting', listId: P.state.lists[0].id}); P.commit(); }")
     p3.wait_for_timeout(1200)
-    check('while waiting, nothing is saved over the folder', pg.evaluate(OPFS, ['Workshop/docket/tasks.json', None]) == before and pf3.locator('.row').count() == 0)
+    check('while waiting, nothing is saved over the folder', pg.evaluate(OPFS, ['Workshop/tasks/tasks.json', None]) == before and pf3.locator('.row').count() == 0)
     bar.locator('[data-allow]').click(); p3.wait_for_timeout(1500)
     check('Allow removes the bar', p3.locator('#folderBar').count() == 0)
     got = pf3.evaluate(titles)
     check('after Allow, the saved board appears', 'Edited in tab one' in got and 'Typed while waiting' not in got and pf3.locator('.waiting-empty').count() == 0
           and pf3.evaluate("document.querySelector('#syncBtn').dataset.sync") == 'on')
     pf3.click('#main'); p3.keyboard.press('n'); p3.wait_for_timeout(300)
-    check('and adding a task works again', pf3.evaluate("document.getElementById('cmd').classList.contains('open')") and pf3.locator('#phead [data-scopemenu]').is_visible())   # Docket 9.0.0: lists are in the list pill
+    check('and adding a task works again', pf3.evaluate("document.getElementById('cmd').classList.contains('open')") and pf3.locator('#phead [data-scopemenu]').is_visible())   # Tasks 9.0.0: lists are in the list pill
 
     # Home waits the same way: a message instead of an empty page, no profile editing, then loads on Allow.
     p4 = ctx.new_page(); watch(p4)
@@ -1248,19 +1246,19 @@ def folder_checks(b, watch):
     seen(hf4, '.card.inbox')
     check('after Allow, the panel loads Needs you without a reload', hf4.locator('.waiting').count() == 0 and hf4.locator('.card.inbox').count() == 1)
 
-    # Notes on the folder: the notes and images are files in Workshop/folio/ (shared/app-folders.js).
+    # Notes on the folder: the notes and images are files in Workshop/notes/.
     p4.evaluate("location.hash = '#/notes'"); p4.wait_for_timeout(1500)
     nf4 = next((f for f in p4.frames if '/apps/notes/' in f.url), None)
     check('Notes (folder): notes another app already wrote in notes/ show in the tree', nf4 is not None and nf4.locator('.tree [data-open="summaries/q4.md"]').count() == 1)
     if nf4: notes_flow(p4, nf4, 'folder')
-    on_disk = pg.evaluate(OPFS, ['Workshop/folio/runbooks/deploy.md', None]) or ''
+    on_disk = pg.evaluate(OPFS, ['Workshop/notes/runbooks/deploy.md', None]) or ''
     check('Notes (folder): the note is a Markdown file in the folder', on_disk.startswith('# Deploy Runbook') and 'Steps for a release' in on_disk)
-    check('Notes (folder): links in other notes were rewritten on disk', '](runbooks/deploy.md)' in (pg.evaluate(OPFS, ['Workshop/folio/guide.md', None]) or ''))
-    img = pg.evaluate("""async () => { const root = await navigator.storage.getDirectory(); const d = await (await (await root.getDirectoryHandle('Workshop')).getDirectoryHandle('folio')).getDirectoryHandle('attachments');
+    check('Notes (folder): links in other notes were rewritten on disk', '](runbooks/deploy.md)' in (pg.evaluate(OPFS, ['Workshop/notes/guide.md', None]) or ''))
+    img = pg.evaluate("""async () => { const root = await navigator.storage.getDirectory(); const d = await (await (await root.getDirectoryHandle('Workshop')).getDirectoryHandle('notes')).getDirectoryHandle('attachments');
       for await (const [name, h] of d.entries()) { const b = new Uint8Array(await (await h.getFile()).arrayBuffer()); return [name, b.length, b[0], b[1]]; } return null; }""")
     check('Notes (folder): the pasted image is stored as PNG bytes in folio/attachments/', bool(img) and img[0].endswith('.png') and img[1] == 67 and img[2:] == [0x89, 0x50])
-    check('Notes (folder): the old file went to the trash, nothing was deleted', pg.evaluate(OPFS, ['Workshop/folio/deploy-runbook.md', None]) is None
-          and pg.evaluate("""async () => { const root = await navigator.storage.getDirectory(); try { const d = await (await (await root.getDirectoryHandle('Workshop')).getDirectoryHandle('.trash')).getDirectoryHandle('folio');
+    check('Notes (folder): the old file went to the trash, nothing was deleted', pg.evaluate(OPFS, ['Workshop/notes/deploy-runbook.md', None]) is None
+          and pg.evaluate("""async () => { const root = await navigator.storage.getDirectory(); try { const d = await (await (await root.getDirectoryHandle('Workshop')).getDirectoryHandle('.trash')).getDirectoryHandle('notes');
             for await (const [name] of d.entries()) if (name.startsWith('deploy-runbook.')) return true; } catch (e) {} return false; }"""))
     ctx.close()
 
@@ -1283,7 +1281,7 @@ def toast_has(page, text, ms=10000):
 
 
 def open_tab(f, tab):
-    """Loom's tabs; All runs (work) opens from the board's toolbar."""
+    """Builds' tabs; All runs (work) opens from the board's toolbar."""
     if tab == 'work':
         f.click('#app .tabs [data-tab=board]')
         f.wait_for_selector('#top [data-act=runs]', timeout=10000)
@@ -1294,14 +1292,14 @@ def open_tab(f, tab):
 
 def agents_checks(b, watch):
     """Part 5: the Agents app on the opencode connector (WS6), with a synthetic workspace and a fake opencode."""
-    fx = subprocess.Popen(['node', os.path.join(ROOT, 'tests', 'fixtures', 'dispatch-fixture.mjs')], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+    fx = subprocess.Popen(['node', os.path.join(ROOT, 'tests', 'fixtures', 'runs-fixture.mjs')], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
     info = json.loads(fx.stdout.readline())
     def ask(cmd):
         fx.stdin.write(json.dumps(cmd) + '\n'); fx.stdin.flush()
         return json.loads(fx.stdout.readline())
     tmp = tempfile.mkdtemp()
     apps, conns, home = (os.path.join(tmp, d) for d in ('apps', 'connectors', 'home'))
-    for name in ('prioritizer', 'chat', 'slate', 'settings'):
+    for name in ('tasks', 'chat', 'builds', 'settings'):
         copy_app(name, os.path.join(apps, name))
     shutil.copytree(os.path.join(ROOT, 'connectors', 'opencode'), os.path.join(conns, 'opencode'))
     os.makedirs(home)
@@ -1316,19 +1314,19 @@ def agents_checks(b, watch):
         ctx = b.new_context(viewport={'width': 1280, 'height': 800})
         pair(ctx, HOSTED, url, a['token'])
         pg = ctx.new_page(); watch(pg)
-        pg.goto(HOSTED + '/#/slate/41610'); pg.wait_for_timeout(1000)
-        af = next((f for f in pg.frames if '/apps/slate/' in f.url), None)
+        pg.goto(HOSTED + '/#/builds/41610'); pg.wait_for_timeout(1000)
+        af = next((f for f in pg.frames if '/apps/builds/' in f.url), None)
         if af: seen(af, '.pill.on'); pg.wait_for_timeout(500)
         check('Agents is a same-origin app on the SDK, no frame from another origin', af is not None and all(f.url.startswith(HOSTED) or f.url == 'about:blank' for f in pg.frames))
         check('Agents reads the opencode connector and shows Live', af is not None and af.inner_text('.pill') == 'Live')
-        check('Loom has two tabs, Lanes and Health, and no sidebar (Loom 6.0.0)', af.eval_on_selector_all('#app .tabs .tab', 'els => els.map(e => e.dataset.tab)') == ['lanes', 'health']
+        check('Builds has two tabs, Lanes and Health, and no sidebar (Builds 6.0.0)', af.eval_on_selector_all('#app .tabs .tab', 'els => els.map(e => e.dataset.tab)') == ['lanes', 'health']
               and af.locator('#app .side, #app aside:not(.ln-panel)').count() == 0)
-        # Loom 6.4.0: an id or folder (Docket's agent queue, notifications) opens the run's panel beside the floor.
-        check('#/slate/<id> opens that run\'s panel beside the floor, under Lanes', seen(af, '.fl-body .ln-panel [data-open-run="41610-rate-limit-headers"]')
+        # Builds 6.4.0: an id or folder (Tasks' agent queue, notifications) opens the run's panel beside the floor.
+        check('#/builds/<id> opens that run\'s panel beside the floor, under Lanes', seen(af, '.fl-body .ln-panel [data-open-run="41610-rate-limit-headers"]')
               and af.locator('.fl-card.on[data-lane-open="41610-rate-limit-headers"]').count() == 1 and af.get_attribute('#app .tab.on', 'data-tab') == 'lanes')
-        check('the shell keeps the address, and the name and theme are the shell\'s', pg.url.endswith('#/slate') and af.locator('#app .brand').count() == 0 and af.locator('[data-theme-menu]').count() == 0)
+        check('the shell keeps the address, and the name and theme are the shell\'s', pg.url.endswith('#/builds') and af.locator('#app .brand').count() == 0 and af.locator('[data-theme-menu]').count() == 0)
 
-        # Loom 6.4.0: the floor is the default view: a code line and a research line of stations, stuck runs in a bin.
+        # Builds 6.4.0: the floor is the default view: a code line and a research line of stations, stuck runs in a bin.
         af.click('.ln-panel [data-lane-close]'); pg.wait_for_timeout(200)
         check('the floor is the default: Floor is pressed, the code line has its eight stations in order', af.get_attribute('[data-lane-view=floor]', 'aria-pressed') == 'true'
               and af.eval_on_selector_all('.fl-code .fl-name', 'els => els.map(e => e.innerText)') == ['Plan desk', 'Build bay', 'Test bench', 'UI check', 'Review', 'Fix shop', 'Loading dock', 'In transit'])
@@ -1338,15 +1336,15 @@ def agents_checks(b, watch):
         af.click('.fl-code .st-plan [data-lane-open="41300-export-retry-fails"]'); pg.wait_for_timeout(300)
         check('a card on the floor opens the same panel as the lanes', af.locator('.fl-body .ln-panel .icard.gate').count() == 1)
         if os.environ.get('LOOM_SHOTS'):
-            pg.screenshot(path='/tmp/loom-pop.png')
-            af.click('.ln-panel [data-lane-close]'); af.click('.ln-drop .ln-more summary'); pg.wait_for_timeout(200); pg.screenshot(path='/tmp/loom-menu.png')
+            pg.screenshot(path='/tmp/builds-pop.png')
+            af.click('.ln-panel [data-lane-close]'); af.click('.ln-drop .ln-more summary'); pg.wait_for_timeout(200); pg.screenshot(path='/tmp/builds-menu.png')
             af.click('.ln-drop .ln-more summary'); af.click('.fl-code .st-plan [data-lane-open="41300-export-retry-fails"]'); pg.wait_for_timeout(300)
         af.click('.ln-panel [data-lane-close]'); pg.wait_for_timeout(200)
         af.click('[data-lane-view=list]'); pg.wait_for_timeout(300)
         check('List shows rows (no lanes since 6.7.0), and the choice is kept in this browser', af.locator('.fl-list').count() == 1 and af.locator('.ln-lanes').count() == 0
-              and 'list' in (af.evaluate("localStorage.getItem('dispatch.view')") or ''))
+              and 'list' in (af.evaluate("localStorage.getItem('builds.runs.view')") or ''))
 
-        # The List (Loom 6.7.0; the four lanes before): the drop box, a row per run with its lane, and the run's own card in the panel.
+        # The List (Builds 6.7.0; the four lanes before): the drop box, a row per run with its lane, and the run's own card in the panel.
         af.click('#app .tabs [data-tab=lanes]'); pg.wait_for_timeout(400)
         check('List has the drop box and its groups in order', af.locator('#ln-drop').count() == 1
               and af.eval_on_selector_all('.fl-rgroup h2', 'els => els.map(e => e.firstChild.textContent.trim())')[:2] == ['Needs you', 'Running'])
@@ -1367,14 +1365,14 @@ def agents_checks(b, watch):
         bg = af.evaluate("getComputedStyle(document.body).backgroundColor")
         check('Agents draws with Workshop\'s theme colors (shared/themes.css)', bg == ('rgb(26, 21, 23)' if want == 'dark' else 'rgb(250, 246, 241)'))
 
-        # Loom 6.0.0: every run is a card in the lanes, and a card's panel holds its run (its step and buttons).
+        # Builds 6.0.0: every run is a card in the lanes, and a card's panel holds its run (its step and buttons).
         af.click('#app .tabs [data-tab=lanes]'); pg.wait_for_timeout(600)
         keys = af.eval_on_selector_all('.fl-rowb[data-lane-open]', 'els => els.map(e => e.dataset.laneOpen)')
         folders = sorted(k for k in keys if not k.startswith(('board:', 'session:', 'reviews')))
         check('every open .work folder is one card in the lanes (a finished one is under Done today)', folders == sorted(['41207-fix-login-timeout', '41300-export-retry-fails', '41455-audit-log-filter', '41502-csv-export', '41610-rate-limit-headers', '41720-show-item-count', 'spike-cache-options']))
         if folders != sorted(['41207-fix-login-timeout', '41300-export-retry-fails', '41455-audit-log-filter', '41502-csv-export', '41610-rate-limit-headers', '41720-show-item-count', 'spike-cache-options']): print('    lanes have:', folders)
         af.click('.fl-rowb[data-lane-open="41300-export-retry-fails"]'); pg.wait_for_timeout(800)
-        check('the card\'s panel holds its run: the step to read and its buttons', seen(af, '.ln-panel .loom-run .icard.gate') and af.locator('.ln-panel [data-act=approve-start]').count() == 1)
+        check('the card\'s panel holds its run: the step to read and its buttons', seen(af, '.ln-panel .builds-run .icard.gate') and af.locator('.ln-panel [data-act=approve-start]').count() == 1)
         check('the panel keeps the draft closed until Read', af.locator('.ln-panel .finline').count() == 0)
         af.click('.ln-panel [data-peek="card:41300-export-retry-fails"]'); pg.wait_for_timeout(400)
         check('Read shows the file you are approving (file.read)', seen(af, '.ln-panel .finline .doc') and 'Root cause' in af.inner_text('.ln-panel .finline'))
@@ -1383,12 +1381,12 @@ def agents_checks(b, watch):
         check('the run\'s buttons work inside the panel (Send back opens its note box there)', af.locator('.ln-panel [data-sb-toggle][aria-expanded=true]').count() == 1
               and af.locator('.ln-panel textarea').count() == 1)
         af.click('.ln-panel [data-sb-toggle]'); pg.wait_for_timeout(300)
-        check('a run at Ship is a card in Ready that says Publish (Loom 6.2.0)', af.locator('.fl-rowb.mine[data-lane=ready][data-lane-open="41610-rate-limit-headers"] .fl-act').inner_text() == 'Publish')
+        check('a run at Ship is a card in Ready that says Publish (Builds 6.2.0)', af.locator('.fl-rowb.mine[data-lane=ready][data-lane-open="41610-rate-limit-headers"] .fl-act').inner_text() == 'Publish')
         af.click('.fl-rowb[data-lane=ready][data-lane-open="41610-rate-limit-headers"]'); pg.wait_for_timeout(500)
         check('its panel has the Publish gate and Publish all ready shows atop Needs you (6.7.0)', af.locator('.ln-panel [data-publish="41610-rate-limit-headers"]').count() == 1
               and af.locator('.fl-rgroup[aria-label="Needs you"] h2 [data-publish-all]').count() == 1)
         af.click('.ln-panel [data-lane-close]'); pg.wait_for_timeout(300)
-        if os.environ.get('LOOM_SHOTS'): pg.screenshot(path='/tmp/loom-lanes.png')
+        if os.environ.get('LOOM_SHOTS'): pg.screenshot(path='/tmp/builds-lanes.png')
 
         # Health > Tandem: the opencode connector's tandem.health, read from the example .work (docs/tandem-health.md).
         af.click('#app .tabs [data-tab=health]')
@@ -1396,7 +1394,7 @@ def agents_checks(b, watch):
         tbox = af.inner_text('#tandemBox') if tandem_ok else ''
         check('Health shows Tandem: Pipeline, Learning loop, Prompts and Setup, from .work', tandem_ok and all(t in tbox for t in ('Pipeline', 'Learning loop', 'Prompts', 'Setup', 'consistency')))
         check('Tandem lists recent items that open their run', af.locator('#tandemBox [data-act=open-run][data-id="41610-rate-limit-headers"]').count() == 1)
-        if os.environ.get('LOOM_SHOTS'): af.locator('#tandem').screenshot(path='/tmp/loom-tandem.png')
+        if os.environ.get('LOOM_SHOTS'): af.locator('#tandem').screenshot(path='/tmp/builds-tandem.png')
         af.click('#tandemBox [data-act=open-run][data-id="41610-rate-limit-headers"]'); pg.wait_for_timeout(500)
         check('an item in Tandem opens its run page', seen(af, '.run-page#item-41610'))
         af.click('[data-close-run]'); pg.wait_for_timeout(300)
@@ -1421,7 +1419,7 @@ def agents_checks(b, watch):
         # A file opens in the app.
         run.locator('.run-details [data-file][data-name="bug.md"]').click(); pg.wait_for_timeout(800)
         check('Open bug.md shows the file in the app (file.read)', 'Bug' in af.inner_text('.doc') and af.locator('#file-h').inner_text() == '.work/41300-export-retry-fails/bug.md')
-        check('the file sheet offers Open in Folio', af.locator('.sheet [data-open-notebook]').count() == 1)
+        check('the file sheet offers Open in Notes', af.locator('.sheet [data-open-notebook]').count() == 1)
         # Approve just started a session on this run, so the sheet is read-only until Tandem stops (lib/docs.mjs refuses too).
         check('while Tandem works on the run, Edit is off and the sheet says why',
               af.locator('.sheet [data-file-mode=edit]').is_disabled() and 'read-only until it stops' in af.inner_text('.sheet'))
@@ -1429,19 +1427,19 @@ def agents_checks(b, watch):
         af.click('[data-close-run]')
         check('Back from a run page returns to Lanes, where it was opened from', seen(af, '#ln-drop') and af.get_attribute('#app .tab.on', 'data-tab') == 'lanes')
 
-        # Prompts: a card in Clarify waiting on you, counted on the rail badge, answered in its panel (Loom 6.0.0).
-        before = int(pg.inner_text('.app-btn[data-app=slate] .badge') or 0)
+        # Prompts: a card in Clarify waiting on you, counted on the rail badge, answered in its panel (Builds 6.0.0).
+        before = int(pg.inner_text('.app-btn[data-app=builds] .badge') or 0)
         ask({'ask': {'id': 'per_e2e', 'session': None, 'title': 'npm test'}}); pg.wait_for_timeout(1500)
         check('a prompt from opencode is a card in Clarify, waiting on you', seen(af, '.fl-rowb.mine[data-lane=clarify][data-lane-open="session:ses_tui0"]', 5000))
-        check('the rail badge counts it', pg.inner_text('.app-btn[data-app=slate] .badge') == str(before + 1))
+        check('the rail badge counts it', pg.inner_text('.app-btn[data-app=builds] .badge') == str(before + 1))
         af.click('.fl-rowb[data-lane=clarify][data-lane-open="session:ses_tui0"]'); pg.wait_for_timeout(500)
         check('its panel shows the prompt with its answers', 'npm test' in af.inner_text('.ln-panel .ln-asks'))
         af.click('.ln-panel [data-perm=per_e2e][data-answer=once]'); pg.wait_for_timeout(1200)
         r = ask({'requests': True})
         check('Allow once answers it in opencode', 'POST /session/ses_tui0/permissions/per_e2e' in r['requests'] and af.locator('[data-perm=per_e2e]').count() == 0)
-        check('and the badge goes back down', pg.inner_text('.app-btn[data-app=slate] .badge') == str(before))
+        check('and the badge goes back down', pg.inner_text('.app-btn[data-app=builds] .badge') == str(before))
 
-        # Chat (its own app since Loom 4.8.0): a sidebar of chats and one chat in view. It opens on New chat, with the hub's box in it.
+        # Chat (its own app since Builds 4.8.0): a sidebar of chats and one chat in view. It opens on New chat, with the hub's box in it.
         # Back on the rail since Chat 4.3.0 (off it from 3.0.0, where new people could not find it); its address opens it too.
         pg.evaluate("location.hash = '#/chat'"); pg.wait_for_timeout(1500)
         cf = next(f for f in pg.frames if '/apps/chat/' in f.url)
@@ -1449,9 +1447,9 @@ def agents_checks(b, watch):
         check('the sidebar has New chat and search', cf.locator('.chat-side .chat-search').is_visible() and cf.inner_text('.chat-top h2') == 'New chat')
         cf.click('.chat-side [data-chat-side]'); pg.wait_for_timeout(200)
         check('the sidebar closes, the hub box stays, and it is remembered', cf.locator('.chat-side').count() == 1 and not cf.locator('.chat-side').is_visible()
-              and cf.locator('.chat-home #hub .cap-in').is_visible() and cf.evaluate("localStorage.getItem('dispatch.chatSide')") == 'closed')
+              and cf.locator('.chat-home #hub .cap-in').is_visible() and cf.evaluate("localStorage.getItem('builds.runs.chatSide')") == 'closed')
         cf.click('.chat-top [data-chat-side]'); pg.wait_for_timeout(200)
-        check('and opens again', cf.locator('.chat-side').is_visible() and cf.evaluate("localStorage.getItem('dispatch.chatSide')") == 'open')
+        check('and opens again', cf.locator('.chat-side').is_visible() and cf.evaluate("localStorage.getItem('builds.runs.chatSide')") == 'open')
 
         # Chat 4.0.0: the workbench beside the chat. Files lists and edits the workspace through the connector (saves only
         # over the version it opened); the fake opencode has no terminals, so the Terminal says so; a picture pasted into
@@ -1566,7 +1564,7 @@ def agents_checks(b, watch):
         check('Unarchive brings it back', cf.locator('.chat-side [data-chat-open="ses_tui0"]').count() == 1)
         cf.click('.bench [data-bench-close]'); pg.wait_for_timeout(200)
         check('the workbench closes, and remembers it', cf.locator('.bench').is_hidden() and cf.evaluate("JSON.parse(localStorage.getItem('chat.bench')).open") is False)
-        pg.click('.app-btn[data-app=slate]'); pg.wait_for_timeout(800)
+        pg.click('.app-btn[data-app=builds]'); pg.wait_for_timeout(800)
 
         # Ship: the run's page has the PR box, with copy buttons, then Review instead of Push. The code review
         # (review.html) reads the diff from git through the connector. Approve and publish, after the shared git
@@ -1601,7 +1599,7 @@ def agents_checks(b, watch):
         toast_has(pg, 'Approved and published')
         af.locator('[data-act=back]').click()
         af.wait_for_selector('.ln-panel [data-open-run="41610-rate-limit-headers"]', timeout=20000)
-        check('Back to Loom returns to the run (its panel in Lanes, Loom 6.4.0)', af.locator('.ln-panel .ln-foot [data-open-run="41610-rate-limit-headers"]').count() == 1)
+        check('Back to Builds returns to the run (its panel in Lanes, Builds 6.4.0)', af.locator('.ln-panel .ln-foot [data-open-run="41610-rate-limit-headers"]').count() == 1)
 
         # Remove: the dialog, typing the name, and the folder gone (from the spike's page: at its findings fork, the
         # spike waits in the Inbox since flow cards v1).
@@ -1617,21 +1615,21 @@ def agents_checks(b, watch):
         gone = seen(af, '#item-spike-cache-options', state='detached')
         check('Remove deletes the .work folder', gone and not os.path.exists(os.path.join(info['workspace'], '.work', 'spike-cache-options')) and toast_has(pg, 'Deleted .work/spike-cache-options'))
 
-        # Prioritizer: stages and Start through the connector.
+        # Tasks: stages and Start through the connector.
         pg.keyboard.press('Alt+1'); pg.wait_for_timeout(1500)
-        pf = next(f for f in pg.frames if '/apps/prioritizer/' in f.url)
+        pf = next(f for f in pg.frames if '/apps/tasks/' in f.url)
         docket_personal_on(pf, pg)
-        # These are ADO tasks: this agent has no ADO connector, so turn Azure DevOps on in Docket by hand (shared/ado.js).
+        # These are ADO tasks: this agent has no ADO connector, so turn Azure DevOps on in Tasks by hand (shared/ado.js).
         pf.evaluate("() => import('/shared/ado.js').then(m => m.setAdo(true))")
         add_ado_task(pf, 'w1', 'Login timeout', '41207', 'User Story')
         add_ado_task(pf, 'w2', 'Brand new', '77777', 'User Story'); pg.wait_for_timeout(800)
         chip = pf.locator('.chip.eng')
-        check('Prioritizer shows the stage from connectors.call(opencode, status)', chip.count() == 1 and 'Build 2/3' in chip.inner_text())
+        check('Tasks shows the stage from connectors.call(opencode, status)', chip.count() == 1 and 'Build 2/3' in chip.inner_text())
         chip.click(); pg.wait_for_timeout(1200)
-        check('the stage chip opens that run\'s panel in Loom (6.4.0)', pg.url.endswith('#/slate') and seen(af, '.ln-panel [data-open-run="41207-fix-login-timeout"]'))
+        check('the stage chip opens that run\'s panel in Builds (6.4.0)', pg.url.endswith('#/builds') and seen(af, '.ln-panel [data-open-run="41207-fix-login-timeout"]'))
         pg.keyboard.press('Alt+1'); pg.wait_for_timeout(400)
-        # Open its details directly: where a task's row sits depends on Docket's layout (Today's columns since 6.0).
-        pf.evaluate("id => window.__prioritizer.openDrawer(id)", 'w2'); pg.wait_for_timeout(400)
+        # Open its details directly: where a task's row sits depends on Tasks' layout (Today's columns since 6.0).
+        pf.evaluate("id => window.__tasks.openDrawer(id)", 'w2'); pg.wait_for_timeout(400)
         pf.click('[data-d=eng-start][data-lane=feature]'); pg.wait_for_timeout(1500)
         cmds = [x['body'] for x in ask({'requests': True})['bodies'] if x['route'].endswith('/command')]
         check('Start as feature runs /start in opencode through the connector', {'command': 'start', 'arguments': '77777 feature'} in cmds)
@@ -1643,16 +1641,16 @@ def agents_checks(b, watch):
         stab(sf, 'c-opencode')
         sf.locator('.conn[data-connector=opencode] [data-enable]').uncheck(); pg.wait_for_timeout(1500)
         check('with the connector off, Agents says how to turn it on', 'Turn on the opencode connector' in af.inner_text('#app'))
-        check('and Prioritizer drops the stages', pf.locator('.chip.eng').count() == 0)
+        check('and Tasks drops the stages', pf.locator('.chip.eng').count() == 0)
         sf.locator('.conn[data-connector=opencode] [data-enable]').check()
         check('turned on again, Agents comes back by itself', seen(af, '[data-lane-open="41207-fix-login-timeout"]') and af.locator('.pill').count() == 1)
 
         # On its own, the page has the name and a theme menu.
         sp = ctx.new_page(); watch(sp)
-        sp.goto(HOSTED + '/apps/slate/#41502'); seen(sp, '.ln-panel [data-open-run="41502-csv-export"]'); sp.wait_for_timeout(300)
-        check('Loom works on its own page, with the top bar (crumbs and light/dark toggle)', 'Loom' in sp.text_content('.ws-bar .here') and sp.locator('.ws-bar [data-theme-toggle]').count() == 1 and sp.locator('.ln-panel .ln-foot [data-open-run="41502-csv-export"]').count() == 1)
+        sp.goto(HOSTED + '/apps/builds/#41502'); seen(sp, '.ln-panel [data-open-run="41502-csv-export"]'); sp.wait_for_timeout(300)
+        check('Builds works on its own page, with the top bar (crumbs and light/dark toggle)', 'Builds' in sp.text_content('.ws-bar .here') and sp.locator('.ws-bar [data-theme-toggle]').count() == 1 and sp.locator('.ln-panel .ln-foot [data-open-run="41502-csv-export"]').count() == 1)
 
-        # Projects (through the connector) as a filter on Lanes (Loom 6.0.0); the filter stays in this browser.
+        # Projects (through the connector) as a filter on Lanes (Builds 6.0.0); the filter stays in this browser.
         check('the Lanes tab counts what waits on you', int(sp.inner_text('#app .tabs [data-tab=lanes] .cnt') or 0) >= 1)
         sp.click('.ln-panel [data-lane-close]'); sp.wait_for_timeout(300)
         sp.evaluate("location.hash = '#reviews'"); sp.wait_for_timeout(600)
@@ -1745,16 +1743,16 @@ def main():
         if PART in ('all', 'hub'):
             # Settings saved under the EM Hub names, as an existing install has them.
             pg.goto(HUB + '/manifest.webmanifest')
-            pg.evaluate("""() => { localStorage.setItem('em.theme', 'dracula'); localStorage.setItem('prioritizer.theme', 'ivory'); }""")
+            pg.evaluate("""() => { localStorage.setItem('em.theme', 'dracula'); localStorage.setItem('tasks.theme', 'ivory'); }""")
 
             pg.goto(HUB + '/'); pg.wait_for_timeout(800)
-            keys = pg.evaluate("() => Object.fromEntries(['workshop.theme', 'em.theme', 'prioritizer.theme'].map(k => [k, localStorage.getItem(k)]))")
+            keys = pg.evaluate("() => Object.fromEntries(['workshop.theme', 'em.theme', 'tasks.theme'].map(k => [k, localStorage.getItem(k)]))")
             check('theme survives the rename, and a retired theme becomes Light or Dark', keys['workshop.theme'] == 'dark' and pg.evaluate('document.documentElement.dataset.theme') == 'dark')
-            check('old setting keys are removed', keys['em.theme'] is None and keys['prioritizer.theme'] is None)
+            check('old setting keys are removed', keys['em.theme'] is None and keys['tasks.theme'] is None)
             check('old globals are gone, and the Dashboard pane with them', pg.evaluate("() => !window.EmHub && !window.EmTheme && !window.EmSw && !window.EmDashboard && !window.WorkshopHub && !window.WorkshopDashboard && !window.EngClient && !!window.WorkshopTheme && !!window.WorkshopSw"))
-            # Docket is the first rail app: the plain address, which Docket 8.0.0 and later then sets to its place (#/prioritizer/today).
-            docket_at = lambda: pg.url == HUB + '/' or pg.url.startswith(HUB + '/#/prioritizer/')
-            check('opens on Docket, the first rail app, at the plain address', docket_at() and pg.title() == 'Docket · Workshop')
+            # Tasks is the first rail app: the plain address, which Tasks 8.0.0 and later then sets to its place (#/tasks/today).
+            docket_at = lambda: pg.url == HUB + '/' or pg.url.startswith(HUB + '/#/tasks/')
+            check('opens on Tasks, the first rail app, at the plain address', docket_at() and pg.title() == 'Tasks · Workshop')
             check('Needs you is a button in the top bar, not a page or a rail button', pg.locator('.app-btn[data-app=home]').count() == 0 and pg.locator('#panelBtn').is_visible()
                   and pg.inner_text('#panelBtn .lbl') == 'Needs you' and pg.locator('#rail .mark.on').count() == 0)
             fresh = b.new_context(fresh=True, viewport={'width': 1280, 'height': 800}); fp = fresh.new_page(); watch(fp)
@@ -1764,26 +1762,26 @@ def main():
             fp.reload(); fp.wait_for_timeout(3000)
             check('and only once', not fp.is_visible('#spanel'))
             fresh.close()
-            pg.click('.app-btn[data-app=prioritizer]'); pg.wait_for_timeout(1200)
-            check('the rail button for the first app keeps the plain address (or Docket\'s place)', docket_at())
-            frame = next(f for f in pg.frames if '/apps/prioritizer/' in f.url)
-            check('theme reaches Prioritizer after the rename', frame.evaluate('document.documentElement.dataset.theme') == 'dark')
-            check('Prioritizer hides its theme button in the hub', not frame.locator('#themeBtn').is_visible())
+            pg.click('.app-btn[data-app=tasks]'); pg.wait_for_timeout(1200)
+            check('the rail button for the first app keeps the plain address (or Tasks\' place)', docket_at())
+            frame = next(f for f in pg.frames if '/apps/tasks/' in f.url)
+            check('theme reaches Tasks after the rename', frame.evaluate('document.documentElement.dataset.theme') == 'dark')
+            check('Tasks hides its theme button in the hub', not frame.locator('#themeBtn').is_visible())
             add_ado_task(frame, 'a1', 'Fix login', '123', 'Bug')
             add_ado_task(frame, 'a2', 'New story', '456', 'User Story')
             check('no stage chips without the opencode connector', frame.locator('.chip.eng').count() == 0)
-            frame.evaluate("id => window.__prioritizer.openDrawer(id)", 'a1'); pg.wait_for_timeout(300)
+            frame.evaluate("id => window.__tasks.openDrawer(id)", 'a1'); pg.wait_for_timeout(300)
             check('no Start buttons without the opencode connector', frame.locator('[data-d=eng-start]').count() == 0 and frame.locator('.deng').count() == 0)
             frame.press('#drawer', 'Escape'); pg.wait_for_timeout(200)
 
-            pg.click('.app-btn[data-app=slate]'); pg.wait_for_timeout(1200)
-            af = next((f for f in pg.frames if '/apps/slate/' in f.url), None)
-            check('Loom opens from the rail, as an app in the shell, on Lanes', af is not None and pg.url.endswith('#/slate') and af.get_attribute('#app .tab.on', 'data-tab') == 'lanes')
-            # Loom 6.0.0: no Inbox; Lanes in browser mode shows the lanes, with the setup folded into one line that opens.
-            check('Loom has only Lanes and Health in browser mode', af is not None and af.eval_on_selector_all('#app .tabs .tab', 'els => els.map(e => e.dataset.tab)') == ['lanes', 'health'])
+            pg.click('.app-btn[data-app=builds]'); pg.wait_for_timeout(1200)
+            af = next((f for f in pg.frames if '/apps/builds/' in f.url), None)
+            check('Builds opens from the rail, as an app in the shell, on Lanes', af is not None and pg.url.endswith('#/builds') and af.get_attribute('#app .tab.on', 'data-tab') == 'lanes')
+            # Builds 6.0.0: no Inbox; Lanes in browser mode shows the lanes, with the setup folded into one line that opens.
+            check('Builds has only Lanes and Health in browser mode', af is not None and af.eval_on_selector_all('#app .tabs .tab', 'els => els.map(e => e.dataset.tab)') == ['lanes', 'health'])
             if af: af.click('#app .ln-setup > summary'); pg.wait_for_timeout(300)
             check('Lanes in browser mode folds the setup guide into one line that opens', af is not None and af.locator('#ln-drop').count() == 1
-                  and 'Connect Loom to your computer' in af.inner_text('#app .ln-setup') and af.locator('.ln-setup .gstep').count() == 2)
+                  and 'Connect Builds to your computer' in af.inner_text('#app .ln-setup') and af.locator('.ln-setup .gstep').count() == 2)
             pg.evaluate("location.hash = '#/chat'"); pg.wait_for_timeout(1500)
             af = next((f for f in pg.frames if '/apps/chat/' in f.url), None)
             check('Chat opens from its address in browser mode', af is not None and pg.url.endswith('#/chat'))
@@ -1801,19 +1799,19 @@ def main():
                 check('a question without Tandem says what works instead', 'Asking needs Tandem' in af.inner_text('#hub .hub-card .hub-error'))
             check('no frame from another origin: the old dashboard frame is gone', all(f.url.startswith(HUB) or f.url == 'about:blank' for f in pg.frames))
             pg.goto(HUB + '/#/dashboard'); pg.wait_for_timeout(1000)
-            check('the old #/dashboard address opens Loom', pg.url.endswith('#/slate') and pg.title() == 'Loom · Workshop')
+            check('the old #/dashboard address opens Builds', pg.url.endswith('#/builds') and pg.title() == 'Builds · Workshop')
             pg.goto(HUB + '/#/agents/inbox'); pg.wait_for_timeout(1000)
-            check('an old #/agents address opens Loom on that tab', pg.url.endswith('#/slate/inbox') or pg.url.endswith('#/slate'))
+            check('an old #/agents address opens Builds on that tab', pg.url.endswith('#/builds/inbox') or pg.url.endswith('#/builds'))
 
             pg.click('#panelBtn'); pg.wait_for_timeout(800)
             hf = next(f for f in pg.frames if '/apps/home/' in f.url)
             seen(hf, '.card.inbox')
-            check('the Needs you panel opens over the app, with no copy of Docket\'s day', pg.is_visible('#spanel') and hf.locator('.yourday').count() == 0
-                  and hf.locator('#capture').count() == 0 and pg.url.endswith('#/slate'))
+            check('the Needs you panel opens over the app, with no copy of Tasks\' day', pg.is_visible('#spanel') and hf.locator('.yourday').count() == 0
+                  and hf.locator('#capture').count() == 0 and pg.url.endswith('#/builds'))
             pg.keyboard.press('Escape'); pg.wait_for_timeout(300)
             check('Esc closes the panel', not pg.is_visible('#spanel'))
             pg.evaluate("location.hash = '#/home'"); pg.wait_for_timeout(800)
-            check('#/home opens the panel over the app you are in, and keeps its address', pg.is_visible('#spanel') and pg.url.endswith('#/slate') and pg.title() == 'Loom · Workshop')
+            check('#/home opens the panel over the app you are in, and keeps its address', pg.is_visible('#spanel') and pg.url.endswith('#/builds') and pg.title() == 'Builds · Workshop')
             pg.click('#spanelScrim', position={'x': 40, 'y': 300}); pg.wait_for_timeout(300)
             check('a click on the page behind closes the panel', not pg.is_visible('#spanel'))
             pg.click('#capBtn'); pg.wait_for_timeout(800)
@@ -1821,35 +1819,35 @@ def main():
             check('quick capture previews a waiting-on task before Enter', 'waiting on' in pg.inner_text('.capbar .cap-preview').lower())
             pg.press('.capbar .cap-in', 'Enter'); pg.wait_for_timeout(600)
             saved = pg.evaluate("async () => { const {connect} = await import('/shared/workshop-sdk.js'); const ws = await connect({app: 'home'}); const e = await ws.data.get('handoffs'); return e && e.items.map(i => [i.to, i.accepted, i.payload.waiting, i.text]); }")
-            check('quick capture saves an accepted handoff to Docket', saved == [['prioritizer', True, True, 'Keys from the vendor']] and pg.locator('.capbar .cap-recent li').count() == 1)
+            check('quick capture saves an accepted handoff to Tasks', saved == [['tasks', True, True, 'Keys from the vendor']] and pg.locator('.capbar .cap-recent li').count() == 1)
             pg.locator('.capbar .cap-undo').first.click(); pg.wait_for_timeout(600)
             check('Undo withdraws the capture', pg.locator('.capbar .cap-recent li').count() == 0)
             pg.click('.capbar .cb-backdrop', position={'x': 20, 'y': 400}); pg.wait_for_timeout(200)
-            for alias, ok in (('#/docket', docket_at), ('#/rapport', lambda: pg.url == HUB + '/#/receipts'), ('#/folio', lambda: pg.url.startswith(HUB + '/#/notes'))):
+            for alias, ok in (('#/docket', docket_at), ('#/rapport', lambda: pg.url == HUB + '/#/people'), ('#/folio', lambda: pg.url.startswith(HUB + '/#/notes'))):
                 pg.evaluate(f"location.hash = '{alias}'"); pg.wait_for_timeout(900)
                 check(f'the app name works as an address: {alias}', ok())
-            pg.click('.app-btn[data-app=prioritizer]'); pg.wait_for_timeout(1000)
-            frame = next(f for f in pg.frames if '/apps/prioritizer/' in f.url)
+            pg.click('.app-btn[data-app=tasks]'); pg.wait_for_timeout(1000)
+            frame = next(f for f in pg.frames if '/apps/tasks/' in f.url)
             want = 'light' if pg.evaluate('document.documentElement.dataset.theme') == 'dark' else 'dark'
             pg.click('#topbar [data-theme-toggle]'); pg.wait_for_timeout(500)
-            check('the light/dark toggle reaches Prioritizer', frame.evaluate('document.documentElement.dataset.theme') == want)
+            check('the light/dark toggle reaches Tasks', frame.evaluate('document.documentElement.dataset.theme') == want)
             pg.keyboard.press('Alt+1'); pg.wait_for_timeout(300); frame.click('#main'); pg.keyboard.press('Alt+2'); pg.wait_for_timeout(400)
-            check('Alt+2 inside Prioritizer switches apps', pg.url.endswith('#/slate'))
+            check('Alt+2 inside Tasks switches apps', pg.url.endswith('#/builds'))
             pg.keyboard.press('Alt+1'); pg.wait_for_timeout(300)
 
             browser_mode_checks(ctx, pg, frame, watch)
 
             sp = ctx.new_page(); watch(sp)
-            sp.goto(HUB + '/apps/prioritizer/')
-            # Wait for Docket to draw instead of a fixed pause: the service worker may still be precaching
+            sp.goto(HUB + '/apps/tasks/')
+            # Wait for Tasks to draw instead of a fixed pause: the service worker may still be precaching
             # every app's files (Dispatch's code viewer among them) on this first visit.
             try:
                 sp.wait_for_function("() => document.querySelectorAll('#snav .sitem').length >= 3 && !!document.querySelector('.ws-bar [data-theme-toggle]')", timeout=15000)
             except Exception:
                 pass
-            check('Docket still works on its own, with the top bar and light/dark toggle', sp.locator('.ws-bar [data-theme-toggle]').is_visible() and 'Docket' in sp.text_content('.ws-bar .here') and sp.locator('#snav .sitem').count() == 3)  # Docket 10.5: Today, People, Done (Week folded into Today)
-            check('Prioritizer defines no globals except its test hook', sp.evaluate(PRIORITIZER_GLOBALS) == ['__prioritizer'])
-            tasks = "() => window.__prioritizer.state.tasks.map(t => [t.title, t.item ? String(t.item.id) : '']).sort()"
+            check('Tasks still works on its own, with the top bar and light/dark toggle', sp.locator('.ws-bar [data-theme-toggle]').is_visible() and 'Tasks' in sp.text_content('.ws-bar .here') and sp.locator('#snav .sitem').count() == 3)  # Tasks 10.5: Today, People, Done (Week folded into Today)
+            check('Tasks defines no globals except its test hook', sp.evaluate(PRIORITIZER_GLOBALS) == ['__tasks'])
+            tasks = "() => window.__tasks.state.tasks.map(t => [t.title, t.item ? String(t.item.id) : '']).sort()"
             before = sp.evaluate(tasks)
             check('tasks survive reloads', ['Fix login', '123'] in before and ['New story', '456'] in before)
 
@@ -1857,10 +1855,10 @@ def main():
             # The brand look (shared/themes.css imports shared/brand/tokens.css): Inter Tight headings, Figtree for the rest.
             check('self-hosted fonts load', sp.evaluate("() => document.fonts.ready.then(() => ['Inter Tight', 'Figtree'].every(n => [...document.fonts].some(f => f.family.replace(/\"/g, '') === n && f.status === 'loaded')))"))
             check('SheetJS is the vendored current release', sp.evaluate('window.XLSX && XLSX.version') == '0.20.3')
-            with sp.expect_download() as dl: sp.evaluate('window.__prioritizer.exportXlsx()')
+            with sp.expect_download() as dl: sp.evaluate('window.__tasks.exportXlsx()')
             xlsx = os.path.join(tempfile.mkdtemp(), 'export.xlsx'); dl.value.save_as(xlsx)
             with open(xlsx, 'rb') as f: check('Excel export writes an xlsx file', f.read(2) == b'PK')
-            sp.evaluate("() => { const P = window.__prioritizer; P.state.tasks = P.state.tasks.filter(t => t.title !== 'Fix login'); P.commit(); }")
+            sp.evaluate("() => { const P = window.__tasks; P.state.tasks = P.state.tasks.filter(t => t.title !== 'Fix login'); P.commit(); }")
             sp.set_input_files('#importFile', xlsx); sp.wait_for_timeout(500)
             sp.click('[data-imp=replace]'); sp.wait_for_timeout(300)
             check('Excel import restores the exported tasks', sp.evaluate(tasks) == before)

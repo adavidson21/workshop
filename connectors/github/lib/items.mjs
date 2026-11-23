@@ -1,8 +1,8 @@
-// Work items for Loom: "backlog", "workitem.get" (by number), "workitem.find", "workitem.prs", "workitem.update" and
+// Work items for Builds: "backlog", "workitem.get" (by number), "workitem.find", "workitem.prs", "workitem.update" and
 // "workitem.create", in the ADO connector's shapes.
 //
-// How Loom names a GitHub item: Loom keys items by a number plus a connection, like ADO (ids are unique only within
-// a collection). For GitHub the connection is the repo, "owner/repo", and the number is the issue number, so Loom's
+// How Builds names a GitHub item: Builds keys items by a number plus a connection, like ADO (ids are unique only within
+// a collection). For GitHub the connection is the repo, "owner/repo", and the number is the issue number, so Builds'
 // numeric ids work unchanged. A connection name never has a slash (the settings pattern forbids it), so a
 // `connection` with one is always a repo. Epics are milestones (the GitHub tracker plan): an Epic's id is the
 // milestone number made negative, so it never collides with an issue number in the same repo.
@@ -20,8 +20,8 @@ const revOf = updated => { const t = Date.parse(updated || ''); return Number.is
 const labelsOf = i => (i.labels?.nodes || i.labels || []).map(l => (typeof l === 'string' ? l : l?.name)).filter(Boolean);
 const lc = s => String(s || '').toLowerCase();
 
-/** Loom's type names: Story is "User Story". */
-export const loomType = labels => { const t = typeOf(labels); return t === 'Story' ? 'User Story' : t; };
+/** Builds' type names: Story is "User Story". */
+export const buildsType = labels => { const t = typeOf(labels); return t === 'Story' ? 'User Story' : t; };
 /** The label a type gets on create, or '' for a plain Issue. */
 export function typeLabel(type) {
   const t = lc(type);
@@ -47,7 +47,7 @@ const number = id => { const n = Number(id); if (!Number.isInteger(n) || n === 0
 function written(i, repo, prefix) {
   const labels = labelsOf(i);
   return {
-    id: i.number, rev: revOf(i.updated_at), type: loomType(labels), title: i.title || '',
+    id: i.number, rev: revOf(i.updated_at), type: buildsType(labels), title: i.title || '',
     state: i.state === 'closed' ? 'Closed' : labels.some(l => lc(l) === RESOLVED) ? 'Resolved' : 'Open',
     reason: i.state_reason || '',
     assignee: (i.assignees || [])[0]?.login ? { name: i.assignees[0].login, email: '' } : null,
@@ -99,7 +99,7 @@ export async function backlogList(d, args = {}) {
         const area = areaOf(repo, labels, prefix);
         const aName = area === repo ? '' : lc(area.slice(repo.length + 1));
         if (!want.whole && !want.labels.has(aName)) continue;
-        const type = loomType(labels);
+        const type = buildsType(labels);
         if (types && !types.has(lc(type))) continue;
         total++;
         if (items.length >= 500) { truncated = true; continue; }
@@ -126,7 +126,7 @@ const PANEL_Q = `query($owner:String!,$name:String!,$number:Int!){repository(own
   parent{number title url state repository{nameWithOwner} labels(first:20){nodes{name}}}
   subIssues(first:50){nodes{number title url state labels(first:20){nodes{name}}}}}}}`;
 
-/** "workitem.get" for Loom: an issue by number in a repo, or an Epic (a milestone) by its negative id. */
+/** "workitem.get" for Builds: an issue by number in a repo, or an Epic (a milestone) by its negative id. */
 export async function getItem(d, args = {}) {
   const { gh, repo } = target(d, args);
   const n = number(args.id);
@@ -160,7 +160,7 @@ export async function getItem(d, args = {}) {
     Object.assign(out, {
       assignee: base.assignee, priority: base.priority, severity: '', storyPoints: null, systemInfo: '', commentCount: i.comments || 0,
       links: {
-        items: kids.map(k => ({ id: k.number, name: 'Child', title: k.title || '', type: loomType(labelsOf(k)), state: k.state === 'CLOSED' ? 'Closed' : 'Open', url: k.url || '' })),
+        items: kids.map(k => ({ id: k.number, name: 'Child', title: k.title || '', type: buildsType(labelsOf(k)), state: k.state === 'CLOSED' ? 'Closed' : 'Open', url: k.url || '' })),
         hyperlinks: [], attachments: [], pullRequests: 0
       },
       custom: Object.fromEntries(fields.map(f => [f, /release/i.test(f) ? note : '']))
@@ -233,8 +233,8 @@ export async function itemPrs(d, args = {}) {
   add(issue.closedByPullRequestsReferences?.nodes, n);
   for (const k of kids) add(k.closedByPullRequestsReferences?.nodes, k.number);
   return {
-    id: n, type: loomType(labelsOf(issue)), state: issue.state === 'CLOSED' ? 'Closed' : 'Open', rev: 0, connection: repo,
-    children: kids.map(k => ({ id: k.number, title: k.title || '', type: loomType(labelsOf(k)), state: k.state === 'CLOSED' ? 'Closed' : 'Open' })),
+    id: n, type: buildsType(labelsOf(issue)), state: issue.state === 'CLOSED' ? 'Closed' : 'Open', rev: 0, connection: repo,
+    children: kids.map(k => ({ id: k.number, title: k.title || '', type: buildsType(labelsOf(k)), state: k.state === 'CLOSED' ? 'Closed' : 'Open' })),
     prs, status: overall(prs), truncated: (issue.subIssues?.totalCount || 0) > kids.length || prs.length >= 60
   };
 }
@@ -256,7 +256,7 @@ export function joinBody(body, { description, acceptance, releaseNote } = {}) {
 function login(v) {
   const s = String(v || '').trim();
   if (!s) return '';
-  if (/[@\s]/.test(s)) throw new SettingsError(`GitHub assigns by login, and "${s}" is not one. Put the person's GitHub login in their identity in Settings, People.`);
+  if (/[@\s]/.test(s)) throw new SettingsError(`GitHub assigns by login, and "${s}" is not one. Put the person's GitHub login in their identity in Settings, Directory.`);
   return s.replace(/^@/, '');
 }
 

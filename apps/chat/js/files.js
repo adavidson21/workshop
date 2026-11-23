@@ -1,7 +1,7 @@
 /* The workbench's Files (Chat 4.0.0, docs/chat.md, Files): browse the workspace and edit files beside the chat, so
    you can read or fix what an agent wrote without leaving Chat. The tree, the search and every read and save go
    through the opencode connector's files.* actions (connectors/opencode/lib/workfiles.mjs), which keep to the
-   workspace. The editor is Monaco, shared with Loom's code review (shared/monaco.js), loaded the first time a file
+   workspace. The editor is Monaco, shared with Builds' code review (shared/monaco.js), loaded the first time a file
    opens.
 
    Saving (Ctrl+S, or Save) only writes over the version you opened. If an agent or another editor changed the file

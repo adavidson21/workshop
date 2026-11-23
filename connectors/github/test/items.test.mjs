@@ -1,5 +1,5 @@
-// The GitHub connector's work items for Loom: backlog, one item, find, linked PRs, and the two writes, against the
-// fake GitHub server. Loom names a GitHub item by its number with the repo as the connection.
+// The GitHub connector's work items for Builds: backlog, one item, find, linked PRs, and the two writes, against the
+// fake GitHub server. Builds names a GitHub item by its number with the repo as the connection.
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { startFakeGitHub, TOKEN } from './fake-github.mjs';

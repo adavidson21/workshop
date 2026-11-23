@@ -26,7 +26,7 @@ export function safeHref(raw) {
 /** {data: {title?, tags?: [], aliases?: [], reviewed?, tandemChanged?, template?, description?, kind?, product?}, body, offset} where offset is the number of lines the
     frontmatter took. `reviewed` and `tandem-changed` are the product-note review fields (products.js), as written; `template` and
     `description` name a template and say what it is for (template-info.js). `kind` (lower case) and `product` mark a
-    plan doc and the product it is for (loom.js, Folio 4.11.0). */
+    plan doc and the product it is for (builds-items.js, Notes 4.11.0). */
 export function frontmatter(text) {
   const src = String(text || '').replace(/^﻿/, '');
   const m = /^---[ \t]*\r?\n([\s\S]*?)\r?\n---[ \t]*(?:\r?\n|$)/.exec(src);
@@ -269,7 +269,7 @@ export function inline(text, ctx = {}) {
       }
     }
     if (c === '<' && (m = AUTO.exec(rest))) { html += linkHtml(m[1], esc(m[1]), ctx); i += m[0].length; continue; }
-    // @handle of someone in Workshop's People directory: their name as a quiet chip (ctx.person(handle) -> name).
+    // @handle of someone in Workshop's people directory (Settings, Directory): their name as a quiet chip (ctx.person(handle) -> name).
     if (c === '@' && ctx.person && (i === 0 || /\s|\(/.test(s[i - 1])) && (m = AT.exec(rest))) {
       const h = m[1].toLowerCase().replace(/[._-]+$/, ''), name = h && ctx.person(h);
       if (name) { html += `<span class="person" title="@${esc(h)}">${esc(name)}</span>`; i += 1 + h.length; continue; }
@@ -315,7 +315,7 @@ function linkHtml(href, labelHtml, ctx) {
   if (ext) return `<a href="${esc(ext)}" target="_blank" rel="noopener noreferrer">${labelHtml}</a>`;
   const app = appLink(href);
   if (app) {
-    // Folio 4.11.0: a Loom item's chip says where it is (ctx.appStatus, loom.js chipStatus).
+    // Notes 4.11.0: a Builds item's chip says where it is (ctx.appStatus, builds-items.js chipStatus).
     const st = ctx.appStatus ? ctx.appStatus(app.app, app.path) : null;
     const name = esc(ctx.appName ? ctx.appName(app.app) : app.app);
     const chip = st ? `<span class="app-chip s-${esc(st.state)}"><span class="dot" aria-hidden="true"></span>${esc(st.text)}</span>` : `<span class="app-chip">${name}</span>`;

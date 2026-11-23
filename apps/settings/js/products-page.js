@@ -1,10 +1,10 @@
 /* Settings, Knowledge, Products: the products you work on (docs/products.md, settings.products v1), with the
-   optional For Tandem fields Workshop writes into the repo map (docs/knowledge.md). Folio makes each one's
+   optional For Tandem fields Workshop writes into the repo map (docs/knowledge.md). Notes makes each one's
    note, products/<slug>.md, for you to edit there; Tandem reads and adds to it.
 
    Settings' own collection, written with ws.data (shared/products.js does the rules). Owners come from People's
    "Owns" (ws.people), suggestions from the workspace repos (opencode connector's state) and your team's area paths
-   (ws.teams). Whether a note exists is read from Folio's folder, read only. Nothing here writes another app's data. */
+   (ws.teams). Whether a note exists is read from Notes' folder, read only. Nothing here writes another app's data. */
 import { adoIsOn } from '../../../shared/ado.js';
 import * as P from '../../../shared/products.js';
 import * as D from '../../../shared/people.js';
@@ -25,11 +25,11 @@ export async function mountProducts({ ws, toast, el, onSaved = async () => {} })
   let people = [];              // active directory people, for owners
   let repoFolders = [];         // workspace repo folders, for suggestions
   let teamAreas = [];           // your team's area paths, for suggestions
-  let notes = null;             // Set of Folio note paths under products/, or null when it cannot be read
+  let notes = null;             // Set of Notes note paths under products/, or null when it cannot be read
 
   el.insertAdjacentHTML('beforeend', `
     <section class="card" id="products">
-      <h2 class="dup">Products${qh('products', 'The products you work on. Folio makes a note for each one (Products in Folio) with what is here filled in, for you to edit. Tandem reads that note before working on the product and adds what it learns.')}</h2>
+      <h2 class="dup">Products${qh('products', 'The products you work on. Notes makes a note for each one (Products in Notes) with what is here filled in, for you to edit. Tandem reads that note before working on the product and adds what it learns.')}</h2>
 
       <div class="products-body"><p class="sub">Loading...</p></div>
     </section>`);
@@ -129,10 +129,10 @@ export async function mountProducts({ ws, toast, el, onSaved = async () => {} })
 
   function noteBit(p) {
     if (notes && notes.has(P.notePath(p))) return `<button class="btn" data-product-open="${esc(p.slug)}">Open note</button>`;
-    return `<span class="person-meta">${notes ? 'Note made the next time Folio opens' : ''}</span><button class="btn" data-product-open="${esc(p.slug)}">Open Folio</button>`;
+    return `<span class="person-meta">${notes ? 'Note made the next time Notes opens' : ''}</span><button class="btn" data-product-open="${esc(p.slug)}">Open Notes</button>`;
   }
 
-  // A product is a card with everything it ties together: owners, repos, area paths and its Folio note, plus what
+  // A product is a card with everything it ties together: owners, repos, area paths and its Notes note, plus what
   // is still missing to set it up (Settings UX v1).
   const initials = n => String(n || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0] || '').join('').toUpperCase();
   const chips = (list, cls) => list.map(x => `<span class="pchip ${cls}" title="${esc(x)}">${esc(String(x).split(/[\\/]/).pop())}</span>`).join('');
@@ -149,17 +149,17 @@ export async function mountProducts({ ws, toast, el, onSaved = async () => {} })
         ${p.repos.length ? `<div class="pc-row"><span class="pc-k">Repos</span><span class="pc-v">${chips(p.repos, 'repo')}</span></div>` : ''}
         ${p.areas.length ? `<div class="pc-row"><span class="pc-k">Area paths</span><span class="pc-v">${chips(p.areas, 'area')}</span></div>` : ''}
         ${knowLine(p) ? `<div class="pc-row"><span class="pc-k">For Tandem</span><span class="pc-v">${esc(knowLine(p))}</span></div>` : ''}
-        <div class="pc-row"><span class="pc-k">Note</span><span class="pc-v">${esc(P.notePath(p))}${hasNote ? '' : `<span class="dim">${notes ? ', made the next time Folio opens' : ''}</span>`}</span></div>
+        <div class="pc-row"><span class="pc-k">Note</span><span class="pc-v">${esc(P.notePath(p))}${hasNote ? '' : `<span class="dim">${notes ? ', made the next time Notes opens' : ''}</span>`}</span></div>
       </div>
       ${todo.length && !p.archived ? `<p class="pc-todo">To finish: ${esc(todo.join(', '))}</p>` : ''}
-      ${drafting === p.id ? `<div class="pc-confirm" role="group" aria-label="Draft from sources"><p>Tandem reads ${esc(p.name)}'s READMEs, docs folders${p.docsFolder ? ' and product docs' : ''} and proposes lines for its note, each with its source. You review them in Folio. Nothing else changes.</p>
+      ${drafting === p.id ? `<div class="pc-confirm" role="group" aria-label="Draft from sources"><p>Tandem reads ${esc(p.name)}'s READMEs, docs folders${p.docsFolder ? ' and product docs' : ''} and proposes lines for its note, each with its source. You review them in Notes. Nothing else changes.</p>
         <div class="acts left"><button class="btn primary" data-product-draft-go="${esc(p.id)}">Start</button><button class="btn" data-product-draft-cancel>Cancel</button></div></div>` : ''}
-      ${onboarding === p.id ? `<div class="pc-confirm" role="group" aria-label="Onboard for Tandem"><p>Tandem gets ${esc(p.name)} ready for its first build: it drafts any missing repo guide and the product note, logs what it cannot find as Teach cards instead of asking, and starts a trial run that adds one test. Loom shows each step on its floor. Nothing is pushed.</p>
+      ${onboarding === p.id ? `<div class="pc-confirm" role="group" aria-label="Onboard for Tandem"><p>Tandem gets ${esc(p.name)} ready for its first build: it drafts any missing repo guide and the product note, logs what it cannot find as Teach cards instead of asking, and starts a trial run that adds one test. Builds shows each step on its floor. Nothing is pushed.</p>
         <div class="acts left"><button class="btn primary" data-product-onboard-go="${esc(p.id)}">Start</button><button class="btn" data-product-onboard-cancel>Cancel</button></div></div>` : ''}
       ${covering === p.id ? `<div class="pc-confirm" role="group" aria-label="Add regression tests"><p>Tandem adds end-to-end tests for what ${esc(p.name)}'s pages do today, one hands-off Quick change per UI repo, with every API mocked and no product code changed. You publish each PR. From then on every build runs them.</p>
         <label class="pc-k" for="cover-area-${esc(p.id)}">Area or pages (optional)</label><input type="text" id="cover-area-${esc(p.id)}" data-cover-area maxlength="200" placeholder="Leave empty for the main pages">
         <div class="acts left"><button class="btn primary" data-product-cover-go="${esc(p.id)}">Start</button><button class="btn" data-product-cover-cancel>Cancel</button></div></div>` : ''}
-      <div class="acts left">${p.archived ? '' : `<button class="btn" data-product-open="${esc(p.slug)}">${hasNote ? 'Open note' : 'Open Folio'}</button>`}${!p.archived && canDraft && hasNote && p.repos.length ? `<button class="btn" data-product-draft="${esc(p.id)}" title="Tandem proposes note lines from this product's docs">Draft from sources</button>` : ''}${!p.archived && canDraft && p.repos.length ? `<button class="btn" data-product-onboard="${esc(p.id)}" title="Repo guides, the product note, gaps to answer, and a trial run, ready for the first build">Onboard for Tandem</button>` : ''}${!p.archived && canDraft && p.repos.length ? `<button class="btn" data-product-cover="${esc(p.id)}" title="End-to-end tests for what the product's pages do today, built hands-off">Add regression tests</button>` : ''}<button class="btn ghost" data-product-edit="${esc(p.id)}">Edit</button></div></li>`;
+      <div class="acts left">${p.archived ? '' : `<button class="btn" data-product-open="${esc(p.slug)}">${hasNote ? 'Open note' : 'Open Notes'}</button>`}${!p.archived && canDraft && hasNote && p.repos.length ? `<button class="btn" data-product-draft="${esc(p.id)}" title="Tandem proposes note lines from this product's docs">Draft from sources</button>` : ''}${!p.archived && canDraft && p.repos.length ? `<button class="btn" data-product-onboard="${esc(p.id)}" title="Repo guides, the product note, gaps to answer, and a trial run, ready for the first build">Onboard for Tandem</button>` : ''}${!p.archived && canDraft && p.repos.length ? `<button class="btn" data-product-cover="${esc(p.id)}" title="End-to-end tests for what the product's pages do today, built hands-off">Add regression tests</button>` : ''}<button class="btn ghost" data-product-edit="${esc(p.id)}">Edit</button></div></li>`;
   }
 
   function paint() {
@@ -168,7 +168,7 @@ export async function mountProducts({ ws, toast, el, onSaved = async () => {} })
     if (unreadable) { b.innerHTML = `<p class="err">Products were saved by another Workshop version (version ${esc(unreadable)}). Update Workshop to change them.</p>`; return; }
     const live = all().filter(p => !p.archived), archived = all().filter(p => p.archived);
     b.innerHTML = `
-      ${live.length ? `<ul class="products">${live.map(row).join('')}</ul>` : `<div class="products-empty"><p><b>No products yet.</b> A product ties together its repos, ${adoIsOn() ? 'ADO area paths' : 'area paths'}, owners and a Folio note that Tandem reads before it works on it.</p></div>`}
+      ${live.length ? `<ul class="products">${live.map(row).join('')}</ul>` : `<div class="products-empty"><p><b>No products yet.</b> A product ties together its repos, ${adoIsOn() ? 'ADO area paths' : 'area paths'}, owners and a Notes note that Tandem reads before it works on it.</p></div>`}
       ${editing === 'new' ? `<div class="product editing">${form({})}</div>` : '<div class="acts left"><button class="btn primary" data-product-new>Add a product</button></div>'}
       ${archived.length ? `<details class="archived-list"><summary>Archived (${archived.length})</summary><ul class="products">${archived.map(row).join('')}</ul></details>` : ''}`;
     const first = b.querySelector('.editing input[name=name]');
@@ -196,7 +196,7 @@ export async function mountProducts({ ws, toast, el, onSaved = async () => {} })
       t.disabled = true;
       try {
         await ws.connectors.call('opencode', 'tests.cover', area ? { product: p.name, area } : { product: p.name }, { confirm: true });
-        toast(`Tandem is planning regression tests for ${p.name}. Its builds show on Loom.`, 'success');
+        toast(`Tandem is planning regression tests for ${p.name}. Its builds show on Builds.`, 'success');
       } catch (err) { toast(errText(err), 'error'); }
       covering = null; return paint();
     }
@@ -206,7 +206,7 @@ export async function mountProducts({ ws, toast, el, onSaved = async () => {} })
       t.disabled = true;
       try {
         await ws.connectors.call('opencode', 'product.onboard', { product: p.name }, { confirm: true });
-        toast(`Tandem is onboarding ${p.name}. Follow its steps on Loom's floor.`, 'success');
+        toast(`Tandem is onboarding ${p.name}. Follow its steps on Builds' floor.`, 'success');
       } catch (err) { toast(errText(err), 'error'); }
       onboarding = null; return paint();
     }
@@ -216,7 +216,7 @@ export async function mountProducts({ ws, toast, el, onSaved = async () => {} })
       t.disabled = true;
       try {
         await ws.connectors.call('opencode', 'knowledge.draft', { product: p.name }, { confirm: true });
-        toast(`Tandem is drafting ${p.name}'s note. Its lines show in Folio as Changed by Tandem when it is done.`, 'success');
+        toast(`Tandem is drafting ${p.name}'s note. Its lines show in Notes as Changed by Tandem when it is done.`, 'success');
       } catch (err) { toast(errText(err), 'error'); }
       drafting = null; return paint();
     }
@@ -227,7 +227,7 @@ export async function mountProducts({ ws, toast, el, onSaved = async () => {} })
       try {
         await save(items => ({ items: P.setArchived(items, p.id, !p.archived), result: null }));
         editing = null;
-        toast(p.archived ? `${p.name} restored.` : `${p.name} archived. Its note stays in Folio.`, 'success');
+        toast(p.archived ? `${p.name} restored.` : `${p.name} archived. Its note stays in Notes.`, 'success');
         paint();
         await onSaved();
       } catch (err) { t.closest('form').querySelector('.msg').textContent = errText(err); }
@@ -255,7 +255,7 @@ export async function mountProducts({ ws, toast, el, onSaved = async () => {} })
     try {
       const saved = await save(items => { const r = P.upsert(items, input, id); return { items: r.items, result: r.product }; });
       editing = null;
-      toast(id ? `${saved.name} saved.` : `${saved.name} added. Folio makes its note, ${P.notePath(saved)}, the next time it opens.`, 'success');
+      toast(id ? `${saved.name} saved.` : `${saved.name} added. Notes makes its note, ${P.notePath(saved)}, the next time it opens.`, 'success');
       paint();
       await onSaved();
     } catch (err) { f.querySelector('.msg').textContent = errText(err); }
@@ -268,7 +268,7 @@ export async function mountProducts({ ws, toast, el, onSaved = async () => {} })
   paint();
   ws.data.subscribe(P.COLLECTION, async () => { try { await readProducts(); if (!editing) paint(); } catch { /* next change */ } });
   ws.people.subscribe(d => { people = D.active(d, { kind: 'person' }); if (!editing) paint(); });
-  // Folio may have made notes since: check again when the window comes back.
+  // Notes may have made notes since: check again when the window comes back.
   window.addEventListener('focus', async () => { await readNotes(); if (!editing) paint(); });
   return api;
 }

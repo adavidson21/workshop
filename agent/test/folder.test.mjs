@@ -36,7 +36,7 @@ test('old app data is copied byte for byte, the old files are kept unchanged, an
   const data = dataDirOf(home);
   try {
     const pages = writeOld(home, 'notes', 'pages', oldEnv('notes', 'pages', 7));
-    const tasks = writeOld(home, 'prioritizer', 'tasks', oldEnv('prioritizer', 'tasks', 3));
+    const tasks = writeOld(home, 'tasks', 'tasks', oldEnv('tasks', 'tasks', 3));
     const version = writeOld(home, 'notes', 'pages.v1', { not: 'a collection' });
     fs.mkdirSync(path.join(home, 'data', '_backup'), { recursive: true });
     fs.writeFileSync(path.join(home, 'data', '_backup', 'x.json'), '{}');
@@ -45,7 +45,7 @@ test('old app data is copied byte for byte, the old files are kept unchanged, an
     let agent = await start(home);
     try {
       assert.equal(sha(path.join(data, 'notes', 'pages.json')), before.pages, 'copied byte for byte');
-      assert.equal(sha(path.join(data, 'prioritizer', 'tasks.json')), before.tasks);
+      assert.equal(sha(path.join(data, 'tasks', 'tasks.json')), before.tasks);
       assert.equal((await get(agent, '/api/data/notes/pages')).json.rev, 7, 'same rev');
       assert.equal(sha(pages), before.pages, 'old file unchanged');
       assert.equal(fs.statSync(pages).mtimeMs, before.pagesTime, 'old file not even touched');
@@ -77,7 +77,7 @@ test('a data folder that already holds app data is left untouched and nothing is
     fs.mkdirSync(path.join(data, 'notes'), { recursive: true });
     const mine = path.join(data, 'notes', 'pages.json');
     fs.writeFileSync(mine, `${JSON.stringify(oldEnv('notes', 'pages', 2, 'new'), null, 2)}\n`);
-    const nested = path.join(data, 'receipts', 'summaries', 'one.md');
+    const nested = path.join(data, 'people', 'summaries', 'one.md');
     fs.mkdirSync(path.dirname(nested), { recursive: true });
     fs.writeFileSync(nested, '# One\n');
     const before = { mine: sha(mine), nested: sha(nested) };
@@ -149,7 +149,7 @@ test('dataDir from config.json is used, and a saved change applies only after a 
   const second = path.join(path.dirname(home), 'Second');
   try {
     fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ configVersion: 1, dataDir: first }));
-    let agent = await createAgent({ home, port: 0, appFolders: {} });
+    let agent = await createAgent({ home, port: 0 });
     try {
       assert.equal(agent.dataDir, first);
       await put(agent, '/api/data/notes/pages', envelope('notes', 'pages'));
@@ -158,7 +158,7 @@ test('dataDir from config.json is used, and a saved change applies only after a 
       assert.equal(r.restartRequired, true);
       assert.equal(readJson(path.join(home, 'config.json')).dataDir, second);
     } finally { await agent.stop(); }
-    agent = await createAgent({ home, port: 0, appFolders: {} });
+    agent = await createAgent({ home, port: 0 });
     try {
       assert.equal(agent.dataDir, second);
       assert.equal((await get(agent, '/api/data/notes/pages')).json, null, 'nothing is copied between data folders');
@@ -209,7 +209,7 @@ test('leftover temp files next to collections and files are removed on start; no
   const home = tempHome();
   const data = dataDirOf(home);
   try {
-    const leftovers = ['notes/pages.json.tmp', 'notes/entries/one/2026.json.tmp', 'receipts/summary.md.tmp'];
+    const leftovers = ['notes/pages.json.tmp', 'notes/entries/one/2026.json.tmp', 'people/summary.md.tmp'];
     const kept = ['notes/.git/index.tmp', 'notes/Notes.md.tmp', 'notes/other.tmp', 'top.json.tmp', '.trash/notes/x.md.tmp'];
     for (const rel of [...leftovers, ...kept]) {
       const abs = path.join(data, ...rel.split('/'));

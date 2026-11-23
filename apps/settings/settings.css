@@ -231,7 +231,7 @@ label.btn{cursor:pointer}
 .status-rows .state{margin-left:.35rem;vertical-align:1px}
 .state[data-state=neutral]::before{background:var(--line)}
 
-/* People & teams (js/people.js) */
+/* Directory (js/people.js) */
 .bar{display:flex;flex-wrap:wrap;gap:.5rem;margin:.2rem 0 .8rem}
 .bar .cfg-input{width:auto;flex:1;min-width:10rem}
 .bar select.cfg-input{flex:none}
@@ -300,7 +300,7 @@ label.btn{cursor:pointer}
 .gd-none[hidden]{display:none}
 .gd-more{margin-top:1rem}
 
-/* ---------- Settings 5.0.0: Workshop's look. "Settings" is the nav's title (like Folio's sidebar), the open page's
+/* ---------- Settings 5.0.0: Workshop's look. "Settings" is the nav's title (like Notes' sidebar), the open page's
    name is the headline, every section is a raised white sheet, and labels, tags, states and table heads are
    sentence case in the text face. Mono stays for code, paths and health output. ---------- */
 .mode-note{margin:0 0 1rem;max-width:44rem;font-size:.92rem;line-height:1.5;color:var(--muted)}
@@ -409,8 +409,8 @@ label.btn{cursor:pointer}
 .person-row .person-meta{margin:0;font-size:.8rem;color:var(--muted);display:flex;align-items:center;gap:.4rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .avatar{flex:none;display:inline-grid;place-items:center;width:2.1rem;height:2.1rem;border-radius:50%;font:650 .78rem/1 var(--sans);letter-spacing:.02em;background:var(--accent-soft);color:var(--accent-soft-ink,var(--accent))}
 .avatar[data-hue=sapphire]{background:color-mix(in srgb,var(--c-notes) 16%,var(--surface));color:var(--c-notes)}
-.avatar[data-hue=tourmaline]{background:color-mix(in srgb,var(--c-receipts) 16%,var(--surface));color:var(--c-receipts)}
-.avatar[data-hue=garnet]{background:color-mix(in srgb,var(--c-runway) 16%,var(--surface));color:var(--c-runway)}
+.avatar[data-hue=tourmaline]{background:color-mix(in srgb,var(--c-people) 16%,var(--surface));color:var(--c-people)}
+.avatar[data-hue=garnet]{background:color-mix(in srgb,var(--c-roadmaps) 16%,var(--surface));color:var(--c-roadmaps)}
 .avatar[data-hue=amethyst]{background:color-mix(in srgb,var(--c-workshop) 16%,var(--surface));color:var(--c-workshop)}
 .avatar.group{background:var(--panel);color:var(--muted)}
 .stack{display:inline-flex}

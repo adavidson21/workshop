@@ -17,7 +17,7 @@
 //   review is not retried on every check (a new commit is)
 //
 // onSync (prReviews.onSync): each time an app saves the inbox (pr.inbox.save), new PRs and PRs with a
-// new commit are queued at once, blocking tier first. Docket uses this to show PRs already reviewed.
+// new commit are queued at once, blocking tier first. Tasks uses this to show PRs already reviewed.
 
 import { EventEmitter } from "node:events";
 import fs from "node:fs";
@@ -361,7 +361,7 @@ export function createReviewQueue({ file, start, review, session, ready = () => 
   }
 
   /**
-   * Where each PR's first-pass review stands, for apps that show PRs (Docket):
+   * Where each PR's first-pass review stands, for apps that show PRs (Tasks):
    * state "queued" | "running" | "done" | "asking" | "failed" | "skipped" | "none".
    */
   function status(ids) {

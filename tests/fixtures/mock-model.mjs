@@ -12,7 +12,7 @@
 //                                 streamed `size` characters every `everyMs`, after `firstMs`, like a slow local model
 // Stops when stdin closes.
 //
-// For a Folio clean up prompt (apps/notes/js/cleanup.js) it does what the prompt asks, simply: each template section
+// For a Notes clean up prompt (apps/notes/js/cleanup.js) it does what the prompt asks, simply: each template section
 // gets the input lines whose words match it, the rest go under "Other notes", and lines get a capital letter and a
 // full stop. Any other request (opencode's title step) gets a short title.
 import http from "node:http";

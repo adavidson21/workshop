@@ -3,7 +3,7 @@
 // the examples in docs/examples/.
 import { canonical } from './schema.mjs';
 
-const TOMBSTONE_TTL = 60 * 864e5; // 60 days, as in Prioritizer's sanitize()
+const TOMBSTONE_TTL = 60 * 864e5; // 60 days, as in Tasks' sanitize()
 
 const withoutStamp = o => { const { updatedAt, ...rest } = o; return canonical(rest); };
 

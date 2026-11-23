@@ -263,7 +263,7 @@ test('holder kinds: one card says each sort of thing held', async () => {
   const cur = R('10:00');
   const h = F.createHolder(ws, { watch: { get current() { return cur; } }, label: (n, k) => [k.ado && `${k.ado} new ADO items`, k.pickup && `${k.pickup} captures picked up`].filter(Boolean).join(', ') });
   h.add(3, 'ado');
-  await h.toast('Added a task from Folio', { heldAs: 'pickup' });
+  await h.toast('Added a task from Notes', { heldAs: 'pickup' });
   assert.equal(h.card().count, 4);
   assert.equal(h.card().label, '3 new ADO items, 1 captures picked up');
 });
@@ -272,13 +272,13 @@ test('heldFor and releaseText', () => {
   const key = `${MON}T09:00`;
   const card = (count, label, block = key) => new Map([['held', { id: 'held', kind: 'held', block, count, label }]]);
   const parts = F.heldFor([
-    { app: 'prioritizer', name: 'Docket', cards: card(3, '3 new ADO items') },
-    { app: 'notes', name: 'Folio', cards: card(2, '2 captures picked up') },
+    { app: 'tasks', name: 'Tasks', cards: card(3, '3 new ADO items') },
+    { app: 'notes', name: 'Notes', cards: card(2, '2 captures picked up') },
     { app: 'agents', name: 'Dispatch', cards: card(5, 'old', `${MON}T14:00`) },
-    { app: 'slate', name: 'Slate', cards: card(0, 'none') },
-    { app: 'runway', name: 'Runway', cards: null }
+    { app: 'builds', name: 'Builds', cards: card(0, 'none') },
+    { app: 'roadmaps', name: 'Roadmaps', cards: null }
   ], key);
-  assert.deepEqual(parts.map(p => p.app), ['prioritizer', 'notes']);
+  assert.deepEqual(parts.map(p => p.app), ['tasks', 'notes']);
   assert.equal(F.releaseText(parts), 'Focus done. 5 held: 3 new ADO items, 2 captures picked up.');
   assert.equal(F.releaseText([], 'lunch'), 'Lunch done. Nothing was held.');
   assert.equal(F.fmtTime('13:00'), '1:00');
@@ -447,8 +447,8 @@ test('watchFocus: passes the day bounds and yesterday from the stores', async ()
   let t = at('16:59');
   const timers = { setTimeout: () => 1, clearTimeout() {}, setInterval: () => 2, clearInterval() {} };
   const env = { schema: 'settings.focus', version: 1, rev: 1, items: [], deleted: {}, meta: F.defaults() };
-  const summary = { schema: 'prioritizer.summary', version: 1, rev: 1, deleted: {}, items: [{ id: 'day', kind: 'day', updatedAt: 1, days: { [MON]: { blocks: [], wrapAt: '16:00', wrapped: false, offered: 0, start: '09:00', end: '17:00' } } }] };
-  const ws = { data: { get: async (c, o) => c === 'focus' ? env : c === 'summary' && o.app === 'prioritizer' ? summary : null, subscribe: () => () => {} } };
+  const summary = { schema: 'tasks.summary', version: 1, rev: 1, deleted: {}, items: [{ id: 'day', kind: 'day', updatedAt: 1, days: { [MON]: { blocks: [], wrapAt: '16:00', wrapped: false, offered: 0, start: '09:00', end: '17:00' } } }] };
+  const ws = { data: { get: async (c, o) => c === 'focus' ? env : c === 'summary' && o.app === 'tasks' ? summary : null, subscribe: () => () => {} } };
   const w = F.watchFocus(ws, () => {}, { now: () => t, timers, win: null });
   await w.ready;
   assert.equal(w.current.state, 'off'); assert.equal(w.current.dayEnd, '17:00');

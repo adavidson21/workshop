@@ -1,5 +1,5 @@
 // "workitem.prs": the pull requests linked to a work item, and to its child items, with their status. Read only.
-// Slate uses it to tell when everything for an item has merged (its Merged column).
+// Builds uses it to tell when everything for an item has merged (its Merged column).
 //
 // Links come from the item's relations: ArtifactLink urls shaped vstfs:///Git/PullRequestId/<project>%2F<repo>%2F<id>.
 // Each PR is read once at project scope (GET <project>/_apis/git/pullrequests/<id>), the project being the

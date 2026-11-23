@@ -21,7 +21,7 @@
 #   WORKSHOP_TAG=v1.2.0   install that Workshop release instead of the newest code (a git checkout moves to it)
 #   TANDEM_TAG=v1.8.1     the same for Tandem (eng-agents)
 #   WORKSHOP_WORK_MODE=1  work mode: Workshop runs from a pinned copy on this computer and no site can pair. Also
-#                         downloads the apps in Workshop's apps/remote.json (Docket, Runway, Rapport, Folio; each with a
+#                         downloads the apps in Workshop's apps/remote.json (Tasks, Roadmaps, People, Notes; each with a
 #                         <FOLDER>_TAG such as DOCKET_TAG or NOTES_TAG, else their newest code) and builds
 #                         the copy (workshop pin).
 #                         /install-work.ps1 is this installer with work mode on. On a new install, work mode keeps
@@ -201,7 +201,7 @@ if ($Work) {
     $ok = ($LASTEXITCODE -eq 0)
   } catch { $ok = $false } finally { $ErrorActionPreference = $eap }
   if (-not $ok) {
-    $lines = @("docket`tprioritizer`tDocket`trequired`tadavidson21/docket", "runway`trunway`tRunway`toptional`tadavidson21/runway",
+    $lines = @("docket`tprioritizer`tDocket`trequired`tadavidson21/docket", "roadmaps`trunway`tRunway`toptional`tadavidson21/runway",
       "receipts`treceipts`tRapport`toptional`tadavidson21/receipts", "notes`tnotes`tFolio`toptional`tadavidson21/notes")
   }
   foreach ($line in $lines) {
@@ -249,7 +249,7 @@ else {
     $ocCmd = $ocFile
     Say 'npm could not update opencode, so the copy you have stays.'
   } else {
-    Write-Host '  npm could not install opencode. Workshop, Docket, Receipts and Home do not need it; Dispatch does.' -ForegroundColor Yellow
+    Write-Host '  npm could not install opencode. Workshop, Tasks, People and Home do not need it; Dispatch does.' -ForegroundColor Yellow
     Write-Host '  Carrying on without it. Install it from https://opencode.ai, or run this installer again later.' -ForegroundColor Yellow
   }
 }

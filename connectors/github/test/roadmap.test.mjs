@@ -1,4 +1,4 @@
-// The GitHub connector's roadmap for Runway: milestones as Epics, feature-labeled issues as Features, sub-issues as stories.
+// The GitHub connector's roadmap for Roadmaps: milestones as Epics, feature-labeled issues as Features, sub-issues as stories.
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { startFakeGitHub, TOKEN } from './fake-github.mjs';

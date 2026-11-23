@@ -60,16 +60,16 @@ jobs:
               python tests/review-e2e.py
               python tests/workmode-e2e.py
               python tests/knowledge-e2e.py
-          - name: Runway, Folio and Loom's team reports on their own pages
+          - name: Roadmaps, Notes and Builds' team reports on their own pages
             run: |
-              python apps/runway/test/e2e.py
-              python apps/runway/test/e2e_ado.py
+              python apps/roadmaps/test/e2e.py
+              python apps/roadmaps/test/e2e_ado.py
               python apps/notes/test/e2e.py
-              python apps/slate/test/e2e_reports.py
-          - name: Docket on its own page
+              python apps/builds/test/e2e_reports.py
+          - name: Tasks on its own page
             run: |
-              python apps/prioritizer/test/e2e.py
-              python apps/prioritizer/test/focus-e2e.py
+              python apps/tasks/test/e2e.py
+              python apps/tasks/test/focus-e2e.py
           - name: focus, popout, rail, switches
             run: |
               python tests/focus-e2e.py
@@ -78,6 +78,7 @@ jobs:
               python tests/rail-e2e.py
               python tests/switches-e2e.py
               python tests/drop-e2e.py
+              python tests/rename-e2e.py
           - name: with Azure DevOps off
             run: python tests/no-ado-e2e.py
           # Real opencode and a stand-in model that writes slowly: answers stream, Quick answers (Chat 4.5.0).

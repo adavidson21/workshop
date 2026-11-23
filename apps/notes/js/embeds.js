@@ -1,4 +1,4 @@
-/* Folio: embeds. A paragraph that is only ![[note]] or ![[note#heading]] (or ![label](note.md#heading)) shows
+/* Notes: embeds. A paragraph that is only ![[note]] or ![[note#heading]] (or ![label](note.md#heading)) shows
    that note, or that section of it, in place: read only, with a link to open it. Pure, so Node tests run it;
    main.js resolves the note and renders it with markdown.js.
 

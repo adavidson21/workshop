@@ -3,7 +3,7 @@
 // with one tool call after another: each call is another full request to the model, which on a small local model
 // felt like deep research for a one-line answer.
 //
-// Quick does the looking up in code: it scores the knowledge base's text (Folio notes, products and glossary from
+// Quick does the looking up in code: it scores the knowledge base's text (Notes' notes, products and glossary from
 // Settings, the workspace repo map) against the question, puts the best passages in the request, and asks once,
 // with no tools. The model reads one prompt and writes one answer, streamed. "Go deeper" in Chat sends the same
 // question to an agent that can read the code.
@@ -93,7 +93,7 @@ function settingsText(file) {
 export function corpus({ dataDir, workspace } = {}) {
   const out = [];
   if (dataDir) {
-    const notes = ["folio", "notes"].map((d) => path.join(dataDir, d)).find((d) => fs.existsSync(d));
+    const notes = ["notes", "folio"].map((d) => path.join(dataDir, d)).find((d) => fs.existsSync(d));
     if (notes) {
       const files = [];
       walk(notes, files, notes);

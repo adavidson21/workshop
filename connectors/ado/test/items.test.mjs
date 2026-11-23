@@ -1,4 +1,4 @@
-// Work item actions: workitem.get additions, iterations.list and the write action workitem.update (Runway's
+// Work item actions: workitem.get additions, iterations.list and the write action workitem.update (Roadmaps'
 // Publish), against the fake ADO server.
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -82,7 +82,7 @@ test('iterations.list', () => withAdo(async ({ d }) => {
   assert.equal(it.iterations[2].start, '2026-10-07');
 }));
 
-test('patchOps: title, area and dates for Runway\'s Publish', () => {
+test('patchOps: title, area and dates for Roadmaps\' Publish', () => {
   assert.deepEqual(patchOps({ title: '  New   name ', area: 'P\\Team', startDate: '2026-11-05', targetDate: '' }, { 'Microsoft.VSTS.Scheduling.TargetDate': '2026-12-01T00:00:00Z' }), [
     { op: 'add', path: '/fields/System.Title', value: 'New name' },
     { op: 'add', path: '/fields/Microsoft.VSTS.Scheduling.StartDate', value: '2026-11-05T00:00:00Z' },
@@ -150,12 +150,12 @@ test('workitem.update sends description and acceptance criteria as HTML', () => 
 }));
 
 test('workitem.update adds a comment to the Discussion and Related links, skipping ones already there', () => withAdo(async ({ d, srv }) => {
-  const out = await updateWorkItem(d, { id: 501, rev: 4, changes: { comment: 'Shaped in Slate\ninto <Epic>', related: [9100, 9100, 501] } });
+  const out = await updateWorkItem(d, { id: 501, rev: 4, changes: { comment: 'Shaped in Builds\ninto <Epic>', related: [9100, 9100, 501] } });
   assert.equal(out.rev, 5);
   const get = srv.requests.find(r => r.startsWith('GET') && r.includes('/workitems/501'));
   assert.match(get, /\$expand=relations/, 'reads the links it has');
   const patch = srv.requests.find(r => r.startsWith('PATCH'));
-  assert.match(patch, /"path":"\/fields\/System\.History","value":"Shaped in Slate<br>into &lt;Epic&gt;"/);
+  assert.match(patch, /"path":"\/fields\/System\.History","value":"Shaped in Builds<br>into &lt;Epic&gt;"/);
   assert.equal((patch.match(/System\.LinkTypes\.Related/g) || []).length, 1, 'one link: no repeats, never itself');
   assert.match(patch, /\/_apis\/wit\/workItems\/9100"/);
   // Linked now: asking again changes nothing.

@@ -20,7 +20,7 @@
         "b-read"
       ],
       "use": "Every screen's main column. .b-page is Hints' 560px phone column; .wide is Workshop's list and form width; .full goes edge to edge. .b-read caps long text at 68ch.",
-      "snippet": "<main class=\"b-page wide\">\n  <header class=\"b-page-head\">\n    <div class=\"ph-main\"><p class=\"b-eyebrow\">Docket</p><h1>Today</h1></div>\n    <div class=\"ph-acts\"><button class=\"b-btn primary\">New task</button></div>\n    <nav class=\"b-tabs\"><a href=\"#\" aria-current=\"page\">Today</a><a href=\"#\">Week</a><a href=\"#\">Done</a></nav>\n  </header>\n</main>",
+      "snippet": "<main class=\"b-page wide\">\n  <header class=\"b-page-head\">\n    <div class=\"ph-main\"><p class=\"b-eyebrow\">Tasks</p><h1>Today</h1></div>\n    <div class=\"ph-acts\"><button class=\"b-btn primary\">New task</button></div>\n    <nav class=\"b-tabs\"><a href=\"#\" aria-current=\"page\">Today</a><a href=\"#\">Week</a><a href=\"#\">Done</a></nav>\n  </header>\n</main>",
       "aria": "Use one <main>. Tabs that switch views are links with aria-current=\"page\"; tabs that switch panels use role=\"tablist\" with aria-selected.",
       "keyboard": "Tab moves through tabs; the ring sits inside the tab.",
       "variants": [],

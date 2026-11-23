@@ -25,14 +25,14 @@ test('checkRoute agrees with the schema on every docs example', { skip: !schemas
 
 test('repairRoute: unknown fields are dropped, not the whole route; what does not fit still fails', () => {
   const ok = r => checkRoute(repairRoute(r));
-  assert.deepEqual(ok({ version: 1, intent: 'go', go: { app: 'receipts' }, run: 'rm -rf /' }), { version: 1, intent: 'go', go: { app: 'receipts' } });
+  assert.deepEqual(ok({ version: 1, intent: 'go', go: { app: 'people' }, run: 'rm -rf /' }), { version: 1, intent: 'go', go: { app: 'people' } });
   assert.deepEqual(ok({ version: '1', intent: 'ask', ask: { repos: ['sample-api'], question: 'which .NET?' }, answer: 'net8.0', reason: 'x' }),
     { version: 1, intent: 'ask', ask: { repos: ['sample-api'] } });
   assert.deepEqual(ok({ version: 1, intent: 'ask' }), { version: 1, intent: 'ask', ask: { repos: [] } }, 'an ask with no repos list still shows its answer');
   const cap = ok({ version: 1, intent: 'capture', act: { connector: 'ado', action: 'workitem.update', label: 'x' }, proposals: [
     { to: 'queue', text: 'Assign 123', payload: { kind: 'task' } },
-    { to: 'prioritizer', text: 'Onboarding doc', payload: { kind: 'task', title: 'Onboarding doc' }, confidence: '0.8', reason: null, extra: true }] });
-  assert.deepEqual(cap.proposals, [{ to: 'prioritizer', text: 'Onboarding doc', payload: { kind: 'task', title: 'Onboarding doc' }, confidence: 0.8, reason: '' }], 'the bad proposal and the act are dropped');
+    { to: 'tasks', text: 'Onboarding doc', payload: { kind: 'task', title: 'Onboarding doc' }, confidence: '0.8', reason: null, extra: true }] });
+  assert.deepEqual(cap.proposals, [{ to: 'tasks', text: 'Onboarding doc', payload: { kind: 'task', title: 'Onboarding doc' }, confidence: 0.8, reason: '' }], 'the bad proposal and the act are dropped');
   assert.equal(cap.act, undefined);
   assert.equal(ok({ version: 1, intent: 'clarify', clarify: { question: 'Which?', choices: ['a', 'b', 'c', 'd', 'e'], why: 'x' } }).clarify.choices.length, 4);
   assert.equal(ok({ version: 1, intent: 'act', act: { connector: 'ado', action: 'workitem.update', label: 'Assign', extra: 1 } }).act.connector, 'ado', 'kept as text; actAllowed still refuses the button');
@@ -51,8 +51,8 @@ test('checkRoute: each intent needs its own field, unknown fields are refused', 
   assert.equal(checkRoute({ version: 1, intent: 'go', go: { app: 'queue' }, run: 'x' }), null);
   assert.equal(checkRoute({ version: 1, intent: 'capture', act: { connector: 'ado', action: 'workitem.update', label: 'x' } }), null, 'an act disguised as a capture');
   assert.equal(checkRoute({ version: 1, intent: 'capture', proposals: [{ to: 'queue', text: 'x', payload: { kind: 'task' } }] }), null);
-  assert.equal(checkRoute({ version: 1, intent: 'capture', proposals: [{ to: 'prioritizer', text: 'x', payload: { kind: 'win' } }] }), null, 'Docket takes tasks only');
-  assert.equal(checkRoute({ version: 1, intent: 'capture', proposals: [{ to: 'receipts', text: 'x', payload: { kind: 'task' } }] }), null);
+  assert.equal(checkRoute({ version: 1, intent: 'capture', proposals: [{ to: 'tasks', text: 'x', payload: { kind: 'win' } }] }), null, 'Tasks takes tasks only');
+  assert.equal(checkRoute({ version: 1, intent: 'capture', proposals: [{ to: 'people', text: 'x', payload: { kind: 'task' } }] }), null);
   assert.equal(checkRoute({ version: 1, intent: 'clarify', clarify: { question: 'Which?', choices: ['one'] } }), null, 'at least two choices');
   assert.equal(checkRoute({ version: 1, intent: 'ask', ask: { repos: ['a'], extra: 1 } }), null);
   assert.ok(checkRoute({ version: 1, intent: 'ask', ask: { repos: [] } }));
@@ -67,24 +67,24 @@ test('only spike and start.local are offered as buttons', () => {
 });
 
 test('toProposal: the shared capture shape', () => {
-  const p = toProposal({ to: 'prioritizer', text: 'Keys', payload: { kind: 'task', title: 'Keys from IT', waiting: true }, confidence: 0.3, reason: 'r' });
+  const p = toProposal({ to: 'tasks', text: 'Keys', payload: { kind: 'task', title: 'Keys from IT', waiting: true }, confidence: 0.3, reason: 'r' });
   assert.equal(p.kind, 'waiting');
   assert.equal(p.title, 'Keys from IT');
   assert.equal(isLow(p), true);
-  assert.equal(toProposal({ to: 'receipts', text: 'x', payload: { kind: 'growth' } }).kind, 'receipt');
+  assert.equal(toProposal({ to: 'people', text: 'x', payload: { kind: 'growth' } }).kind, 'receipt');
   assert.equal(toProposal({ to: 'notes', text: 'x', payload: { kind: 'note' } }).kind, 'note');
 });
 
 test('toProposal: tasks carry directory ids only; names Tandem wrote are matched or dropped', () => {
-  const p = toProposal({ to: 'prioritizer', text: 'x', payload: { kind: 'task', title: 'x', people: ['person one', 'Nobody'], who: ['g_l', 'p_unknown'] } }, dir);
+  const p = toProposal({ to: 'tasks', text: 'x', payload: { kind: 'task', title: 'x', people: ['person one', 'Nobody'], who: ['g_l', 'p_unknown'] } }, dir);
   assert.deepEqual(p.payload.who, ['g_l', 'p_1']);
   assert.equal(p.payload.people, undefined);
   assert.deepEqual(p.names, ['Leadership', 'Person One']);
-  assert.equal(toProposal({ to: 'prioritizer', text: 'x', payload: { kind: 'task', people: ['x'] } }).payload.who, undefined);
+  assert.equal(toProposal({ to: 'tasks', text: 'x', payload: { kind: 'task', people: ['x'] } }).payload.who, undefined);
 });
 
-test('hubContext: names only, from the directory (groups with their members), Docket\'s summary and Settings\' teams', () => {
-  const summary = { schema: 'prioritizer.summary', version: 1, rev: 1, items: [{ id: 'lists', kind: 'targets', capture: 'task', title: 'Lists', updatedAt: 1, rows: [{ id: 'l1', title: 'Inbox' }] }] };
+test('hubContext: names only, from the directory (groups with their members), Tasks\' summary and Settings\' teams', () => {
+  const summary = { schema: 'tasks.summary', version: 1, rev: 1, items: [{ id: 'lists', kind: 'targets', capture: 'task', title: 'Lists', updatedAt: 1, rows: [{ id: 'l1', title: 'Inbox' }] }] };
   const teams = { schema: 'settings.teams', version: 1, rev: 1, items: [{ id: 't_mine', name: 'Mine', areas: ['Project\\Team'], updatedAt: 1 }] };
   const c = hubContext({ dir, summary, teams });
   assert.deepEqual(c.people, [
@@ -113,7 +113,7 @@ test('ids and hub sessions', () => {
   assert.equal(isHubCommand('/spike x'), false);
 });
 
-test('flow cards: the one or two Loom flows an ask fits, and the route that opens Start work filled in', async () => {
+test('flow cards: the one or two Builds flows an ask fits, and the route that opens Start work filled in', async () => {
   const { suggestFlows, flowCardsHtml, flowRoute } = await import('../js/hub-model.js');
   assert.deepEqual(suggestFlows('Export fails after one retry'), ['bug', 'spike']);
   assert.deepEqual(suggestFlows('How hard would it be to add CSV export?'), ['spike', 'feature']);

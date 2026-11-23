@@ -1,10 +1,10 @@
-// Plan 2: @people and kinds for Rapport, @people on Docket tasks, and person chips (offers.js, markdown.js).
+// Plan 2: @people and kinds for People, @people on tasks from Tasks, and person chips (offers.js, markdown.js).
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { directory } from '../../../shared/people.js';
-import { forRapport, handlesIn, offerFor, offerId, rapportOffers, readable, whoOf, wins } from '../js/offers.js';
+import { forPeople, handlesIn, offerFor, offerId, peopleOffers, readable, whoOf, wins } from '../js/offers.js';
 import { render } from '../js/markdown.js';
 import { SchemaSet } from '../../../tests/lib/schema.mjs';
 
@@ -22,9 +22,9 @@ test('handles: after a space or at the start, not in emails, each once', () => {
   assert.deepEqual(handlesIn('@priya and (@Sam) paired, mail a@b.com, @priya again, @jo.'), ['priya', 'sam', 'jo']);
 });
 
-test('lines for Rapport: the four kinds, tags taken out, handles kept for who it is about', () => {
+test('lines for People: the four kinds, tags taken out, handles kept for who it is about', () => {
   const text = '# Sync\n\n- @priya unblocked the release #win\n- Clear incident summary #feedback @sam\n- learned the deploy flow #growth\n- worried about on-call load #concern\n- #winning is not a tag\n```\n- @priya in code #win\n```\n';
-  assert.deepEqual(forRapport(text).map(r => [r.kind, r.text, r.handles]), [
+  assert.deepEqual(forPeople(text).map(r => [r.kind, r.text, r.handles]), [
     ['win', '@priya unblocked the release', ['priya']], ['feedback', 'Clear incident summary @sam', ['sam']],
     ['growth', 'learned the deploy flow', []], ['concern', 'worried about on-call load', []]]);
   assert.deepEqual(wins(text).map(w => w.text), ['@priya unblocked the release']);
@@ -38,23 +38,23 @@ test('who: reports, and people who are not reports; archived people are no one',
 });
 
 test('a line naming reports: one offer each with payload.about; otherwise one as your own', () => {
-  const [both] = forRapport('- @priya and @sam shipped the cache #win');
-  const offers = rapportOffers(NOTE, both, { day: DAY, dir: DIR });
+  const [both] = forPeople('- @priya and @sam shipped the cache #win');
+  const offers = peopleOffers(NOTE, both, { day: DAY, dir: DIR });
   assert.deepEqual(offers.map(o => [o.who, o.offer.payload.about, o.offer.payload.kind]), [['Priya Raman', 'p_priya', 'win'], ['Sam Lee', 'p_sam', 'win']]);
   assert.equal(offers[0].offer.text, 'Priya Raman and Sam Lee shipped the cache');
   assert.notEqual(offers[0].offer.id, offers[1].offer.id, 'one id per person');
   for (const o of offers) assert.deepEqual(schemas.validate('handoff-item', { ...o.offer, updatedAt: 1 }), []);
-  const [peer] = forRapport('- @jo gave great feedback #feedback');
-  const mine = rapportOffers(NOTE, peer, { day: DAY, dir: DIR });
+  const [peer] = forPeople('- @jo gave great feedback #feedback');
+  const mine = peopleOffers(NOTE, peer, { day: DAY, dir: DIR });
   assert.equal(mine.length, 1);
   assert.equal(mine[0].who, 'You');
   assert.equal(mine[0].offer.payload.about, undefined, 'not a report: sent as your own');
   assert.equal(mine[0].offer.payload.kind, 'feedback');
-  const [plain] = forRapport('- shipped it #win');
-  assert.equal(rapportOffers(NOTE, plain, { day: DAY }).at(0).offer.id, offerId('win', NOTE.path, 'shipped it'), 'a line with no one keeps the id it had before');
+  const [plain] = forPeople('- shipped it #win');
+  assert.equal(peopleOffers(NOTE, plain, { day: DAY }).at(0).offer.id, offerId('win', NOTE.path, 'shipped it'), 'a line with no one keeps the id it had before');
 });
 
-test('an action item carries its @people to Docket as payload.who, with names in the title', () => {
+test('an action item carries its @people to Tasks as payload.who, with names in the title', () => {
   const t = offerFor('task', NOTE, 'Pair with @priya on the rollout', { day: DAY, dir: DIR });
   assert.deepEqual(t.payload.who, ['p_priya']);
   assert.equal(t.payload.title, 'Pair with Priya Raman on the rollout');

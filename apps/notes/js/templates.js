@@ -2,7 +2,7 @@
 
    Templates are ordinary notes under templates/, so they are edited like any other note. A new note made from
    one gets {{title}}, {{slug}} (the title as a file name), {{date}} (YYYY-MM-DD) and {{time}} (HH:MM) filled in, and
-   {{docket}}: the day's tasks from Docket as links (daily.js docketPlan), or an empty checkbox without Docket.
+   {{tasks}}: the day's tasks from Tasks as links (daily.js tasksPlan), or an empty checkbox without Tasks.
    templates/product.md is the product note template (products.js), also used by Tandem. The daily note is daily/<date>.md,
    made from templates/daily.md when there is one. */
 import { isNote, slugify } from './model.js';
@@ -16,7 +16,7 @@ export const PRODUCT_TPL = 'templates/product.md';
 
 export const DAILY = 'daily';
 
-/* The starter set, written by "Add starter templates". 1:1 notes stay in Rapport, so there is no 1:1 template. */
+/* The starter set, written by "Add starter templates". 1:1 notes stay in People, so there is no 1:1 template. */
 export const STARTERS = {
   'templates/meeting.md': '# {{title}}\n\n{{date}}\n\n## Attendees\n\n- \n\n## Notes\n\n- \n\n## Decisions\n\n- \n\n## Action items\n\n- [ ] \n',
   'templates/incident.md': '# {{title}}\n\nStarted {{date}} {{time}}. Status: investigating.\n\n## Impact\n\n## Timeline\n\n- {{time}} \n\n## Cause\n\n## Follow-ups\n\n- [ ] \n',
@@ -27,8 +27,8 @@ export const STARTERS = {
   'templates/api-endpoint.md': '# {{title}}\n\n`GET /path/{id}`\n\n> [!NOTE]\n> Auth: . Rate limit: .\n\n## Request\n\n| Field | Type | Required | Notes |\n|---|---|---|---|\n| id | string | yes | |\n\n```json\n{}\n```\n\n## Response\n\n```json\n{}\n```\n\n## Errors\n\n| Status | When |\n|---|---|\n| 404 | Not found |\n\n## Flow\n\n```mermaid\nsequenceDiagram\n  Client->>API: GET /path/{id}\n  API->>DB: read\n  DB-->>API: row\n  API-->>Client: 200\n```\n',
   'templates/architecture.md': '# {{title}}\n\nLast reviewed {{date}}.\n\n## What it does\n\n## Context\n\n```mermaid\nC4Context\n  title {{title}}: context\n  Person(user, "User")\n  System(sys, "{{title}}")\n  System_Ext(ext, "Other system")\n  Rel(user, sys, "Uses")\n  Rel(sys, ext, "Calls")\n```\n\n## Containers\n\n```mermaid\nflowchart LR\n  web[Web app] --> api[API]\n  api --> db[(Database)]\n  api --> queue[[Queue]]\n```\n\n## Data\n\n## Operations\n\n- Dashboards: \n- Alerts: \n- Runbooks: \n\n## Decisions\n\n- \n',
   'templates/postmortem.md': '# {{title}}\n\nDate: {{date}}. Severity: . Status: draft.\n\n> [!IMPORTANT]\n> Blameless: about systems and process, not people.\n\n## Summary\n\n## Impact\n\n## Timeline\n\n```mermaid\ntimeline\n  title {{title}}\n  Detected : alert fired\n  Mitigated : rolled back\n  Resolved : fix deployed\n```\n\n## Root cause\n\n## What went well\n\n- \n\n## What went wrong\n\n- \n\n## Action items\n\n- [ ] \n',
-  'templates/plan.md': '---\nkind: plan\nproduct: \n---\n# {{title}}\n\nStatus: draft. Date: {{date}}.\n\n## Problem\n\nWho has it, and what it costs them today.\n\n## Goals\n\n- \n\n## Non-goals\n\n- \n\n## Scope\n\nWhat changes for the people who use it, in a few sentences. Engineering decides how.\n\n## Milestones\n\n1. \n\n## Open questions\n\n- \n\n## In Loom\n\nType [[ and pick a Loom item (an epic or a build) to link it here. The side panel shows where each one is.\n',
-  'templates/daily.md': '# {{date}}\n\n## Plan\n\n{{docket}}\n\n## Notes\n\n## Wins\n\n',
+  'templates/plan.md': '---\nkind: plan\nproduct: \n---\n# {{title}}\n\nStatus: draft. Date: {{date}}.\n\n## Problem\n\nWho has it, and what it costs them today.\n\n## Goals\n\n- \n\n## Non-goals\n\n- \n\n## Scope\n\nWhat changes for the people who use it, in a few sentences. Engineering decides how.\n\n## Milestones\n\n1. \n\n## Open questions\n\n- \n\n## In Builds\n\nType [[ and pick a Builds item (an epic or a build) to link it here. The side panel shows where each one is.\n',
+  'templates/daily.md': '# {{date}}\n\n## Plan\n\n{{tasks}}\n\n## Notes\n\n## Wins\n\n',
   [PRODUCT_TPL]: PRODUCT_TEMPLATE
 };
 
@@ -61,10 +61,10 @@ export const PLACEHOLDERS = {
   date: "The day the note is made, YYYY-MM-DD",
   time: 'The time the note is made, HH:MM',
   slug: 'The title as a file name, like deploy-plan',
-  docket: "Today's tasks from Docket (daily template only)"
+  tasks: "Today's tasks from Tasks (daily template only)"
 };
-/** The placeholder names to offer for a template: docket only on the daily template. */
-export const placeholdersFor = (path) => Object.keys(PLACEHOLDERS).filter(k => k !== 'docket' || path === 'templates/daily.md');
+/** The placeholder names to offer for a template: tasks only on the daily template. */
+export const placeholdersFor = (path) => Object.keys(PLACEHOLDERS).filter(k => k !== 'tasks' || path === 'templates/daily.md');
 
 /** The frontmatter `template:` and `description:` of a text, as written (empty when missing). */
 export function templateFields(text) {
@@ -94,14 +94,15 @@ export function asTemplate(text, name) {
   return setTemplateFields(titled, { name });
 }
 
-/* What {{docket}} becomes with no tasks from Docket: one empty checkbox to plan by hand. */
+/* What {{tasks}} becomes with no tasks from Tasks: one empty checkbox to plan by hand. */
 export const NO_PLAN = '- [ ] ';
 
-/** A template's text with {{title}}, {{slug}}, {{date}}, {{time}} and {{docket}} filled in. Unknown {{names}} stay.
+/** A template's text with {{title}}, {{slug}}, {{date}}, {{time}} and {{tasks}} filled in ({{docket}}, its name before the rename, too). Unknown {{names}} stay.
     The template's own `template:` and `description:` frontmatter lines are left out. */
-export function fill(text, { title = '', now = new Date(), docket = '' } = {}) {
-  const v = { title, slug: slugify(title), date: dayOf(now), time: timeOf(now), docket: docket || NO_PLAN };
-  return stripTemplateFields(text).replace(/\{\{\s*(title|slug|date|time|docket)\s*\}\}/g, (_, k) => v[k]);
+export function fill(text, { title = '', now = new Date(), tasks = '' } = {}) {
+  const v = { title, slug: slugify(title), date: dayOf(now), time: timeOf(now), tasks: tasks || NO_PLAN };
+  v.docket = v.tasks;
+  return stripTemplateFields(text).replace(/\{\{\s*(title|slug|date|time|tasks|docket)\s*\}\}/g, (_, k) => v[k]);
 }
 
 /** The daily note's path for a day. */
@@ -110,11 +111,11 @@ export function dailyPath(day) {
   return `${DAILY}/${day}.md`;
 }
 
-/** The daily note's text for a day, from the daily template's text (or the starter one). docket: docketPlan(). */
-export function dailyText(day, template, docket = '') {
+/** The daily note's text for a day, from the daily template's text (or the starter one). tasks: tasksPlan(). */
+export function dailyText(day, template, tasks = '') {
   const [y, m, d] = day.split('-').map(Number);
   const at = new Date(y, m - 1, d, 9, 0);
-  return fill(template || STARTERS['templates/daily.md'], { title: day, now: at, docket });
+  return fill(template || STARTERS['templates/daily.md'], { title: day, now: at, tasks });
 }
 
 /** Starter templates not yet in `paths` (a Set), as [{path, content}]. */

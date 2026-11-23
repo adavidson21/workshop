@@ -116,17 +116,17 @@ test('names: bad names and bad envelopes are refused before anything is written'
 test('nested names: subfolders, digits first, listed with their full name', async () => {
   const fs = new FakeFolder();
   const s = store(fs);
-  const env = { schema: 'receipts.entries/person-one/2026', version: 1, rev: 0, items: [{ id: 'e1', updatedAt: 1 }] };
-  await s.put('receipts', 'entries/person-one/2026', env);
-  await s.put('receipts', 'config', { schema: 'receipts.config', version: 1, rev: 0, items: [] });
-  assert.ok(fs.exists('receipts/entries/person-one/2026.json'));
-  assert.equal((await s.get('receipts', 'entries/person-one/2026')).rev, 1);
-  fs.write('receipts/entries/person-one/notes.md', '# not a collection');
-  fs.write('receipts/.git/config.json', '{}');
-  const listed = await s.list('receipts');
+  const env = { schema: 'people.entries/person-one/2026', version: 1, rev: 0, items: [{ id: 'e1', updatedAt: 1 }] };
+  await s.put('people', 'entries/person-one/2026', env);
+  await s.put('people', 'config', { schema: 'people.config', version: 1, rev: 0, items: [] });
+  assert.ok(fs.exists('people/entries/person-one/2026.json'));
+  assert.equal((await s.get('people', 'entries/person-one/2026')).rev, 1);
+  fs.write('people/entries/person-one/notes.md', '# not a collection');
+  fs.write('people/.git/config.json', '{}');
+  const listed = await s.list('people');
   assert.deepEqual(listed.collections.map(c => c.collection), ['config', 'entries/person-one/2026']);
   const all = await s.allCollections();
-  assert.deepEqual(all.map(r => `${r.app}/${r.collection}`), ['receipts/config', 'receipts/entries/person-one/2026']);
+  assert.deepEqual(all.map(r => `${r.app}/${r.collection}`), ['people/config', 'people/entries/person-one/2026']);
 });
 
 test('a damaged collection file is never written over', async () => {
@@ -176,25 +176,25 @@ test('lastModified: a change that keeps rev also restarts, and the write then la
 test('files: create, read, replace with mtime, and every kind of conflict', async () => {
   const fs = new FakeFolder();
   const s = store(fs);
-  const made = await s.files.write('receipts', 'summaries/person-one/2026-h2.md', '# Person\n', { create: true });
+  const made = await s.files.write('people', 'summaries/person-one/2026-h2.md', '# Person\n', { create: true });
   assert.deepEqual(Object.keys(made).sort(), ['app', 'mtime', 'path', 'size']);
   assert.equal(made.size, 9);
-  assert.equal(fs.read('receipts/summaries/person-one/2026-h2.md'), '# Person\n');
-  const read = await s.files.read('receipts', 'summaries/person-one/2026-h2.md');
-  assert.deepEqual(read, { app: 'receipts', path: 'summaries/person-one/2026-h2.md', mtime: made.mtime, size: 9, content: '# Person\n' });
-  assert.equal(await s.files.read('receipts', 'summaries/none.md'), null);
+  assert.equal(fs.read('people/summaries/person-one/2026-h2.md'), '# Person\n');
+  const read = await s.files.read('people', 'summaries/person-one/2026-h2.md');
+  assert.deepEqual(read, { app: 'people', path: 'summaries/person-one/2026-h2.md', mtime: made.mtime, size: 9, content: '# Person\n' });
+  assert.equal(await s.files.read('people', 'summaries/none.md'), null);
 
-  const again = await s.files.write('receipts', 'summaries/person-one/2026-h2.md', '# Person One\n', { mtime: read.mtime });
+  const again = await s.files.write('people', 'summaries/person-one/2026-h2.md', '# Person One\n', { mtime: read.mtime });
   assert.ok(again.mtime !== read.mtime, 'a new mtime names the new version');
 
-  const stale = await s.files.write('receipts', 'summaries/person-one/2026-h2.md', 'x', { mtime: read.mtime }).catch(e => e);
+  const stale = await s.files.write('people', 'summaries/person-one/2026-h2.md', 'x', { mtime: read.mtime }).catch(e => e);
   assert.equal(stale.code, 'conflict');
   assert.equal(stale.current.content, '# Person One\n');
   assert.equal(stale.current.mtime, again.mtime);
-  const exists = await s.files.write('receipts', 'summaries/person-one/2026-h2.md', 'x', { create: true }).catch(e => e);
+  const exists = await s.files.write('people', 'summaries/person-one/2026-h2.md', 'x', { create: true }).catch(e => e);
   assert.equal(exists.code, 'conflict');
   assert.equal(exists.current.mtime, again.mtime);
-  const gone = await s.files.write('receipts', 'summaries/gone.md', 'x', { mtime: 5 }).catch(e => e);
+  const gone = await s.files.write('people', 'summaries/gone.md', 'x', { mtime: 5 }).catch(e => e);
   assert.equal(gone.code, 'conflict');
   assert.equal(gone.current, null);
 });
@@ -202,49 +202,49 @@ test('files: create, read, replace with mtime, and every kind of conflict', asyn
 test('files: what may be written, and what the files API never touches', async () => {
   const fs = new FakeFolder();
   const s = store(fs);
-  assert.equal(await codeOf(s.files.write('receipts', 'notes.txt', 'x', { create: true })), 'bad_request');
-  assert.equal(await codeOf(s.files.write('receipts', 'a.json', '{bad', { create: true })), 'bad_request');
-  assert.equal(await codeOf(s.files.write('receipts', 'config.json', JSON.stringify({ schema: 'receipts.config', version: 1, rev: 0, items: [] }), { create: true })), 'bad_request');
-  assert.equal(await codeOf(s.files.write('receipts', 'a.md', 'x', {})), 'bad_request', 'needs mtime or create');
-  assert.equal(await codeOf(s.files.write('receipts', 'a.md', 'x', { create: true, mtime: 1 })), 'bad_request');
-  assert.equal(await codeOf(s.files.write('receipts', 'a/b/c/d/e.md', 'x', { create: true })), 'bad_request');
-  assert.equal(await codeOf(s.files.write('receipts', 'big.md', 'x'.repeat(10 * 1024 * 1024 + 1), { create: true })), 'too_large');
+  assert.equal(await codeOf(s.files.write('people', 'notes.txt', 'x', { create: true })), 'bad_request');
+  assert.equal(await codeOf(s.files.write('people', 'a.json', '{bad', { create: true })), 'bad_request');
+  assert.equal(await codeOf(s.files.write('people', 'config.json', JSON.stringify({ schema: 'people.config', version: 1, rev: 0, items: [] }), { create: true })), 'bad_request');
+  assert.equal(await codeOf(s.files.write('people', 'a.md', 'x', {})), 'bad_request', 'needs mtime or create');
+  assert.equal(await codeOf(s.files.write('people', 'a.md', 'x', { create: true, mtime: 1 })), 'bad_request');
+  assert.equal(await codeOf(s.files.write('people', 'a/b/c/d/e.md', 'x', { create: true })), 'bad_request');
+  assert.equal(await codeOf(s.files.write('people', 'big.md', 'x'.repeat(10 * 1024 * 1024 + 1), { create: true })), 'too_large');
   assert.equal(fs.writes, 0);
 
-  await s.put('receipts', 'summaries/person-one/2026-h2', { schema: 'receipts.summaries/person-one/2026-h2', version: 1, rev: 0, items: [] });
-  await s.files.write('receipts', 'summaries/person-one/2026-h2.md', '# H2', { create: true });
-  await s.files.write('receipts', 'a.json', '{"plain": true}', { create: true });
-  fs.write('receipts/Notes.md', 'bad name');
-  fs.write('receipts/.obsidian/x.md', 'dot folder');
-  fs.write('receipts/a/b/c/d/deep.md', 'too deep');
-  fs.write('receipts/readme.txt', 'other extension');
-  const listed = await s.files.list('receipts');
+  await s.put('people', 'summaries/person-one/2026-h2', { schema: 'people.summaries/person-one/2026-h2', version: 1, rev: 0, items: [] });
+  await s.files.write('people', 'summaries/person-one/2026-h2.md', '# H2', { create: true });
+  await s.files.write('people', 'a.json', '{"plain": true}', { create: true });
+  fs.write('people/Notes.md', 'bad name');
+  fs.write('people/.obsidian/x.md', 'dot folder');
+  fs.write('people/a/b/c/d/deep.md', 'too deep');
+  fs.write('people/readme.txt', 'other extension');
+  const listed = await s.files.list('people');
   assert.deepEqual(listed.map(f => f.path), ['a.json', 'summaries/person-one/2026-h2.md'], 'sorted, collections and ignored names left out');
-  assert.deepEqual((await s.files.list('receipts', 'summaries')).map(f => f.path), ['summaries/person-one/2026-h2.md']);
-  assert.deepEqual(await s.files.list('receipts', 'nothing'), []);
+  assert.deepEqual((await s.files.list('people', 'summaries')).map(f => f.path), ['summaries/person-one/2026-h2.md']);
+  assert.deepEqual(await s.files.list('people', 'nothing'), []);
   assert.deepEqual(await s.files.list('nobody'), []);
-  assert.equal(await codeOf(s.files.read('receipts', 'summaries/person-one/2026-h2.json')), 'bad_request', 'a collection is not a file');
-  fs.write('receipts/huge.md', 'x'.repeat(10 * 1024 * 1024 + 1));
-  assert.equal(await codeOf(s.files.read('receipts', 'huge.md')), 'too_large');
-  assert.ok((await s.files.list('receipts')).some(f => f.path === 'huge.md'), 'a file too large to read is still listed');
+  assert.equal(await codeOf(s.files.read('people', 'summaries/person-one/2026-h2.json')), 'bad_request', 'a collection is not a file');
+  fs.write('people/huge.md', 'x'.repeat(10 * 1024 * 1024 + 1));
+  assert.equal(await codeOf(s.files.read('people', 'huge.md')), 'too_large');
+  assert.ok((await s.files.list('people')).some(f => f.path === 'huge.md'), 'a file too large to read is still listed');
 });
 
 test('files: trash moves the file, never removes it', async () => {
   const fs = new FakeFolder();
   const s = store(fs);
-  const a = await s.files.write('receipts', 'summaries/person-one/2026-h1.md', 'first', { create: true });
-  assert.equal(await codeOf(s.files.trash('receipts', 'summaries/person-one/2026-h1.md', { mtime: a.mtime - 1 })), 'conflict');
-  const t1 = await s.files.trash('receipts', 'summaries/person-one/2026-h1.md', { mtime: a.mtime });
-  assert.deepEqual(t1, { app: 'receipts', path: 'summaries/person-one/2026-h1.md', trash: '.trash/receipts/summaries/person-one/2026-h1.20261025T140500123Z.md' });
+  const a = await s.files.write('people', 'summaries/person-one/2026-h1.md', 'first', { create: true });
+  assert.equal(await codeOf(s.files.trash('people', 'summaries/person-one/2026-h1.md', { mtime: a.mtime - 1 })), 'conflict');
+  const t1 = await s.files.trash('people', 'summaries/person-one/2026-h1.md', { mtime: a.mtime });
+  assert.deepEqual(t1, { app: 'people', path: 'summaries/person-one/2026-h1.md', trash: '.trash/people/summaries/person-one/2026-h1.20261025T140500123Z.md' });
   assert.equal(fs.read(t1.trash), 'first');
-  assert.equal(fs.exists('receipts/summaries/person-one/2026-h1.md'), false);
-  await s.files.write('receipts', 'summaries/person-one/2026-h1.md', 'second', { create: true });
-  const t2 = await s.files.trash('receipts', 'summaries/person-one/2026-h1.md');
-  assert.equal(t2.trash, '.trash/receipts/summaries/person-one/2026-h1.20261025T140500123Z-1.md', 'a taken name gets -1');
+  assert.equal(fs.exists('people/summaries/person-one/2026-h1.md'), false);
+  await s.files.write('people', 'summaries/person-one/2026-h1.md', 'second', { create: true });
+  const t2 = await s.files.trash('people', 'summaries/person-one/2026-h1.md');
+  assert.equal(t2.trash, '.trash/people/summaries/person-one/2026-h1.20261025T140500123Z-1.md', 'a taken name gets -1');
   assert.equal(fs.read(t2.trash), 'second');
   assert.equal(fs.read(t1.trash), 'first');
-  assert.equal(await codeOf(s.files.trash('receipts', 'summaries/person-one/2026-h1.md')), 'not_found');
-  assert.deepEqual(await s.files.list('receipts'), [], 'the trash is not listed');
+  assert.equal(await codeOf(s.files.trash('people', 'summaries/person-one/2026-h1.md')), 'not_found');
+  assert.deepEqual(await s.files.list('people'), [], 'the trash is not listed');
 });
 
 const PNG = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52]);
@@ -404,40 +404,40 @@ test('moving from IndexedDB: collections created or merged, files kept side by s
   const fs = new FakeFolder('Workshop');
   const target = store(fs);
   // Already in the folder: tasks (to merge), lists at another version, and a summary that differs.
-  await target.put('prioritizer', 'tasks', { schema: 'prioritizer.tasks', version: 3, rev: 0, items: [{ id: 't1', updatedAt: 10, title: 'Folder copy' }, { id: 't2', updatedAt: 10, title: 'Only in folder' }] });
-  await target.put('prioritizer', 'lists', { schema: 'prioritizer.lists', version: 2, rev: 0, items: [] });
-  await target.files.write('receipts', 'summaries/jl/2026-h2.md', 'folder text', { create: true });
-  await target.files.write('receipts', 'summaries/jl/2026-h2-from-browser.md', 'an older move', { create: true });
-  await target.files.write('receipts', 'same.md', 'same', { create: true });
+  await target.put('tasks', 'tasks', { schema: 'tasks.tasks', version: 3, rev: 0, items: [{ id: 't1', updatedAt: 10, title: 'Folder copy' }, { id: 't2', updatedAt: 10, title: 'Only in folder' }] });
+  await target.put('tasks', 'lists', { schema: 'tasks.lists', version: 2, rev: 0, items: [] });
+  await target.files.write('people', 'summaries/jl/2026-h2.md', 'folder text', { create: true });
+  await target.files.write('people', 'summaries/jl/2026-h2-from-browser.md', 'an older move', { create: true });
+  await target.files.write('people', 'same.md', 'same', { create: true });
 
   const collections = [
-    { app: 'prioritizer', collection: 'tasks', envelope: { schema: 'prioritizer.tasks', version: 3, rev: 7, updatedAt: 'x', items: [{ id: 't1', updatedAt: 20, title: 'Browser copy, newer' }, { id: 't3', updatedAt: 5, title: 'Only in browser' }], deleted: {} } },
-    { app: 'prioritizer', collection: 'lists', envelope: { schema: 'prioritizer.lists', version: 1, rev: 2, items: [] } },
-    { app: 'receipts', collection: 'entries/jl/2026', envelope: { schema: 'receipts.entries/jl/2026', version: 1, rev: 4, items: [{ id: 'e1', updatedAt: 1 }] } }
+    { app: 'tasks', collection: 'tasks', envelope: { schema: 'tasks.tasks', version: 3, rev: 7, updatedAt: 'x', items: [{ id: 't1', updatedAt: 20, title: 'Browser copy, newer' }, { id: 't3', updatedAt: 5, title: 'Only in browser' }], deleted: {} } },
+    { app: 'tasks', collection: 'lists', envelope: { schema: 'tasks.lists', version: 1, rev: 2, items: [] } },
+    { app: 'people', collection: 'entries/jl/2026', envelope: { schema: 'people.entries/jl/2026', version: 1, rev: 4, items: [{ id: 'e1', updatedAt: 1 }] } }
   ];
   const files = [
-    { app: 'receipts', path: 'summaries/jl/2026-h2.md', content: 'browser text' },
-    { app: 'receipts', path: 'same.md', content: 'same' },
-    { app: 'receipts', path: 'new.md', content: 'new' }
+    { app: 'people', path: 'summaries/jl/2026-h2.md', content: 'browser text' },
+    { app: 'people', path: 'same.md', content: 'same' },
+    { app: 'people', path: 'new.md', content: 'new' }
   ];
   const source = memorySource(collections, files);
   const summary = await moveIntoFolder({ source, target, folderName: 'Workshop', now: () => Date.UTC(2026, 9, 25) });
 
-  assert.deepEqual(summary.collections.created, ['receipts/entries/jl/2026']);
-  assert.deepEqual(summary.collections.merged, ['prioritizer/tasks']);
+  assert.deepEqual(summary.collections.created, ['people/entries/jl/2026']);
+  assert.deepEqual(summary.collections.merged, ['tasks/tasks']);
   assert.equal(summary.collections.skipped.length, 1);
-  assert.equal(summary.collections.skipped[0].name, 'prioritizer/lists');
-  assert.deepEqual(summary.files.created, ['receipts/new.md']);
-  assert.deepEqual(summary.files.same, ['receipts/same.md']);
-  assert.deepEqual(summary.files.renamed, [{ from: 'receipts/summaries/jl/2026-h2.md', to: 'receipts/summaries/jl/2026-h2-from-browser-2.md' }]);
+  assert.equal(summary.collections.skipped[0].name, 'tasks/lists');
+  assert.deepEqual(summary.files.created, ['people/new.md']);
+  assert.deepEqual(summary.files.same, ['people/same.md']);
+  assert.deepEqual(summary.files.renamed, [{ from: 'people/summaries/jl/2026-h2.md', to: 'people/summaries/jl/2026-h2-from-browser-2.md' }]);
 
-  const tasks = await target.get('prioritizer', 'tasks');
+  const tasks = await target.get('tasks', 'tasks');
   assert.deepEqual(tasks.items.map(i => [i.id, i.title]).sort(), [['t1', 'Browser copy, newer'], ['t2', 'Only in folder'], ['t3', 'Only in browser']]);
   assert.equal(tasks.rev, 2, 'merged and put on top of the folder copy');
-  assert.equal((await target.get('receipts', 'entries/jl/2026')).rev, 1, 'created fresh in the folder');
-  assert.equal(fs.read('receipts/summaries/jl/2026-h2.md'), 'folder text', 'the folder copy is kept');
-  assert.equal(fs.read('receipts/summaries/jl/2026-h2-from-browser-2.md'), 'browser text');
-  assert.equal((await target.get('prioritizer', 'lists')).version, 2, 'a different version is left alone');
+  assert.equal((await target.get('people', 'entries/jl/2026')).rev, 1, 'created fresh in the folder');
+  assert.equal(fs.read('people/summaries/jl/2026-h2.md'), 'folder text', 'the folder copy is kept');
+  assert.equal(fs.read('people/summaries/jl/2026-h2-from-browser-2.md'), 'browser text');
+  assert.equal((await target.get('tasks', 'lists')).version, 2, 'a different version is left alone');
 
   assert.deepEqual(source.mark, { movedTo: 'Workshop', movedAt: '2026-10-25T00:00:00.000Z' });
   assert.deepEqual(await source.collections(), collections, 'the browser copy is unchanged');

@@ -113,8 +113,8 @@ test('the ADO step names the PAT to add in Settings (no terminal) and links to S
 
 test('open steps link to the right app and route; a closed card shows no bodies', () => {
   const f = { ...all, tasks: 0, receipts: 0 };
-  assert.match(card(stepsFor(f), 'task', { ...ctx, facts: f }).html, /data-open="prioritizer"/);
-  assert.match(card(stepsFor(f), 'receipt', { ...ctx, facts: f }).html, /data-open="receipts" data-path="me"/);
+  assert.match(card(stepsFor(f), 'task', { ...ctx, facts: f }).html, /data-open="tasks"/);
+  assert.match(card(stepsFor(f), 'receipt', { ...ctx, facts: f }).html, /data-open="people" data-path="me"/);
   assert.ok(!card(stepsFor(f), '', { ...ctx, facts: f }).html.includes('su-body'));
   const skipped = card(stepsFor(f, ['receipt']), 'receipt', { ...ctx, facts: f }).html;
   assert.match(skipped, /data-unskip="receipt"/);
@@ -134,7 +134,7 @@ function fakeWs({ backend = 'agent', saved = null } = {}) {
     people: { async get() { return { people: [{ id: 'p1', relation: 'self', name: 'Sam' }, { id: 'p2', relation: 'report' }] }; } },
     data: {
       async get(c, o) {
-        if (o && o.app === 'receipts') return { items: [] };
+        if (o && o.app === 'people') return { items: [] };
         if (c === 'setup') return saved;
         return null;
       },
@@ -232,16 +232,16 @@ test('your name: done once People has a You; the step opens People with the name
   assert.match(card(stepsFor(f), 'name', { ...ctx, facts: f }).html, /data-open="settings" data-path="people\/you\/Sam%20Lee"/);
 });
 
-test('Pick your apps: Loom suggested off without ADO and agents; done once confirmed', () => {
+test('Pick your apps: Builds suggested off without ADO and agents; done once confirmed', () => {
   const off = appSuggestions({ ado: { state: 'off' }, dispatch: 'off' });
-  assert.deepEqual(off.filter(a => a.off).map(a => a.id), ['slate', 'bench']);
+  assert.deepEqual(off.filter(a => a.off).map(a => a.id), ['builds', 'bench']);
   assert.deepEqual(appSuggestions({ ado: { state: 'ready' }, dispatch: 'off' }).filter(a => a.off).map(a => a.id), ['bench'], 'Bench needs Tandem');
   assert.deepEqual(appSuggestions({ ado: { state: 'ready' }, dispatch: 'ready' }).filter(a => a.off), []);
   assert.equal(states(stepsFor({ ...all, appsPicked: false })).apps, 'todo');
   const f = { ...all, appsPicked: false, ado: { state: 'off' }, dispatch: 'off' };
   const { html } = card(stepsFor(f), 'apps', { ...ctx, facts: f });
   assert.match(html, /data-apps-ok/);
-  assert.match(html, /Loom<\/b>.*Suggested: off/);
+  assert.match(html, /Builds<\/b>.*Suggested: off/);
 });
 
 test('backup outside work mode suggests a backed-up folder, not OneDrive', () => {
@@ -251,9 +251,9 @@ test('backup outside work mode suggests a backed-up folder, not OneDrive', () =>
   assert.doesNotMatch(html, /OneDrive/);
 });
 
-test('receiptsCount: from Rapport\'s summary, 0 without one', async () => {
+test('receiptsCount: from People\'s summary, 0 without one', async () => {
   const { receiptsCount } = await import('../js/setup.js');
-  const summary = { schema: 'receipts.summary', version: 1, rev: 1, items: [{ id: 'entries', kind: 'count', title: 'Receipts', count: 7, updatedAt: 1 }] };
+  const summary = { schema: 'people.summary', version: 1, rev: 1, items: [{ id: 'entries', kind: 'count', title: 'Receipts', count: 7, updatedAt: 1 }] };
   assert.equal(receiptsCount(summary), 7);
   assert.equal(receiptsCount({ ...summary, version: 2 }), 0);
   assert.equal(receiptsCount(null), 0);

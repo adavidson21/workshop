@@ -84,7 +84,7 @@ All on the opencode connector ([connectors/opencode/README.md](../connectors/ope
 
 The connector runs no model and no git. `evals.run` puts the command in a window in front of you, as if you had typed it, like Settings' Update button.
 
-Loom's Health > Tandem keeps showing the tandem arm only ([tandem-health.md](tandem-health.md)) and links to Bench for the lift.
+Builds' Health > Tandem keeps showing the tandem arm only ([tandem-health.md](tandem-health.md)) and links to Bench for the lift.
 
 ## Validate it on your own computer
 

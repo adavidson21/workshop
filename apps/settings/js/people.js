@@ -1,4 +1,4 @@
-/* Settings, People & teams: the people directory (docs/people.md) and your team's area paths (docs/teams.md).
+/* Settings, Directory: the people directory (docs/people.md) and your team's area paths (docs/teams.md).
    These were the People app; the data never moved (it has always been Settings' folder).
 
    Everything goes through the SDK: ws.people for people and groups, ws.teams for area paths. Both work in
@@ -55,7 +55,7 @@ export async function mountPeople({ ws, toast, peopleEl, teamEl }) {
     return `<form class="cfg person-form" data-person-form="${esc(p.id || 'new')}">
       <div class="cfg-row"><label for="pName">Name</label><input id="pName" name="name" class="cfg-input" maxlength="200" value="${esc(p.name || '')}" required></div>
       <div class="cfg-row"><label for="pHandle">Handle</label><input id="pHandle" name="handle" class="cfg-input mono" maxlength="41" value="${esc(p.handle || '')}" placeholder="${isNew ? 'first name, filled in for you' : ''}">
-        <p class="cfg-help">What you type after @ in Docket and quick capture.</p></div>
+        <p class="cfg-help">What you type after @ in Tasks and quick capture.</p></div>
       <div class="cfg-row"><label for="pRel">Relation</label><select id="pRel" name="relation" class="cfg-input">${relOptions(p.relation)}</select>
         <p class="cfg-help">Contact is anyone outside your working circle: another team, a vendor.</p></div>
       <div class="cfg-row cfg-check"><input id="pTeam" name="team" type="checkbox"${D.onTeam(p) ? ' checked' : ''}><label for="pTeam">On my team</label>
@@ -64,7 +64,7 @@ export async function mountPeople({ ws, toast, peopleEl, teamEl }) {
         <p class="cfg-help">Optional. Used once Azure DevOps is connected.</p></div>
       <div class="cfg-row"><label for="pRole">Role</label><input id="pRole" name="role" class="cfg-input" maxlength="200" value="${esc(p.role || '')}"></div>
       <div class="cfg-row"><label for="pOwns">Owns</label><input id="pOwns" name="owns" class="cfg-input" maxlength="2000" value="${esc((p.owns || []).join(', '))}" placeholder="Products, repos or area paths, separated by commas">
-        <p class="cfg-help">Loom uses this to suggest who to delegate to, from what a request touches. Facts only: what they own.</p></div>
+        <p class="cfg-help">Builds uses this to suggest who to delegate to, from what a request touches. Facts only: what they own.</p></div>
       ${formActs(p)}
     </form>`;
   }
@@ -223,7 +223,7 @@ export async function mountPeople({ ws, toast, peopleEl, teamEl }) {
     const many = conns.length > 1;
     body.innerHTML = `<form class="cfg" data-team-form>
       <div class="cfg-row"><label for="tAreas">Area paths</label><textarea id="tAreas" name="areas" class="cfg-input mono" rows="3" placeholder="Project\\Team" spellcheck="false">${esc(team.areas.join('\n'))}</textarea>
-        <p class="cfg-help">One per line. Includes everything under each.<span data-no-ado> Write <span class="mono">github:owner/repo</span>, or <span class="mono">github:owner/repo/billing</span> for issues labeled <span class="mono">area: billing</span>; Loom reads those through the GitHub connector.</span><span data-ado-only> For GitHub, write <span class="mono">github:owner/repo</span>, or <span class="mono">github:owner/repo/billing</span> for issues labeled <span class="mono">area: billing</span>; Loom reads those through the GitHub connector.</span></p>
+        <p class="cfg-help">One per line. Includes everything under each.<span data-no-ado> Write <span class="mono">github:owner/repo</span>, or <span class="mono">github:owner/repo/billing</span> for issues labeled <span class="mono">area: billing</span>; Builds reads those through the GitHub connector.</span><span data-ado-only> For GitHub, write <span class="mono">github:owner/repo</span>, or <span class="mono">github:owner/repo/billing</span> for issues labeled <span class="mono">area: billing</span>; Builds reads those through the GitHub connector.</span></p>
         <p class="acts left" data-ado-only><button type="button" class="btn" data-areas-suggest>Suggest from Azure DevOps</button><span class="msg" aria-live="polite" data-areas-msg></span></p>
         <div class="areas-suggest" data-areas-list></div></div>
       ${many ? `<div class="cfg-row" data-ado-only><label for="tConn">Connection</label><select id="tConn" name="connection" class="cfg-input">${connOptions(team.connection, 'Default')}</select>
@@ -244,7 +244,7 @@ export async function mountPeople({ ws, toast, peopleEl, teamEl }) {
   /* ---------- the pages ---------- */
   peopleEl.insertAdjacentHTML('beforeend', `
     <section class="card" id="people-list">
-      <h2 class="dup">People and groups${qh('people', 'Everyone you assign work to: you, your manager, reports, peers, contacts on other teams, and groups of them. Docket, Runway, Rapport and Home all use this list.')}</h2>
+      <h2 class="dup">People and groups${qh('people', 'Everyone you assign work to: you, your manager, reports, peers, contacts on other teams, and groups of them. Tasks, Roadmaps, People and Home all use this list.')}</h2>
       <div class="bar"><label class="sr" for="q">Search people</label><input id="q" class="cfg-input" type="search" placeholder="Search by name, handle, role or email" autocomplete="off">
         <label class="sr" for="f">Show</label><select id="f" class="cfg-input">
           <option value="all">Everyone</option><option value="team">On my team</option><option value="report">Direct reports</option>
@@ -260,7 +260,7 @@ export async function mountPeople({ ws, toast, peopleEl, teamEl }) {
     </section>`);
   teamEl.insertAdjacentHTML('beforeend', `
     <section class="card" id="team">
-      <h2 class="dup">Team area paths${adoIsOn() ? qh('people.areas', 'The Azure DevOps area paths your team works in. Slate lists your team\'s backlog from them; Runway\'s ADO roadmaps and the Loom hub use them too.') : qh('people.areas', 'The areas your team works in. Loom lists your team\'s backlog from them.')}</h2>
+      <h2 class="dup">Team area paths${adoIsOn() ? qh('people.areas', 'The Azure DevOps area paths your team works in. Builds lists your team\'s backlog from them; Roadmaps\' ADO roadmaps and the Builds hub use them too.') : qh('people.areas', 'The areas your team works in. Builds lists your team\'s backlog from them.')}</h2>
       <p class="sub" data-ado-only>Plain text, so you can fill them in before Azure DevOps is connected.</p>
       <div class="team-body"><p class="sub">Loading...</p></div>
     </section>`);

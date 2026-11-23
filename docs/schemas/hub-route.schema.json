@@ -17,7 +17,7 @@
         "required": ["to", "text", "payload"],
         "additionalProperties": false,
         "properties": {
-          "to": {"enum": ["prioritizer", "receipts", "notes"]},
+          "to": {"enum": ["tasks", "people", "notes"]},
           "text": {"type": "string", "minLength": 1, "maxLength": 2000},
           "payload": {
             "type": "object",

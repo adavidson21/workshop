@@ -1,4 +1,4 @@
-/* Folio: Clean up this document. Pure: no DOM and no SDK.
+/* Notes: Clean up this document. Pure: no DOM and no SDK.
 
    One note goes in; a cleaned copy comes out, shaped to the template that fits it best, revised, with the model's
    feedback in a callout at the top. Everything that can be done without a model is done here, in code, so a small

@@ -115,7 +115,7 @@ export async function runCommand({ folder, command }, { fresh = false, fromAuto 
   return { session: sid };
 }
 
-// /start for a work item that has no .work folder yet (from a shell such as Prioritizer).
+// /start for a work item that has no .work folder yet (from a shell such as Tasks).
 // The folder appears once /start creates it; the session is linked to it then.
 export const starting = new Map(); // id -> { sid, at }, until its folder shows up (or 10 minutes pass)
 const START_FORGET_MS = 10 * 60e3;

@@ -99,7 +99,7 @@ test('doctor says whether the one-time copy from ~/.workshop/data has run', asyn
   const home = tempDir('workshop-cli-moved-');
   const defaultDir = tempDefault();
   try {
-    fs.mkdirSync(path.join(home, 'data', 'prioritizer'), { recursive: true });
+    fs.mkdirSync(path.join(home, 'data', 'tasks'), { recursive: true });
     const pending = await doctor(home, defaultDir);
     assert.equal(pending.code, 0);
     assert.match(pending.lines.join('\n'), /Old data in .*: not copied yet\. The agent copies it once, on start/);

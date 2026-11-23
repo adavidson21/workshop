@@ -33,9 +33,7 @@ export const readJson = file => JSON.parse(fs.readFileSync(file, 'utf8'));
 /** Write config.json into home (merged over a valid base), then start an agent on a free port with its temp data folder. */
 export async function start(home, config, extra = {}) {
   if (config) fs.writeFileSync(path.join(home, 'config.json'), JSON.stringify({ configVersion: 1, ...config }, null, 2));
-  // appFolders: {} keeps each app's folder named by its id, so these tests read files where they name them.
-  // agent/test/folders.test.mjs checks the real folder names (shared/app-folders.js).
-  return createAgent({ home, port: 0, dataDir: dataDirOf(home), appsDir: APPS, connectorsDir: CONNECTORS, env: { PROBE_SECRET: SECRET }, appFolders: {}, ...extra });
+  return createAgent({ home, port: 0, dataDir: dataDirOf(home), appsDir: APPS, connectorsDir: CONNECTORS, env: { PROBE_SECRET: SECRET }, ...extra });
 }
 
 export const logText = agent => { try { return fs.readFileSync(agent.logFile, 'utf8'); } catch { return ''; } };

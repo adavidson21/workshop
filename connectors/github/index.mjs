@@ -1,5 +1,5 @@
 // GitHub connector: issues assigned to you, pull requests waiting on your review, roadmaps (milestones, Features and
-// stories) and Loom's backlog and writes, in the same shapes as the ADO connector, so Docket, Loom and Runway treat
+// stories) and Builds' backlog and writes, in the same shapes as the ADO connector, so Tasks, Builds and Roadmaps treat
 // both trackers alike. Two write actions (workitem.update, workitem.create) run only with `confirm: true`. Read only. See connectors/github/README.md.
 import { connectionFor, prStatus } from './lib/pr-watch.mjs';
 import { GhError, SettingsError } from './lib/client.mjs';
@@ -48,7 +48,7 @@ export const configSchema = {
     prNotNeeded: {
       type: 'object',
       title: 'PRs that don\'t need you',
-      description: 'Left out of Docket and Loom. A PR where you are the only reviewer asked and a review is required always needs you.',
+      description: 'Left out of Tasks and Builds. A PR where you are the only reviewer asked and a review is required always needs you.',
       additionalProperties: false,
       properties: {
         teamOnly: { type: 'boolean', title: 'Team-only PRs (only your team was asked, not you by name)', default: true },
@@ -189,12 +189,12 @@ export default {
         }
       },
       async run(args, ctx) {
-        // A repo as the connection is Loom's way (an issue number in that repo); otherwise owner/repo#12 or a number with repo.
+        // A repo as the connection is Builds' way (an issue number in that repo); otherwise owner/repo#12 or a number with repo.
         return guarded(ctx, 'workitem.get', () => (isRepo(args?.connection) ? getItem(deps(ctx), args || {}) : getIssue(deps(ctx), args || {})));
       }
     },
     roadmap: {
-      title: 'Epics (milestones), Features and stories for Runway',
+      title: 'Epics (milestones), Features and stories for Roadmaps',
       write: false,
       argsSchema: {
         type: 'object',
@@ -224,7 +224,7 @@ export default {
       }
     },
     backlog: {
-      title: 'Open issues under the areas, for Loom',
+      title: 'Open issues under the areas, for Builds',
       write: false,
       argsSchema: {
         type: 'object',

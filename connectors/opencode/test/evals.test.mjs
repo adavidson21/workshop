@@ -75,7 +75,7 @@ test("listResults sums up version 1 and 2 files newest first, with the lift; rea
   } finally { fs.rmSync(src, { recursive: true, force: true }); }
 });
 
-test("Loom's Prompts (tandem.health evals) keeps the tandem arm only", () => {
+test("Builds' Prompts (tandem.health evals) keeps the tandem arm only", () => {
   const src = clone();
   try {
     fs.writeFileSync(path.join(src, "evals", "results", "3.1.0-2.json"), JSON.stringify(v2("2026-11-14T10:00:00", 3, 0)));

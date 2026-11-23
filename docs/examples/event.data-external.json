@@ -1,7 +1,7 @@
 {
   "event": "data",
   "data": {
-    "app": "prioritizer",
+    "app": "tasks",
     "collection": "tasks",
     "rev": null,
     "updatedAt": null,

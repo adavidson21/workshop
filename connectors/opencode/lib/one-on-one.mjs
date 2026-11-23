@@ -1,4 +1,4 @@
-// opencode connector: the optional draft step of Rapport's 1:1s (js/oneonones in adavidson21/receipts). Not in the eng-agents live
+// opencode connector: the optional draft step of People's 1:1s (js/oneonones in adavidson21/receipts). Not in the eng-agents live
 // server; Workshop only.
 //
 // oneonone.draft saves the app's packet (Markdown, people data) as packet.md in this connector's working
@@ -7,7 +7,7 @@
 // or .work, and runs Tandem's /one-on-one <path to packet.md> in a new session (eng-agents Core 2.8.0). The
 // people-prep agent writes draft.md next to it. oneonone.result reads that back.
 //
-// oneonone.tidy does the same for Rapport's Tidy notes: the note's rough lines go in notes.md in a folder of
+// oneonone.tidy does the same for People's Tidy notes: the note's rough lines go in notes.md in a folder of
 // their own, <personId>-<date>-tidy/, and the same people-prep agent is asked (a plain message, no Tandem
 // command) to write draft.md there with a Follow-ups and a Wins section. oneonone.tidyResult reads it back.
 

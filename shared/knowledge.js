@@ -231,8 +231,8 @@ export function buildRepoMap({ products = [], glossary = [], repos = [], info = 
   L.push('');
   if (String(extra || '').trim()) L.push(String(extra).trim(), '');
   L.push('## Knowledge', '');
-  L.push('- Product rules, gotchas, decisions and links: the product note, `products/<slug>.md` in Workshop\'s Folio.');
-  L.push('- Team process (sprints, work item states, pull requests, releases, definition of done): Folio\'s `team/handbook.md`.');
+  L.push('- Product rules, gotchas, decisions and links: the product note, `products/<slug>.md` in Workshop\'s Notes.');
+  L.push('- Team process (sprints, work item states, pull requests, releases, definition of done): Notes\' `team/handbook.md`.');
   L.push('- Owners and who to ask: Workshop\'s People (never typed into notes).');
   L.push('- All of it for one product, in one call: `Get-Knowledge.ps1 -Product "<product>"`; the handbook alone: `Get-Knowledge.ps1 -Handbook`.');
   L.push('');
@@ -327,7 +327,7 @@ export function checks({ products = [], glossary = [], info = null, notes = new 
   for (const p of products) {
     const md = notes.get(p.slug);
     if (!md) continue;
-    // Owner lines Folio used to copy in ("Name: owns ..."), for people the directory already has.
+    // Owner lines Notes used to copy in ("Name: owns ..."), for people the directory already has.
     const named = sectionLines(md, 'People').filter(l => /:\s*owns\s/i.test(l) && people.some(x => x && x.name && lineKey(l).startsWith(x.name.toLowerCase())));
     if (named.length) out.push({ id: `people:${p.slug}`, text: `${p.name}'s note lists owners that People already has (Owns). Take them out of the note so they are kept in one place.`, fix: { note: `products/${p.slug}.md` } });
     if (info) {
