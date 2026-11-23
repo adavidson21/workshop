@@ -62,7 +62,7 @@ export async function commandFit(name) {
   const m = pick ? list.find((x) => x.provider === pick.provider && x.id === pick.id) : list.length === 1 ? list[0] : null;
   return m ? promptFit({ ...size, context: m.context }) : null;
 }
-async function guardFit(name) {
+export async function guardFit(name) {
   const fit = await commandFit(name);
   const msg = fitMessage(name, fit);
   if (!msg) return;

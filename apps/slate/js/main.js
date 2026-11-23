@@ -917,10 +917,21 @@ const ACT = {
   /** Approve, then publish (or publish and build it myself) as soon as the draft is approved: one click and the publish confirm. */
   async 'approve-publish'(c) { await store.update(c.id, x => { x.after = 'publish'; }); return ACT.approve(store.v.items.find(x => x.id === c.id) || c); },
   async 'approve-build'(c) { await store.update(c.id, x => { x.after = 'build'; }); return ACT.approve(store.v.items.find(x => x.id === c.id) || c); },
-  async approve(c) {
+  // Approving is file work, done by Workshop at once (connector 1.36.0), not a Tandem session. Open questions ask first.
+  async approve(c, acceptRisk = false) {
     const d = draftState(c, filesOf(c.work.define));
-    await startSession(c, 'define', 'approve', { folder: c.work.define, ...(d.step === 'approve-stories' ? { what: 'stories' } : d.step === 'approve-milestones' ? { what: 'milestones' } : {}) });
-    ws.toast('Approving. If there are open questions, the agent asks first.', { kind: 'success' });
+    const args = { folder: c.work.define, ...(d.step === 'approve-stories' ? { what: 'stories' } : d.step === 'approve-milestones' ? { what: 'milestones' } : {}), ...(acceptRisk ? { acceptRisk: true } : {}) };
+    const r = await tandem(ws, 'approve', args, { confirm: true });
+    if (r && r.approved === false && Array.isArray(r.open)) {
+      const it = store.v.items.find(x => x.id === c.id) || c;
+      const lines = r.open.map(l => l.replace(/^\s*[-*]\s+/, '- ')).join('\n');
+      showDialog(confirmHtml('These questions are still open', `${r.file} has open questions:\n${lines}\n\nAnswer them in the draft, or send it back. Approving anyway marks them as accepted risk.`, 'Approve anyway'), async () => { await ACT.approve(it, true); });
+      return;
+    }
+    await readAllFiles();
+    paint();
+    ws.toast(`Approved ${(r && r.file) || 'the draft'}.`, { kind: 'success' });
+    advance().catch(() => {});
   },
   async revise(c) {
     await startSession(c, 'define', c.work.define.startsWith('refine-') ? 'refine.start' : 'scope.start', { folder: c.work.define });

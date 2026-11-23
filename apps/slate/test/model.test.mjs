@@ -597,6 +597,16 @@ test('shapeState: asking only when the agent is idle and there are questions; re
   assert.equal(shapeState({ 'questions.md': r, 'brief.md': '# Brief: x\n' }).ready, true);
 });
 
+test('shapeState: unreadable when the agent is done but questions.md has no questions Loom can show (Loom 6.19.0)', async () => {
+  const { shapeState } = await import('../js/model.js');
+  const plain = '# Shape: x\nStatus: ASKING\nRound: 1\n\n1. Who needs it?\n2. Which formats?\n';
+  assert.equal(shapeState({ 'questions.md': plain }).unreadable, true, 'questions without the ## Qn and option markers');
+  assert.equal(shapeState({ 'questions.md': plain }, { busy: true }).unreadable, false, 'still working');
+  assert.equal(shapeState({ 'questions.md': QUESTIONS }).unreadable, false);
+  assert.equal(shapeState({}).unreadable, false, 'nothing written yet');
+  assert.equal(shapeState({ 'questions.md': '# Shape: x\nStatus: READY\n', 'brief.md': '# Brief: x\n' }).unreadable, false);
+});
+
 test('answersBlock and appendAnswers: one block per round, options, Other and Skipped', async () => {
   const { answersBlock, appendAnswers, notesBlock, parseShapeQuestions } = await import('../js/model.js');
   const q = parseShapeQuestions(QUESTIONS);

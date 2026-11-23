@@ -9,7 +9,7 @@ import * as V from './voice-model.js';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const errText = e => (e && e.message) || String(e);
 const OC = 'opencode';
-const POLL_MS = 2000, WAIT_MS = 4 * 60 * 1000;
+const POLL_MS = 2000, WAIT_MS = 20 * 60 * 1000; // 20 minutes: a local model on one GPU can take a while (4 before)
 
 export async function mountWriting({ ws, toast, pageEl, sleep = ms => new Promise(r => setTimeout(r, ms)) }) {
   let env = null, val = V.defaults();
@@ -76,7 +76,7 @@ export async function mountWriting({ ws, toast, pageEl, sleep = ms => new Promis
         if (r.state === 'done') return r.text;
         if (r.state === 'failed') throw new Error(r.error || 'The step failed.');
       }
-      throw new Error('That took more than 4 minutes. Check the session in Dispatch, then try again.');
+      throw new Error('That took more than 20 minutes. Check the session in Loom, then try again.');
     } finally { busy = ''; paint(); }
   }
   const aiError = e => {

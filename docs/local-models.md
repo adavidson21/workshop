@@ -60,6 +60,14 @@ Set **Model for agent runs** too. Workshop checks prompts against that model's w
 - **`workshop doctor`** lists each local model in opencode's config with its window: too small (under 16K) fails; no `limit.context` is a warning; a big enough Ollama window gets a reminder to set the same size on the server. A provider counts as local when its id is a known local one or its address is on this computer or a private network; with Local model on, any provider with its own address counts. Since connector 1.34.0 doctor also asks each local server for its model list (`<baseURL>/models`, with the provider's key when the config has one): no answer fails doctor (every build step would fail), a refused key or a model the server does not list is a warning. Run it after connecting to the VPN, before you start a day of builds.
 - **While a build runs**, a model error or a stalled step is tried again twice before autopilot waits for you ([factory.md](factory.md), When the model fails). A slow model that streams nothing for a long time (a big prompt on a small GPU) can look stalled: raise Settings, Factory, **Stalled after** for it.
 
+- **Board runs too** (connector 1.36.0): triage, the interview, scope, docs, investigate, PR reviews, the hub and Rapport's drafts get the same context check, one retry after a model error, and the same stall time.
+
+## What Workshop changes for a local model
+
+- **PR first-pass reviews** stop reviewing each new PR and commit as soon as they are found (Settings, Azure DevOps, Pull requests, turn it on there to keep it), so Docket no longer holds PRs back waiting for a review. Review all and the nightly run still work, and a review waits while a build runs.
+- **No retro after a merge.** Run `/retro <id>` when you want one.
+- Approving a story draft in Loom is no longer a model run, and the hub answers a `?` question without routing it first.
+
 ## What still depends on you
 
 - Workshop's 6K estimate for opencode's own prompt is not measured for your opencode version and repo map. A big repo map makes every prompt bigger.

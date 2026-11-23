@@ -17,7 +17,7 @@ import { keepFocus } from './thread.js';
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const errText = e => (e && e.message) || String(e);
 const OC = 'opencode';
-const POLL_MS = 2000, WAIT_MS = 4 * 60 * 1000;
+const POLL_MS = 2000, WAIT_MS = 20 * 60 * 1000; // 20 minutes: a local model on one GPU can take a while (4 before)
 const UP = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false"><path d="M12 19V6M6 11l6-6 6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>';
 
 /* `bar` draws chat.js's agent picker (and its popup) into this composer, so switching back to an agent works
@@ -76,7 +76,7 @@ export function startRewrite(ws, { sleep = ms => new Promise(r => setTimeout(r, 
         if (r.state === 'done') return r.text;
         if (r.state === 'failed') throw new Error(r.error || 'The step failed.');
       }
-      throw new Error('That took more than 4 minutes. Try again.');
+      throw new Error('That took more than 20 minutes. Try again.');
     } finally { busy = ''; paint(); }
   }
   const aiError = e => {

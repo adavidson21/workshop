@@ -52,7 +52,7 @@ const line = (v, max = 200) => String(v == null ? "" : v).replace(/[\r\n]+/g, " 
 const list = (v) => (Array.isArray(v) ? v.slice(0, LIST_MAX) : []);
 
 /** request.md from what Dispatch sends (Workshop docs/hub.md, request.md). Names are one line each, never Markdown structure. */
-export function requestText({ text, context = {} }, today) {
+export function requestText({ text, context = {}, routed = null }, today) {
   const people = list(context.people).filter((p) => p && typeof p.id === "string" && typeof p.name === "string");
   const lists = list(context.lists).filter((l) => typeof l === "string");
   const areas = list(context.areas).filter((a) => typeof a === "string");
@@ -65,6 +65,7 @@ export function requestText({ text, context = {} }, today) {
   return [
     "# Hub request\n",
     `Date: ${today}\n`,
+    ...(routed ? [`Routed: ${routed}\n`] : []),
     "## Message\n",
     String(text).slice(0, MAX_MESSAGE).trim() + "\n",
     section("People", people.map((p) => `${line(p.id, 110)}: ${line(p.name)}${handle(p)}${rel(p) ? ` (${rel(p)})` : ""}`)),
@@ -92,7 +93,7 @@ export function prune(root, keep = KEEP) {
 }
 
 /** Save the request and run /hub on it in a new session. Refused while the same id runs. */
-export async function runHub({ id, text, context }, { root = hubRoot(), start = runLoose, config, now = new Date(), record = recordHub } = {}) {
+export async function runHub({ id, text, context, intent }, { root = hubRoot(), start = runLoose, config, now = new Date(), record = recordHub } = {}) {
   needHub(config);
   const dir = folderFor(id, root);
   const msg = String(text || "");
@@ -101,9 +102,12 @@ export async function runHub({ id, text, context }, { root = hubRoot(), start = 
   if (busy(runs.get(id))) throw httpError(409, "This hub message is already running.");
   fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
   const file = path.join(dir, "request.md");
-  fs.writeFileSync(file, requestText({ text: msg, context: context || {} }, localDay(now)), { mode: 0o600 });
+  const asked = intent === "ask";
+  fs.writeFileSync(file, requestText({ text: msg, context: context || {}, routed: asked ? "ask" : null }, localDay(now)), { mode: 0o600 });
   fs.rmSync(path.join(dir, "route.json"), { force: true });
   fs.rmSync(path.join(dir, "answer.md"), { force: true });
+  // Capture's "?" already says it is a question (1.36.0): Workshop writes the route, so a small model only answers.
+  if (asked) fs.writeFileSync(path.join(dir, "route.json"), JSON.stringify(ASK_ROUTE) + "\n", { mode: 0o600 });
   const r = await start("hub", file, null);
   runs.set(id, r.session);
   record(r.session, id, msg);
@@ -111,6 +115,9 @@ export async function runHub({ id, text, context }, { root = hubRoot(), start = 
   prune(root);
   return { session: r.session, id };
 }
+
+/** The route Workshop writes itself for a known question: /hub skips routing and finds the repos as it answers. */
+export const ASK_ROUTE = { version: 1, intent: "ask", ask: { repos: [] } };
 
 const MAX_SAID = 20000;
 

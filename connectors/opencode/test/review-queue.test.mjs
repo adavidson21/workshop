@@ -10,6 +10,7 @@ import { after, beforeEach, describe, test } from "node:test";
 import assert from "node:assert/strict";
 import { cleanPr, createReviewQueue, nightlyTime, upToDate } from "../lib/review-queue.mjs";
 import { prFromUrl } from "../lib/workspace.mjs";
+import { onSyncSetting } from "../lib/pr-queue.mjs";
 
 const LINK = (n) => `https://ado.example.test/tfs/Coll/Shop/_git/orders-api/pullrequest/${n}`;
 const SHA = (n) => String(n).padEnd(40, "a"); // distinct first 7 characters per PR
@@ -81,6 +82,14 @@ beforeEach(() => {
 after(() => { for (const d of dirs) fs.rmSync(d, { recursive: true, force: true }); });
 
 describe("PR review queue", () => {
+  test("onSync: on by default; with a local model off unless you turned it on (1.36.0)", () => {
+    assert.equal(onSyncSetting({}, false), true);
+    assert.equal(onSyncSetting({ prReviews: { onSync: false } }, false), false);
+    assert.equal(onSyncSetting({}, true), false);
+    assert.equal(onSyncSetting({ prReviews: {} }, true), false);
+    assert.equal(onSyncSetting({ prReviews: { onSync: true } }, true), true);
+  });
+
   test("helpers: PR cleaning, the nightly time, and what counts as up to date", () => {
     assert.deepEqual(pr(812), { id: "812", url: LINK(812), title: "Change 812", commit: SHA(812), waiting: false });
     assert.equal(cleanPr({ url: "https://github.com/o/r/pull/3" }, prFromUrl), null);
@@ -172,6 +181,21 @@ describe("PR review queue", () => {
     await agentDone("ses_3", "4");
     assert.equal(q.data().status, "done");
     assert.deepEqual(q.data().counts, { queued: 0, running: 0, done: 1, asking: 1, failed: 2, skipped: 0 });
+  });
+
+  test("a review waits while wait() says so (a local model building), then starts on a tick (1.36.0)", async () => {
+    let held = "Waiting for the build to finish: the local model does one thing at a time.";
+    make({ wait: () => held });
+    q.add([pr(1)]);
+    await flush();
+    assert.deepEqual(started, [], "nothing starts while the build runs");
+    assert.equal(item(1).state, "queued");
+    assert.equal(q.data().message, held);
+    held = null;
+    q.tick();
+    await flush();
+    assert.deepEqual(started, [LINK(1)]);
+    assert.equal(q.data().message, null, "the waiting note goes once it starts");
   });
 
   test("the poll catches a session that ended without an idle event", async () => {

@@ -277,19 +277,30 @@ export function createOneOnOnesPage(ws, root, host) {
     const person = personNow(), n = ui.note;
     if (!person || !n) return;
     if (ui.wrap.state === 'starting' || ui.wrap.state === 'running') return;
+    // Tandem finished reading this note while you were on another person: use what it found.
+    const key = `${person.id} ${n.day}`;
+    if (tidyDone.has(key)) {
+      const p = parseTidy(tidyDone.get(key));
+      tidyDone.delete(key);
+      return wrapDialog([...p.followUps.map(x => ({ ...x, kind: 'f' })), ...p.wins.map(text => ({ text, kind: 'w' }))]);
+    }
+    if (tidyRun && tidyRun.key === key) { ui.wrap = { state: 'running', error: '' }; paint(); return; }
     if (tandemOn() && tidyInput(n.text, person).trim()) {
       const { value } = await showDialogValue(`<form method="dialog" class="confirm">
         <h2>Ask Tandem to read the note too?</h2>
         <ul class="lines"><li>${esc(`Tandem looks for follow-ups and wins you didn't mark. ${person.name}'s name is left out.`)}</li>
           <li>Sent to your opencode agents through Workshop on this computer, saved in Workshop's own folder.</li></ul>
-        <div class="acts"><button class="btn" value="mine">Just my lines</button><button class="btn primary" value="tandem" autofocus>Ask Tandem</button></div></form>`);
+        <div class="acts"><button class="btn primary" value="mine" autofocus>Just my lines</button><button class="btn" value="tandem">Ask Tandem</button></div></form>`);
       if (value === 'tandem') return askTandem(person, n);
       if (value !== 'mine') return;
     }
     return wrapDialog([]);
   }
 
-  let tidyTimer = null;
+  // Tandem reading a note keeps going when you open another person (Rapport 5.1.0): tidyRun is the one running, and
+  // tidyDone holds a finished read until you click Wrap up on that note again.
+  let tidyTimer = null, tidyRun = null;
+  const tidyDone = new Map();
   async function askTandem(person, n) {
     const day = n.day;
     ui.wrap = { state: 'starting', error: '' };
@@ -298,6 +309,7 @@ export function createOneOnOnesPage(ws, root, host) {
       await d.tidy(person.id, day, tidyInput(n.text, person));
       ui.wrap.state = 'running';
       paint();
+      tidyRun = { key: `${person.id} ${day}`, name: person.name };
       pollTidy(person.id, day, Date.now());
     } catch (e) {
       ui.wrap = { state: 'failed', error: e.message || 'Tandem did not start.' };
@@ -306,19 +318,25 @@ export function createOneOnOnesPage(ws, root, host) {
   }
   function pollTidy(personId, day, started) {
     clearTimeout(tidyTimer);
+    const here = () => ui.personId === personId && ui.note && ui.note.day === day;
+    const stop = () => { tidyRun = null; };
     tidyTimer = setTimeout(async () => {
-      if (ui.personId !== personId || ui.wrap.state !== 'running') return;
+      if (!tidyRun || tidyRun.key !== `${personId} ${day}`) return;
       try {
         const r = await d.tidyResult(personId, day);
         if (r.state === 'done') {
+          const name = tidyRun.name;
+          stop();
+          if (!here()) { tidyDone.set(`${personId} ${day}`, r.text); ws.toast(`Tandem read your 1:1 note with ${name}. Open it and click Wrap up.`, { kind: 'success' }); return; }
           ui.wrap = { state: 'idle', error: '' };
           paint();
           const p = parseTidy(r.text);
           return wrapDialog([...p.followUps.map(x => ({ ...x, kind: 'f' })), ...p.wins.map(text => ({ text, kind: 'w' }))]);
         }
-        if (r.state === 'failed') { ui.wrap = { state: 'failed', error: r.error || '' }; paint(); return; }
+        if (r.state === 'failed') { stop(); if (here()) { ui.wrap = { state: 'failed', error: r.error || '' }; paint(); } return; }
       } catch { /* keep waiting; Workshop may be busy */ }
-      if (Date.now() - started > 15 * 60000) { ui.wrap = { state: 'failed', error: 'Nothing after 15 minutes. Check the session in Loom.' }; paint(); return; }
+      // A local model can take a while: 30 minutes before giving up (Rapport 5.1.0; 15 before).
+      if (Date.now() - started > 30 * 60000) { stop(); if (here()) { ui.wrap = { state: 'failed', error: 'Nothing after 30 minutes. Check the session in Loom.' }; paint(); } return; }
       pollTidy(personId, day, started);
     }, 3000);
   }

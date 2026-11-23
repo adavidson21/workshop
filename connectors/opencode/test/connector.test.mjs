@@ -221,13 +221,14 @@ for (const kind of ["v1", "v2"]) {
       const d = await call("docs.start", { target: "How to run\nthe gateway locally" }, ctx());
       await waitFor(() => fake.count(route(d.session)) === 1, "the /docs call");
       assert.equal(name(fake.bodiesFor(route(d.session)).at(-1)), "docs");
-      assert.equal(args(fake.bodiesFor(route(d.session)).at(-1)), "How to run the gateway locally", "one line");
+      assert.equal(args(fake.bodiesFor(route(d.session)).at(-1)), "How to run the gateway locally --name how-run-gateway-locally", "one line, with the folder name Workshop picked (1.36.0)");
       const t = await call("tsd.start", { target: "  Billing   gateway " }, ctx());
       await waitFor(() => fake.count(route(t.session)) === 1, "the /tsd call");
       assert.equal(name(fake.bodiesFor(route(t.session)).at(-1)), "tsd");
       assert.equal(args(fake.bodiesFor(route(t.session)).at(-1)), "Billing gateway");
       let st = await call("state", {}, ctx());
-      assert.ok(st.liveMode.live.others.some((o) => o.session === d.session && o.command === "/docs How to run the gateway locally"), "listed in others until its folder exists");
+      assert.ok(st.liveMode.live.others.some((o) => o.session === d.session && o.command === "/docs How to run the gateway locally --name how-run-gateway-locally"), "listed in others until its folder exists");
+      // An older Tandem names the folder itself: the run still joins the first new docs- folder.
       fs.mkdirSync(path.join(ws.dir, ".work", "docs-run-gateway-locally"));
       fs.writeFileSync(path.join(ws.dir, ".work", "docs-run-gateway-locally", "sources.md"), "| Claim | Source |\n");
       await call("refresh", {}, ctx());
