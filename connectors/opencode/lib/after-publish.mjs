@@ -18,7 +18,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { httpError, log, workRoot } from "./context.mjs";
+import { httpError, log, opt, workRoot } from "./context.mjs";
 import { publishedRecords, updatePublished, forgetPublished } from "./publish.mjs";
 import { autopilot, onAutoChange, startPending } from "./autopilot.mjs";
 import { remoteWeb } from "./workparser.mjs";
@@ -107,6 +107,9 @@ export async function finishMerged(folder, it, deps, repo = null) {
   if (!it) return;
   const id = it.id ? String(it.id) : null;
   try { await deps.removeWorktrees(it); } catch (e) { log(`after publish: worktrees of ${folder}: ${e.message}`); }
+  // 1.36.0: with a local model the retro is yours to run (/retro <id>), so a merge does not take the one GPU.
+  const local = deps.local !== undefined ? deps.local : !!(opt && opt.local);
+  if (id && local) { log(`after publish: ${folder} merged; no /retro on a local model (run /retro ${id} when you want one)`); return; }
   if (id) { try { await deps.runCommand({ folder, command: `/retro ${id} auto` }, { fresh: true }); } catch (e) { log(`after publish: /retro ${id}: ${e.message}`); } }
 }
 

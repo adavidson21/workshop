@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { PM_FILE, PM_FOLDER, checkFolder, startRefine, startScope, startShape, writePmFile } from "../lib/slate.mjs";
+import { PM_FILE, PM_FOLDER, approveFolder, checkFolder, draftGate, openLines, startRefine, startScope, startShape, writePmFile } from "../lib/slate.mjs";
 
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), "oc-slate-"));
 
@@ -66,6 +66,65 @@ test("file.write takes a shape folder (Slate writes the interview's answers.md)"
   try {
     fs.mkdirSync(path.join(root, "shape-bulk-export"));
     assert.deepEqual(writePmFile({ folder: "shape-bulk-export", file: "answers.md", text: "## Round 1" }, root), { folder: "shape-bulk-export", file: "answers.md", size: 10 });
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+// 1.36.0: approving is file work in Workshop, not a Tandem session. The hash is eng-agents' DraftHash.ps1
+// (this text, stamped by Set-DraftHash.ps1, gives de719b7228d9).
+const STORIES = "# Stories\n\nStatus: DRAFT\nDraft-hash: de719b7228d9\n\n## Story 1  \r\nAs a user\n\n## Open questions\n\n- Which region first?\n";
+
+test("draftGate gives the word Test-DraftHash.ps1 prints; openLines skips None, placeholders and accepted risk", () => {
+  assert.equal(draftGate(STORIES), "unchanged");
+  assert.equal(draftGate(STORIES.replace("Status: DRAFT", "Status: APPROVED")), "unchanged", "the Status line does not count");
+  assert.equal(draftGate(STORIES.replace("As a user", "As an admin")), "edited");
+  assert.equal(draftGate("Status: DRAFT\nNo hash\n"), "no-hash");
+  assert.deepEqual(openLines(STORIES), ["- Which region first?"]);
+  assert.deepEqual(openLines("## Open questions\n\n- None.\n\n## Next\n- not a question\n"), []);
+  assert.deepEqual(openLines("## Open questions\n- <question>\n- Old one (accepted risk)\n- New one\n"), ["- New one"]);
+  assert.deepEqual(openLines("No such section"), []);
+});
+
+test("approve: open questions stop it with nothing changed; acceptRisk marks them; then Status, progress.md and the gate", () => {
+  const root = tmp();
+  try {
+    const dir = path.join(root, "scope-orders");
+    fs.mkdirSync(dir);
+    fs.writeFileSync(path.join(dir, "stories.md"), STORIES);
+    fs.writeFileSync(path.join(dir, "epics.md"), "# Epics\n\n## Open questions\n\n- Who owns billing?\n");
+    fs.writeFileSync(path.join(dir, "progress.md"), "# Progress: scope-orders Orders\n");
+    const day = new Date("2026-11-23T12:00:00Z");
+    const first = approveFolder({ folder: "scope-orders" }, root, day);
+    assert.deepEqual(first, { folder: "scope-orders", file: "stories.md", approved: false, open: ["- Which region first?", "- Who owns billing?"] });
+    assert.equal(fs.readFileSync(path.join(dir, "stories.md"), "utf8"), STORIES, "nothing changed");
+    const r = approveFolder({ folder: "scope-orders", acceptRisk: true }, root, day);
+    assert.deepEqual(r, { folder: "scope-orders", file: "stories.md", approved: true, gate: "unchanged" });
+    const after = fs.readFileSync(path.join(dir, "stories.md"), "utf8");
+    assert.match(after, /^Status: APPROVED$/m);
+    assert.match(after, /^- Which region first\? \(accepted risk\)$/m);
+    assert.match(fs.readFileSync(path.join(dir, "epics.md"), "utf8"), /^- Who owns billing\? \(accepted risk\)$/m);
+    const log = fs.readFileSync(path.join(dir, "progress.md"), "utf8");
+    assert.match(log, /## 2026-11-23 \| \/approve \| Workshop/);
+    assert.match(log, /- Stats: gate=unchanged file=stories/);
+    assert.match(log, /- Next: `\/slice scope-orders`/);
+    assert.throws(() => approveFolder({ folder: "scope-orders", what: "stories" }, root, day), (e) => e.status === 409 && /APPROVED, not DRAFT/.test(e.message));
+    fs.writeFileSync(path.join(dir, "milestones.md"), "# Milestones\n\nStatus: DRAFT\n\n## Open questions\n\n- None.\n");
+    assert.deepEqual(approveFolder({ folder: "scope-orders" }, root, day), { folder: "scope-orders", file: "milestones.md", approved: true, gate: "no-hash" });
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("approve: a refine folder has one file, and a scope's what must be stories or milestones", () => {
+  const root = tmp();
+  try {
+    fs.mkdirSync(path.join(root, "refine-export"));
+    fs.writeFileSync(path.join(root, "refine-export", "refine.md"), "# Refine\n\nStatus: DRAFT\n");
+    assert.throws(() => approveFolder({ folder: "refine-export", what: "stories" }, root), (e) => e.status === 400);
+    assert.equal(approveFolder({ folder: "refine-export" }, root).approved, true);
+    assert.match(fs.readFileSync(path.join(root, "refine-export", "refine.md"), "utf8"), /Status: APPROVED/);
+    assert.equal(fs.existsSync(path.join(root, "refine-export", "progress.md")), true, "a missing progress.md is started");
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }

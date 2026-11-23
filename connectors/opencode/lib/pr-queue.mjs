@@ -2,7 +2,8 @@
 // timers and events. New (not in eng-agents).
 
 import path from "node:path";
-import { cancel, ctx, every, httpError, later, log, stateDir } from "./context.mjs";
+import { cancel, ctx, every, httpError, later, log, opt, stateDir } from "./context.mjs";
+import { autopilot } from "./autopilot.mjs";
 import { model } from "./model.mjs";
 import { oc, permissions, questions, sessionEvents, sessions } from "./opencode-state.mjs";
 import { broadcastLive, emit } from "./live.mjs";
@@ -27,10 +28,12 @@ export function loadPrQueue() {
     review: reviewFor,
     session: (sid) => sessions.get(sid),
     ready: () => (oc.connected && oc.api ? null : oc.error || "opencode is not connected."),
+    // 1.36.0: a local model has one GPU, so a review waits while autopilot is building.
+    wait: () => (opt && opt.local && Object.values(autopilot).some((a) => a && a.status === "running") ? "Waiting for the build to finish: the local model does one thing at a time." : null),
     asking,
     sessionEvents,
     nightlyAt: (cfg.prReviews && cfg.prReviews.nightlyAt) || "",
-    onSync: !cfg.prReviews || cfg.prReviews.onSync !== false, // default on
+    onSync: onSyncSetting(cfg, opt && opt.local),
     log,
     timers: { later, every, cancel },
   });
@@ -40,6 +43,13 @@ export function loadPrQueue() {
     broadcastLive();
   });
   queue.load();
+}
+
+/** prReviews.onSync: on by default, but off with a local model (1.36.0) unless you turned it on yourself, because
+ *  every new PR and every new commit would take the one GPU from your builds and chats. */
+export function onSyncSetting(cfg, local) {
+  const v = cfg && cfg.prReviews ? cfg.prReviews.onSync : undefined;
+  return local ? v === true : v !== false;
 }
 
 export function resetPrQueue() {

@@ -12,10 +12,11 @@ import path from "node:path";
 import { commandError, httpError, log, opt, REPO_DEPTH, repoFolder, workRoot } from "./context.mjs";
 import { model, refresh } from "./model.mjs";
 import { currentSession, folderForToken, linkFrom } from "./links.mjs";
-import { oc, sessions, upsertSession } from "./opencode-state.mjs";
+import { oc, permissions, questions, sessions, upsertSession } from "./opencode-state.mjs";
 import { broadcastLive } from "./live.mjs";
-import { needOpencode, runCommand } from "./actions.mjs";
+import { guardFit, needOpencode, runCommand } from "./actions.mjs";
 import { INBOX, assignRun, checkProject, instructionsBlock } from "./projects.mjs";
+import { freeName } from "./names.mjs";
 
 // ------------------------------------------------------------------ local work items
 
@@ -131,29 +132,87 @@ export function dismissLoose({ session }) {
   return { ok: true };
 }
 
+// 1.36.0: the board's runs (triage, shape, scope, slice, refine, handoff, spikes, docs, PR reviews, the hub, 1:1s)
+// get what autopilot's steps got in 1.33.0 and 1.34.0. Before a Tandem command starts, its prompt is checked against
+// the model's context window (guardFit). A model or connection error runs it again once, a minute later, in the same
+// session, so the card stays linked. A run with no word from the model for the stall time (autopilot.stallMinutes) is
+// stopped and handled the same way. A run waiting on your answer is never a stall.
+export const looseTiming = { retryMs: 60e3, retries: 1 };
+const LOOSE_NO_RETRY = /^Stopped\.?$|has no \/|not found|context window|Not a command/i;
+const looseStallMs = () => Math.max(5, (opt && opt.autoStallMinutes) || 30) * 60e3;
+const clockAt = (ms) => new Date(Date.now() + ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
+/** Sends a loose run's request: its command, or its plain prompt. Resolves an error text, or null. */
+async function sendLoose(sid, e) {
+  try {
+    if (e.prompt != null) {
+      await oc.api.prompt(sid, e.prompt, e.agent, opt && opt.runModel);
+      return null;
+    }
+    const err = await oc.api.runCommand(sid, e.name, e.args, opt && opt.runModel);
+    return err ? commandError(e.name, err) : null;
+  } catch (x) {
+    return `${e.label}: ${x.message}`;
+  }
+}
+
+/** A loose run failed (`why`): once more a minute later when the model or connection failed, else show the error. */
+export function looseFailed(sid, why) {
+  const e = loose.get(sid);
+  const text = String(why || "The run failed").trim();
+  const reason = text.replace(/^\/[\w-]+ failed:\s*/, "").replace(/^.*?stopped:\s*/, "");
+  if (e && !e.retryAt && (e.tries || 0) < looseTiming.retries && !LOOSE_NO_RETRY.test(reason)) {
+    e.tries = (e.tries || 0) + 1;
+    const at = (e.retryAt = Date.now() + looseTiming.retryMs);
+    upsertSession(sid, { status: "idle", activity: null, error: `${text}. Trying again at ${clockAt(looseTiming.retryMs)}.` });
+    broadcastLive();
+    log(`${e.label} in ${sid}: ${text}; trying again`);
+    setTimeout(() => {
+      const now = loose.get(sid);
+      if (!now || now.retryAt !== at) return;
+      now.retryAt = null;
+      now.at = Date.now();
+      upsertSession(sid, { status: "busy", busySince: Date.now(), activity: `Trying ${e.label} again`, error: null });
+      broadcastLive();
+      sendLoose(sid, now).then((err) => { if (err) looseFailed(sid, err); });
+    }, looseTiming.retryMs);
+    return;
+  }
+  const tried = e && e.tries ? ` It failed ${e.tries + 1} times.` : "";
+  upsertSession(sid, { status: "idle", activity: null, error: `${text}.${tried} If the model server is down or busy, check it (workshop doctor), then run it again.` });
+  broadcastLive();
+}
+
+/** The loose runs' watchdog, every 30 seconds (index.mjs): a run with no word from the model for the stall time. */
+export function looseWatch(now = Date.now()) {
+  if (!oc.connected) return;
+  for (const [sid, e] of loose) {
+    if (e.retryAt) continue;
+    const s = sessions.get(sid);
+    if (!s || s.status === "idle") continue;
+    if ([...permissions.values(), ...questions.values()].some((p) => p.sessionID === sid)) continue; // waits on you
+    const last = Math.max(s.seenAt || 0, e.at || 0);
+    if (last && now - last >= looseStallMs()) {
+      if (oc.api && oc.api.abort) oc.api.abort(sid).catch(() => {});
+      looseFailed(sid, `${e.label}: no word from the model for ${Math.round(looseStallMs() / 60e3)} minutes`);
+    }
+  }
+}
+
 /** Runs /<name> <args> in a new session, listed in `others` until dismissed. Resolves {session}. */
 export async function runLoose(name, args, find) {
   needOpencode();
   if (oc.commands.size && !oc.commands.has(name)) throw httpError(400, `opencode has no /${name} command. Run the Tandem install command again, then restart opencode.`);
+  await guardFit(name);
   const command = `/${name} ${args}`.trim();
   const created = await oc.api.createSession(command.slice(0, 120));
   const sid = created.id;
   upsertSession(sid, { title: created.title, status: "busy", busySince: Date.now(), activity: `Starting /${name}`, error: null, text: null, command });
-  loose.set(sid, { command, at: Date.now() });
+  const entry = { command, at: Date.now(), name, args, label: `/${name}`, tries: 0 };
+  loose.set(sid, entry);
   if (find) linkFrom(sid, find, command);
   broadcastLive();
-  oc.api
-    .runCommand(sid, name, args, opt.runModel)
-    .then((err) => {
-      if (err) {
-        upsertSession(sid, { status: "idle", activity: null, error: commandError(name, err) });
-        broadcastLive();
-      }
-    })
-    .catch((e) => {
-      upsertSession(sid, { error: `/${name}: ${e.message}` });
-      broadcastLive();
-    });
+  sendLoose(sid, entry).then((err) => { if (err) looseFailed(sid, err); });
   log(`run ${command} in ${sid}`);
   return { session: sid };
 }
@@ -168,7 +227,8 @@ export async function promptLoose(title, text, agent) {
   const created = await oc.api.createSession(String(title).slice(0, 120));
   const sid = created.id;
   upsertSession(sid, { title: created.title, status: "busy", busySince: Date.now(), activity: `Starting ${title}`, error: null, text: null, command: title });
-  loose.set(sid, { command: title, at: Date.now() });
+  const entry = { command: title, at: Date.now(), prompt: text, agent, label: title, tries: 0 };
+  loose.set(sid, entry);
   broadcastLive();
   try {
     await oc.api.prompt(sid, text, agent, opt.runModel);
@@ -210,7 +270,10 @@ export function startSpike({ topic, timebox, log: logText, where }, root = workR
   if (!t) throw httpError(400, "Say what to investigate.");
   if (t.length > 500) throw httpError(400, "Keep the question under 500 characters.");
   const before = new Set(spikeFolders());
-  return runLoose("spike", t + tb, () => spikeFolders().find((f) => !before.has(f)) || null);
+  // 1.36.0: Workshop names the folder (Core 4.18.0 --name); an older Tandem names it itself, so fall back to the first new one.
+  const name = freeName(t, "spike", root, 5);
+  const any = () => spikeFolders().find((f) => !before.has(f)) || null;
+  return runLoose("spike", `${t}${tb} --name ${name}`, () => (fs.existsSync(path.join(root, `spike-${name}`)) ? `spike-${name}` : any()));
 }
 
 /** Masks what looks like a secret or personal data in a log: key=value secrets, bearer tokens, JWTs, keys in
@@ -255,7 +318,9 @@ export function startDocs({ target }) {
   const t = String(target || "").replace(/[\r\n]+/g, " ").trim();
   if (!t) throw httpError(400, "Say what to document.");
   if (t.length > 500) throw httpError(400, "Keep it under 500 characters.");
-  return runLoose("docs", t, firstNew("docs-"));
+  const name = freeName(t, "docs", workRoot, 5);
+  const any = firstNew("docs-");
+  return runLoose("docs", `${t} --name ${name}`, () => (fs.existsSync(path.join(workRoot, `docs-${name}`)) ? `docs-${name}` : any()));
 }
 
 // What /tsd takes: a product name from the repo map, or repo folders separated by spaces (eng-agents core/commands/tsd.md).

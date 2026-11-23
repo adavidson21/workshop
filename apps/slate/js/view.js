@@ -405,6 +405,7 @@ function nextRaw(p) {
       const sh = p.shape || {};
       if (sh.asking) return { html: `<div class="next"><p>Round ${esc(sh.round || 1)}. Pick an answer for each question, write your own, or skip it. The agent asks again until it has enough.</p>${interviewForm(sh.q)}</div>`, more: build };
       if (sh.ready) return step('The brief is written.', [btn('to-brief', 'Read the brief', { primary: true })]);
+      if (sh.unreadable) return step('Tandem\'s reply could not be read: questions.md has no questions in the form Loom shows. Ask again, or skip to the brief.', [btn('shape', 'Ask again', { primary: true }), btn('write-brief', 'Write the brief now'), btn('dispatch', 'Open the run')], build);
       return step('Waiting for the agent\'s questions.', [btn('dispatch', 'Open the run'), btn('write-brief', 'Write the brief now')], build);
     }
     case 'brief': {

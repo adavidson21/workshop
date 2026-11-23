@@ -74,18 +74,21 @@ export function startHub(ws, root, { onThread = () => {}, onChange = () => {}, o
   };
 
   /* ---------- sending ---------- */
-  async function send(text) {
+  async function send(text, asked = false) {
     text = String(text || '').trim();
+    // "? <question>" (or Capture's ?) is a question already: Tandem answers it without routing first (connector 1.36.0).
+    const q = /^\?\s*(.+)$/.exec(text);
+    if (q) { text = q[1].trim(); asked = true; }
     if (!text) return;
     // "clean up this document" is a rule, not a question for Tandem: Folio cleans up its open note (Folio 4.13.0).
     const clean = TARGETS.note === 'notes' && cleanupAsk(text.replace(/\?$/, ''));
     if (clean) { ws.open({ app: 'notes', path: clean.replace ? 'cleanup/replace' : 'cleanup' }); return; }
-    if (!status.ready) return rulesOnly(text);
+    if (!status.ready) return rulesOnly(asked ? `? ${text}` : text);
     const card = { id: hubId(), text, state: 'running', at: Date.now(), rows: [] };
     cards.unshift(card); cards.length = Math.min(cards.length, KEEP_CARDS);
     draw();
     try {
-      const r = await ws.connectors.call(OC, 'hub.run', { id: card.id, text, context: (({ people, lists, areas }) => ({ people, lists, areas }))(hubContext(src)) }, { confirm: true });
+      const r = await ws.connectors.call(OC, 'hub.run', { id: card.id, text, ...(asked ? { intent: 'ask' } : {}), context: (({ people, lists, areas }) => ({ people, lists, areas }))(hubContext(src)) }, { confirm: true });
       card.session = r && r.session;
       draw();
       poll(card);
@@ -336,7 +339,7 @@ export function startHub(ws, root, { onThread = () => {}, onChange = () => {}, o
   return {
     focus: () => input.focus(),
     /* From Home (#/agents/hub/<text>): Enter was pressed there, so the message is sent. */
-    async ask(text) { await check(); input.value = ''; send(text); input.focus(); },
+    async ask(text) { await check(); input.value = ''; send(text, true); input.focus(); },
     check,
     noteOf,
     /* Whether Tandem can be reached here, and why not: the Chat tab uses the same AI switch. */

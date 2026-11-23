@@ -70,6 +70,17 @@ test("run saves request.md, clears old results, runs /hub <path>, and result fol
   assert.deepEqual(hubResult({ id: "hub_abc" }, { root, config: on }), { state: "done", session: "ses_1", route, answer: "net8.0\n" });
 });
 
+test("a question from Capture's ? is routed by Workshop: route.json is written first and request.md says Routed: ask (1.36.0)", async () => {
+  const dir = folderFor("hub_ask", root);
+  await runHub({ id: "hub_ask", text: "what version is the sample api on?", intent: "ask" }, { root, start, config: on, now: new Date("2026-11-03T15:00:00") });
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(dir, "route.json"), "utf8")), { version: 1, intent: "ask", ask: { repos: [] } });
+  assert.match(fs.readFileSync(path.join(dir, "request.md"), "utf8"), /^# Hub request\n\nDate: 2026-11-03\n\nRouted: ask\n\n## Message\n/);
+  assert.equal(hubResult({ id: "hub_ask" }, { root, config: on }).route.intent, "ask", "the card shows Answering at once");
+  await runHub({ id: "hub_plain", text: "call the vendor" }, { root, start, config: on });
+  assert.equal(fs.existsSync(path.join(folderFor("hub_plain", root), "route.json")), false, "anything else is still Tandem's to route");
+  assert.doesNotMatch(fs.readFileSync(path.join(folderFor("hub_plain", root), "request.md"), "utf8"), /Routed:/);
+});
+
 test("a capture ends at routed; bad JSON and a silent end are failed; never asked is none", async () => {
   await runHub({ id: "hub_cap", text: "t a" }, { root, start, config: on });
   fs.writeFileSync(path.join(folderFor("hub_cap", root), "route.json"), JSON.stringify({ version: 1, intent: "go", go: { app: "queue" } }));

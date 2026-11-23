@@ -2,7 +2,7 @@
   "manifestVersion": 1,
   "id": "receipts",
   "name": "Rapport",
-  "version": "5.0.0",
+  "version": "5.1.0",
   "description": "Your private notebook about the people you work with, next to Lattice: one People list, one Log box, and a page per person with their 1:1, Log, goals and review.",
   "icon": "icon.svg",
   "entry": "index.html",

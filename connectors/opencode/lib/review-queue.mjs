@@ -82,12 +82,13 @@ export function upToDate(review, commit) {
 //   review(id)     the parser's prReview for .work/pr-<id>, or null
 //   session(sid)   the tracked opencode session ({ status, error }) or undefined
 //   ready()        null when opencode can run commands, else why not
+//   wait()         null when a review may start now, else why it waits (a local model busy with a build, 1.36.0)
 //   asking(sid)    true when the session waits on a permission prompt or a question
 //   sessionEvents  EventEmitter with "idle" (sessionId, error)
 //   nightlyAt      "HH:MM" from the connector config, or empty for off
 //   onSync         true: saveInbox queues new PRs and new commits right away
 //   log, now, timers ({ later, every, cancel }), finishDelayMs, pollMs: tests and the connector
-export function createReviewQueue({ file, start, review, session, ready = () => null, asking = () => false, sessionEvents, nightlyAt = "", onSync = false, log = () => {}, now = () => new Date(), timers, finishDelayMs = FINISH_DELAY_MS, pollMs = POLL_MS }) {
+export function createReviewQueue({ file, start, review, session, ready = () => null, wait = () => null, asking = () => false, sessionEvents, nightlyAt = "", onSync = false, log = () => {}, now = () => new Date(), timers, finishDelayMs = FINISH_DELAY_MS, pollMs = POLL_MS }) {
   const events = new EventEmitter();
   const T = timers || {
     later: (fn, ms) => setTimeout(fn, ms),
@@ -195,6 +196,7 @@ export function createReviewQueue({ file, start, review, session, ready = () => 
     return { added, skipped };
   }
 
+  let heldMessage = null;
   /** Starts the next queued review if nothing is running. */
   async function pump() {
     if (q.status !== "running" || starting || runningItem()) return;
@@ -207,6 +209,14 @@ export function createReviewQueue({ file, start, review, session, ready = () => 
       save();
       return;
     }
+    // One GPU: a review waits for the build to finish, and the next tick tries again.
+    const held = wait();
+    if (held) {
+      if (q.message !== held) { q.message = held; heldMessage = held; save(); }
+      return;
+    }
+    if (heldMessage && q.message === heldMessage) q.message = null;
+    heldMessage = null;
     if (next.interrupted) {
       delete next.interrupted;
       // It may have finished while Workshop was down.
@@ -295,6 +305,7 @@ export function createReviewQueue({ file, start, review, session, ready = () => 
         pump();
       }
     }
+    if (!cur && q.status === "running") pump();
     nightlyDue();
   }
 

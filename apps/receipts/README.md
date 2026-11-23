@@ -2,6 +2,8 @@
 
 Your private notebook about the people you work with, next to Lattice. Lattice is the shared record: goals, 1:1 agendas, reviews, feedback. Rapport is where you write things down as they happen, prep and take your 1:1s, draft goals and reviews, and then hand the finished words to Lattice with one button.
 
+**5.1.0.** Wrap up's default is Just my lines; Ask Tandem is one click away. When you ask Tandem to read the note and open another person, it keeps reading: a toast says when it is done, and Wrap up on that note uses what it found. It waits up to 30 minutes (15 before), for a local model.
+
 **5.0.0 (Rapport redesign).** One way to do each thing:
 
 - **People** is the home page: My team's goals, you, your reports, your manager, and the peers you meet with, whoever is due for a 1:1 on top. Each row says when your next 1:1 is, what is new since the last one, and when you last logged something. **Review season** swaps the middle column for how many review sections each person has receipts in.

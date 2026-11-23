@@ -531,11 +531,12 @@ export function shapeState(files = {}, agent = null) {
   const q = parseShapeQuestions(files['questions.md']);
   const hasBrief = !!(files['brief.md'] && files['brief.md'].trim());
   const running = !!(agent && (agent.busy || agent.waiting));
-  return {
-    q, round: q ? q.round : null,
-    ready: !!(q && q.status === 'READY' && hasBrief),
-    asking: !running && !!(q && q.status === 'ASKING' && q.questions.length)
-  };
+  const ready = !!(q && q.status === 'READY' && hasBrief);
+  const asking = !running && !!(q && q.status === 'ASKING' && q.questions.length);
+  // Loom 6.19.0: the agent is done but questions.md is not in the form Loom reads (a small model dropped the markers),
+  // so the card says so and offers to ask again instead of waiting forever.
+  const unreadable = !running && !!files['questions.md'] && String(files['questions.md']).trim() !== '' && !ready && !asking;
+  return { q, round: q ? q.round : null, ready, asking, unreadable };
 }
 
 /**

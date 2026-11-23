@@ -20,7 +20,7 @@ import { buildEpic, coverProduct, dismissOnboarding, loadEpics, onboardProduct, 
 import { forgetPublished, loadPublished, publishItem, readyToPublish, resetPublished, setPublishHooks } from "./lib/publish.mjs";
 import { adoNoticeSeen, linkItem, loadAdoLinks, resetAdoLinks, unlinkAllOnce, unlinkItem } from "./lib/ado-link.mjs";
 import { pageData, resetLive } from "./lib/live.mjs";
-import { MAX_LOG, TIMEBOXES, addRepo, dismissLoose, onboardRepo, resetWorkspace, runLoose, startLocal, startDocs, startReview, startSpike, startTsd } from "./lib/workspace.mjs";
+import { MAX_LOG, TIMEBOXES, addRepo, dismissLoose, looseWatch, onboardRepo, resetWorkspace, runLoose, startLocal, startDocs, startReview, startSpike, startTsd } from "./lib/workspace.mjs";
 import { MAX_MAP, draftArgs, knowledgeRepos, readMap, writeMap } from "./lib/knowledge.mjs";
 import { loadProviders } from "./lib/opencode-connect.mjs";
 import { clearQueue, loadPrQueue, prReviews, resetPrQueue, reviewAll, saveInbox, stopQueue } from "./lib/pr-queue.mjs";
@@ -175,7 +175,7 @@ export const configSchema = {
         onSync: {
           type: "boolean",
           title: "Review new PRs as soon as they are found",
-          description: "Each time Docket or Dispatch checks Azure DevOps, new PRs waiting on you (and PRs with a new commit) get a first-pass review right away, blocking ones first. Docket then shows them already reviewed. Drafts only, nothing is posted. Off: only Review all and the nightly run.",
+          description: "Each time Docket or Dispatch checks Azure DevOps, new PRs waiting on you (and PRs with a new commit) get a first-pass review right away, blocking ones first. Docket then shows them already reviewed. Drafts only, nothing is posted. Off: only Review all and the nightly run. With a local model it is off unless you turn it on here, and reviews wait while a build runs.",
           default: true,
           "x-workshop-hosted": true,
         },
@@ -787,9 +787,9 @@ const actions = {
     },
   },
   approve: {
-    title: "Approve a scope's stories or milestones, or a refined story (/approve)",
+    title: "Approve a scope's stories or milestones, or a refined story",
     write: true,
-    argsSchema: obj(["folder"], { folder: str("A scope-<name> or refine-<name> folder", { minLength: 1, maxLength: 100 }), what: { type: "string", title: "For a scope: which file", enum: ["stories", "milestones"] } }),
+    argsSchema: obj(["folder"], { folder: str("A scope-<name> or refine-<name> folder", { minLength: 1, maxLength: 100 }), what: { type: "string", title: "For a scope: which file", enum: ["stories", "milestones"] }, acceptRisk: { type: "boolean", title: "Approve anyway, marking its open questions accepted risk" } }),
     async run(args) {
       needReady();
       return approveFolder(args);
@@ -931,6 +931,7 @@ const actions = {
     argsSchema: obj(["id", "text"], {
       id: str("Hub request id", { pattern: HUB_ID.source }),
       text: str("The message", { minLength: 1, maxLength: MAX_MESSAGE }),
+      intent: { type: "string", title: "Already known to be a question (Capture's ?): Tandem answers without routing", enum: ["ask"] },
       context: {
         type: "object",
         title: "Names Tandem may use",
@@ -1770,6 +1771,8 @@ export default {
     every(() => { if (oc.connected) sweepIdle((model && model.items) || []).catch(() => {}); }, 5 * 60 * 1000);
     // 1.34.0: autopilot's watchdog: stalled steps, idles missed over a reconnect, lost sessions (lib/autopilot.mjs).
     every(() => autoWatch(), 30 * 1000);
+    // 1.36.0: the same for the board's runs (triage, shape, scope, docs, spikes, PR reviews, the hub, 1:1s).
+    every(() => looseWatch(), 30 * 1000);
     loadPrQueue();
     phase = "starting";
     problem = null;
