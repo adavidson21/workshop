@@ -68,7 +68,7 @@ import { holdingGap } from "./gaps.mjs";
 
 const autoFile = () => path.join(stateDir, "autopilot.json");
 const AUTO_STEPS = new Set(["quick", "approve", "do-task", "review", "pr"]);
-// eng-agents Core 4.19.0 folded /tasks into /spec: /spec <id> tasks writes a missing task list after the gate.
+// eng-agents Core 4.20.0 folded /tasks into /spec: /spec <id> tasks writes a missing task list after the gate.
 const isTasksRedo = (p) => !!(p && p.name === "spec" && /^\S+\s+tasks\b/i.test(p.args));
 // 1.23.0 (eng-agents Core 4.10.0): a story from an approved breakdown, or a product's trial run, also starts and specs
 // on its own (/start <id> <lane> auto, /spec <id> auto), and a story's plan is approved with /approve <id> spec auto,

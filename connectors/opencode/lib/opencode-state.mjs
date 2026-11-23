@@ -103,6 +103,7 @@ export function appendText(sid, key, delta) {
   turnText.set(key, t);
   if (turnText.size > 500) turnText.delete(turnText.keys().next().value);
   upsertSession(sid, { text: t, textAt: Date.now(), activity: "Writing a reply" });
+  return t;
 }
 
 export function setText(sid, key, text) {

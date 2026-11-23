@@ -413,7 +413,7 @@ function commandText(item, command) {
   if (!command) return null;
   const p = command.split(/\s+/);
   let name = p[0].replace(/^\/+/, "");
-  // /spec <id> plan|tasks redoes one part (eng-agents Core 4.19.0).
+  // /spec <id> plan|tasks redoes one part (eng-agents Core 4.20.0).
   if (name === "spec" && (p[2] === "plan" || p[2] === "tasks")) name = p[2];
   if (name === "do-task" && p.length >= 3) {
     const n = parseInt(p[2], 10);
@@ -442,7 +442,7 @@ function nextStep(item, folder) {
   if (g.bug === "DRAFT") return step("bug", `/approve ${id}`, "Review bug.md and tasks.md", `After approval: start a new session (/new), then /do-task ${id} 1`, true);
   if (lane === "quick" && g.quick === null) return step("quick", `/quick ${id}`, null, null, false);
   if (g.quick === "DRAFT") return step("quick", `/approve ${id}`, "Review quick.md and tasks.md", `After approval: start a new session (/new), then /do-task ${id} 1`, true);
-  // eng-agents Core 4.19.0 folded /tasks into /spec (/spec <id> tasks); /bug and /quick write their own tasks.
+  // eng-agents Core 4.20.0 folded /tasks into /spec (/spec <id> tasks); /bug and /quick write their own tasks.
   if (item.tasks.total === 0 && !exists(tasksPath)) return step(lane === "bug" ? "bug" : lane === "quick" ? "quick" : "tasks", lane === "bug" ? `/bug ${id}` : lane === "quick" ? `/quick ${id}` : `/spec ${id} tasks`, null, null, false);
   const open = item.tasks.list.filter((t) => !t.done).sort((a, b) => a.n - b.n);
   if (open.length) {

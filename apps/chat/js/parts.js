@@ -17,6 +17,10 @@ export const BUILTINS = [
   { name: 'undo', description: 'Undo the last message and its file changes' },
   { name: 'redo', description: 'Bring back what undo took back' },
   { name: 'compact', description: 'Summarize this chat to free up context' },
+  { name: 'fork', description: 'Copy this chat into a new one, to try another way' },
+  { name: 'rename', description: 'Rename this chat: /rename <name>' },
+  { name: 'copy', description: 'Copy the whole chat as text' },
+  { name: 'status', description: "opencode's MCP servers, language servers and formatters" },
   { name: 'models', description: 'Pick a model' },
   { name: 'agents', description: 'Pick an agent' },
   { name: 'sessions', description: 'Show every opencode session' },
@@ -219,7 +223,35 @@ export function metaHtml(turn) {
 }
 
 /** Turns as HTML rows. Consecutive answers from opencode (one per step) share one block and one meta line. */
-export function richRows(turns, { open, details = false, busy = false, activity = '', session = '' } = {}) {
+/* Actions on one message (Chat 4.6.0), shown on hover: Copy on every message; Undo from here on yours and Fork from
+   here on answers, which change or copy the chat and so wait until opencode is idle. */
+function actsHtml(kind, id, busy) {
+  if (!id) return '';
+  const b = (attr, label, title) => `<button type="button" class="lnk" ${attr}="${esc(id)}" title="${title}">${label}</button>`;
+  return `<span class="turn-acts">${b('data-turn-copy', 'Copy', 'Copy this message')}${busy ? '' : kind === 'you' ? b('data-turn-undo', 'Undo from here', 'Undo this message and everything after it, with their file changes. Its text comes back to the box.') : b('data-turn-fork', 'Fork from here', 'A new chat with everything up to here')}</span>`;
+}
+
+/** The text of a message, or of an answer and the steps after it up to your next message, for Copy. */
+export function turnText(turns, id) {
+  const list = Array.isArray(turns) ? turns : [];
+  const i = list.findIndex(t => t.id === id);
+  if (i < 0) return '';
+  if (list[i].role === 'you') return String(list[i].text || '');
+  let j = i;
+  while (j > 0 && list[j - 1].role !== 'you') j--;
+  const out = [];
+  for (let k = j; k < list.length && list[k].role !== 'you'; k++) if (list[k].text) out.push(String(list[k].text));
+  return out.join('\n\n');
+}
+
+/** The whole chat as Markdown, for /copy. */
+export function transcript(turns, title = '') {
+  const out = title ? [`# ${title}`] : [];
+  for (const t of Array.isArray(turns) ? turns : []) if (t.text) out.push(`**${t.role === 'you' ? 'You' : 'opencode'}:** ${t.text}`);
+  return out.join('\n\n');
+}
+
+export function richRows(turns, { open, details = false, busy = false, activity = '', session = '', actions = false } = {}) {
   const list = Array.isArray(turns) ? turns : [];
   const rows = [];
   let lastAgent = null;
@@ -230,7 +262,7 @@ export function richRows(turns, { open, details = false, busy = false, activity 
       // The agent shows only when it changed from your last message (Chat 2.3.0): the picker already says which.
       const tag = t.agent && lastAgent !== null && t.agent !== lastAgent ? `<span class="you-agent">${esc(t.agent)}</span>` : '';
       if (t.agent) lastAgent = t.agent;
-      rows.push(`<div class="turn you"><span class="who">You</span><div class="tx">${esc(t.text)}${files ? `<span class="att">${files}</span>` : ''}</div>${tag}</div>`);
+      rows.push(`<div class="turn you"><span class="who">You</span><div class="tx">${esc(t.text)}${files ? `<span class="att">${files}</span>` : ''}</div>${tag}${actions ? actsHtml('you', t.id, busy) : ''}</div>`);
       continue;
     }
     const group = [t];
@@ -239,7 +271,8 @@ export function richRows(turns, { open, details = false, busy = false, activity 
     const last = group[group.length - 1];
     const sum = group.reduce((a, g) => a + (Number(g.cost) || 0), 0);
     const meta = metaHtml({ ...last, cost: sum });
-    rows.push(`<div class="turn tandem"><span class="who">opencode</span><div class="tx">${body}${meta}</div></div>`);
+    const acts = actions ? actsHtml('answer', last.id, busy) : '';
+    rows.push(`<div class="turn tandem"><span class="who">opencode</span><div class="tx">${body}${meta}</div>${acts}</div>`);
   }
   if (busy) rows.push(`<div class="turn tandem writing"><span class="who">opencode</span><div class="tx"><span class="spin" aria-hidden="true"></span> ${esc(activity || 'Working')}...</div></div>`);
   return rows.join('');

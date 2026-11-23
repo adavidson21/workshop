@@ -28,7 +28,7 @@
     With -AsJson it writes nothing: it prints the data as one line of JSON (ASCII only,
     other characters escaped) and exits. Workshop's opencode connector (Dispatch) runs this copy
     with -AsJson only in test/workparser.test.mjs, against lib/workparser.mjs. eng-agents retired its original with
-    the static page in Core 4.19.0, so a parsing or next-step change goes into both of these copies. The next-step
+    the static page in Core 4.20.0, so a parsing or next-step change goes into both of these copies. The next-step
     rules follow eng-agents' commands/status.md.
 
 .EXAMPLE
@@ -541,7 +541,7 @@ function Get-CommandText {
     if (-not $Command) { return $null }
     $p = $Command -split '\s+'
     $name = $p[0].TrimStart('/')
-    # /spec <id> plan|tasks redoes one part (eng-agents Core 4.19.0).
+    # /spec <id> plan|tasks redoes one part (eng-agents Core 4.20.0).
     if ($name -eq "spec" -and $p.Count -ge 3 -and ($p[2] -eq "plan" -or $p[2] -eq "tasks")) { $name = $p[2] }
     if ($name -eq "do-task" -and $p.Count -ge 3) {
         $n = [int]$p[2]

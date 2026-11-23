@@ -22,6 +22,9 @@ export function classify(p) {
   const lc = path.toLowerCase();
   const note = /(?:^|\/)((?:products\/[a-z0-9][a-z0-9-]{0,39}|team\/handbook|tandem\/changes)\.md)$/.exec(lc);
   if (note) return { path, kind: 'note', note: note[1] };
+  // Any Folio note (Quick answers cite them as folio/<path>.md, Chat 4.5.0).
+  const any = /(?:^|\/)folio\/((?!products\/)(?:[^/]+\/)*[^/]+\.md)$/i.exec(path);
+  if (any && !any[1].split('/').includes('..')) return { path, kind: 'note', note: any[1] };
   const set = /(?:^|\/)settings\/(products\.json|glossary\.json|repos\.json|people\.json|teams\.json|writing\.json|voice\.md)$/.exec(lc);
   if (set) {
     const page = { 'products.json': 'products', 'glossary.json': 'glossary', 'repos.json': 'repo-map', 'people.json': 'people', 'teams.json': 'team', 'writing.json': 'writing', 'voice.md': 'writing' }[set[1]];

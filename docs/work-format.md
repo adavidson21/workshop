@@ -175,7 +175,7 @@ The first matching rule wins. This mirrors `commands/status.md` in eng-agents an
 | 7 | `bug.md` is `DRAFT` | `bug` | `/approve <id>` (action: "Review bug.md and tasks.md") | yes |
 | 8 | Lane `quick`, no `quick.md` | `quick` | `/quick <id>` | no |
 | 9 | `quick.md` is `DRAFT` | `quick` | `/approve <id>` (action: "Review quick.md and tasks.md") | yes |
-| 10 | No tasks and no `tasks.md` | `tasks` (`bug` in the bug lane, `quick` in the quick lane) | `/spec <id> tasks` (`/bug <id>`, `/quick <id>`; eng-agents Core 4.19.0 folded `/plan` and `/tasks` into `/spec`) | no |
+| 10 | No tasks and no `tasks.md` | `tasks` (`bug` in the bug lane, `quick` in the quick lane) | `/spec <id> tasks` (`/bug <id>`, `/quick <id>`; eng-agents Core 4.20.0 folded `/plan` and `/tasks` into `/spec`) | no |
 | 11 | An unchecked task exists, and the item is blocked | `build` | `/do-task <id> <first unchecked n>` | yes |
 | 12 | An unchecked task exists | `build` | `/do-task <id> <first unchecked n>` | no |
 | 13 | No `review.md`, or `tasks.md` was modified after `review.md` | `review` | `/review <id>` | no |

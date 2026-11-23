@@ -21,7 +21,7 @@ test('popups: / at the start, @ after a space; commands match by prefix first; p
   assert.deepEqual(popupFor('look at @src/ap', 15), { kind: 'file', q: 'src/ap', start: 8 });
   assert.equal(popupFor('mail me@x'), null);
   const names = matchCommands('re', [{ name: 'review', description: 'Review' }, { name: 'pr-review' }, { name: 'redo' }]).map(c => c.name);
-  assert.deepEqual(names, ['redo', 'review', 'pr-review'], "Chat's own first, opencode's next, then anything containing it");
+  assert.deepEqual(names, ['redo', 'rename', 'review', 'pr-review'], "Chat's own first, opencode's next, then anything containing it");
   assert.deepEqual(filesIn('see @src/a.cs and @b.md', new Set(['src/a.cs', 'gone.cs', 'b.md'])), ['src/a.cs', 'b.md']);
 });
 

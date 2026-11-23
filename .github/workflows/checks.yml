@@ -80,6 +80,12 @@ jobs:
               python tests/drop-e2e.py
           - name: with Azure DevOps off
             run: python tests/no-ado-e2e.py
+          # Real opencode and a stand-in model that writes slowly: answers stream, Quick answers (Chat 4.5.0).
+          - name: Chat with real opencode
+            run: |
+              npm i -g opencode-ai@1.19.6
+              python tests/chat-e2e.py
+              python tests/chat-e2e.py --quick-agent
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup

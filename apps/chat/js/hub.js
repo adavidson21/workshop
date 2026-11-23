@@ -33,7 +33,14 @@ const KEEP_CARDS = 100;
 /* Captures and go are done on the page (the New chat pane); every other hub message is a conversation in Chat. */
 const NOT_A_CHAT = new Set(['capture', 'go']);
 
-export function startHub(ws, root, { onThread = () => {}, onChange = () => {}, onStatus = () => {}, asksHtml = () => '' } = {}) {
+/** A line that reads as a question (Chat 4.5.0): ends with ?, or starts like one. Captures start with a word like
+    task or note, so they never match. */
+export function isQuestion(text) {
+  const t = String(text || '').trim();
+  return /\?\s*$/.test(t) || /^(what|what's|whats|how|why|who|who's|when|where|which|is|are|can|could|does|do|did|should|would|will|explain|tell me|summarize|describe|define)\b/i.test(t);
+}
+
+export function startHub(ws, root, { onThread = () => {}, onChange = () => {}, onStatus = () => {}, onQuick = () => false, asksHtml = () => '' } = {}) {
   const store = createCaptureStore(ws, { sender: 'chat' });
   /* newest first: {id, text, state, route, answer, error, session, rows, at, threaded}. A threaded card is a
      conversation: Chat shows it (intro, introHtml); the New chat pane shows only the others (captures, errors). */
@@ -87,6 +94,9 @@ export function startHub(ws, root, { onThread = () => {}, onChange = () => {}, o
     const built = TARGETS.build && buildAsk(text);
     if (built) { ws.open({ app: TARGETS.build, path: 'start/go/' + encodeURIComponent(built.text) }); return; }
     if (!status.ready) return rulesOnly(asked ? `? ${text}` : text);
+    // A question gets a quick answer from your notes in a chat (Chat 4.5.0): one model call, no tools, streamed.
+    // Before, every question went to Tandem's /hub, which reads file after file and felt like deep research.
+    if ((asked || isQuestion(text)) && onQuick(text)) return;
     const card = { id: hubId(), text, state: 'running', at: Date.now(), rows: [] };
     cards.unshift(card); cards.length = Math.min(cards.length, KEEP_CARDS);
     draw();
