@@ -39,6 +39,7 @@ Apps may use these. Each module's header comment says what it exports and how to
 | `shared/fonts/` | `fonts.css`, kept so existing links work. The fonts themselves are in `shared/brand/fonts/`. |
 | `shared/summary.js` | Writing and reading summaries ([summaries.md](summaries.md)). |
 | `shared/handoffs.js` | Who sends an app handoff offers ([handoffs.md](handoffs.md)). |
+| `shared/sent.js` | Saying where sent work landed: `placeName(id)` (the name you see, "Agents" for Builds inside Tasks), `sentToast(ws, {app, path, what, text, label})` ("Sent to Agents: ..." with an Open button), `loadPlaces(ws)` ([handoffs.md](handoffs.md), Saying where it went). |
 | `shared/people.js` | The people directory and groups ([people.md](people.md)). |
 | `shared/teams.js` | Team area paths ([teams.md](teams.md)). |
 | `shared/products.js` | Products ([products.md](products.md)), and the product filter (`belongsTo`, `picked`, `filterOptions`). |

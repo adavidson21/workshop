@@ -7,6 +7,7 @@
    A card moves on its own as the run moves: the lane follows from the run's flow and step (flows.js), nothing is stored.
    The panel beside the lanes holds the run's own card (pages.js runCardHtml), so every button there is the one the
    Inbox and the board already use. No DOM: main.js paints what these return and handles the clicks. */
+import { placeName } from '../../../../shared/sent.js';
 import { adoIsOn } from '../../../../shared/ado.js';
 import { S } from './state.js';
 import { h, plural, asking, itemSession, isBusy, autoIs, itemAuto, itemForFolder, adoOn, openAttr } from './view.js';
@@ -331,7 +332,7 @@ function pickerHtml(list) {
   return `<div class="ln-pick"><input type="search" id="ln-adoq" data-draft="lanes:adoq" value="${h(q)}" placeholder="Search by number or title" aria-label="Search your backlog">` +
     (rows.length ? `<ul role="list">${rows.map(r => `<li><button type="button" class="ln-prow" data-ado-pick="${h(r.id)}"><span class="ln-pid">#${h(r.id)}</span><span class="ln-ptitle">${h(r.title)}</span>` +
       `${r.type ? `<span class="ln-ptype">${h(r.type)}</span>` : ''}</button></li>`).join('')}</ul>` : '<p class="dim">Nothing matches.</p>') +
-    `<p class="ln-pnote">Your team's open backlog, not started in Builds yet.</p></div>`;
+    `<p class="ln-pnote">Your team's open backlog, not started in ${placeName('builds')} yet.</p></div>`;
 }
 /** The Lanes tab: the drop box, the filter chips, the four lanes, and the open card's panel beside them. */
 export function lanesHtml() {

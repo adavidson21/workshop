@@ -203,7 +203,7 @@ test('view: top bar, files, panel and banners say the right things', () => {
   assert.equal(panel(s, { comments: [], summary: '' }, { ...ui, panelOpen: false }), '');
 
   assert.equal(banner(s, {}), '');
-  assert.match(banner(session({ status: 'approved' }), {}), /Approved\. Publish from Builds when you are ready\./);
+  assert.match(banner(session({ status: 'approved' }), {}), /Approved\. Publish from Agents when you are ready\./);
   assert.match(banner(session({ status: 'approved' }), { publishError: 'Push failed.' }), /Publishing did not go through: Push failed\./);
   assert.match(banner(session({ status: 'approved' }), { published: true }), /Approved and published/);
   const approved = { ...ui, canPublish: true };

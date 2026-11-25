@@ -2,7 +2,7 @@
   "manifestVersion": 1,
   "id": "roadmaps",
   "name": "Roadmaps",
-  "version": "3.4.0",
+  "version": "3.5.0",
   "description": "Team and project roadmaps: type an outline, drag the timeline, export an image or Markdown. Optionally from your work tracker.",
   "icon": "icon.svg",
   "entry": "index.html",

@@ -4,6 +4,7 @@
    offers.js, history.js, vault.js and summary-cards.js are pure; view.js builds the HTML. This file owns the
    page: the editor, saving, the [[ picker, renames and moves, templates and today's note, sending action items
    and wins, history, importing a folder, product notes and their review (products.js), Notes' summary, and keys. */
+import { loadPlaces, sentToast } from '../../../shared/sent.js';
 import { connect } from '../../../shared/workshop-sdk.js';
 import { mountBar } from '../../../shared/standalone-bar.js';
 import { saveFile } from '../../../shared/save-file.js';
@@ -123,7 +124,7 @@ const summary = createSummaryWriter({ data: ws.data, app: APP, build: () => (not
 // toast, and counted in Notes' `held` summary card for Workshop's release toast and Dispatch's digest.
 const held = createHolder(ws, { label: n => `${n} note${n === 1 ? '' : 's'} picked up`, route: 'today', onChange: () => summary.schedule() });
 // App names for ws: link chips (applinks.js), from the manifests on this site.
-const appNames = { tasks: 'Tasks', builds: 'Builds', people: 'People', roadmaps: 'Roadmaps', home: 'Home', settings: 'Settings' };
+const appNames = { tasks: 'Tasks', builds: 'Agents', people: 'People', roadmaps: 'Roadmaps', home: 'Home', settings: 'Settings' };
 // Offers Notes has sent (offers.js). The receivers can read them inside Workshop, or when paired.
 const canSend = ws.embedded || ws.backend === 'agent';
 let sent = new Set();
@@ -1067,12 +1068,15 @@ async function cleanupNote({ replace = false } = {}) {
       if (!cur || cur.content !== original) { ws.toast('The note changed while it was being cleaned up. Nothing was saved. Try again.', { kind: 'warn' }); return; }
       const r = await notes.save(path, text, cur.mtime, { keep: true });
       if (open) { editor.value = text; ui.base = { content: text, mtime: r.mtime }; setStatus('saved'); paintChrome(); paintPreview(true); }
-      ws.toast(`Cleaned up in ${took}s. The version before is in History.`, { kind: 'success' });
+      // You may have moved to another note while it ran: then the toast takes you back to the one it changed.
+      if (ui.path === path) ws.toast(`Cleaned up in ${took}s. The version before is in History.`, { kind: 'success' });
+      else sentToast(ws, { app: 'notes', path, text: `Cleaned up ${title} in ${took}s. The version before is in History.`, label: 'Open note' });
     } else {
       const copy = cleanedPath(path, new Set(notes.files.keys()));
       await notes.create(copy, text);
-      await openNote(copy);
-      ws.toast(`Cleaned up in ${took}s and saved as ${copy}. The original is unchanged.`, { kind: 'success' });
+      // Only jump to the copy when you are still on the note it came from; otherwise offer it.
+      if (ui.path === path || !ui.path) { await openNote(copy); ws.toast(`Cleaned up in ${took}s and saved as ${copy}. The original is unchanged.`, { kind: 'success' }); }
+      else sentToast(ws, { app: 'notes', path: copy, text: `Cleaned up ${title} in ${took}s and saved as ${copy}.`, label: 'Open it' });
     }
   } catch (e) { toastErr(e); }
 }
@@ -1160,7 +1164,7 @@ async function send(kind, line) {
       try { await ws.data.put('handoffs', after); sent = sentIds(after); break; }
       catch (e) { if (e.code !== 'conflict' || tries >= 2) throw e; }
     }
-    ws.toast(kind === 'task' ? (items.length > 1 ? `Sent ${items.length} tasks to Tasks.` : 'Sent to Tasks as a task.') : `Sent to People${items.length > 1 ? ` as ${items.length} receipts` : ''}. Accept ${items.length > 1 ? 'them' : 'it'} there.`, { kind: 'success' });
+    sentToast(ws, { app: kind === 'task' ? 'tasks' : 'people', text: kind === 'task' ? (items.length > 1 ? `Sent ${items.length} tasks to Tasks.` : 'Sent to Tasks as a task.') : `Sent to People${items.length > 1 ? ` as ${items.length} receipts` : ''}. Accept ${items.length > 1 ? 'them' : 'it'} there.` });
     paintChrome();
   } catch (e) { toastErr(e); }
 }
@@ -2162,7 +2166,8 @@ summary.schedule();
 tandem.refresh();
 readSent().then(() => paintChrome());
 if (canSend) ws.data.subscribe('handoffs', () => readSent().then(() => paintChrome()));
-ws.apps.list().then(apps => { for (const a of apps) appNames[a.id] = a.name; paintPreview(true); }).catch(() => {});
+// Link chips name apps as you see them (Builds is "Agents" inside Tasks; shared/sent.js).
+loadPlaces(ws).then(n => { Object.assign(appNames, n); paintPreview(true); });
 if (pendingSearch !== null) { showSearch(pendingSearch); pendingSearch = null; }
 if (canSend && ws.people) {
   const gotDir = (d) => { dir = d; paintChrome(); paintPreview(true); };

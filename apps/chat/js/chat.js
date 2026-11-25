@@ -24,6 +24,7 @@
    click is the only thing that makes opencode act, and opencode's own permission settings decide what an agent may
    do, exactly as in the terminal. The sidebar and the chat are drawn into their own element, so typing survives
    repaints (keepFocus); the workbench is a separate element they never redraw. */
+import { placeName } from '../../../shared/sent.js';
 import { esc, flowCardsHtml, flowRoute } from './hub-model.js';
 import { WRITING, groupChats, keepFocus, lastTandem, liveEchoes, matchChat, tandemTurn, youTurn } from './thread.js';
 import { BUILTINS, HELP, transcript, turnText, cycleAgent, filesIn, matchCommands, matchModels, modelFromKey, modelKey, modelLabel, money, parseInput, popupFor, promptClick, promptHtml, richRows, splitRevert, tokens } from './parts.js';
@@ -722,7 +723,7 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
   function picksHtml() {
     const a = agentNow();
     const models = (options && options.models) || [];
-    return `<button type="button" class="pick pick-agent${MODES[a] ? ' hub' : ''}" data-pick="agent" title="Agent (Tab switches)" aria-haspopup="listbox"><span>${esc(MODES[a] || a || 'Default agent')}</span>${ICON.caret}</button>` +
+    return `<button type="button" class="pick pick-agent${MODES[a] ? ' hub' : ''}" data-pick="agent" title="${esc(a === HUB ? 'Hub: captures to your apps, or a Quick answer for a question (Tab switches)' : a === QUICK ? 'Quick: one model call from your notes, no tools or skills (Tab switches)' : a === REWRITE ? 'Rewrite: your draft in your voice, read-only (Tab switches)' : `${a || "opencode's default agent"}: tools, skills and AGENTS.md as in opencode in a terminal, in your workspace folder (Tab switches)`)}" aria-haspopup="listbox"><span>${esc(MODES[a] || a || 'Default agent')}</span>${ICON.caret}</button>` +
       (MODES[a] && a !== QUICK ? '' : `<button type="button" class="pick" data-pick="model" title="Model" aria-haspopup="listbox"><span>${esc(modelLabel(modelNow(), models))}</span>${ICON.caret}</button>`) +
       (MODES[a] || !efforts().length ? '' : `<button type="button" class="pick" data-pick="effort" title="Reasoning effort" aria-haspopup="listbox"><span>${esc(effortNow() ? cap(effortNow()) : 'Default effort')}</span>${ICON.caret}</button>`);
   }
@@ -832,7 +833,8 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
     await run(sel, job);
   }
   function afterHtml() {
-    const deeper = quickLast() ? `<button type="button" class="btn ghost chat-after-btn" data-chat-deeper title="Ask ${esc(deeperAgent() || 'an agent')} the same question: it reads code and files, so it takes longer">Go deeper</button>` : '';
+    // A Quick answer is not what opencode in a terminal would do (one model call, no tools, so no skills): say so.
+    const deeper = quickLast() ? `<span class="hub-meta chat-quick-note">Quick answer from your notes: no tools or skills.</span><button type="button" class="btn ghost chat-after-btn" data-chat-deeper title="Ask ${esc(deeperAgent() || 'an agent')} the same question with tools and skills, like opencode in a terminal. It reads code and files, so it takes longer">Go deeper</button>` : '';
     const menu = afterOpen ? `<div class="chat-after-menu" role="menu">${flowCardsHtml(titleOf(sel), 'data-chat-flow')}<button class="btn ghost" type="button" data-builtin="export">Save as note</button></div>` : '';
     return `<div class="chat-after">${deeper}<button type="button" class="btn ghost chat-after-btn${afterOpen ? ' on' : ''}" data-chat-after aria-expanded="${afterOpen}">Start work...</button>${menu}</div>`;
   }
@@ -873,7 +875,7 @@ export function startChat(ws, { hub = null, hubEl = null, rewrite = null, asksHt
     for (const job of queue[sel] || []) rows += `<div class="turn you queued"><span class="who">You, queued</span><div class="tx">${esc(job.text)}</div><span class="you-agent">Queued</span></div>`;
     if (!conv && !first && !fromHub && !echoing(sel)) rows += '<p class="hub-meta">Loading...</p>';
     if (conv && Array.isArray(conv.prompts)) rows += conv.prompts.map(p => promptHtml(p, { answers, custom })).join('');
-    else if (conv && conv.waiting) rows += asksHtml(sel) || '<p class="hub-meta">opencode is asking you something. Answer it in Builds\' Inbox.</p>';
+    else if (conv && conv.waiting) rows += asksHtml(sel) || `<p class="hub-meta">opencode is asking you something. Answer it in ${placeName('builds')}' Inbox.</p>`;
     if (conv && !busy && later.length && lastTandem(later)) rows += afterHtml();
     if (err) rows += `<p class="hub-error">${esc(err)}</p>`;
     return `<div class="chat-pane">${head}<div class="chat-scroll" data-chat-follow><div class="chat-col">${helpHtml()}${statusHtml()}<div class="turns">${rows}</div></div></div>${composeHtml()}</div>`;

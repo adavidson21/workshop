@@ -793,7 +793,11 @@ function handleRequest(app, method, p) {
     case 'toast': {
       if (focus.holds(p)) return null;   // held during focus or lunch; the app counts it (docs/focus.md)
       const a = p.action;
-      toast(String(p.text || ''), a && a.label, a && a.command ? () => sendTo(app, 'command', { id: a.command }) : null, p.kind === 'error' || p.kind === 'warn' ? 8000 : 4000, p.kind);
+      // action.open {app, path}: the button goes straight to where the work landed ("Sent to Agents", Open Agents).
+      const to = a && a.open && typeof a.open.app === 'string' && byId[resolveApp(a.open.app).id] ? a.open : null;
+      const fn = to ? () => go(to.app, typeof to.path === 'string' ? to.path.slice(0, 500) : '') : a && a.command ? () => sendTo(app, 'command', { id: a.command }) : null;
+      // A toast that says where something went stays a little longer, so there is time to click it.
+      toast(String(p.text || ''), a && a.label, fn, p.kind === 'error' || p.kind === 'warn' || to ? 8000 : 4000, p.kind);
       return null;
     }
     case 'badge': setBadge(app.id, p.count, p.breakThrough); return null;

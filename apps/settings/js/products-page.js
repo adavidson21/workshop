@@ -5,6 +5,7 @@
    Settings' own collection, written with ws.data (shared/products.js does the rules). Owners come from People's
    "Owns" (ws.people), suggestions from the workspace repos (opencode connector's state) and your team's area paths
    (ws.teams). Whether a note exists is read from Notes' folder, read only. Nothing here writes another app's data. */
+import { placeName, sentToast } from '../../../shared/sent.js';
 import { adoIsOn } from '../../../shared/ado.js';
 import * as P from '../../../shared/products.js';
 import * as D from '../../../shared/people.js';
@@ -196,7 +197,7 @@ export async function mountProducts({ ws, toast, el, onSaved = async () => {} })
       t.disabled = true;
       try {
         await ws.connectors.call('opencode', 'tests.cover', area ? { product: p.name, area } : { product: p.name }, { confirm: true });
-        toast(`Tandem is planning regression tests for ${p.name}. Its builds show on Builds.`, 'success');
+        sentToast(ws, { app: 'builds', text: `Sent to ${placeName('builds')}: regression tests for ${p.name}. opencode plans them, then builds them.` });
       } catch (err) { toast(errText(err), 'error'); }
       covering = null; return paint();
     }
@@ -206,7 +207,7 @@ export async function mountProducts({ ws, toast, el, onSaved = async () => {} })
       t.disabled = true;
       try {
         await ws.connectors.call('opencode', 'product.onboard', { product: p.name }, { confirm: true });
-        toast(`Tandem is onboarding ${p.name}. Follow its steps on Builds' floor.`, 'success');
+        sentToast(ws, { app: 'builds', text: `Sent to ${placeName('builds')}: onboarding ${p.name}. Follow its steps there.` });
       } catch (err) { toast(errText(err), 'error'); }
       onboarding = null; return paint();
     }
@@ -216,7 +217,7 @@ export async function mountProducts({ ws, toast, el, onSaved = async () => {} })
       t.disabled = true;
       try {
         await ws.connectors.call('opencode', 'knowledge.draft', { product: p.name }, { confirm: true });
-        toast(`Tandem is drafting ${p.name}'s note. Its lines show in Notes as Changed by Tandem when it is done.`, 'success');
+        sentToast(ws, { app: 'notes', path: P.notePath({ slug: p.slug }), text: `Drafting ${p.name}'s note in opencode. New lines show in the note, marked Changed by Tandem, when it is done.`, label: 'Open note' });
       } catch (err) { toast(errText(err), 'error'); }
       drafting = null; return paint();
     }

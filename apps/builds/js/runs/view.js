@@ -6,6 +6,7 @@
    - .work files open in a sheet here (the `file.read` action) instead of a /files/ link.
    - The shell owns the theme and the name: no theme menu and no brand when embedded.
    - No update checks (the connector makes none). */
+import { placeName } from '../../../../shared/sent.js';
 import { adoIsOn } from '../../../../shared/ado.js';
 import { docHtml, lockReason } from './doc.js';
 import { S } from './state.js';
@@ -604,7 +605,7 @@ export function buildsOf(it) {
 }
 export function buildsChip(it) {
   const s = buildsOf(it);
-  return s ? `<button type="button" class="tag builds" data-open-builds="${h(s.route)}" title="${h(s.note || 'Open the request in Builds')}">From Builds</button>` : '';
+  return s ? `<button type="button" class="tag builds" data-open-builds="${h(s.route)}" title="${h(s.note || `Open the request in ${placeName('builds')}`)}">From ${placeName('builds')}</button>` : '';
 }
 export function idLink(it) { return safeUrl(it.url) ? link(it.url, '#' + it.id, 'num') : `<span class="num">#${h(it.id)}</span>`; }
 

@@ -1,6 +1,7 @@
 /* People's 1:1s: the HTML. Pure functions with no DOM or SDK, so Node tests can import them. Every string
    from another app or the person is escaped with esc(); notes go through the escaping renderer in markdown.js.
    Class names start with oo- where People's own styles use the same word. */
+import { placeName } from '../../../../shared/sent.js';
 import { KINDS, KIND_LABELS, esc } from './model.js';
 import { render as renderMd } from '../markdown.js';
 
@@ -50,7 +51,7 @@ export function packetHtml(p) {
     : unavailable(p.receipts, true);
   // Builds: shown only when Builds is here and has delegated something to them.
   const builds = p.builds && p.builds.state === 'ok' && p.builds.items.length
-    ? `<section><h3 class="section-label">With them in Builds</h3>${rows('With them now', p.builds.items, t => `<button class="lnk" data-builds="${esc(t.id)}">${esc(t.title)}</button>`)}</section>` : '';
+    ? `<section><h3 class="section-label">With them in ${placeName('builds')}</h3>${rows('With them now', p.builds.items, t => `<button class="lnk" data-builds="${esc(t.id)}">${esc(t.title)}</button>`)}</section>` : '';
   const last = p.last.state === 'ok'
     ? rows(`Open follow-ups from ${day(p.last.day)}`, p.last.open, t => esc(t))
     : `<p class="soft">${p.last.state === 'unreadable' ? "Couldn't read the last note." : 'No earlier 1:1 note.'}</p>`;

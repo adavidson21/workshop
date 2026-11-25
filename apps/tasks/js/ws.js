@@ -2,9 +2,11 @@
    One connection for the whole app. Other modules import `ws` (the live handle, null until connected)
    and `ready` (a promise that resolves once connect() finishes). */
 import { connect } from '../../../shared/workshop-sdk.js';
+import { loadPlaces } from '../../../shared/sent.js';
 
 let ws = null;
-const ready = connect({ app: 'tasks' }).then(w => { ws = w; return w; }).catch(() => null);
+// loadPlaces: the on-screen name of where sent work lands ("Agents", shared/sent.js), read once.
+const ready = connect({ app: 'tasks' }).then(w => { ws = w; loadPlaces(w); return w; }).catch(() => null);
 
 // `embedded` is known synchronously the same way the SDK decides it, so startup can branch before
 // the connection resolves (hiding the shell-owned theme button, choosing who registers the worker).

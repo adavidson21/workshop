@@ -3,6 +3,7 @@
    GUIDE and matches() are pure, so test/guide.test.mjs can import them; mountGuide() draws the page.
    Keep each scenario's steps in step with the apps' READMEs (Builds, Builds' js/flows.js). No em dashes. */
 
+import { placeName } from '../../../shared/sent.js';
 import { adoIsOn, noAdo, ADO_WORDS } from '../../../shared/ado.js';
 
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -66,7 +67,7 @@ export const GUIDE = [
       'In Builds, click <b>New request</b> and describe it.',
       'Open <b>More</b> and pick <b>Define now</b>. This skips triage and the interview. Tandem writes one story with acceptance criteria.',
       'Read it, then open <b>More</b> and pick <b>Approve, publish and build it myself</b>. One click makes the ADO item and starts Tandem building.',
-      'Follow it in Builds. Anything waiting on you shows in its <b>Inbox</b>. At the end you read the diff, approve and push, then create the PR.'
+      `Follow it in ${placeName('builds')}. Anything waiting on you shows in its <b>Inbox</b>. At the end you read the diff, approve and push, then create the PR.`
     ],
     why: 'You skip triage, the interview and delegation, and the PR still has an ADO item to link to.',
     also: [
@@ -79,7 +80,7 @@ export const GUIDE = [
         'In Builds, click <b>New request</b> and describe it.',
         'Open <b>More</b> and pick <b>Define now</b>. This skips triage and the interview. Tandem writes one story with acceptance criteria.',
         'Read it, then click <b>Build it myself</b>. Tandem starts building it as local work.',
-        'Follow it in Builds. Anything waiting on you shows in its <b>Inbox</b>. At the end you read the diff, approve and push, then create the PR.'
+        `Follow it in ${placeName('builds')}. Anything waiting on you shows in its <b>Inbox</b>. At the end you read the diff, approve and push, then create the PR.`
       ],
       why: 'You skip triage, the interview and delegation.',
       also: [
@@ -169,7 +170,7 @@ export const GUIDE = [
     ],
     why: 'Tandem does the first read, you make the call.',
     also: [
-      { when: 'You want them ready each morning', how: 'Set a nightly review time in Builds’s menu, opencode settings.' }
+      { when: 'You want them ready each morning', how: `Set a nightly review time in ${placeName('builds')}’s menu, opencode settings.` }
     ],
     needs: 'Tandem, and Azure DevOps for the list of PRs.',
     off: { needs: 'Tandem (Settings, opencode).' }

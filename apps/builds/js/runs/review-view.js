@@ -2,6 +2,7 @@
    review.js paints these and wires Monaco into #rv-diff. Every value from the agent or the reviewer
    goes through esc(). */
 
+import { placeName } from '../../../../shared/sent.js';
 import { STATUS_LETTER, TYPES, RESPONSE_LABEL, NOTE_LABEL, typeLabel, rangeLabel, firstLine, fileTree, commentCounts, previousRows, visibleFiles, canRequestChanges, readingGroups, threadRows } from './review-state.js';
 import { outsideMark } from '../../../../shared/outside.js';
 
@@ -52,7 +53,7 @@ export function banner(session, ui) {
   if (session.status === 'approved') {
     return ui.published
       ? `<div class="rv-banner ok">${ui.merge ? 'Approved and merged, no PR. Tandem runs its retro.' : 'Approved and published. Create the pull request on the page that opened.'}</div>`
-      : `<div class="rv-banner ok">Approved. ${ui.publishError ? `Publishing did not go through: ${esc(ui.publishError)} ` : ''}Publish from Builds when you are ready.</div>`;
+      : `<div class="rv-banner ok">Approved. ${ui.publishError ? `Publishing did not go through: ${esc(ui.publishError)} ` : ''}Publish from ${placeName('builds')} when you are ready.</div>`;
   }
   if (session.status === 'revising') {
     const run = session.revisionRun;

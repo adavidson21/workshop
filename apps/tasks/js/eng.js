@@ -2,6 +2,10 @@ import { renderMainOnly } from './drawer.js';
 import { toast } from './overlays.js';
 import { esc } from './util.js';
 import { ready } from './ws.js';
+import { placeName } from '../../../shared/sent.js';
+
+// Where agent work shows: "Agents" (Builds as Tasks' tab), or "Builds" without it (shared/sent.js).
+const AG = () => placeName('builds');
 /* Tasks: eng-agents stages on ADO tasks, and Start as feature or bug, through the opencode connector.
    When Workshop runs the opencode connector (turned on in Settings), ADO tasks here show where their work
    item stands (connectors.call('opencode', 'status')), and a task can start its work item (`start`, a
@@ -76,13 +80,13 @@ function engLabel(i){
 }
 function engTip(i){
   const n = i.next || {};
-  if (i.paused) return 'Paused in Tandem. Open Builds to resume.';
-  if (i.waiting) return 'The agent is waiting for an answer. Open Builds.';
-  if (engAuto(i, 'waiting')) return `Autopilot needs you: ${i.autopilot.message || 'see Builds'}`;
+  if (i.paused) return `Paused. Open ${AG()} to resume.`;
+  if (i.waiting) return `The agent is waiting for an answer. Open ${AG()}.`;
+  if (engAuto(i, 'waiting')) return `Autopilot needs you: ${i.autopilot.message || `see ${AG()}`}`;
   if (engAuto(i, 'running')) return `Autopilot is building it. Now: ${engStep(n) || 'working'}`;
-  if (n.needsYou) return `Needs you: ${engStep(n) || 'see Builds'}`;
+  if (n.needsYou) return `Needs you: ${engStep(n) || `see ${AG()}`}`;
   if (i.agent === 'busy') return 'The agent is working on it';
-  return engStep(n) ? `Next: ${engStep(n)}` : 'Open in Builds';
+  return engStep(n) ? `Next: ${engStep(n)}` : `Open in ${AG()}`;
 }
 function engChip(adoId){
   const i = engItem(adoId);
@@ -90,8 +94,8 @@ function engChip(adoId){
     const st = eng.status === 'ok' && eng.starting.get(String(adoId));
     if (!st) return '';
     return st.waiting || st.error || st.agent === 'idle'
-      ? `<button class="chip eng gate" data-act="eng" data-ado="${esc(adoId)}" data-tip="${esc(st.error || (st.waiting ? '/start is asking you something. Open Builds.' : 'Finishing /start'))}">Starting</button>`
-      : `<button class="chip eng" data-act="eng" data-ado="${esc(adoId)}" data-tip="Running /start in opencode"><i class="live"></i>Starting</button>`;
+      ? `<button class="chip eng gate" data-act="eng" data-ado="${esc(adoId)}" data-tip="${esc(st.error || (st.waiting ? `/start is asking you something. Open ${AG()}.` : 'Finishing /start'))}">Starting</button>`
+      : `<button class="chip eng" data-act="eng" data-ado="${esc(adoId)}" data-tip="opencode is running /start. Click to open ${esc(AG())}"><i class="live"></i>Starting</button>`;
   }
   const gate = i.paused || i.waiting || engAuto(i, 'waiting') || (i.next && i.next.needsYou && !engAuto(i, 'running')) || i.blocked;
   const live = i.agent === 'busy' || engAuto(i, 'running');
@@ -99,21 +103,21 @@ function engChip(adoId){
 }
 function engDrawer(t){
   if (!engOn()) return '';
-  if (eng.status !== 'ok') return `<div class="deng"><span>The opencode connector is not ready${eng.error ? `: ${esc(eng.error)}` : '.'}</span><span class="grow"></span><button class="lnk" data-d="eng-open">Open Builds</button></div>`;
+  if (eng.status !== 'ok') return `<div class="deng"><span>The opencode connector is not ready${eng.error ? `: ${esc(eng.error)}` : '.'}</span><span class="grow"></span><button class="lnk" data-d="eng-open">Open ${esc(AG())}</button></div>`;
   const i = engItem(t.item.id), n = i && i.next || {};
   if (i){
     const step = engStep(n);
     const what = engAuto(i, 'waiting') ? ` · <b>Autopilot needs you</b>${i.autopilot.message ? `: ${esc(i.autopilot.message)}` : ''}`
       : engAuto(i, 'running') ? ` · autopilot is on it${step ? `: ${esc(step)}` : ''}`
       : step ? ` · next: ${esc(step)}` : '';
-    return `<div class="deng"><span>Tandem <b>${esc(engLabel(i))}</b>${what}</span><span class="grow"></span><button class="btn" data-d="eng-open">Open in Builds</button></div>`;
+    return `<div class="deng"><span>In ${esc(AG())}: <b>${esc(engLabel(i))}</b>${what}</span><span class="grow"></span><button class="btn" data-d="eng-open">Open in ${esc(AG())}</button></div>`;
   }
   const st = eng.starting.get(String(t.item.id));
-  if (st) return `<div class="deng"><span><b>Starting</b> in opencode${st.error ? `: ${esc(st.error)}` : '...'}</span><span class="grow"></span><button class="lnk" data-d="eng-open">Watch it</button></div>`;
+  if (st) return `<div class="deng"><span><b>Starting</b> in ${esc(AG())}${st.error ? `: ${esc(st.error)}` : '...'}</span><span class="grow"></span><button class="lnk" data-d="eng-open">Open ${esc(AG())}</button></div>`;
   if (t.done) return '';
   const bug = /bug/i.test(t.item.type || '');
   const oc = eng.data && eng.data.opencode && eng.data.opencode.connected;
-  return `<div class="deng col"><span>Not started in Tandem.</span>${oc
+  return `<div class="deng col"><span>Not sent to the agents. Start runs /start in opencode and the work shows in ${esc(AG())}.</span>${oc
     ? `<div class="acts"><button class="btn${bug ? '' : ' primary'}" data-d="eng-start" data-lane="feature" title="Runs /start ${esc(t.item.id)} feature in opencode">Start as feature</button><button class="btn${bug ? ' primary' : ''}" data-d="eng-start" data-lane="bug" title="Runs /start ${esc(t.item.id)} bug in opencode">Start as bug</button></div>`
     : '<span class="hint">opencode is not connected to Workshop.</span>'}</div>`;
 }
@@ -122,7 +126,7 @@ async function engStart(t, lane, btn){
   if (btn) btn.disabled = true;
   try {
     await ws.connectors.call(OC, 'start', {id: String(t.item.id), lane}, {confirm: true});
-    toast(`Starting #${t.item.id} as a ${lane} in opencode`, 'Watch it', () => engOpen(t.item.id));
+    toast(`Sent to ${AG()}: #${t.item.id} as a ${lane}. opencode is running /start.`, `Open ${AG()}`, () => engOpen(t.item.id));
     // Until the folder appears, check now and then too, in case an event is missed.
     clearInterval(engBurst);
     const until = Date.now() + 60 * 1000, id = String(t.item.id);

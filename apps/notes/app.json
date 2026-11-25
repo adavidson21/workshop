@@ -2,7 +2,7 @@
   "manifestVersion": 1,
   "id": "notes",
   "name": "Notes",
-  "version": "4.14.0",
+  "version": "4.15.0",
   "description": "Notes, your notebook: notes, daily notes, product notes, templates, Tandem's documents and a Links directory, as Markdown files. Diagrams, backlinks, tags, search and images.",
   "icon": "icon.svg",
   "entry": "index.html",

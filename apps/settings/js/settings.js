@@ -20,6 +20,7 @@
    Browser mode (no agent): Status, Apps, Directory and Data & backups.
 
    Nothing here needs Azure DevOps: without it the ADO pages say what to do in one line, and the rest works. */
+import { placeName, sentToast } from '../../../shared/sent.js';
 import { connect } from '../../../shared/workshop-sdk.js';
 import { SITE } from '../../../shared/site.js';
 import { watchAdo, adoIsOn, noAdo, ADO_WORDS } from '../../../shared/ado.js';
@@ -1503,7 +1504,7 @@ async function reposTab(list) {
     if (t.matches('[data-map-all]')) { t.disabled = true; if (await saveAdo(R.mapAll(cfg(), st.rows), 'Repos saved')) paint(); else t.disabled = false; return; }
     if (t.matches('[data-guide]')) {
       t.disabled = true;
-      try { await ws.connectors.call('opencode', 'repo.guide', { repo: t.dataset.guide }, { confirm: true }); toast(`Drafting the guide for ${t.dataset.guide}. Follow it in Builds.`, 'success'); st.added = null; paint(); }
+      try { await ws.connectors.call('opencode', 'repo.guide', { repo: t.dataset.guide }, { confirm: true }); sentToast(ws, { app: 'builds', text: `Sent to ${placeName('builds')}: the repo guide for ${t.dataset.guide}.` }); st.added = null; paint(); }
       catch (err) { t.disabled = false; toast(errText(err), 'error'); }
     }
   });

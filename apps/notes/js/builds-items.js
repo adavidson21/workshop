@@ -9,6 +9,7 @@
      with ws:builds/<item>, the items Builds linked to it, and the stories of those epics; for a product note, that
      product's items. A ws:builds chip shows where its item is (chipStatus).
    Only titles, routes and where things are; neither app reads the other's own data. */
+import { placeName } from '../../../shared/sent.js';
 import { appLink } from './applinks.js';
 import { TEMPLATES } from './template-info.js';
 
@@ -96,16 +97,16 @@ export function buildsFor(note, items) {
 }
 
 const escHtml = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const VIA = { doc: 'Linked in this note', builds: 'Linked from Builds', epic: 'A story of a linked epic', product: "This product's item" };
+const VIA = { doc: 'Linked in this note', builds: `Linked from ${placeName('builds')}`, epic: 'A story of a linked epic', product: "This product's item" };
 
 /** The side panel's In Builds section. `buildsOn`: Builds has written its items card. */
 export function inBuildsHtml(info, { buildsOn = false, open = true } = {}) {
   if (!info) return '';
-  const head = `<summary class="section-label">In Builds <span class="count">${info.total}</span></summary>`;
-  if (!buildsOn) return `<section class="in-builds"><details${open ? ' open' : ''}>${head}<p class="soft small">Open Builds once and its items show here.</p></details></section>`;
+  const head = `<summary class="section-label">In ${placeName('builds')} <span class="count">${info.total}</span></summary>`;
+  if (!buildsOn) return `<section class="in-builds"><details${open ? ' open' : ''}>${head}<p class="soft small">Open ${placeName('builds')} once and its items show here.</p></details></section>`;
   const empty = info.kind === 'product'
     ? '<p class="soft small">Nothing running for this product.</p>'
-    : '<p class="soft small">Nothing linked yet. Type [[ and pick a Builds item, or use Link a doc on its card in Builds.</p>';
+    : `<p class="soft small">Nothing linked yet. Type [[ and pick a ${placeName('builds')} item, or use Link a doc on its card in ${placeName('builds')}.</p>`;
   const bar = info.total ? `<p class="builds-progress" aria-label="${info.shipped} of ${info.total} shipped"><span class="builds-bar"><i style="width:${Math.round(100 * info.shipped / info.total)}%"></i></span><span class="soft small">${info.shipped} of ${info.total} shipped</span></p>` : '';
   const row = (r) => `<li><a href="#" class="builds-row s-${r.flag === 'done' ? 'done' : r.flag === 'urgent' ? 'you' : 'moving'}" data-app="builds" data-app-path="${escHtml(r.route)}" title="${escHtml(VIA[r.via] + '. Opens in Builds')}"><span class="dot" aria-hidden="true"></span><span class="r-title">${escHtml(r.title)}</span><span class="r-line">${escHtml(r.note)}</span></a></li>`;
   const groups = info.groups.map(g => `<p class="builds-group">${escHtml(g.name)}</p><ul class="builds-rows">${g.rows.map(row).join('')}</ul>`).join('');

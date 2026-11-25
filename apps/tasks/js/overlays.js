@@ -1,3 +1,4 @@
+import { placeName } from '../../../shared/sent.js';
 import { adoIsOn } from '../../../shared/ado.js';
 import { EMBEDDED, ICON, listColor } from './constants.js';
 import { applyOrder } from './actions.js';
@@ -79,7 +80,7 @@ function showHelp(){
       ${r('<kbd>A</kbd>', 'Hand off or add people')}
       ${r('<kbd>W</kbd>', 'Waiting on someone, on or off')}
       ${r('<kbd>L</kbd>', 'Copy a link to the task, for a note')}
-      ${EMBEDDED ? r('<kbd>B</kbd>', "Build with Tandem: Builds' agents take the task") : ''}
+      ${EMBEDDED ? r('<kbd>B</kbd>', `Send to agents: opens ${placeName('builds')} and starts the task there`) : ''}
       ${r('<kbd>Alt</kbd>+<kbd>↑</kbd> <kbd>Alt</kbd>+<kbd>↓</kbd>', 'Move the selected task')}
       ${r('<kbd>Esc</kbd>', 'Close the drawer, dialog or menu')}
     </tbody></table>

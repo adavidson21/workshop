@@ -1,3 +1,4 @@
+import { placeName } from '../../../shared/sent.js';
 import { prRelease } from './tracker.js';
 import { holdCount } from './focus-hours.js';
 import { renderMainOnly } from './drawer.js';
@@ -117,7 +118,7 @@ function prAiChip(t){
 function prAiDrawer(t){
   const ai = t.pr && t.pr.ai; if (!ai) return '';
   const again = ai.state === 'failed' || ai.state === 'timeout';
-  return `<div class="deng prai"><span>${esc(aiTip(ai))}</span><span class="grow"></span>${again && !t.done ? '<button class="lnk" data-d="prai-again" title="Runs /pr-review again in opencode (drafts only)">Review again</button>' : ''}<button class="btn" data-d="prai-open">Open in Builds</button></div>`;
+  return `<div class="deng prai"><span>${esc(aiTip(ai))}</span><span class="grow"></span>${again && !t.done ? '<button class="lnk" data-d="prai-again" title="Runs /pr-review again in opencode (drafts only)">Review again</button>' : ''}<button class="btn" data-d="prai-open">Open in ${esc(placeName('builds'))}</button></div>`;
 }
 /* Open the review in Dispatch (its PR review folder is pr-<id>). */
 function prAiOpen(t){ ready.then(w => { if (w) w.open({app: 'builds', path: `pr-${t.pr.id}`}); }); }
@@ -128,7 +129,7 @@ async function prAiAgain(t, btn){
     await ws.connectors.call(OC, 'pr.review', {url: t.pr.url, again: true}, {confirm: true});
     t.pr.ai = {state: 'pending', at: new Date().toISOString()};
     commit(); renderMainOnly();
-    toast(`Reviewing PR ${t.pr.id} again`, 'Watch it', () => prAiOpen(t));
+    toast(`Reviewing PR ${t.pr.id} again in ${placeName('builds')}`, `Open ${placeName('builds')}`, () => prAiOpen(t));
   } catch(e){
     toast(e.message || "Couldn't start the review.");
     if (btn) btn.disabled = false;

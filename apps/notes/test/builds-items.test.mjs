@@ -80,7 +80,7 @@ test('the In Builds section: progress, groups, rows open Builds; empty and Build
   const empty = inBuildsHtml(buildsFor(n('notes/random.md'), items) || { kind: 'plan', groups: [], total: 0, shipped: 0 }, { buildsOn: true });
   assert.match(empty, /Nothing linked yet/);
   assert.match(inBuildsHtml({ kind: 'product', groups: [], total: 0, shipped: 0 }, { buildsOn: true }), /Nothing running for this product/);
-  assert.match(inBuildsHtml({ kind: 'plan', groups: [], total: 0, shipped: 0 }, { buildsOn: false }), /Open Builds once/);
+  assert.match(inBuildsHtml({ kind: 'plan', groups: [], total: 0, shipped: 0 }, { buildsOn: false }), /Open Agents once/);
   assert.equal(inBuildsHtml(null), '');
 });
 

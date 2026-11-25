@@ -1,3 +1,4 @@
+import { placeName } from '../../../shared/sent.js';
 import { adoIsOn } from '../../../shared/ado.js';
 // A work item or PR from Azure DevOps is not shown while ADO is off (shared/ado.js); GitHub's always are.
 const shownItem = it => !!it && (it.system === 'github' || adoIsOn());
@@ -155,7 +156,7 @@ function sortHtml(t){
 function buildsDrawer(t){
   const sl = embedded && t.item.system !== 'github' ? buildsFor(t.item.id) : null;
   if (!sl) return '';
-  return `<div class="dado dslate"><button class="lnk" data-d="open-builds" data-path="${esc(sl.route)}" data-fk="slatelink" title="Shaping, defining or building it happens there">Open in Builds</button><span>${esc(buildsLabel(sl))}</span></div>`;
+  return `<div class="dado dslate"><button class="lnk" data-d="open-builds" data-path="${esc(sl.route)}" data-fk="slatelink" title="Shaping, defining or building it happens there">Open in ${esc(placeName('builds'))}</button><span>${esc(buildsLabel(sl))}</span></div>`;
 }
 /* The task's agent work (Tasks 13.0.0, agent-runs.js; tandem-build.js sends). Optional: a task is a to-do first.
    Its runs (each the whole task or one part of it), where each is on the agents' floor, and its document right here.
@@ -176,11 +177,11 @@ function buildHtml(t){
     return `<li class="arun s-${r.state}"><div class="arun-h"><span class="adot" aria-hidden="true"></span><span class="arun-t">${esc(r.title)}</span>`
       + `<span class="arun-w">${esc([r.station, STATE_WORD[r.state]].filter((x, j, a) => x && a.indexOf(x) === j).join(' · '))}</span></div>`
       + `<div class="arun-a">${k ? `<button class="lnk" data-d="agent-preview" data-k="${esc(k)}" data-fk="ap${i}" aria-expanded="${!!open}">${open ? 'Hide' : 'Read'} ${esc(r.file)}</button>` : ''}`
-      + `<button class="lnk" data-d="open-builds" data-path="${esc(r.route)}" data-fk="af${i}">${r.state === 'gate' ? 'Answer on the floor' : 'Open on the floor'}</button></div>`
+      + `<button class="lnk" data-d="open-builds" data-path="${esc(r.route)}" data-fk="af${i}">${r.state === 'gate' ? 'Answer in ' : 'Open in '}${esc(placeName('builds'))}</button></div>`
       + (open ? `<div class="arun-doc">${docBody(doc)}</div>` : '') + '</li>';
   }).join('');
   const send = canSend ? `<div class="asend"><input data-f="agentPart" data-fk="agentPart" value="${esc(agentPart)}" maxlength="500" autocomplete="off" placeholder="${whole ? 'A part, or blank for the whole task' : 'A step or a question for the agents'}" aria-label="What to send to the agents">`
-    + `<button class="btn" data-d="build" data-fk="build" data-tip="The agents take it from here: a build, a fix or a question. The task stays yours to finish (B)">${whole ? 'Send to agents' : 'Send this part'}</button></div>` : '';
+    + `<button class="btn" data-d="build" data-fk="build" data-tip="Opens ${esc(placeName('builds'))} and starts it there in opencode: a build, a fix or a question. Its progress shows here on the task, which stays yours to finish (B)">${whole ? 'Send to agents' : 'Send this part'}</button></div>` : '';
   return `<section class="dagents" aria-label="Agents"><header><b>Agents</b><span class="hint">${runs.length ? `${runs.length} run${runs.length === 1 ? '' : 's'}. ` : ''}Optional: send all of it, or just a part.</span></header>`
     + (list ? `<ul class="aruns">${list}</ul>` : '') + send + '</section>';
 }

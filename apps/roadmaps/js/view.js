@@ -1,5 +1,6 @@
 /* Roadmaps' HTML, as strings. Pure: no DOM, no state of its own. main.js paints these and wires events.
    Every piece of user text goes through esc(); only http(s) links are ever made clickable. */
+import { placeName } from '../../../shared/sent.js';
 import { adoIsOn } from '../../../shared/ado.js';
 import { outsideBanner, outsideMark } from '../../../shared/outside.js';
 import { belongsTo, filterOptions } from '../../../shared/products.js';
@@ -43,7 +44,7 @@ export function pendingHtml(p, hasMaps, { shaping = null, workItems = null } = {
     <ul class="plist">${p.items.map(x => `<li class="prow-i">
       ${dot}<span class="ptext"><span class="ptitle">${esc(x.title)}</span>${x.notes ? `<span class="hint pnotes">${esc(x.notes)}</span>` : ''}</span>
       <span class="rmeta">${esc([x.from, x.date].filter(Boolean).join(' · '))}</span>
-      <span class="racts">${shaping && shaping.has(x.id) && workItems ? `<button class="btn" data-pshaping="${esc(x.id)}" title="Open it in ${esc(workItems.name)}">Shaping in ${esc(workItems.name)}</button>` : ''}${hasMaps ? `<button class="btn" data-passign="${esc(x.id)}">Assign</button>` : ''}<button class="btn text-danger" data-premove="${esc(x.id)}">Remove</button></span>
+      <span class="racts">${shaping && shaping.has(x.id) && workItems ? `<button class="btn" data-pshaping="${esc(x.id)}" title="Open it in ${esc(placeName(workItems.id))}">Shaping in ${esc(placeName(workItems.id))}</button>` : ''}${hasMaps ? `<button class="btn" data-passign="${esc(x.id)}">Assign</button>` : ''}<button class="btn text-danger" data-premove="${esc(x.id)}">Remove</button></span>
     </li>`).join('')}</ul>
     ${hasMaps ? '' : '<p class="hint">Make a roadmap to assign these to.</p>'}
   </section>`;

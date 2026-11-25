@@ -1,5 +1,6 @@
 /* Notes: HTML for the page. Pure functions of state; every piece of note text is escaped here or by
    markdown.js. main.js owns events and the editor. */
+import { placeName } from '../../../shared/sent.js';
 import { esc, plainText, safeHref } from './markdown.js';
 import { inBuildsHtml } from './builds-items.js';
 import { KINDS, LINKS, filterLinks, hostOf } from './links.js';
@@ -195,7 +196,7 @@ function templatesHtml(state) {
 function tandemHtml(state) {
   const { tandem, ui } = state;
   if (!tandem.loaded) return '<p class="side-note">Reading .work.</p>';
-  if (!tandem.items.length) return '<p class="side-note">No documents yet. Plans, specs and reviews show here as Tandem writes them in Builds.</p>';
+  if (!tandem.items.length) return `<p class="side-note">No documents yet. Plans, specs and reviews show here as Tandem writes them in ${placeName('builds')}.</p>`;
   // Archived runs (tandem-archive.js) fold into one group at the bottom until they need you again.
   const { shown, archived } = splitRuns(tandem.items, state.archivedAt || new Map());
   const { review, rest } = groupItems(shown);
@@ -328,15 +329,15 @@ function tandemHeader(state) {
   const d = parseTandem(ui.path);
   const it = doc.item;
   const lock = doc.busy ? `<div class="bar warn" role="status"><span class="bar-msg">${esc(doc.busy)}. This page is read-only until it stops.</span></div>` : '';
-  const gate = it && it.review === d.file ? `<div class="bar tandem" role="status"><span class="bar-msg">${ICON.tandem} Tandem is waiting for you to review this ${esc(docName(d.file).toLowerCase())}. Edit it here, then approve in Builds.</span>
-      <span class="bar-acts"><button class="btn" data-act="open-builds">Open in Builds</button></span></div>` : '';
+  const gate = it && it.review === d.file ? `<div class="bar tandem" role="status"><span class="bar-msg">${ICON.tandem} Tandem is waiting for you to review this ${esc(docName(d.file).toLowerCase())}. Edit it here, then approve in ${placeName('builds')}.</span>
+      <span class="bar-acts"><button class="btn" data-act="open-builds">Open in ${placeName('builds')}</button></span></div>` : '';
   return `<div class="note-head">
     <div class="crumbs"><span class="mono soft">Tandem / ${esc(it ? itemLabel(it) : d.folder)} / ${esc(d.file)}</span>
       <span class="status ${ui.status.kind}" role="status">${esc(ui.status.kind === 'saved' ? (doc.busy ? 'Read-only' : 'In .work') : statusText(ui.status, null))}</span></div>
     <div class="head-actions">
       ${state.brief ? lensSegHtml(state) : ''}${segHtml(state)}
-      <button class="btn ghost" data-act="open-builds" title="This run in Builds">Open in Builds</button>
-      ${menuHtml(ui, [['open-builds', 'Open in Builds'], ['copy', 'Copy Markdown'], ['download', 'Download .md'], ['download-html', state.brief ? 'Download brief (HTML)' : 'Download HTML']])}${panelBtn(ui)}
+      <button class="btn ghost" data-act="open-builds" title="This run in ${placeName('builds')}">Open in ${placeName('builds')}</button>
+      ${menuHtml(ui, [['open-builds', `Open in ${placeName('builds')}`], ['copy', 'Copy Markdown'], ['download', 'Download .md'], ['download-html', state.brief ? 'Download brief (HTML)' : 'Download HTML']])}${panelBtn(ui)}
     </div></div>
     ${conflictBar(ui, true) || lock || gate}`;
 }
@@ -452,7 +453,7 @@ function tandemPanel(state) {
         const p = tandemPath(it.folder, f.file);
         return `<li><a href="#" data-open="${esc(p)}"${p === ui.path ? ' aria-current="page"' : ''}><span class="r-title">${esc(docName(f.file))}</span><span class="r-line mono">${esc(f.file)}</span></a></li>`;
       }).join('')}</ul></section>
-    <section><h2 class="section-label">About</h2><p class="soft small">${esc(it.stage ? `Stage: ${it.stage}. ` : '')}Saved straight to <code>.work/${esc(it.folder)}/</code>, where Tandem reads it. Approving is still a step in Builds.</p></section>` : ''}`;
+    <section><h2 class="section-label">About</h2><p class="soft small">${esc(it.stage ? `Stage: ${it.stage}. ` : '')}Saved straight to <code>.work/${esc(it.folder)}/</code>, where Tandem reads it. Approving is still a step in ${placeName('builds')}.</p></section>` : ''}`;
 }
 
 /* Action items and wins in the open note, each with a button that sends it (offers.js). Only where the receivers

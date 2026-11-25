@@ -1,5 +1,6 @@
 /* Builds: HTML for the board, the item panel and the dialogs. Pure: takes state, returns strings. Every value from
    data goes through esc(). Buttons carry data-act (and data-id); main.js handles the clicks. */
+import { placeName } from '../../../shared/sent.js';
 import { outsideBanner, outsideMark } from '../../../shared/outside.js';
 import { isGitHubConnection } from '../../../shared/teams.js';
 import { filterOptions } from '../../../shared/products.js';
@@ -379,9 +380,9 @@ function nextRaw(p) {
       // Without Dispatch: write the definition yourself, or send it straight on.
       if (p.tandemOff) return step(`${it.kind === 'idea' || it.fromRunway || it.runwayPending ? 'Your idea.' : 'A request.'} Write the story or stories yourself in Define, or send it straight to Who builds it?.`,
         [btn('write-myself', 'Write it myself', { primary: true }), btn('to-decide', 'Who builds it?')],
-        [...(it.fromRunway ? [btn('dismiss', 'Hide from Builds', { title: 'Hides it here. It stays in Roadmaps.' })] : [btn('roadmap-add', 'Add to roadmap')])]);
+        [...(it.fromRunway ? [btn('dismiss', `Hide from ${placeName('builds')}`, { title: 'Hides it here. It stays in Roadmaps.' })] : [btn('roadmap-add', 'Add to roadmap')])]);
       if (it.kind === 'idea' || it.fromRunway || it.runwayPending) return step('Your idea. An agent interviews you, a round of questions at a time, until it is understood, then writes a brief.',
-        [btn('shape', 'Shape it', { primary: true }), it.fromRunway ? btn('dismiss', 'Hide from Builds', { title: 'Hides it here. It stays in Roadmaps.' }) : btn('roadmap-add', 'Add to roadmap')], build);
+        [btn('shape', 'Shape it', { primary: true }), it.fromRunway ? btn('dismiss', `Hide from ${placeName('builds')}`, { title: 'Hides it here. It stays in Roadmaps.' }) : btn('roadmap-add', 'Add to roadmap')], build);
       return fork('A request. Pick how to start.',
         [pathCard('triage', 'Triage', 'An agent reads it and the code, and says what is missing and who should build it.', { primary: true }),
           pathCard('shape', 'Interview me', 'Skip triage: a round of questions for you, then a brief.'),
@@ -436,7 +437,7 @@ function nextRaw(p) {
         return step(`Pick how to define it.${why}`, [btn('refine', 'One story: refine', { primary: !big }), btn('scope', 'Bigger: scope and slice', { primary: big })], [...build, btn('write-refine', 'Write one story myself'), btn('write-scope', 'Write an epic myself')]);
       }
       if (d.manual) {
-        if (d.ready) return step(p.canAdo ? 'Your draft is approved.' : adoIsOn() ? 'Your draft is approved. Without Azure DevOps it stays here in Builds.' : 'Your draft is approved. It stays here in Builds.', [btn('to-decide', 'Who builds it?', { primary: true }), btn('unapprove-manual', 'Edit again')]);
+        if (d.ready) return step(p.canAdo ? 'Your draft is approved.' : adoIsOn() ? `Your draft is approved. Without Azure DevOps it stays here in ${placeName('builds')}.` : `Your draft is approved. It stays here in ${placeName('builds')}.`, [btn('to-decide', 'Who builds it?', { primary: true }), btn('unapprove-manual', 'Edit again')]);
         return step(`Your draft. Edit it until it is right, then approve it.${p.canAdo ? ` Approve and publish creates the ${TR()} items (you confirm the list first).` : ''}`,
           p.canAdo ? [btn('approve-manual-publish', 'Approve and publish', { primary: true, out: 'ado' }), btn('edit-draft', 'Edit'), btn('approve-manual', 'Approve only')] : [btn('approve-manual', 'Approve', { primary: true }), btn('edit-draft', 'Edit')]);
       }
@@ -448,7 +449,7 @@ function nextRaw(p) {
       return step('Waiting for the draft.', [btn('dispatch', 'Open the run')], build);
     }
     case 'publish':
-      if (!p.canAdo) return step(adoIsOn() ? 'Approved. Without Azure DevOps it stays here in Builds.' : 'Approved. It stays here in Builds.', [btn('to-decide', 'Who builds it?', { primary: true })]);
+      if (!p.canAdo) return step(adoIsOn() ? `Approved. Without Azure DevOps it stays here in ${placeName('builds')}.` : `Approved. It stays here in ${placeName('builds')}.`, [btn('to-decide', 'Who builds it?', { primary: true })]);
       return step(`Approved, not in ${TR()} yet. ${it.ado && p.draft.kind === 'refine' ? `Publish updates #${it.ado.id} with the description and acceptance criteria.` : 'Publish creates the work items.'}`,
       [btn('publish', `Publish to ${it.ado ? sysName(it) : TR()}`, { primary: true, out: sysOut(it) }), btn('publish-build', 'Publish and build it myself', { out: sysOut(it) })], it.ado ? [] : [btn('build-local', adoIsOn() ? 'Build it myself, skip ADO' : 'Build it myself')]);
     case 'decide': return fork(`Who builds it?${p.owners && p.owners.length ? ` ${esc(p.owners[0].name)} owns ${esc(p.owners[0].hits.join(', '))}.` : ''}`,
@@ -561,7 +562,7 @@ function moreHtml(p, extra, shown) {
   }
   if (it.ado && !has('ado')) items.push(btn('ado', `Open in ${sysName(it)}`));
   if (!it.virtual && it.stage !== 'done' && !has('done')) items.push(btn('done', 'Mark closed', { title: adoIsOn() ? 'Off the board without changing ADO' : 'Off the board' }));
-  if (!it.virtual) items.push(btn('remove', 'Remove from Builds'));
+  if (!it.virtual) items.push(btn('remove', `Remove from ${placeName('builds')}`));
   if (!items.length && !move) return '';
   return `<details class="more"><summary class="btn">More</summary><div class="menu" role="group" aria-label="More">${items.join('')}${move}</div></details>`;
 }

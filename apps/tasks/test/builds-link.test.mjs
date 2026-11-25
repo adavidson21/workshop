@@ -10,8 +10,8 @@ test('buildsAbout: the tracked row for the ADO id, by string or number', () => {
   assert.deepEqual(buildsAbout(e, 7), { column: 'Shape', route: 'item/w_1' });
   assert.deepEqual(buildsAbout(e, '77'), { column: 'Source of #90', route: 'item/w_2' });
   assert.equal(buildsAbout(e, 8), null);
-  assert.equal(buildsLabel(buildsAbout(e, 7)), 'In Builds: Shape');
-  assert.equal(buildsLabel({ column: '', route: 'r' }), 'In Builds');
+  assert.equal(buildsLabel(buildsAbout(e, 7)), 'In Agents: Shape');
+  assert.equal(buildsLabel({ column: '', route: 'r' }), 'In Agents');
   assert.equal(buildsLabel(null), '');
 });
 
