@@ -71,3 +71,29 @@ A receiver finds its senders from the manifests: every app whose `handoffs.sends
 | `builds` (Builds' runs half; `agents`, Dispatch, until Builds 4.0.0) | Accepted captures from the hub ([hub.md](hub.md)) to Tasks, People, Notes, Roadmaps and Builds itself (`request`). Accepted `work` to Builds itself from the Start click (Start work's Describe it and ADO work item, not Investigate), id `h_work_<folder>` or `h_work_ado-<id>`, `source.id` the folder or `ado-<id>`. They share Builds' `handoffs` collection (`builds.handoffs`) with the board half's offers. Offers in the old `agents` collection are not read any more. |
 | `notes` (Notes) | From a note's side panel, one click per line: an open `- [ ]` action item as an accepted `task` to Tasks (`who`: the line's `@people`), a line tagged `#win`, `#feedback`, `#growth` or `#concern` as an ordinary offer of that kind to People, one per direct report the line names (`about`: their id), or one with no `about` when it names none. `text` has each `@handle` replaced by the person's name. Ids are `n-<kind>-<hash of the note path, text and person>`, so a line is never offered twice; `source.id` is the note's path. |
 | `roadmaps` (Roadmaps) | An accepted `roadmap-item` to Builds from the Work item button in a roadmap item's panel, id `h_<map>_<item>_slate` (sending again replaces it), Roadmaps 1.15.0. |
+
+## Saying where it went
+
+Anything that leaves the app you are in, a handoff or work sent to opencode, tells you where it landed and gives you one click to get there. Apps use `shared/sent.js`:
+
+- **One name per place.** Builds shows as the **Agents** tab of Tasks, so copy says "Agents" (`placeName('builds')`). Without Tasks, Builds is on the rail and copy says "Builds".
+- **The toast says where, and has a button there.** `sentToast(ws, {app, path, what})` shows "Sent to Agents: Fix the login timeout." with **Open Agents**. It uses the toast's `action.open` ([sdk.md](sdk.md)), so the shell goes straight there. These toasts stay 8 seconds.
+- **Coming back.** Work sent from a task says "Started from your task" in Agents, with **Back to task**; the task shows the run's progress in its Agents section.
+- **Results that come back to where you started stay there.** Notes' Clean up, People's draft and tidy, Settings' Writing voice and Bench evals land in the app you started them from. If you moved on while one ran, the toast takes you back.
+
+## What each send runs in opencode
+
+Every send runs in opencode on your computer, in the workspace folder (the connector's `workspace` setting), with opencode's own config, providers, MCP servers, `AGENTS.md` and skills. So it acts like running `opencode` in a terminal in that folder, with these differences on purpose:
+
+| Where you send from | What runs | Like opencode in a terminal? |
+| --- | --- | --- |
+| Chat, Default agent or any agent you pick | Your message, that agent | Yes: full tools, so skills are used when they fit |
+| Chat, a slash command or `!shell` | That command | Yes |
+| Agents (Builds) drop box, Start, Approve, Send back, Publish; Tasks' Send to agents and Start as feature or bug; Chat's hub act; Settings' Onboard, Add regression tests, Draft from sources, repo guide | A Tandem command (`/start`, `/spike`, `/do-task`...) | Yes, as if you typed that command. Model: Agents' run model when set, else opencode's |
+| Chat, Hub (a question) or Quick | One model call with your notes, tools off | No: no tools, so no skills. **Go deeper** asks again with tools |
+| Chat, Rewrite; Settings, Writing voice; Notes, Clean up | One prompt to the read-only `plan` agent (Clean up: tools off) | No, by design: a draft cannot make the agent edit files |
+| People, Draft and Wrap up's read | Tandem's `/one-on-one` and `people-prep` agent | Yes, that command and agent |
+| Tasks, PR reviews | Tandem's `/pr-review` | Yes |
+
+Skills and `AGENTS.md` inside one repo folder (below the workspace) load the way they do when you start opencode in the workspace folder, not in that repo.
+

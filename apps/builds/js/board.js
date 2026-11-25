@@ -1,3 +1,4 @@
+import { placeName } from '../../../shared/sent.js';
 /* Builds: Builds' board and Dispatch's agent runs in one app (plan: claude/builds-run-panel-v1-plan.md in the
    Workshop project). The page has one SDK connection, one summary and one set of tabs. This file is the seam
    between the two halves: the board half (main.js, model.js, view.js) and the runs half (dispatch/).
@@ -52,11 +53,11 @@ export function mergeCards(board = [], runs = []) {
       const seen = new Set();
       const rows = [...(r.rows || []), ...(b.rows || [])].filter(x => { const k = x && x.id; if (!k) return true; if (seen.has(k)) return false; seen.add(k); return true; });
       const count = (Number(b.count) || (b.rows || []).length) + (Number(r.count) || (r.rows || []).length);
-      out[i] = { ...b, title: b.id === 'needs' ? 'Needs you in Builds' : b.title, rows: rows.slice(0, 20), count, ...(b.updatedAt || r.updatedAt ? { updatedAt: Math.max(Number(b.updatedAt) || 0, Number(r.updatedAt) || 0) || undefined } : {}) };
+      out[i] = { ...b, title: b.id === 'needs' ? `Needs you in ${placeName('builds')}` : b.title, rows: rows.slice(0, 20), count, ...(b.updatedAt || r.updatedAt ? { updatedAt: Math.max(Number(b.updatedAt) || 0, Number(r.updatedAt) || 0) || undefined } : {}) };
       if (out[i].updatedAt === undefined) delete out[i].updatedAt;
     } else if (b.kind === 'held' && r.kind === 'held') {
       const count = (b.count || 0) + (r.count || 0);
-      out[i] = { ...b, count, label: `${count} update${count === 1 ? '' : 's'} waiting in Builds` };
+      out[i] = { ...b, count, label: `${count} update${count === 1 ? '' : 's'} waiting in ${placeName('builds')}` };
     }
   }
   return out;

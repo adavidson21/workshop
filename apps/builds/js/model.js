@@ -22,6 +22,7 @@
    The .work files are read with the opencode connector's file.read: triage.md, questions.md, understanding.md,
    brief.md, refine.md, stories.md, milestones.md. Their shapes are eng-agents' templates (Core 2.12.0; shape 2.16.0); the parsers below follow them and
    eng-agents core/scripts/ado/Export-Backlog.ps1 for milestones.md. */
+import { placeName } from '../../../shared/sent.js';
 import { adoIsOn } from '../../../shared/ado.js';
 import { belongsTo } from '../../../shared/products.js';
 // The tag on work items Builds creates in ADO. Kept from when Builds was Builds, so queries and filters on it still work.
@@ -1023,13 +1024,13 @@ export function summaryCards(items, { columnOf, agentOf = () => null, now = new 
   const shaping = items.filter(it => it.runwayPending).slice(-50)
     .map(it => ({ id: it.runwayPending, title: it.title.slice(0, 200), route: `item/${it.id}` }));
   return [
-    card('needs', 'list', 'Needs you in Builds', { rows: needs.slice(0, 20), count: needs.length, route: '' }),
-    card('shaping', 'list', 'Roadmaps ideas in Builds', { rows: shaping }),
+    card('needs', 'list', `Needs you in ${placeName('builds')}`, { rows: needs.slice(0, 20), count: needs.length, route: '' }),
+    card('shaping', 'list', `Roadmaps ideas in ${placeName('builds')}`, { rows: shaping }),
     card('delegated', 'people', 'Delegated', { rows: [...people.values()].slice(0, 200) }),
     card('done-week', 'list', 'Decisions this week', { rows: done.slice(0, 20), count: done.length }),
-    card('ado', 'list', 'ADO items in Builds', { rows: ado }),
-    card('runs', 'list', 'Runs in Builds', { rows: runs }),
-    card('tracked', 'list', 'ADO items on Builds\' board', { rows: tracked.slice(-200) })
+    card('ado', 'list', `ADO items in ${placeName('builds')}`, { rows: ado }),
+    card('runs', 'list', `Runs in ${placeName('builds')}`, { rows: runs }),
+    card('tracked', 'list', `ADO items on ${placeName('builds')}' board`, { rows: tracked.slice(-200) })
   ];
 }
 

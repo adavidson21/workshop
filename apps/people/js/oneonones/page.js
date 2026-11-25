@@ -10,6 +10,7 @@
    main.js owns the page, the hash and the paint loop. It calls show() when a person's 1:1 tab opens or closes and
    asks for HTML with panel(). Clicks on this module's controls are handled here by their data- attributes.
    data.js loads and saves; model.js, view.js and markdown.js are pure. */
+import { placeName, sentToast } from '../../../../shared/sent.js';
 import { createOneOnOnes } from './data.js';
 import { DEFAULT_CADENCE, NOTES, addDays, PEOPLE, SETTINGS, SOURCES, buildPacket, cadenceState, isoDay, personFromDirectory, noteTemplate, packetMarkdown, parseFollowUps, parseWins, quickAddLines, winEntries, withDirectory, esc, applyTidy, followUpHandoffs, followUpId, followUpOwner, parseTidy, tidyInput } from './model.js';
 import { confirmHtml, personHtml, setupCard, startHtml, wrapHtml } from './view.js';
@@ -336,7 +337,7 @@ export function createOneOnOnesPage(ws, root, host) {
         if (r.state === 'failed') { stop(); if (here()) { ui.wrap = { state: 'failed', error: r.error || '' }; paint(); } return; }
       } catch { /* keep waiting; Workshop may be busy */ }
       // A local model can take a while: 30 minutes before giving up (People 5.1.0; 15 before).
-      if (Date.now() - started > 30 * 60000) { stop(); if (here()) { ui.wrap = { state: 'failed', error: 'Nothing after 30 minutes. Check the session in Builds.' }; paint(); } return; }
+      if (Date.now() - started > 30 * 60000) { stop(); if (here()) { ui.wrap = { state: 'failed', error: `Nothing after 30 minutes. Check the session in ${placeName('builds')}.` }; paint(); } return; }
       pollTidy(personId, day, started);
     }, 3000);
   }
@@ -390,7 +391,9 @@ export function createOneOnOnesPage(ws, root, host) {
           : added ? `${added} of ${pickedW.length} wins logged (the rest were in the Log already)` : `${pickedW.length === 1 ? 'That win is' : 'Those wins are'} in the Log already`);
       } catch (e) { toastErr(e); }
     }
-    if (done.length) ws.toast(done.join('. ') + '.', { kind: 'success' });
+    // Follow-ups went to Tasks: the toast has a button there, so where they landed is one click away.
+    if (done.length && pickedF.length && send) sentToast(ws, { app: 'tasks', text: done.join('. ') + '.' });
+    else if (done.length) ws.toast(done.join('. ') + '.', { kind: 'success' });
   }
 
   /* ---------- the optional draft step ---------- */
@@ -432,7 +435,7 @@ export function createOneOnOnesPage(ws, root, host) {
         if (r.state === 'done') { ui.ai.state = 'done'; ui.ai.text = r.text || ''; paint(); return; }
         if (r.state === 'failed') { ui.ai.state = 'failed'; ui.ai.error = r.error || ''; paint(); return; }
       } catch { /* keep waiting; Workshop may be busy */ }
-      if (Date.now() - started > 15 * 60000) { ui.ai.state = 'failed'; ui.ai.error = 'No draft after 15 minutes. Check the session in Builds.'; paint(); return; }
+      if (Date.now() - started > 15 * 60000) { ui.ai.state = 'failed'; ui.ai.error = `No draft after 15 minutes. Check the session in ${placeName('builds')}.`; paint(); return; }
       poll(personId, day, started);
     }, 3000);
   }

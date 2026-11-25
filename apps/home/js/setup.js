@@ -7,6 +7,7 @@
 
    factsFor() reads, stepsFor() decides (pure), card() builds the HTML (pure), createSetup() loads and
    saves. main.js puts the card under the greeting and repaints it when anything changes. */
+import { placeName } from '../../../shared/sent.js';
 import { esc } from './view.js';
 import { SITE } from '../../../shared/site.js';
 import { readCards } from '../../../shared/summary.js';
@@ -275,7 +276,7 @@ function detail(s, ctx) {
       return `<p>People keeps evidence of your and your team's work for reviews, next to your 1:1s. Add one thing you did this week.</p><p>${btn('Open People', 'data-open="people" data-path="me"', true)}</p>`;
     case 'dispatch':
       return f.workMode
-        ? `<p>Builds runs coding agents with an AI provider, so work mode leaves it out. Add it only if your company allows a coding agent: follow "Dispatch in work mode" in docs/install.md (install opencode and Tandem at its release tag, set the Workspace folder, then <b>Approved AI providers</b>), or run the one-line installer again with <code>WORKSHOP_DISPATCH=1</code>.</p><p>${btn('Open Builds', 'data-open="builds" data-path="lanes"')}</p>`
+        ? `<p>${placeName('builds')} runs coding agents with an AI provider, so work mode leaves it out. Add it only if your company allows a coding agent: follow "Dispatch in work mode" in docs/install.md (install opencode and Tandem at its release tag, set the Workspace folder, then <b>Approved AI providers</b>), or run the one-line installer again with <code>WORKSHOP_DISPATCH=1</code>.</p><p>${btn(`Open ${placeName('builds')}`, 'data-open="builds" data-path="lanes"')}</p>`
         : `<p>Builds runs opencode coding agents on your work items. It needs opencode, Tandem and an AI model; the setup guide at the top of Builds' Lanes walks you through it.</p><p>${btn('Open Builds', 'data-open="builds" data-path="lanes"', true)}</p>`;
     case 'login':
       return `<p>Run Workshop by hand for a few days first. When it has been trouble free, turn on <b>Start at login</b> in ${settingsWhere} (This computer), or run:</p>${copy('workshop install --login')}<p>${settingsBtn('Open Settings', 'computer')}</p>`;

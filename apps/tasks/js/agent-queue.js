@@ -10,6 +10,7 @@
 
    agentRowsOf and personalShownWith are pure (test/agent-queue.test.mjs). */
 
+import { placeName } from '../../../shared/sent.js';
 import { setRunsEnv } from './agent-runs.js';
 
 const SETTING = 'personalTasks';
@@ -41,7 +42,7 @@ export function agentsHtml() {
   const rows = agentRows();
   if (!linked || !rows.length) return '';
   return `<section class="treviews tagents" aria-label="What your builds need from you"><header class="tblk-h"><b>Agents</b><span class="tbn">${rows.length} need${rows.length === 1 ? 's' : ''} you</span></header>
-    <div class="rows">${rows.map(r => `<div class="row agent${r.flag ? ' urgent' : ''}"><button class="lnk agent-open" data-agent-open="${esc(r.route)}" title="Open it in Builds"><b>${esc(r.note)}</b> <span>${esc(r.title)}</span></button></div>`).join('')}</div></section>`;
+    <div class="rows">${rows.map(r => `<div class="row agent${r.flag ? ' urgent' : ''}"><button class="lnk agent-open" data-agent-open="${esc(r.route)}" title="Open it in ${esc(placeName('builds'))}"><b>${esc(r.note)}</b> <span>${esc(r.title)}</span></button></div>`).join('')}</div></section>`;
 }
 
 /** One line when personal tasks are off, so a hidden list is never a surprise. */

@@ -1,6 +1,7 @@
 /* Builds: your ADO backlog as one board, from request to resolved. model.js is pure, data.js talks to Workshop,
    view.js builds HTML; Health shows the team reports (js/reports/, loaded the first time). This file owns the page: state,
    refreshing from ADO and Tandem, and what each button does. */
+import { sentToast, placeName } from '../../../shared/sent.js';
 import { watchAdo, adoIsOn } from '../../../shared/ado.js';
 import { getWs, setBadge, setCards, setSummaryWriter, onTab, onBoardRoute, currentTab, requestTab, runHtml, onRunsPainted, openRunPage, setPanelRun, BOARD_TABS, onBoardCommand, setNudges, setPickable, setBoardFeed, setBoardDrawer, boardDrawer, onBoardDrawer } from './board.js';
 import { readCards } from '../../../shared/summary.js';
@@ -838,7 +839,7 @@ const ACT = {
     if (!c || !c.fromRunway) return;
     await store.dismiss(c.fromRunway);
     ui.open = null;
-    ws.toast('Hidden from Builds. It stays in Roadmaps.', { kind: 'success' });
+    ws.toast(`Hidden from ${placeName('builds')}. It stays in Roadmaps.`, { kind: 'success' });
   },
   'edit-understanding': () => { ui.shapeEditing = 'understanding.md'; paint(); },
   'edit-brief': () => { ui.shapeEditing = 'brief.md'; paint(); },
@@ -1171,7 +1172,7 @@ const ACT = {
   async 'roadmap-add'(c) {
     const it = await ensureStored(c);
     await store.offer(roadmapIdea(it));
-    ws.toast('Sent to Roadmaps. Assign it to a roadmap from its Pending list.', { kind: 'success' });
+    sentToast(ws, { app: 'roadmaps', path: 'pending', text: 'Sent to Roadmaps. Assign it to a roadmap from its Pending list.', label: 'Open Pending' });
   },
   async done(c) { await store.update(c.id, x => setStage(x, 'done')); ws.toast('Marked closed. It is off the board; Move back brings it back.', { kind: 'success' }); },
   /* ---------- the forks (Builds flow cards v1) ---------- */
@@ -1246,7 +1247,7 @@ const ACT = {
     });
   },
   async keep(c) { await store.update(c.id, x => { delete x.reopened; }); },
-  remove: (c) => showDialog(confirmHtml('Remove from Builds?', adoIsOn() ? 'Builds forgets this item. Nothing changes in ADO or in .work.' : 'Builds forgets this item. Nothing changes in .work.', 'Remove'), async () => {
+  remove: (c) => showDialog(confirmHtml(`Remove from ${placeName('builds')}?`, adoIsOn() ? `${placeName('builds')} forgets this item. Nothing changes in ADO or in .work.` : `${placeName('builds')} forgets this item. Nothing changes in .work.`, 'Remove'), async () => {
     await store.change(list => { const i = list.findIndex(x => x.id === c.id); if (i >= 0) list.splice(i, 1); });
     ui.open = null; paint();
   })

@@ -9,6 +9,7 @@
    time, the profile is taken from Roadmaps' profile ("roadmaps.reports"), or Tasks' older one, when they ran in this
    browser. A profile with no area paths gets them (and the connection) filled in from your team in Workshop's
    People app (settings.teams). */
+import { placeName } from '../../../../shared/sent.js';
 import { esc } from '../model.js';
 import { TABS, WINDOWS, buildWorkbook, compute, fmtMD, lines, teamLines, usable } from './model.js';
 import { RENDER, rpCard } from './view.js';
@@ -149,7 +150,7 @@ export function createReports(o) {
   function body() {
     if (!ready()) {
       const a = o.ado();
-      const why = a.message || 'Open Builds inside Workshop on this computer, with the ADO connector on.';
+      const why = a.message || `Open ${placeName('builds')} inside Workshop on this computer, with the ADO connector on.`;
       return rpCard('Connect Azure DevOps', `Team reports read your team's work items from ADO through Workshop's ADO connector. ${esc(why)}`, '');
     }
     if (!hasProfile()) return rpCard('Set up your team profile', "Add your team's area paths and people. Every report uses them.", '<button class="btn primary" type="button" data-rp="profile">Set up team profile</button>');

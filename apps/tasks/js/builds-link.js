@@ -1,3 +1,4 @@
+import { placeName } from '../../../shared/sent.js';
 /* Tasks and Builds: the In Builds chip (Workshop claude/request-intake-v1-plan.md, follow-up 7).
 
    An ADO item assigned to you comes to Tasks by ADO sync and may also be on Builds' board (shaped, defined or
@@ -18,7 +19,7 @@ export function buildsAbout(env, adoId) {
 }
 
 /** The chip's words: "In Builds: Shape", or "In Builds" when the column is unknown. */
-export const buildsLabel = (s) => s ? `In Builds${s.column ? ': ' + s.column : ''}` : '';
+export const buildsLabel = (s) => s ? `In ${placeName('builds')}${s.column ? ': ' + s.column : ''}` : '';
 
 let env = null;
 /** Read Builds' summary now and on every change. onChange: called after each read. Inside Workshop only. */

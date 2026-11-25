@@ -1302,11 +1302,11 @@ function makeShellChannel(ctx) {
     }
     toastEl.textContent = '';
     const span = document.createElement('span'); span.textContent = text; toastEl.appendChild(span);
-    if (action && action.label && action.command) {
+    if (action && action.label && (action.command || (action.open && action.open.app))) {
       const b = document.createElement('button');
       b.textContent = action.label;
       b.style.cssText = 'background:none;border:0;color:inherit;font:inherit;text-decoration:underline;cursor:pointer';
-      b.addEventListener('click', () => { toastEl.style.opacity = '0'; emit('command', { id: action.command }); });
+      b.addEventListener('click', () => { toastEl.style.opacity = '0'; if (action.open && action.open.app) standalone('open', action.open); else emit('command', { id: action.command }); });
       toastEl.appendChild(b);
     }
     toastEl.style.opacity = '1';
@@ -1987,7 +1987,9 @@ export function appsFromRegistry(reg) {
       capture: Array.isArray(m.capture) ? m.capture.filter(s => typeof s === 'string') : [],
       aliases: Array.isArray(m.aliases) ? m.aliases.filter(x => typeof x === 'string' || (x && typeof x.name === 'string')) : [],
       privateFiles: privateFilesSpec(m.privateFiles),
-      settings: AppSettings.declared(m.settings)
+      settings: AppSettings.declared(m.settings),
+      // A tab of another app (Builds is Tasks' Agents tab): where it shows and the name you see (shared/sent.js).
+      ...(m.tabOf && typeof m.tabOf.app === 'string' && typeof m.tabOf.name === 'string' ? { tabOf: { app: m.tabOf.app, name: m.tabOf.name } } : {})
     }))
     .sort((a, b) => (a.order ?? Infinity) - (b.order ?? Infinity) || a.name.localeCompare(b.name));
 }
@@ -2009,7 +2011,7 @@ function appsOnSite() {
       } catch (e) { return []; }
     })();
   }
-  return appsPromise.then(list => list.map(a => ({ ...a, handoffs: { sends: [...a.handoffs.sends] }, capture: [...a.capture], aliases: [...a.aliases], privateFiles: Array.isArray(a.privateFiles) ? [...a.privateFiles] : a.privateFiles, settings: a.settings.map(x => ({ ...x })) })));
+  return appsPromise.then(list => list.map(a => ({ ...a, handoffs: { sends: [...a.handoffs.sends] }, capture: [...a.capture], aliases: [...a.aliases], privateFiles: Array.isArray(a.privateFiles) ? [...a.privateFiles] : a.privateFiles, settings: a.settings.map(x => ({ ...x })), ...(a.tabOf ? { tabOf: { ...a.tabOf } } : {}) })));
 }
 
 async function agentAppIds(ctx) {

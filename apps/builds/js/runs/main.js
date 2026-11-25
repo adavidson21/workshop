@@ -6,6 +6,7 @@
    - shell: routes (#/agents/<id> focuses an item), the rail badge (open prompts), toasts and
      notifications. The theme comes from shared/theme.js and the SDK, with no messages of our own.
    view.js builds the HTML; this file paints it and handles input. */
+import { loadPlaces, placeName, sentToast } from '../../../../shared/sent.js';
 import { watchAdo } from '../../../../shared/ado.js';
 import { getWs, setBadge, setCards, setTab as buildsTab, splitRoute, routeBoard, onTabRequest, setRunRenderer, runsPainted, onOpenRunPage, onPanelRun, boardCommand, onNudges, onPickable, pickable, onBoardFeed, onBoardDrawer, setBoardDrawer } from '../board.js';
 import { mountBar } from '../../../../shared/standalone-bar.js';
@@ -143,12 +144,13 @@ if (!ws.embedded) mountBar('Builds');
 /* Chat and the hub are their own app since Builds 4.8.0 (apps/chat): Builds opens it for chat and hub routes. Save as
    note still sends a note to Notes from here, through Builds' handoffs. */
 // Capture targets and places follow the apps on this site (their manifests, ws.apps.list()), without holding up the page.
+loadPlaces(ws);
 ws.apps.list().then(list => { useApps(list); S.hasNotes = list.some(a => a.id === 'notes'); schedule(); }).catch(() => {});
 const notesOut = createCaptureStore(ws, { sender: 'builds' });
 async function noteOf(title, answer) {
   const t = String(title).slice(0, 120);
   const p = { kind: 'note', to: 'notes', text: `${title}\n\n${answer || ''}`.trim().slice(0, 2000), title: t, payload: { kind: 'note', title: t } };
-  try { await notesOut.send([p]); ws.toast('Saved to Notes (inbox).', { kind: 'success' }); } catch (e) { ws.toast("Couldn't save that.", { kind: 'error' }); }
+  try { await notesOut.send([p]); sentToast(ws, { app: 'notes', text: 'Saved to Notes, in inbox/.' }); } catch (e) { ws.toast("Couldn't save that.", { kind: 'error' }); }
 }
 const openChat = path => ws.open(path ? { app: 'chat', path } : { app: 'chat' });
 
@@ -399,7 +401,7 @@ ws.connectors.on(OC, '*', fetchSoon);
 // After Publish (connector 1.28.0): a fix to push and a merge are worth a notification when Workshop is out of sight.
 ws.connectors.on(OC, 'published', p => {
   if (!p || !p.folder) return;
-  if (p.event === 'fix-ready') alertUser(`Push fix: ${label(p.folder, 'a published PR')}`, `Tandem fixed the failing CI on ${p.repo || 'the PR'}. Push it from Builds.`, p.folder);
+  if (p.event === 'fix-ready') alertUser(`Push fix: ${label(p.folder, 'a published PR')}`, `Tandem fixed the failing CI on ${p.repo || 'the PR'}. Push it from ${placeName('builds')}.`, p.folder);
   else if (p.event === 'merged') alertUser(`Merged: ${label(p.folder, 'a published PR')}`, 'Done. Tandem ran its retro and removed the worktrees.', p.folder);
 });
 ws.connectors.onStatus(OC, status => {
@@ -790,7 +792,9 @@ async function dropGo() {
     ui().dropTask = null;
     delete ui().drafts['lanes:drop'];
     ui().dropKind = null; ui().dropGuess = null; ui().dropAdo = null; ui().dropKeep = false;
-    toast(DROP_STARTED[kind] || 'Started.');
+    // Sent from a task: say so, with the way back, since the task now shows the run's progress (Tasks' Agents section).
+    if (fromTask) sentToast(ws, { app: 'tasks', path: 'task/' + fromTask.task, text: `Started from your task. ${DROP_STARTED[kind] || ''} Its progress shows on the task too.`.replace(/\s+/g, ' ').trim(), label: 'Back to task', kind: 'info' });
+    else toast(DROP_STARTED[kind] || 'Started.');
   } catch (e) {
     toast(`Could not start the ${((KINDS[kind] || {}).name || 'work').toLowerCase()}: ${errText(e)}`, true);
   }
@@ -828,7 +832,7 @@ async function saveDocToNotes(folder) {
     try { cur = await read('file.read', { folder, file: 'doc.md' }); } catch (e) { cur = null; }
     await write('file.write', { folder, file: 'doc.md', text: doc.text, ...(cur ? { expected: cur.text } : {}) });
     await write('file.write', { folder, file: 'saved.md', text: `Saved to Notes from ${doc.path} on ${dateStr(new Date())}. It is in Notes under Tandem, ${folder}/doc.md.\n` });
-    toast(`Saved. Open Notes, Tandem, ${folder}, to read it.`);
+    sentToast(ws, { app: 'notes', path: notebookRoute(folder, 'doc.md'), text: `Saved to Notes, under Tandem, ${folder}.`, label: 'Open in Notes' });
   } catch (e) { toast(errText(e), true); }
   finally { delete ui().busy[key]; fetchSoon(); schedule(); }
 }
@@ -1237,7 +1241,7 @@ listen('click', ev => {
     const id = obsTasks.getAttribute('data-obs-tasks');
     const o = noticedList().find(x => x.id === id);
     if (!o) return;
-    act(async () => { await sendWork(ws, observationTask(o)); return write('observation.sent', { id }); }, () => toast('Sent to Tasks'), 'obs:' + id);
+    act(async () => { await sendWork(ws, observationTask(o)); return write('observation.sent', { id }); }, () => sentToast(ws, { app: 'tasks', what: o.title || o.text || '' }), 'obs:' + id);
     return;
   }
   const obsDismiss = t.closest('[data-obs-dismiss]');

@@ -3,6 +3,7 @@
 
    store.js saves through the SDK; outline.js, model.js, timeline.js and view.js are pure; this file owns the
    page: painting, the timeline's pointer and keyboard handling, dialogs, routes and commands. */
+import { placeName } from '../../../shared/sent.js';
 import { watchAdo } from '../../../shared/ado.js';
 import { connect } from '../../../shared/workshop-sdk.js';
 import { mountBar } from '../../../shared/standalone-bar.js';
@@ -94,7 +95,7 @@ const subscribed = new Set();
   if (Object.keys(SENDERS).join() !== before && pending.pickup) pending.pickup();
 });
 /* Ideas the work items app (Builds) is shaping: its summary's `shaping` card, rows {id: a Pending idea id, route}.
-   The Pending list marks those "Shaping in Builds". Only for showing (docs/summaries.md); Pending is not changed. */
+   The Pending list marks those "Shaping in Agents" (shared/sent.js placeName). Only for showing (docs/summaries.md); Pending is not changed. */
 let shaping = new Map();
 let shapingWatched = false;
 async function readShaping(app) {
@@ -282,7 +283,7 @@ function paintMap() {
   const panel = app.querySelector('[data-r="panel"]');
   if (!panel.contains(document.activeElement) || ui.selected !== panel.dataset.for) {
     panel.dataset.for = ui.selected || '';
-    setHtml(panel, ui.selected ? panelHtml(doc, ui.selected, sched, locked(), { addPerson: !v.readOnly, workItems: workItemsApp ? `Open in ${workItemsApp.name}` : null }) : '');
+    setHtml(panel, ui.selected ? panelHtml(doc, ui.selected, sched, locked(), { addPerson: !v.readOnly, workItems: workItemsApp ? `Open in ${placeName(workItemsApp.id)}` : null }) : '');
   }
   app.querySelector('.body').classList.toggle('has-panel', !!ui.selected);
 }

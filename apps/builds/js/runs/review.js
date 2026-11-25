@@ -7,6 +7,7 @@
    review-state.js has the logic and review-view.js the HTML; this file paints them, runs Monaco
    (shared/vendor/monaco, loaded by ../../../../shared/monaco.js) and handles input. */
 
+import { placeName } from '../../../../shared/sent.js';
 import { connect } from '../../../../shared/workshop-sdk.js';
 import { mountBar } from '../../../../shared/standalone-bar.js';
 import { applyMonacoTheme, loadMonaco } from '../../../../shared/monaco.js';
@@ -702,10 +703,10 @@ window.addEventListener('hashchange', () => {
 /* ---------- start ---------- */
 
 if (!MOCK && ws.backend !== 'agent') {
-  fatal('The code review needs Workshop running with the opencode connector on. Open it from Builds, or try the sample review.');
+  fatal(`The code review needs Workshop running with the opencode connector on. Open it from ${placeName('builds')}, or try the sample review.`);
   root.querySelector('.rv-fatal').insertAdjacentHTML('beforeend', ' <a class="btn" href="review.html?mock=1">Open the sample review</a>');
 } else if (!R.id) {
-  fatal('No work item was named. Open the review from Builds.');
+  fatal(`No work item was named. Open the review from ${placeName('builds')}.`);
 } else {
   try {
     R.item = await R.api.item(R.id);

@@ -1,3 +1,4 @@
+import { placeName } from '../../../../shared/sent.js';
 /* Dispatch: what it publishes for other apps (Workshop docs/summaries.md), and what it reads from Builds.
    Pure, so Node tests drive it. main.js writes the cards when the state changes.
 
@@ -26,7 +27,7 @@ export function summaryCards({ items = [], prompts = [], prs = [], now = Date.no
   const at = now;
   const agents = agentQueue({ items, asking, publish, gaps });
   return [
-    { id: 'needs', kind: 'list', title: 'Needs you in Builds', updatedAt: at, rows: needs.slice(0, 20), count: needs.length },
+    { id: 'needs', kind: 'list', title: `Needs you in ${placeName('builds')}`, updatedAt: at, rows: needs.slice(0, 20), count: needs.length },
     { id: 'done-week', kind: 'list', title: 'Shipped with Tandem this week', updatedAt: at, rows: done.slice(0, 20), count: done.length },
     { id: 'agents', kind: 'list', title: 'What your builds need from you', updatedAt: at, rows: agents.slice(0, 50), count: agents.length }
   ];

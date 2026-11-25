@@ -9,13 +9,13 @@
    page calling the agent on 127.0.0.1.
 
    Bump VERSION when shipping a change so open windows get the "New version" toast. */
-const VERSION = '7.54.0';
+const VERSION = '7.55.0';
 const CACHE = 'workshop-' + VERSION;
 const CORE = [
   './', './index.html', './manifest.webmanifest',
   './shell/shell.css', './shell/shell.js', './shell/capture.js', './shell/focus.js', './shell/flow.js',
   './shared/themes.css', './shared/ui.css', './shared/theme.js', './shared/sw-register.js',
-  './shared/workshop-sdk.js', './shared/pair.js', './shared/save-file.js', './shared/standalone-bar.js', './shared/site.js', './shared/app-folders.js', './shared/areas.js', './shared/rail-order.js', './shared/summary.js', './shared/focus.js', './shared/handoffs.js',
+  './shared/workshop-sdk.js', './shared/pair.js', './shared/save-file.js', './shared/standalone-bar.js', './shared/site.js', './shared/app-folders.js', './shared/areas.js', './shared/rail-order.js', './shared/summary.js', './shared/focus.js', './shared/handoffs.js', './shared/sent.js',
   './shared/capture.js', './shared/capture-box.js', './shared/voice.js', './shared/capture.css', './shared/people.js', './shared/teams.js', './shared/products.js', './shared/glossary.js', './shared/knowledge.js', './shared/app-settings.js', './shared/outside.js', './shared/ado.js', './shared/doc-html.js',
   './shared/fonts/fonts.css', './shared/brand/tokens.css',
   './shared/brand/fonts/inter-tight-latin-wght-normal.woff2', './shared/brand/fonts/inter-tight-latin-ext-wght-normal.woff2',

@@ -1,3 +1,4 @@
+import { placeName } from '../../../shared/sent.js';
 import { closeModal, showModal, toast } from './overlays.js';
 import { row } from './render.js';
 import { ROW_FIELDS, ROW_GROUPS, ROW_KEEPS, cleanRowFields, withHidden } from './row-fields-model.js';
@@ -19,7 +20,7 @@ function sample(){
     recur: {id: 'rf-preview'}, crumbs: [{at: Date.now(), text: 'left off at the second section'}]
   };
 }
-const AGENT = '<span class="chip eng" data-tip="Agent status from Builds">Plan ready</span>';
+const AGENT = `<span class="chip eng" data-tip="Agent status from ${placeName('builds')}">Plan ready</span>`;
 
 function previewHtml(){
   return row(sample(), {start: true, crumb: true, hidden: [...draft],

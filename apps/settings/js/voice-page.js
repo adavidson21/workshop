@@ -4,6 +4,7 @@
    (shared/voice.js, applyPending). Audiences: caps, rules, shared rules, banned words.
    Rules: what it learned, by status. Saves Settings' `writing` collection meta (voice-model.js); the AI steps go
    through the opencode connector's voice.run and voice.result (read-only agent, needs Hub on). */
+import { placeName } from '../../../shared/sent.js';
 import * as V from './voice-model.js';
 
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -76,7 +77,7 @@ export async function mountWriting({ ws, toast, pageEl, sleep = ms => new Promis
         if (r.state === 'done') return r.text;
         if (r.state === 'failed') throw new Error(r.error || 'The step failed.');
       }
-      throw new Error('That took more than 20 minutes. Check the session in Builds, then try again.');
+      throw new Error(`That took more than 20 minutes. Check the session in ${placeName('builds')}, then try again.`);
     } finally { busy = ''; paint(); }
   }
   const aiError = e => {

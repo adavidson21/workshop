@@ -23,13 +23,13 @@ test('routes: the board half owns items, Health, Sprints, Board and Roadmaps lin
 });
 
 test('summary: needs rows join (runs first, each id once), counts add up, other cards pass through', () => {
-  const board = [{ id: 'needs', kind: 'list', title: 'Needs you in Builds', rows: [{ id: 'w1', title: 'Decide' }, { id: 'shared', title: 'B' }], count: 2 },
+  const board = [{ id: 'needs', kind: 'list', title: 'Needs you in Agents', rows: [{ id: 'w1', title: 'Decide' }, { id: 'shared', title: 'B' }], count: 2 },
     { id: 'runs', kind: 'list', title: 'Runs in Builds', rows: [] }];
   const runs = [{ id: 'needs', kind: 'list', title: 'Needs you in Dispatch', rows: [{ id: 'f1', title: 'Asking' }, { id: 'shared', title: 'R' }], count: 2, updatedAt: 5 },
     { id: 'done-week', kind: 'list', title: 'Shipped', rows: [{ id: 'x' }] }];
   const out = mergeCards(board, runs);
   const needs = out.find(c => c.id === 'needs');
-  assert.equal(needs.title, 'Needs you in Builds');
+  assert.equal(needs.title, 'Needs you in Agents');
   assert.deepEqual(needs.rows.map(r => [r.id, r.title]), [['f1', 'Asking'], ['shared', 'R'], ['w1', 'Decide']]);
   assert.equal(needs.count, 4);
   assert.equal(needs.updatedAt, 5);
@@ -38,7 +38,7 @@ test('summary: needs rows join (runs first, each id once), counts add up, other 
 
 test('summary: held cards add up', () => {
   const out = mergeCards([{ id: 'held', kind: 'held', block: 'k', count: 1, label: '1 Builds item' }], [{ id: 'held', kind: 'held', block: 'k', count: 2, label: '2 Dispatch' }]);
-  assert.deepEqual(out, [{ id: 'held', kind: 'held', block: 'k', count: 3, label: '3 updates waiting in Builds' }]);
+  assert.deepEqual(out, [{ id: 'held', kind: 'held', block: 'k', count: 3, label: '3 updates waiting in Agents' }]);
 });
 
 test('summary: a waiting run that has a card opens the card from Needs you, once', () => {

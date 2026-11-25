@@ -7,6 +7,7 @@
    #/chat/chat/<session> opens one chat (any opencode session in the workspace), #/chat/rewrite opens New chat on
    Rewrite (rewrite.js, a mode of New chat since Chat 2.2.0). Permission prompts and questions are answered in the chat; Builds' Inbox lists
    them too. */
+import { placeName } from '../../../shared/sent.js';
 import { connect } from '../../../shared/workshop-sdk.js';
 import { mountBar } from '../../../shared/standalone-bar.js';
 import { useApps } from '../../../shared/capture.js';
@@ -20,7 +21,7 @@ document.documentElement.classList.toggle('embed', ws.embedded);
 
 const app = document.getElementById('app');
 const hubEl = document.getElementById('hub');
-const asksHtml = () => '<p class="chat-asks">Tandem is asking you something. <button type="button" class="lnk" data-open-inbox>Answer it in Builds\' Inbox</button></p>';
+const asksHtml = () => `<p class="chat-asks">Tandem is asking you something. <button type="button" class="lnk" data-open-inbox>Answer it in ${placeName('builds')}' Inbox</button></p>`;
 
 // Capture targets and places follow the apps on this site (their manifests).
 ws.apps.list().then(useApps).catch(() => {});

@@ -23,6 +23,7 @@
    Since Chat 2.2.0 there is no AI switch here: AI is on whenever the opencode connector is on and ready (turn the
    connector off in Settings to stop it). When it cannot run, a line under the input says why. */
 import { createCaptureStore } from '../../../shared/capture-box.js';
+import { placeName, sentToast } from '../../../shared/sent.js';
 import { TARGETS, TARGET_NAMES, buildAsk, cleanupAsk, describe, isCapture, nextKind, parseCapture, retarget } from '../../../shared/capture.js';
 import { HUB_GIVE_UP_MS, actAllowed, answerHtml, checkRoute, esc, flowCardsHtml, flowRoute, hubContext, hubId, isLow, repairRoute, toProposal } from './hub-model.js';
 import { keepFocus, lastTandem } from './thread.js';
@@ -200,7 +201,9 @@ export function startHub(ws, root, { onThread = () => {}, onChange = () => {}, o
     try {
       const sent = await store.send(rows.map(r => r.p));
       rows.forEach((r, i) => { r.state = 'sent'; r.hid = sent[i] && sent[i].id; });
-      ws.toast(rows.length === 1 ? `Sent to ${describe(rows[0].p).split(' · ')[0]}` : `${rows.length} captures sent`, { kind: 'success' });
+      // One target: a button there. Several: name them, and open the first.
+      const tos = [...new Set(rows.map(r => r.p.to))];
+      sentToast(ws, { app: tos[0], text: rows.length === 1 ? `Sent to ${describe(rows[0].p).split(' · ')[0]}.` : `${rows.length} captures sent to ${tos.map(placeName).join(' and ')}.` });
     } catch (e) { ws.toast(e && e.code === 'unavailable' ? 'Allow Workshop to use your folder first.' : "Couldn't save that. Try again.", { kind: 'error' }); }
     draw();
   }
@@ -214,12 +217,13 @@ export function startHub(ws, root, { onThread = () => {}, onChange = () => {}, o
   async function runAct(card) {
     const a = card.route && card.route.act;
     if (!actAllowed(a)) return;
-    try { await ws.connectors.call(a.connector, a.action, a.args, { confirm: true }); ws.toast('Started. It shows below.', { kind: 'success' }); card.acted = true; }
+    // spike and start.local (hub-model.js ACTS) start agent work, which shows in Agents (Builds), not in this chat.
+    try { await ws.connectors.call(a.connector, a.action, a.args, { confirm: true }); sentToast(ws, { app: 'builds', text: `Started in ${placeName('builds')}: ${a.label}.` }); card.acted = true; }
     catch (e) { ws.toast(e.message || 'Could not start that.', { kind: 'error' }); }
     draw();
   }
   /** A flow card: Builds' Start work on that flow, filled in with the ask. Nothing starts until Start there. */
-  function openFlow(id, text) { ws.open({ app: 'builds', path: flowRoute(id, text) }).catch(() => ws.toast('Turn Builds on in Settings, Apps.', { kind: 'warn' })); }
+  function openFlow(id, text) { ws.open({ app: 'builds', path: flowRoute(id, text) }).catch(() => ws.toast(`Turn ${placeName('builds')} on in Settings, Apps.`, { kind: 'warn' })); }
   async function saveNote(card) {
     await noteOf(card.text, card.answer || card.said || '');
   }
@@ -227,7 +231,7 @@ export function startHub(ws, root, { onThread = () => {}, onChange = () => {}, o
   async function noteOf(title, answer) {
     const body = `${title}\n\n${answer || ''}`.trim();
     const p = { kind: 'note', to: 'notes', text: body.slice(0, 2000), title: String(title).slice(0, 120), payload: { kind: 'note', title: String(title).slice(0, 120) } };
-    try { await store.send([p]); ws.toast('Saved to Notes (inbox).', { kind: 'success' }); } catch (e) { ws.toast("Couldn't save that.", { kind: 'error' }); }
+    try { await store.send([p]); sentToast(ws, { app: 'notes', text: 'Saved to Notes, in inbox/.' }); } catch (e) { ws.toast("Couldn't save that.", { kind: 'error' }); }
   }
 
   /* ---------- drawing ---------- */
@@ -263,7 +267,7 @@ export function startHub(ws, root, { onThread = () => {}, onChange = () => {}, o
     if (route && route.intent === 'go') body += `<p class="hub-meta">Opened ${esc(TARGET_NAMES[route.go.app] || route.go.app)}.</p>`;
     if (route && route.intent === 'act') {
       body += actAllowed(route.act)
-        ? `<p class="hub-actions"><button class="btn primary" type="button" data-hub-act ${card.acted ? 'disabled' : ''}>${esc(route.act.label)}</button></p>`
+        ? `<p class="hub-actions"><button class="btn primary" type="button" data-hub-act ${card.acted ? 'disabled' : ''}>${esc(route.act.label)}</button> <span class="hub-meta">${card.acted ? `Started. It is in ${esc(placeName('builds'))}.` : `Runs in opencode. The work shows in ${esc(placeName('builds'))}.`}</span></p>`
         : `<p class="hub-meta">Suggested: ${esc(route.act.label)}. Chat does not run that from here.</p>`;
     }
     if (route && route.intent === 'clarify') {
