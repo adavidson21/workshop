@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { STAMP_MIN, STAMP_RATE, learningHtml, pipelineHtml, promptsHtml, setupHtml, tandemHealthHtml } from '../js/tandem-health.js';
+import { STAMP_MIN, STAMP_RATE, learningHtml, permissionsHtml, pipelineHtml, promptsHtml, setupHtml, tandemHealthHtml } from '../js/tandem-health.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const fixture = () => JSON.parse(fs.readFileSync(path.join(here, 'fixtures', 'tandem-health.json'), 'utf8'));
@@ -71,4 +71,21 @@ test('setup: version, missing and unfinished repo guides', () => {
   assert.match(html, /No repo guide: <code>docs<\/code>/);
   assert.match(html, /TODO\(you\): <code>web<\/code>/);
   assert.match(setupHtml({ install: null, workspace: null, repoGuides: { total: 0, missing: [], todo: [] } }), /Not installed from a repo/);
+});
+
+test('permission prompts: an older connector, none yet, the table and what to paste', () => {
+  assert.match(permissionsHtml(undefined), /1\.42\.0 or later/);
+  assert.match(permissionsHtml({ total: 0, groups: [], suggest: [] }), /No permission prompts logged yet/);
+  const html = permissionsHtml({ total: 5, groups: [
+    { permission: 'bash', key: 'Remove-Item *', asked: 4, once: 3, always: 1, reject: 0, unknown: 0 },
+    { permission: 'edit', key: '<AGENTS.md>', asked: 1, once: 0, always: 0, reject: 0, unknown: 1 },
+  ], suggest: [{ key: 'Remove-Item *', asked: 4 }] });
+  assert.match(html, /5 prompts in this range/);
+  assert.match(html, /3 once, 1 always/);
+  assert.match(html, /1 elsewhere/);
+  assert.match(html, /&lt;AGENTS\.md&gt;/, 'escaped');
+  assert.match(html, /personal\/permissions\/guards\.json/);
+  assert.match(html, /&quot;Remove-Item \*&quot;: &quot;allow&quot;/);
+  assert.match(permissionsHtml({ total: 1, groups: [], suggest: [] }), /Nothing to suggest yet/);
+  assert.match(tandemHealthHtml({ data: fixture() }), /class="tsh">Permission prompts</);
 });
