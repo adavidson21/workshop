@@ -8,7 +8,8 @@
 import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import { APP, FRESH_SESSION, VERSION, commandError, httpError, log, opt, sameDir, workRoot } from "./context.mjs";
+import { APP, FRESH_SESSION, VERSION, commandError, httpError, log, opt, sameDir, stateDir, workRoot } from "./context.mjs";
+import { logAnswer } from "./prompt-log.mjs";
 import { model, modelError, refresh, scheduleRefresh } from "./model.mjs";
 import { currentSession, folderForSession, folderForToken, linkFrom, linkSession, links, saveLinks } from "./links.mjs";
 import { oc, permissions, questions, sessions, upsertSession } from "./opencode-state.mjs";
@@ -245,6 +246,7 @@ export async function answerPermission({ id, reply: answer }) {
   if (!p) throw httpError(404, "That prompt was already answered.");
   if (!["once", "always", "reject"].includes(answer)) throw httpError(400, "Bad answer.");
   await oc.api.replyPermission(p, answer);
+  logAnswer(stateDir, id, answer, "workshop");
   permissions.delete(id);
   broadcastLive();
   return { ok: true };

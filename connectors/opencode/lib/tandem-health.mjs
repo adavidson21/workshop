@@ -9,6 +9,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { promptSummary } from "./prompt-log.mjs";
 
 export const HEALTH_VERSION = 1;
 
@@ -382,5 +383,7 @@ export function tandemHealth({ workRoot, workspace, repos = listRepos(workspace)
     findings: reviewFindings(workRoot, { since }),
     evals: install ? evalResults(install.source) : null,
     setup: { install, workspace: workspace || null, repoGuides: repoGuides(workspace, repos) },
+    // 1.42.0: permission prompts from .work/_dashboard/prompts.jsonl (lib/prompt-log.mjs). Optional for readers.
+    permissions: promptSummary(workRoot ? path.join(workRoot, "_dashboard") : null, { since }),
   };
 }

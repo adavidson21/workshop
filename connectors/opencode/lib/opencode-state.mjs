@@ -8,7 +8,8 @@ import { spawn } from "node:child_process";
 import { EventEmitter } from "node:events";
 import http from "node:http";
 import https from "node:https";
-import { cancel, ctx, isWin, later, log, opt } from "./context.mjs";
+import { cancel, ctx, isWin, later, log, opt, stateDir } from "./context.mjs";
+import { logPrompt, resetPromptLog } from "./prompt-log.mjs";
 import { autoOnBusy, autoOnIdle } from "./autopilot.mjs";
 import { broadcastLive, emitDone } from "./live.mjs";
 
@@ -47,7 +48,17 @@ export function parseProviders(body) {
   return null;
 }
 export const sessions = new Map(); // id -> { id, title, status, activity, text, textAt, busySince, error, command }
-export const permissions = new Map(); // id -> normalized request
+// id -> normalized request. Each new prompt is also logged (lib/prompt-log.mjs) for Builds' Health > Tandem.
+class PromptMap extends Map {
+  set(id, p) {
+    if (!this.has(id)) {
+      const s = p && sessions.get(p.sessionID);
+      logPrompt(stateDir, p, s ? { title: s.title, command: s.command } : null);
+    }
+    return super.set(id, p);
+  }
+}
+export const permissions = new PromptMap();
 export const questions = new Map(); // id -> normalized request
 
 export function resetState() {
@@ -55,6 +66,7 @@ export function resetState() {
   sessions.clear();
   permissions.clear();
   questions.clear();
+  resetPromptLog();
   turnText.clear();
   doneFor.clear();
   cancel(promptsTimer);

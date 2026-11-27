@@ -3,7 +3,8 @@
 // Copied from eng-agents core/scripts/dashboard/server/opencode-v1.mjs (gone from eng-agents since Core 2.11.0; this is the only copy). Change: the reload after
 // opencode disposes its instance stops with the connector.
 
-import { httpError, later, opt } from "./context.mjs";
+import { httpError, later, opt, stateDir } from "./context.mjs";
+import { logAnswer } from "./prompt-log.mjs";
 import { folderForArgs, linkFrom } from "./links.mjs";
 import { appendText, errText, httpJson, oc, parseProviders, permissions, questions, sessions, setBusy, setIdle, setText, toolLine, upsertSession } from "./opencode-state.mjs";
 import { loadState } from "./opencode-connect.mjs";
@@ -363,9 +364,12 @@ export function makeV1(url) {
         case "permission.updated": // older 1.x
           if (p.id) permissions.set(p.id, normPermission(p));
           break;
-        case "permission.replied":
-          permissions.delete(p.requestID || p.permissionID || p.id);
+        case "permission.replied": {
+          const id = p.requestID || p.permissionID || p.id;
+          if (p.reply || p.response) logAnswer(stateDir, id, p.reply || p.response, "opencode"); // answered in opencode's window
+          permissions.delete(id);
           break;
+        }
         case "question.asked":
           if (p.id) questions.set(p.id, normQuestion(p));
           break;

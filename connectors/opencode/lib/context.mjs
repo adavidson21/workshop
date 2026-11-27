@@ -18,7 +18,7 @@ import { isLocal } from "./local-model.mjs";
 export const HERE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 export const MAX_AUTO_RUNS = 5; // the hard cap: more mostly competes for the model's rate limits and the CPU (3 until 1.21.0)
 export const DEFAULT_AUTO_RUNS = 2;
-export const VERSION = "1.41.0"; // the connector's version (index.mjs exports it)
+export const VERSION = "1.42.0"; // the connector's version (index.mjs exports it)
 export const APP = "eng-agents-dashboard"; // the shell status shape keeps this name (README, `status`)
 export const FRESH_SESSION = new Set(["do-task", "check-docs"]); // the pipeline says: run these in a new session
 export const isWin = process.platform === "win32";

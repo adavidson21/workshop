@@ -19,6 +19,7 @@ The answer:
 | `findings` | Every review finding with its category, and patterns that repeat | `.work`, as eng-agents' `core/scripts/stats/Get-ReviewFindings.ps1 -AsJson` |
 | `evals` | The newest two eval result files, per case (tandem arm only; baseline rows of a version 2 file are for [Bench](bench.md)), or `null` | `<eng-agents clone>/evals/results/*.json` ([evals/README.md](https://github.com/adavidson21/eng-agents/blob/main/evals/README.md)) |
 | `setup` | Installed Tandem version and commit, the workspace, repo guides | `~/.config/opencode/eng-agents/manifest.json` (written by `install.ps1`), the workspace folders |
+| `permissions` | Permission prompts: `{total, groups: [{permission, key, asked, once, always, reject, unknown, last, command}], suggest: [{key, asked}]}`, most asked first (15 at most). `suggest` lists shell patterns asked 3 or more times, never rejected and allowed at least twice, minus pushes, publishes, secrets and admin commands. Optional: older connectors leave it out (connector 1.42.0) | `.work/_dashboard/prompts.jsonl`, written by the opencode connector as prompts come up (`lib/prompt-log.mjs`) |
 
 ## What `.work` gives (`pipeline` and `findings`)
 
@@ -65,4 +66,4 @@ From `review.md` and every `history/review-*.md` (earlier rounds) in each work i
 
 ## Showing it
 
-Builds shows four parts: **Pipeline** (tiles, gates with a "rubber stamp?" mark at 80% as written over 5 or more approvals, recent items linking to their run), **Learning loop** (repeating patterns, findings by category, retro coverage), **Prompts** (latest eval run per case, change against the one before, drops marked, and a link to Bench for the lift and history) and **Setup**. Each says what to run when it has nothing to show.
+Builds shows five parts: **Pipeline** (tiles, gates with a "rubber stamp?" mark at 80% as written over 5 or more approvals, recent items linking to their run), **Learning loop** (repeating patterns, findings by category, retro coverage), **Prompts** (latest eval run per case, change against the one before, drops marked, and a link to Bench for the lift and history), **Permission prompts** (what opencode asked most, how you answered, and the `suggest` patterns as JSON to paste into eng-agents' `personal/permissions/guards.json`) and **Setup**. Each says what to run when it has nothing to show.

@@ -1,5 +1,7 @@
 # Builds
 
+**6.25.0 (permission prompts).** Health > Tandem has a **Permission prompts** part: the prompts opencode raised most in this workspace, how you answered each, and the shell patterns you always allowed as JSON for eng-agents' `personal/permissions/guards.json` (opencode connector 1.42.0, [docs/tandem-health.md](../../docs/tandem-health.md)).
+
 **6.24.0 (says where things go).** Copy calls this app by the name on screen, **Agents** (or Builds without Tasks; `shared/sent.js`). Work sent from a task says "Started from your task" with **Back to task**. Save to Notes, Sent to Tasks and Sent to Roadmaps toasts have a button straight there.
 
 **6.23.0 (Tasks and Agents are one place).** Builds is the **Agents** tab of Tasks: one rail button, with Tasks and Agents as tabs beside the crumbs (manifest `tabOf`, docs/app-manifest.md, Tabs). Its address (`#/builds/...`) and badge still work; the badge adds to Tasks' rail button. A run started from a task (Send to agents in the task's details, the whole task or one part of it) is linked to that task in Builds' `task-runs` collection, and the summary's `tasks` card tells Tasks where each run is and which document to preview (`js/runs/task-runs.js`). The document renderer moved to `shared/doc-html.js` so Tasks shows the same previews.

@@ -65,6 +65,22 @@ export function learningHtml(p, f) {
       : '<p class="soft">No categorized findings yet (review.md files from Tandem Core 2.23.0 and later).</p>'}`;
 }
 
+/** Permission prompts (connector 1.42.0): what opencode asked most, how you answered, and shell patterns to stop being asked. */
+export function permissionsHtml(perm) {
+  if (!perm) return '<p class="soft">Update the opencode connector (1.42.0 or later) to log permission prompts.</p>';
+  if (!perm.total) return '<p class="soft">No permission prompts logged yet. Each one opencode raises in this workspace is counted here from now on.</p>';
+  const ans = (g) => [g.once && `${g.once} once`, g.always && `${g.always} always`, g.reject && `${g.reject} rejected`, g.unknown && `${g.unknown} elsewhere`].filter(Boolean).join(', ');
+  const rows = (perm.groups || []).map(g => `<tr><th scope="row"><code>${esc(g.key || '(no pattern)')}</code></th><td>${esc(g.permission)}</td><td class="num">${g.asked}</td><td>${esc(ans(g))}</td></tr>`).join('');
+  const sug = perm.suggest || [];
+  const json = sug.length ? JSON.stringify(Object.fromEntries(sug.map(x => [x.key, 'allow'])), null, 2) : '';
+  return `<p>${plural(perm.total, 'prompt')} in this range.</p>
+    <table class="htable"><thead><tr><th>Pattern</th><th>Kind</th><th class="num">Asked</th><th>Your answers</th></tr></thead><tbody>${rows}</tbody></table>
+    ${sug.length ? `<h3>Stop being asked</h3>
+      <p class="soft small">You allowed these every time. Read them, then paste the ones you trust into <code>personal/permissions/guards.json</code> in your eng-agents fork and run <code>./update.ps1</code>. Pushes, secrets and admin commands are never suggested.</p>
+      <pre class="tcode">${esc(json)}</pre>`
+      : '<p class="soft small">Nothing to suggest yet: a shell pattern shows up here after you allow it at least twice, with 3 or more prompts and no rejections.</p>'}`;
+}
+
 export function promptsHtml(evals) {
   if (!evals) return '<p class="soft">Tandem\'s install record was not found, so there is nowhere to read eval results from. Install Tandem from its repo (<code>./install.ps1</code>).</p>';
   const { latest, previous } = evals;
@@ -97,7 +113,7 @@ export function setupHtml(setup) {
     ${g.todo.length ? `<p class="warn">Still has TODO(you): ${g.todo.map(r => `<code>${esc(r)}</code>`).join(', ')}. Agents work carefully around gaps; fill them in.</p>` : ''}`;
 }
 
-/** The Tandem card's body: a note, loading, or the four sections. */
+/** The Tandem card's body: a note, loading, or the five sections. */
 export function tandemHealthHtml(st) {
   if (!st || st.note) return `<p class="soft">${esc((st && st.note) || 'Tandem health comes from the opencode connector.')}</p>`;
   if (!st.data) return st.error ? `<p class="warn">${esc(st.error)}</p>` : '<p class="loading">Reading .work…</p>';
@@ -107,6 +123,7 @@ export function tandemHealthHtml(st) {
     <div class="tgrid">
       <section class="tsec wide"><h3 class="tsh">Pipeline</h3>${pipelineHtml(d.pipeline)}</section>
       <section class="tsec"><h3 class="tsh">Learning loop</h3>${learningHtml(d.pipeline, d.findings)}</section>
+      <section class="tsec wide"><h3 class="tsh">Permission prompts</h3>${permissionsHtml(d.permissions)}</section>
       <section class="tsec"><h3 class="tsh">Prompts</h3>${promptsHtml(d.evals)}</section>
       <section class="tsec"><h3 class="tsh">Setup</h3>${setupHtml(d.setup)}</section>
     </div>
